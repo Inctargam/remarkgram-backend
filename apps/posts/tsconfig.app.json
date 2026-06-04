@@ -2,7 +2,9 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "declaration": false,
-    "outDir": "../../dist/apps/posts"
+    "rootDir": "src",
+    "outDir": "../../dist/apps/posts",
+    "tsBuildInfoFile": "../../dist/apps/posts/tsconfig.app.tsbuildinfo"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
