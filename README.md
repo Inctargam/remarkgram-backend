@@ -31,6 +31,10 @@
 $ pnpm install
 ```
 
+## Development workflow
+
+Create a short-lived branch for each task and open a pull request into `main`.
+
 ## Compile and run the project
 
 ```bash
