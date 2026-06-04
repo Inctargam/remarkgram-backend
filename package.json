@@ -8,10 +8,13 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
+    "build:api-gateway": "nest build api-gateway",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "start": "nest start",
+    "start:api-gateway": "nest start api-gateway",
     "start:dev": "nest start --watch",
+    "start:dev:api-gateway": "nest start api-gateway --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/apps/api-gateway/main.js",
     "lint": "eslint .",
