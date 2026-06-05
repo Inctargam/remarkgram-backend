@@ -2,7 +2,9 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "declaration": false,
-    "outDir": "../../dist/apps/users"
+    "rootDir": "src",
+    "outDir": "../../dist/apps/users",
+    "tsBuildInfoFile": "../../dist/apps/users/tsconfig.app.tsbuildinfo"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]

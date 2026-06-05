@@ -12,7 +12,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "start": "nest start",
-    "start:api-gateway": "nest start api-gateway",
+    "start:api-gateway": "node dist/apps/api-gateway/main.js",
     "start:dev": "nest start --watch",
     "start:dev:api-gateway": "nest start api-gateway --watch",
     "start:debug": "nest start --debug --watch",

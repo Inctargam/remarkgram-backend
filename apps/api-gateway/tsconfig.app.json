@@ -3,7 +3,8 @@
   "compilerOptions": {
     "declaration": false,
     "rootDir": "src",
-    "outDir": "../../dist/apps/api-gateway"
+    "outDir": "../../dist/apps/api-gateway",
+    "tsBuildInfoFile": "../../dist/apps/api-gateway/tsconfig.app.tsbuildinfo"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
