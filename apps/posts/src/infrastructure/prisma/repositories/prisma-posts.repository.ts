@@ -15,11 +15,10 @@ export class PrismaPostsRepository implements PostsRepository {
         content: postDto.content,
       },
     });
-    console.log('create ->', post);
     return PostPrismaMapper.toDomain(post);
   }
 
-  async findAll(): Promise<Post[]> {
+  async findMany(): Promise<Post[]> {
     const posts = await this.prisma.post.findMany();
 
     return posts.map((p) => Post.restore(p));

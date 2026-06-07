@@ -1,4 +1,4 @@
-import { Post } from '../../../domain/entities/post.entity.js';
+import { Post } from '../../../../domain/entities/post.entity.js';
 
 export class PostResponseDto {
   constructor(
@@ -7,7 +7,7 @@ export class PostResponseDto {
     readonly content: string,
   ) {}
 
-  static fromDomain(post: Post): PostResponseDto {
+  static mapToView(post: Post): PostResponseDto {
     return new PostResponseDto(post.id as number, post.title, post.content);
   }
 }
