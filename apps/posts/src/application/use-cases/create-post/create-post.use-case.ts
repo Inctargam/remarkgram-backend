@@ -14,7 +14,7 @@ export class CreatePostCommand extends Command<{
 }
 
 @CommandHandler(CreatePostCommand)
-export class KillDragonHandler implements ICommandHandler<CreatePostCommand> {
+export class CreatePostHandler implements ICommandHandler<CreatePostCommand> {
   constructor(private postsRepository: PostsRepository) {}
 
   async execute(command: CreatePostCommand) {

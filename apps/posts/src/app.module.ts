@@ -5,7 +5,7 @@ import { PostsController } from './presentation/http/controllers/posts.controlle
 import { PrismaService } from './infrastructure/prisma/prisma.service.js';
 import { PrismaPostsRepository } from './infrastructure/prisma/repositories/prisma-posts.repository.js';
 import { PostsRepository } from './application/ports/posts.repository.js';
-import { KillDragonHandler } from './application/use-cases/create-post/create-post.use-case.js';
+import { CreatePostHandler } from './application/use-cases/create-post/create-post.use-case.js';
 import { GetPostsQueryHandler } from './application/use-cases/get-posts/get-posts.use-case.js';
 
 @Module({
@@ -29,7 +29,7 @@ import { GetPostsQueryHandler } from './application/use-cases/get-posts/get-post
   providers: [
     PrismaService,
     PrismaPostsRepository,
-    KillDragonHandler,
+    CreatePostHandler,
     GetPostsQueryHandler,
     {
       provide: PostsRepository,
