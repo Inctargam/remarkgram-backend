@@ -1,4 +1,4 @@
-import { Post } from '../../../../domain/entities/post.entity.js';
+import type { Post } from '../../../../domain/entities/post.entity.js';
 
 export class PostResponseDto {
   constructor(
