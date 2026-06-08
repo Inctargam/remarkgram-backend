@@ -1,0 +1,14 @@
+node_modules
+dist
+coverage
+.git
+.agents
+.codex
+.env
+.env.*
+apps/*/.env
+apps/*/.env.*
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
