@@ -6,6 +6,8 @@
 # TypeScript output accidentally emitted into source directories
 /apps/**/src/**/*.js
 /apps/**/src/**/*.js.map
+/libs/**/**/*.js
+/libs/**/**/*.js.map
 
 # Logs
 logs
