@@ -7,6 +7,7 @@ import { PrismaPostsRepository } from './infrastructure/prisma/repositories/pris
 import { PostsRepository } from './application/ports/posts.repository.js';
 import { CreatePostHandler } from './application/use-cases/create-post/create-post.use-case.js';
 import { GetPostsQueryHandler } from './application/use-cases/get-posts/get-posts.use-case.js';
+import { PostsConfig } from './config/posts.config.js';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { GetPostsQueryHandler } from './application/use-cases/get-posts/get-post
     }),
   ],
   providers: [
+    PostsConfig,
     PrismaService,
     PrismaPostsRepository,
     CreatePostHandler,
@@ -37,5 +39,6 @@ import { GetPostsQueryHandler } from './application/use-cases/get-posts/get-post
     },
   ],
   controllers: [PostsController],
+  exports: [PostsConfig],
 })
 export class AppModule {}

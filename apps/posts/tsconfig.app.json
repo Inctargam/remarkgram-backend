@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "declaration": false,
-    "rootDir": "src",
+    "rootDir": "../..",
     "outDir": "../../dist/apps/posts",
     "tsBuildInfoFile": "../../dist/apps/posts/tsconfig.app.tsbuildinfo"
   },
