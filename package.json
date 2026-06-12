@@ -36,7 +36,7 @@
     "prisma:users:migrate:deploy": "prisma migrate deploy --config apps/users/prisma.config.ts",
     "prisma:users:status": "prisma migrate status --config apps/users/prisma.config.ts",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "lint:fix": "eslint \"**/*.ts\" --fix",
     "test": "vitest run --exclude \"apps/**/*.e2e-spec.ts\"",
     "test:watch": "vitest --exclude \"apps/**/*.e2e-spec.ts\"",
     "test:cov": "vitest run --exclude \"apps/**/*.e2e-spec.ts\" --coverage",
