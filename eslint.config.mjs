@@ -14,6 +14,7 @@ export default defineConfig(
     'apps/**/*.js.map',
     'libs/**/*.js',
     'libs/**/*.js.map',
+    '**/prisma/generated/**',
     'eslint.config.mjs',
   ]),
   eslint.configs.recommended,
