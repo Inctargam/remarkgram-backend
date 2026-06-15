@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { ConfigService } from '@nestjs/config';
-import { Environments } from '@libs/config/index.js';
+import { Environments } from '../../../../libs/config/index.js';
 import { FilesConfig } from './files.config.js';
 
 describe('FilesConfig', () => {

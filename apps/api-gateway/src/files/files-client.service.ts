@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { FILES_SERVICE } from './files-client.constants.js';
 import { ClientProxy } from '@nestjs/microservices';
-import type { FilesPingResponse, FilesTestEventRequest } from '@libs/contracts/files/index.js';
-import { FILES_EVENTS, FILES_PATTERNS } from '@libs/contracts/files/index.js';
+import type { FilesPingResponse, FilesTestEventRequest } from '../../../../libs/contracts/files/index.js';
+import { FILES_EVENTS, FILES_PATTERNS } from '../../../../libs/contracts/files/index.js';
 import { firstValueFrom } from 'rxjs';
 
 @Injectable()

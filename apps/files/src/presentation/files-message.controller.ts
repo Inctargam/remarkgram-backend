@@ -5,7 +5,7 @@ import {
   FILES_PATTERNS,
   type FilesPingResponse,
   type FilesTestEventRequest,
-} from '@libs/contracts/files/index.js';
+} from '../../../../libs/contracts/files/index.js';
 
 @Controller()
 export class FilesMessageController {

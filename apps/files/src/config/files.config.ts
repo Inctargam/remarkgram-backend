@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IsEnum, IsInt, IsString, Max, Min } from 'class-validator';
-import { configValidationUtility, Environments } from '@libs/config/index.js';
+import { configValidationUtility, Environments } from '../../../../libs/config/index.js';
 
 @Injectable()
 export class FilesConfig {
