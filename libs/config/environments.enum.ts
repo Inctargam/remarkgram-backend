@@ -1,7 +1,1 @@
-export enum Environments {
-  DEVELOPMENT = 'development',
-  STAGING = 'staging',
-  PRODUCTION = 'production',
-  TESTING = 'testing',
-  MIGRATION = 'migration',
-}
+export enum Environments {  DEVELOPMENT = 'development',  STAGING = 'staging',  PRODUCTION = 'production',  TESTING = 'testing',  MIGRATION = 'migration',}
