@@ -2,4 +2,5 @@ allowBuilds:
   '@nestjs/core': true
   '@prisma/engines': true
   '@swc/core': true
+  grpc-tools: false
   prisma: true

@@ -44,6 +44,8 @@
     "test:e2e": "vitest run --exclude \"apps/**/*.spec.ts\""
   },
   "dependencies": {
+    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/proto-loader": "^0.8.1",
     "@nestjs/common": "^11.1.24",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.24",

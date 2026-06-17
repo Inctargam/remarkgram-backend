@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { FilesConfig } from './config/files.config.js';
-import { FilesMessageController } from './presentation/files-message.controller.js';
+import { FilesGrpcController } from './presentation/grpc/files-grps.controller.js';
 
 @Module({
   imports: [
@@ -20,7 +20,7 @@ import { FilesMessageController } from './presentation/files-message.controller.
       ],
     }),
   ],
-  controllers: [FilesMessageController],
+  controllers: [FilesGrpcController],
   providers: [FilesConfig],
   exports: [FilesConfig],
 })

@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package remarkgram.files.v1;
+
+service FilesService {
+  rpc UploadFile(UploadFileRequest) returns (UploadFileResponse);
+}
+
+message UploadFileRequest {
+  string original_filename = 1;
+}
+
+message UploadFileResponse {
+  string id = 1;
+}
