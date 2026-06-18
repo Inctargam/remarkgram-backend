@@ -3,15 +3,9 @@
   "compilerOptions": {
     "declaration": false,
     "rootDir": "../..",
-    "outDir": "../../dist/apps/files"
+    "outDir": "../../dist/apps/files",
+    "tsBuildInfoFile": "../../dist/apps/files/tsconfig.app.tsbuildinfo"
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "test",
-    "**/*spec.ts"
-  ]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
 }
