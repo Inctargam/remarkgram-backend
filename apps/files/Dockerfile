@@ -20,4 +20,4 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 USER node
 EXPOSE ${PORT}
-CMD ["sh", "-c", "node dist/apps/${SERVICE}/main.js"]
+CMD ["sh", "-c", "node dist/apps/${SERVICE}/apps/${SERVICE}/src/main.js"]
