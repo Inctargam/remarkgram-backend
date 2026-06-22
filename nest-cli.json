@@ -18,7 +18,22 @@
       "entryFile": "main",
       "sourceRoot": "apps/api-gateway/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/api-gateway/tsconfig.app.json"
+        "tsConfigPath": "apps/api-gateway/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "../../../libs/contracts/files-grpc/src/proto/*.proto",
+            "outDir": "dist/apps/api-gateway/libs/contracts/files-grpc"
+          }
+        ]
+      }
+    },
+    "config": {
+      "type": "library",
+      "root": "libs/config",
+      "entryFile": "index",
+      "sourceRoot": "libs/config/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/config/tsconfig.lib.json"
       }
     },
     "files": {
@@ -27,7 +42,22 @@
       "entryFile": "main",
       "sourceRoot": "apps/files/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/files/tsconfig.app.json"
+        "tsConfigPath": "apps/files/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "../../../libs/contracts/files-grpc/src/proto/*.proto",
+            "outDir": "dist/apps/files/libs/contracts/files-grpc"
+          }
+        ]
+      }
+    },
+    "files-grpc": {
+      "type": "library",
+      "root": "libs/contracts/files-grpc",
+      "entryFile": "index",
+      "sourceRoot": "libs/contracts/files-grpc/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/contracts/files-grpc/tsconfig.lib.json"
       }
     },
     "payments": {

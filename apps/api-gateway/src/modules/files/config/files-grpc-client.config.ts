@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IsEnum, IsString } from 'class-validator';
-import { configValidationUtility, Environments } from '../../../../../../libs/config/index.js';
+import { configValidationUtility, Environments } from '@app/config';
 
 @Injectable()
 export class FilesGrpcClientConfig {

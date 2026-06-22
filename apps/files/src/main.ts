@@ -3,7 +3,7 @@ import type { MicroserviceOptions } from '@nestjs/microservices';
 import { Transport } from '@nestjs/microservices';
 import { FilesConfig } from './config/files.config.js';
 import { FilesModule } from './files.module.js';
-import { filesGrpcContract } from '../../../libs/contracts/files-grpc/index.js';
+import { filesGrpcContract } from '@app/files-grpc';
 import { resolve } from 'node:path';
 
 async function bootstrap() {

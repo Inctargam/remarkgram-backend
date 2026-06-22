@@ -1,6 +1,6 @@
 import { Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { FilesGrpcClientAdapter } from '../../infrastructure/grpc/files-grpc-client.adapter.js';
-import { type UploadFileResponse } from '../../../../../../../libs/contracts/files-grpc/index.js';
+import { type UploadFileResponse } from '@app/files-grpc';
 
 @Controller('files')
 export class FilesHttpController {

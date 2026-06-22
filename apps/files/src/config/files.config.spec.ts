@@ -1,28 +1,24 @@
 import 'reflect-metadata';
 import { ConfigService } from '@nestjs/config';
-import { Environments } from '../../../../libs/config/index.js';
+import { Environments } from '@app/config';
 import { FilesConfig } from './files.config.js';
 
 describe('FilesConfig', () => {
   it('reads, transforms and validates files config', () => {
     const configService = new ConfigService({
       NODE_ENV: Environments.TESTING,
-      FILES_TCP_HOST: '127.0.0.1',
-      FILES_TCP_PORT: '3003',
+      FILES_GRPC_URL: 'localhost:50051',
     });
 
     expect(new FilesConfig(configService)).toEqual({
       env: Environments.TESTING,
-      tcpHost: '127.0.0.1',
-      tcpPort: 3003,
+      url: 'localhost:50051',
     });
   });
 
-  it('throws when the TCP port is invalid', () => {
+  it('throws when the GRPC URL is missing', () => {
     const configService = new ConfigService({
       NODE_ENV: Environments.TESTING,
-      FILES_TCP_HOST: '127.0.0.1',
-      FILES_TCP_PORT: 'invalid',
     });
 
     expect(() => new FilesConfig(configService)).toThrow();

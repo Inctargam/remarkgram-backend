@@ -7,6 +7,14 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: '@app/config',
+        replacement: resolve(import.meta.dirname, 'libs/config/src/index.ts'),
+      },
+      {
+        find: '@app/files-grpc',
+        replacement: resolve(import.meta.dirname, 'libs/contracts/files-grpc/src/index.ts'),
+      },
+      {
         find: /^@libs\/(.+)\.js$/,
         replacement: `${resolve(import.meta.dirname, 'libs')}/$1.ts`,
       },

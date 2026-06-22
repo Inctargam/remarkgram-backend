@@ -1,10 +1,6 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
-import {
-  FilesServiceClient,
-  UploadFileRequest,
-  UploadFileResponse,
-} from '../../../../../../../libs/contracts/files-grpc/index.js';
-import { filesGrpcContract } from '../../../../../../../libs/contracts/files-grpc/index.js';
+import { filesGrpcContract } from '@app/files-grpc';
+import type { FilesServiceClient, UploadFileRequest, UploadFileResponse } from '@app/files-grpc';
 import type { ClientGrpc } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 

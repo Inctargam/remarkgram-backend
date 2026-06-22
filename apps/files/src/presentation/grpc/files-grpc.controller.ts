@@ -1,10 +1,7 @@
 import { Controller, Logger } from '@nestjs/common';
 import { GrpcMethod } from '@nestjs/microservices';
-import { filesGrpcContract } from '../../../../../libs/contracts/files-grpc/index.js';
-import type {
-  UploadFileRequest,
-  UploadFileResponse,
-} from '../../../../../libs/contracts/files-grpc/index.js';
+import { filesGrpcContract } from '@app/files-grpc';
+import type { UploadFileRequest, UploadFileResponse } from '@app/files-grpc';
 import { randomUUID } from 'node:crypto';
 
 @Controller()

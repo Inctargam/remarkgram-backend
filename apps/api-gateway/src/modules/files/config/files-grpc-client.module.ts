@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { resolve } from 'node:path';
-import { filesGrpcContract } from '../../../../../../libs/contracts/files-grpc/index.js';
+import { filesGrpcContract } from '@app/files-grpc';
 import { FilesGrpcClientConfig } from './files-grpc-client.config.js';
 import { FilesGrpcClientConfigModule } from './files-grpc-client-config.module.js';
 
