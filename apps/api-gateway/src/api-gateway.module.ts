@@ -5,7 +5,6 @@ import { ApiGatewayConfigModule } from './config/api-gateway-config.module.js';
 
 @Module({
   imports: [
-    ApiGatewayConfigModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [
@@ -20,9 +19,8 @@ import { ApiGatewayConfigModule } from './config/api-gateway-config.module.js';
       ],
       load: [],
     }),
+    ApiGatewayConfigModule,
     FilesModule,
   ],
-  controllers: [],
-  providers: [],
 })
 export class ApiGatewayModule {}
