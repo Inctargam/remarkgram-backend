@@ -3,18 +3,18 @@ import type { MicroserviceOptions } from '@nestjs/microservices';
 import { Transport } from '@nestjs/microservices';
 import { FilesConfig } from './config/files.config.js';
 import { FilesModule } from './files.module.js';
-import { filesGrpcContract } from '@app/files-grpc';
-import { resolve } from 'node:path';
+import { REMARKGRAM_FILES_V1_PACKAGE_NAME } from '@app/files-grpc';
+import { join } from 'node:path';
 
 async function bootstrap() {
   const app = await NestFactory.create(FilesModule);
   const config = app.get(FilesConfig);
-  const protoPath = resolve(process.cwd(), filesGrpcContract.protoPath);
+  const protoPath = join(import.meta.dirname, '../../../libs/contracts/files-grpc/src/proto/files.proto');
 
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.GRPC,
     options: {
-      package: filesGrpcContract.packageName,
+      package: REMARKGRAM_FILES_V1_PACKAGE_NAME,
       protoPath,
       url: config.url,
     },
