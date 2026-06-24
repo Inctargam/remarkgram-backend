@@ -13,7 +13,7 @@
     "build:posts": "nest build posts",
     "build:users": "nest build users",
     "grpc:generate": "pnpm run grpc:generate:files",
-    "grpc:generate:files": "mkdir -p libs/contracts/files-grpc/src/generated && grpc_tools_node_protoc --plugin=protoc-gen-ts_proto=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=libs/contracts/files-grpc/src/generated --ts_proto_opt=nestJs=true,returnObservable=true,esModuleInterop=true,importSuffix=.js --proto_path=libs/contracts/files-grpc/src/proto libs/contracts/files-grpc/src/proto/files.proto",
+    "grpc:generate:files": "mkdir -p libs/contracts/files-grpc/src/generated && grpc_tools_node_protoc --plugin=protoc-gen-ts_proto=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=libs/contracts/files-grpc/src/generated --ts_proto_opt=nestJs=true,esModuleInterop=true,importSuffix=.js --proto_path=libs/contracts/files-grpc/src/proto libs/contracts/files-grpc/src/proto/files.proto",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "start": "nest start",

@@ -25,7 +25,9 @@ export interface FilesServiceClient {
 }
 
 export interface FilesServiceController {
-  uploadFile(request: UploadFileRequest): Observable<UploadFileResponse>;
+  uploadFile(
+    request: UploadFileRequest,
+  ): Promise<UploadFileResponse> | Observable<UploadFileResponse> | UploadFileResponse;
 }
 
 export function FilesServiceControllerMethods() {
