@@ -6,7 +6,17 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig(
-  globalIgnores(['dist/**', 'coverage/**', 'node_modules/**', 'eslint.config.mjs']),
+  globalIgnores([
+    'dist/**',
+    'coverage/**',
+    'node_modules/**',
+    'apps/**/*.js',
+    'apps/**/*.js.map',
+    'libs/**/*.js',
+    'libs/**/*.js.map',
+    '**/prisma/generated/**',
+    'eslint.config.mjs',
+  ]),
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   eslintPluginPrettierRecommended,
