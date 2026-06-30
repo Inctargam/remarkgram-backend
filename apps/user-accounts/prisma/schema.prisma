@@ -12,10 +12,9 @@ model User {
   username String @unique @db.VarChar
   email    String @unique @db.VarChar
   hash     String @db.VarChar
-
   createdAt DateTime @db.Timestamptz
-
-  confirmationIsConfirmed Boolean
+  
+  isConfirmed Boolean
   confirmationCode        String?   @db.VarChar
   confirmationExpiration  DateTime? @db.Timestamptz
 
