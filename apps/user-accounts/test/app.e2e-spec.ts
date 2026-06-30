@@ -2,10 +2,10 @@ import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { AppModule } from './../src/app.module.js';
-import { UsersRepository } from './../src/application/ports/users.repository.js';
-import { User } from './../src/domain/entities/user.entity.js';
-import { PrismaService } from './../src/infrastructure/prisma/prisma.service.js';
+import { UserAccountsModule } from './../src/app.module.js';
+import { PrismaService } from './../src/database/prisma/prisma.service.js';
+import { UsersRepository } from './../src/modules/users/application/ports/users.repository.js';
+import { User } from './../src/modules/users/domain/entities/user.entity.js';
 
 type SupertestApp = Parameters<typeof request>[0];
 
@@ -26,7 +26,7 @@ describe('UsersController (e2e)', () => {
     ]);
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
+      imports: [UserAccountsModule],
     })
       .overrideProvider(UsersRepository)
       .useValue(usersRepository)

@@ -3,8 +3,8 @@
   "compilerOptions": {
     "declaration": false,
     "rootDir": "../..",
-    "outDir": "../../dist/apps/users",
-    "tsBuildInfoFile": "../../dist/apps/users/tsconfig.app.tsbuildinfo"
+    "outDir": "../../dist/apps/user-accounts",
+    "tsBuildInfoFile": "../../dist/apps/user-accounts/tsconfig.app.tsbuildinfo"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]

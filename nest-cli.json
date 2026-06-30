@@ -78,13 +78,13 @@
         "tsConfigPath": "apps/posts/tsconfig.app.json"
       }
     },
-    "users": {
+    "user-accounts": {
       "type": "application",
-      "root": "apps/users",
+      "root": "apps/user-accounts",
       "entryFile": "main",
-      "sourceRoot": "apps/users/src",
+      "sourceRoot": "apps/user-accounts/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/users/tsconfig.app.json"
+        "tsConfigPath": "apps/user-accounts/tsconfig.app.json"
       }
     }
   }

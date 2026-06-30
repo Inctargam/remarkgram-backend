@@ -1,4 +1,4 @@
-import type { User as PrismaUser } from '../generated/client.js';
+import type { User as PrismaUser } from '../../../../../database/prisma/generated/client.js';
 import { User } from '../../../domain/entities/user.entity.js';
 
 export class UserPrismaMapper {
