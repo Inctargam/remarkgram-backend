@@ -16,6 +16,14 @@ describe('UsersController (e2e)', () => {
   };
 
   beforeEach(async () => {
+    vi.stubEnv('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/user_accounts');
+    vi.stubEnv('JWT_PRIVATE_KEY', 'private-key');
+    vi.stubEnv('ACCESS_TOKEN_EXPIRES_IN', '10m');
+    vi.stubEnv('REFRESH_TOKEN_EXPIRES_IN', '20m');
+    vi.stubEnv('REFRESH_TOKEN_COOKIE_MAX_AGE_MS', '1200000');
+    vi.stubEnv('CONFIRMATION_CODE_EXPIRES_IN', '24');
+    vi.stubEnv('RECOVERY_CODE_EXPIRES_IN', '1');
+
     usersRepository.findMany.mockReset();
     usersRepository.findMany.mockResolvedValue([
       User.restore({
@@ -55,5 +63,6 @@ describe('UsersController (e2e)', () => {
 
   afterEach(async () => {
     await app.close();
+    vi.unstubAllEnvs();
   });
 });
