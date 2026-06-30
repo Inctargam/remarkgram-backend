@@ -32,16 +32,16 @@ describe('UsersController', () => {
       queryBus.execute.mockResolvedValue([
         User.restore({
           id: 1,
+          username: 'user',
           email: 'user@example.com',
-          name: 'User',
         }),
       ]);
 
       await expect(usersController.findMany()).resolves.toEqual([
         {
           id: 1,
+          username: 'user',
           email: 'user@example.com',
-          name: 'User',
         },
       ]);
       expect(queryBus.execute).toHaveBeenCalledWith(expect.any(GetUsersQuery));

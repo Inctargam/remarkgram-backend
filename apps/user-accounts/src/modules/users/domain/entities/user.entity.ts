@@ -1,7 +1,7 @@
 type UserProps = {
   id: number;
+  username: string;
   email: string;
-  name: string;
 };
 
 export class User {
@@ -19,7 +19,7 @@ export class User {
     return this.props.email;
   }
 
-  get name(): string {
-    return this.props.name;
+  get username(): string {
+    return this.props.username;
   }
 }

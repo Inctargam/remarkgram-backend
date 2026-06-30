@@ -3,7 +3,7 @@ import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { UserAccountsModule } from './../src/app.module.js';
-import { PrismaService } from './../src/database/prisma/prisma.service.js';
+import { PrismaService } from './../src/database/prisma.service.js';
 import { UsersRepository } from './../src/modules/users/application/ports/users.repository.js';
 import { User } from './../src/modules/users/domain/entities/user.entity.js';
 
@@ -20,8 +20,8 @@ describe('UsersController (e2e)', () => {
     usersRepository.findMany.mockResolvedValue([
       User.restore({
         id: 1,
+        username: 'user',
         email: 'user@example.com',
-        name: 'User',
       }),
     ]);
 
@@ -47,8 +47,8 @@ describe('UsersController (e2e)', () => {
       .expect([
         {
           id: 1,
+          username: 'user',
           email: 'user@example.com',
-          name: 'User',
         },
       ]);
   });

@@ -1,11 +1,6 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
-  output   = "../src/database/prisma/generated"
+  output   = "../src/database/generated"
 }
 
 datasource db {
@@ -13,7 +8,40 @@ datasource db {
 }
 
 model User {
-  id    Int     @default(autoincrement()) @id
-  email String  @unique
-  name  String
+  id       Int    @id @default(autoincrement())
+  username String @unique @db.VarChar
+  email    String @unique @db.VarChar
+  hash     String @db.VarChar
+
+  createdAt DateTime @db.Timestamptz
+
+  confirmationIsConfirmed Boolean
+  confirmationCode        String?   @db.VarChar
+  confirmationExpiration  DateTime? @db.Timestamptz
+
+  passwordRecoveryCode       String?   @db.VarChar
+  passwordRecoveryExpiration DateTime? @db.Timestamptz
+
+  deletedAt DateTime? @db.Timestamptz
+
+  devices Device[]
+
+  @@map("users")
+}
+
+model Device {
+  id     String @id @db.Uuid
+  userId Int
+
+  name String @db.VarChar
+  ip   String @db.VarChar
+  jti  String @db.VarChar
+
+  iat Int
+  exp Int
+
+  user User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([userId])
+  @@map("devices")
 }
