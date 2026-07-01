@@ -50,7 +50,7 @@ export { Prisma };
  */
 export type User = Prisma.UserModel;
 /**
- * Model Device
+ * Model DeviceSession
  *
  */
-export type Device = Prisma.DeviceModel;
+export type DeviceSession = Prisma.DeviceSessionModel;

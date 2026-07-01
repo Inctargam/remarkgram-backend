@@ -23,24 +23,24 @@ model User {
 
   deletedAt DateTime? @db.Timestamptz
 
-  devices Device[]
+  sessions DeviceSession[]
 
   @@map("users")
 }
 
-model Device {
+model DeviceSession {
   id     String @id @db.Uuid
   userId Int
 
-  name String @db.VarChar
-  ip   String @db.VarChar
-  jti  String @db.VarChar
+  deviceName String @db.VarChar
+  ip         String @db.VarChar
+  jti        String @db.VarChar
 
-  iat Int
-  exp Int
+  lastActiveAt DateTime @db.Timestamptz
+  expiresAt    DateTime @db.Timestamptz
 
   user User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([userId])
-  @@map("devices")
+  @@map("device_sessions")
 }

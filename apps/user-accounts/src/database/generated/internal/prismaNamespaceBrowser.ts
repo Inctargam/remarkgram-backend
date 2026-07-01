@@ -49,7 +49,7 @@ export const AnyNull = runtime.AnyNull;
 
 export const ModelName = {
   User: 'User',
-  Device: 'Device',
+  DeviceSession: 'DeviceSession',
 } as const;
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];
@@ -74,7 +74,7 @@ export const UserScalarFieldEnum = {
   email: 'email',
   hash: 'hash',
   createdAt: 'createdAt',
-  confirmationIsConfirmed: 'confirmationIsConfirmed',
+  isConfirmed: 'isConfirmed',
   confirmationCode: 'confirmationCode',
   confirmationExpiration: 'confirmationExpiration',
   passwordRecoveryCode: 'passwordRecoveryCode',
@@ -84,17 +84,18 @@ export const UserScalarFieldEnum = {
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum];
 
-export const DeviceScalarFieldEnum = {
+export const DeviceSessionScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
-  name: 'name',
+  deviceName: 'deviceName',
   ip: 'ip',
   jti: 'jti',
-  iat: 'iat',
-  exp: 'exp',
+  lastActiveAt: 'lastActiveAt',
+  expiresAt: 'expiresAt',
 } as const;
 
-export type DeviceScalarFieldEnum = (typeof DeviceScalarFieldEnum)[keyof typeof DeviceScalarFieldEnum];
+export type DeviceSessionScalarFieldEnum =
+  (typeof DeviceSessionScalarFieldEnum)[keyof typeof DeviceSessionScalarFieldEnum];
 
 export const SortOrder = {
   asc: 'asc',

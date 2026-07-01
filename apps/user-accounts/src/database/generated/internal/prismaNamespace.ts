@@ -376,7 +376,7 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 
 export const ModelName = {
   User: 'User',
-  Device: 'Device',
+  DeviceSession: 'DeviceSession',
 } as const;
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName];
@@ -396,7 +396,7 @@ export type TypeMap<
     omit: GlobalOmitOptions;
   };
   meta: {
-    modelProps: 'user' | 'device';
+    modelProps: 'user' | 'deviceSession';
     txIsolationLevel: TransactionIsolationLevel;
   };
   model: {
@@ -474,77 +474,77 @@ export type TypeMap<
         };
       };
     };
-    Device: {
-      payload: Prisma.$DevicePayload<ExtArgs>;
-      fields: Prisma.DeviceFieldRefs;
+    DeviceSession: {
+      payload: Prisma.$DeviceSessionPayload<ExtArgs>;
+      fields: Prisma.DeviceSessionFieldRefs;
       operations: {
         findUnique: {
-          args: Prisma.DeviceFindUniqueArgs<ExtArgs>;
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DevicePayload> | null;
+          args: Prisma.DeviceSessionFindUniqueArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeviceSessionPayload> | null;
         };
         findUniqueOrThrow: {
-          args: Prisma.DeviceFindUniqueOrThrowArgs<ExtArgs>;
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DevicePayload>;
+          args: Prisma.DeviceSessionFindUniqueOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeviceSessionPayload>;
         };
         findFirst: {
-          args: Prisma.DeviceFindFirstArgs<ExtArgs>;
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DevicePayload> | null;
+          args: Prisma.DeviceSessionFindFirstArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeviceSessionPayload> | null;
         };
         findFirstOrThrow: {
-          args: Prisma.DeviceFindFirstOrThrowArgs<ExtArgs>;
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DevicePayload>;
+          args: Prisma.DeviceSessionFindFirstOrThrowArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeviceSessionPayload>;
         };
         findMany: {
-          args: Prisma.DeviceFindManyArgs<ExtArgs>;
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DevicePayload>[];
+          args: Prisma.DeviceSessionFindManyArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeviceSessionPayload>[];
         };
         create: {
-          args: Prisma.DeviceCreateArgs<ExtArgs>;
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DevicePayload>;
+          args: Prisma.DeviceSessionCreateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeviceSessionPayload>;
         };
         createMany: {
-          args: Prisma.DeviceCreateManyArgs<ExtArgs>;
+          args: Prisma.DeviceSessionCreateManyArgs<ExtArgs>;
           result: BatchPayload;
         };
         createManyAndReturn: {
-          args: Prisma.DeviceCreateManyAndReturnArgs<ExtArgs>;
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DevicePayload>[];
+          args: Prisma.DeviceSessionCreateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeviceSessionPayload>[];
         };
         delete: {
-          args: Prisma.DeviceDeleteArgs<ExtArgs>;
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DevicePayload>;
+          args: Prisma.DeviceSessionDeleteArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeviceSessionPayload>;
         };
         update: {
-          args: Prisma.DeviceUpdateArgs<ExtArgs>;
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DevicePayload>;
+          args: Prisma.DeviceSessionUpdateArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeviceSessionPayload>;
         };
         deleteMany: {
-          args: Prisma.DeviceDeleteManyArgs<ExtArgs>;
+          args: Prisma.DeviceSessionDeleteManyArgs<ExtArgs>;
           result: BatchPayload;
         };
         updateMany: {
-          args: Prisma.DeviceUpdateManyArgs<ExtArgs>;
+          args: Prisma.DeviceSessionUpdateManyArgs<ExtArgs>;
           result: BatchPayload;
         };
         updateManyAndReturn: {
-          args: Prisma.DeviceUpdateManyAndReturnArgs<ExtArgs>;
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DevicePayload>[];
+          args: Prisma.DeviceSessionUpdateManyAndReturnArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeviceSessionPayload>[];
         };
         upsert: {
-          args: Prisma.DeviceUpsertArgs<ExtArgs>;
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$DevicePayload>;
+          args: Prisma.DeviceSessionUpsertArgs<ExtArgs>;
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$DeviceSessionPayload>;
         };
         aggregate: {
-          args: Prisma.DeviceAggregateArgs<ExtArgs>;
-          result: runtime.Types.Utils.Optional<Prisma.AggregateDevice>;
+          args: Prisma.DeviceSessionAggregateArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.AggregateDeviceSession>;
         };
         groupBy: {
-          args: Prisma.DeviceGroupByArgs<ExtArgs>;
-          result: runtime.Types.Utils.Optional<Prisma.DeviceGroupByOutputType>[];
+          args: Prisma.DeviceSessionGroupByArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.DeviceSessionGroupByOutputType>[];
         };
         count: {
-          args: Prisma.DeviceCountArgs<ExtArgs>;
-          result: runtime.Types.Utils.Optional<Prisma.DeviceCountAggregateOutputType> | number;
+          args: Prisma.DeviceSessionCountArgs<ExtArgs>;
+          result: runtime.Types.Utils.Optional<Prisma.DeviceSessionCountAggregateOutputType> | number;
         };
       };
     };
@@ -593,7 +593,7 @@ export const UserScalarFieldEnum = {
   email: 'email',
   hash: 'hash',
   createdAt: 'createdAt',
-  confirmationIsConfirmed: 'confirmationIsConfirmed',
+  isConfirmed: 'isConfirmed',
   confirmationCode: 'confirmationCode',
   confirmationExpiration: 'confirmationExpiration',
   passwordRecoveryCode: 'passwordRecoveryCode',
@@ -603,17 +603,18 @@ export const UserScalarFieldEnum = {
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum];
 
-export const DeviceScalarFieldEnum = {
+export const DeviceSessionScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
-  name: 'name',
+  deviceName: 'deviceName',
   ip: 'ip',
   jti: 'jti',
-  iat: 'iat',
-  exp: 'exp',
+  lastActiveAt: 'lastActiveAt',
+  expiresAt: 'expiresAt',
 } as const;
 
-export type DeviceScalarFieldEnum = (typeof DeviceScalarFieldEnum)[keyof typeof DeviceScalarFieldEnum];
+export type DeviceSessionScalarFieldEnum =
+  (typeof DeviceSessionScalarFieldEnum)[keyof typeof DeviceSessionScalarFieldEnum];
 
 export const SortOrder = {
   asc: 'asc',
@@ -804,7 +805,7 @@ export type PrismaClientOptions = (
 };
 export type GlobalOmitConfig = {
   user?: Prisma.UserOmit;
-  device?: Prisma.DeviceOmit;
+  deviceSession?: Prisma.DeviceSessionOmit;
 };
 
 /* Types for Logging */
