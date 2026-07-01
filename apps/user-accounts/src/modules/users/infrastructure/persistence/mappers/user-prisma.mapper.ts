@@ -7,6 +7,18 @@ export class UserPrismaMapper {
       id: row.id,
       username: row.username,
       email: row.email,
+      hash: row.hash,
+      createdAt: row.createdAt,
+      confirmation: {
+        isConfirmed: row.isConfirmed,
+        code: row.confirmationCode,
+        expiration: row.confirmationExpiration,
+      },
+      passwordRecovery: {
+        code: row.passwordRecoveryCode,
+        expiration: row.passwordRecoveryExpiration,
+      },
+      deletedAt: row.deletedAt,
     });
   }
 }

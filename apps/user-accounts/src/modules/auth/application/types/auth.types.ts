@@ -1,0 +1,35 @@
+export type JwtRefreshPayload = {
+  sub: string;
+  sessionId: string;
+  jti: string;
+  iat: number;
+  exp: number;
+};
+
+export type JwtPair = {
+  accessToken: string;
+  refreshToken: string;
+};
+
+export type GenerateTokenPairParams = {
+  userId: string;
+  sessionId: string;
+};
+
+export type GeneratedTokenPair = JwtPair & {
+  refreshTokenPayload: JwtRefreshPayload;
+};
+
+export type LoginParams = {
+  loginOrEmail: string;
+  password: string;
+  ip: string;
+  deviceName: string;
+  currentRefreshToken?: string;
+};
+
+export type RefreshTokenParams = {
+  refreshToken: string;
+  ip: string;
+  deviceName: string;
+};

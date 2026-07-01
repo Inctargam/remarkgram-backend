@@ -1,0 +1,45 @@
+import { Inject } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
+import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
+import { randomUUID } from 'node:crypto';
+import { authConfig } from '../../../../config/auth.config.js';
+import { EmailService } from '../../../notifications/email.service.js';
+import { UsersRepository } from '../ports/users.repository.js';
+
+export class RegistrationEmailResendingCommand extends Command<void> {
+  constructor(public readonly email: string) {
+    super();
+  }
+}
+
+@CommandHandler(RegistrationEmailResendingCommand)
+export class RegistrationEmailResendingUseCase implements ICommandHandler<RegistrationEmailResendingCommand> {
+  constructor(
+    private readonly usersRepository: UsersRepository,
+    private readonly emailService: EmailService,
+    @Inject(authConfig.KEY) private readonly auth: ConfigType<typeof authConfig>,
+  ) {}
+
+  async execute(command: RegistrationEmailResendingCommand) {
+    const user = await this.usersRepository.findByLoginOrEmail(command.email);
+
+    if (!user) {
+      throw new Error('Email is incorrect');
+    }
+
+    if (user.confirmation.isConfirmed) {
+      throw new Error('Email is already confirmed');
+    }
+
+    const code = randomUUID();
+    const expiration = new Date();
+    expiration.setHours(expiration.getHours() + this.auth.confirmationCodeExpiresIn);
+
+    await this.emailService.sendConfirmationCode(command.email, code);
+    await this.usersRepository.updateConfirmationCode({
+      email: command.email,
+      code,
+      expiration,
+    });
+  }
+}
