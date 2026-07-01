@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { FilesModule } from './modules/files/files.module.js';
 import { ApiGatewayConfigModule } from './config/api-gateway-config.module.js';
+import { UserAccountsModule } from './modules/user-accounts/user-accounts.module.js';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { ApiGatewayConfigModule } from './config/api-gateway-config.module.js';
     }),
     ApiGatewayConfigModule,
     FilesModule,
+    UserAccountsModule,
   ],
 })
 export class ApiGatewayModule {}
