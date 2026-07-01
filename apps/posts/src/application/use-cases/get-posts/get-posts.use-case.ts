@@ -8,7 +8,7 @@ export class GetPostsQuery extends Query<Post[]> {}
 export class GetPostsQueryHandler implements IQueryHandler<GetPostsQuery> {
   constructor(private readonly postsRepository: PostsRepository) {}
 
-  async execute(): Promise<Post[]> {
+  async execute() {
     return this.postsRepository.findMany();
   }
 }
