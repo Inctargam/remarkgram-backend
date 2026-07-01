@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package remarkgram.user_accounts.v1;
+
+service UsersService {
+  rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
+}
+
+service AuthService {
+  rpc Login(LoginRequest) returns (TokenPairResponse);
+  rpc RefreshToken(RefreshTokenRequest) returns (TokenPairResponse);
+}
+
+service SessionsService {
+  rpc GetDevices(GetDevicesRequest) returns (GetDevicesResponse);
+}
+
+message GetUsersRequest {}
+
+message User {
+  int32 id = 1;
+  string username = 2;
+  string email = 3;
+}
+
+message GetUsersResponse {
+  repeated User users = 1;
+}
+
+message LoginRequest {
+  string login_or_email = 1;
+  string password = 2;
+  string ip = 3;
+  string device_name = 4;
+  optional string current_refresh_token = 5;
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+  string ip = 2;
+  string device_name = 3;
+}
+
+message TokenPairResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+}
+
+message GetDevicesRequest {
+  string refresh_token = 1;
+}
+
+message Device {
+  string ip = 1;
+  string title = 2;
+  string last_active_date = 3;
+  string device_id = 4;
+}
+
+message GetDevicesResponse {
+  repeated Device devices = 1;
+}

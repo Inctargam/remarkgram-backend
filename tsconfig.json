@@ -26,7 +26,9 @@
       "@app/config": ["./libs/config/src/index.ts"],
       "@app/config/*": ["./libs/config/src/*"],
       "@app/files-grpc": ["./libs/contracts/files-grpc/src/index.ts"],
-      "@app/files-grpc/*": ["./libs/contracts/files-grpc/src/*"]
+      "@app/files-grpc/*": ["./libs/contracts/files-grpc/src/*"],
+      "@app/user-accounts-grpc": ["./libs/contracts/user-accounts-grpc/src/index.ts"],
+      "@app/user-accounts-grpc/*": ["./libs/contracts/user-accounts-grpc/src/*"]
     }
   }
 }

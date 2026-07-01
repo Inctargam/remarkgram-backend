@@ -20,11 +20,6 @@ class AuthConfig {
   @IsInt()
   @Min(1)
   @Type(() => Number)
-  declare readonly refreshTokenCookieMaxAgeMs: number;
-
-  @IsInt()
-  @Min(1)
-  @Type(() => Number)
   declare readonly confirmationCodeExpiresIn: number;
 
   @IsInt()
@@ -38,7 +33,6 @@ export const authConfig = registerAs('auth', () => {
     jwtPrivateKey: process.env.JWT_PRIVATE_KEY,
     accessTokenExpiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN,
     refreshTokenExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN,
-    refreshTokenCookieMaxAgeMs: process.env.REFRESH_TOKEN_COOKIE_MAX_AGE_MS,
     confirmationCodeExpiresIn: process.env.CONFIRMATION_CODE_EXPIRES_IN,
     recoveryCodeExpiresIn: process.env.RECOVERY_CODE_EXPIRES_IN,
   });

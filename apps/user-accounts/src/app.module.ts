@@ -3,8 +3,10 @@ import { ConfigModule } from '@nestjs/config';
 import { authConfig } from './config/auth.config.js';
 import { databaseConfig } from './config/database.config.js';
 import { AuthModule } from './modules/auth/auth.module.js';
-import { DevicesModule } from './modules/devices/devices.module.js';
+import { SessionsModule } from './modules/sessions/sessions.module.js';
 import { UsersModule } from './modules/users/users.module.js';
+import { emailConfig } from './config/email.config.js';
+import { UserAccountsGrpcConfig } from './config/user-accounts-grpc.config.js';
 
 @Module({
   imports: [
@@ -20,11 +22,12 @@ import { UsersModule } from './modules/users/users.module.js';
         `.env.production`,
         '.env',
       ],
-      load: [authConfig, databaseConfig],
+      load: [authConfig, databaseConfig, emailConfig],
     }),
     AuthModule,
-    DevicesModule,
+    SessionsModule,
     UsersModule,
   ],
+  providers: [UserAccountsGrpcConfig],
 })
 export class UserAccountsModule {}

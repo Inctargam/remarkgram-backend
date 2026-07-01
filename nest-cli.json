@@ -23,6 +23,10 @@
           {
             "include": "../../../libs/contracts/files-grpc/src/proto/*.proto",
             "outDir": "dist/apps/api-gateway/libs/contracts/files-grpc"
+          },
+          {
+            "include": "../../../libs/contracts/user-accounts-grpc/src/proto/*.proto",
+            "outDir": "dist/apps/api-gateway/libs/contracts/user-accounts-grpc"
           }
         ]
       }
@@ -60,6 +64,15 @@
         "tsConfigPath": "libs/contracts/files-grpc/tsconfig.lib.json"
       }
     },
+    "user-accounts-grpc": {
+      "type": "library",
+      "root": "libs/contracts/user-accounts-grpc",
+      "entryFile": "index",
+      "sourceRoot": "libs/contracts/user-accounts-grpc/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/contracts/user-accounts-grpc/tsconfig.lib.json"
+      }
+    },
     "payments": {
       "type": "application",
       "root": "apps/payments",
@@ -84,7 +97,13 @@
       "entryFile": "main",
       "sourceRoot": "apps/user-accounts/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/user-accounts/tsconfig.app.json"
+        "tsConfigPath": "apps/user-accounts/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "../../../libs/contracts/user-accounts-grpc/src/proto/*.proto",
+            "outDir": "dist/apps/user-accounts/libs/contracts/user-accounts-grpc"
+          }
+        ]
       }
     }
   }
