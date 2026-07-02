@@ -5,3 +5,4 @@ build
 .temp
 .tmp
 pnpm-lock.yaml
+**/generated/**
