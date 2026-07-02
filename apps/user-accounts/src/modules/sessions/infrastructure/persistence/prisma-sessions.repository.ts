@@ -4,16 +4,22 @@ import { SessionsRepository } from '../../application/ports/sessions.repository.
 import type {
   CreateSessionParams,
   RotateRefreshTokenParams,
+  SessionIdentity,
 } from '../../application/types/sessions.types.js';
 
 @Injectable()
 export class PrismaSessionsRepository implements SessionsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async isSessionActive(jti: string, sessionId: string): Promise<boolean> {
+  async isSessionActive(params: SessionIdentity): Promise<boolean> {
+    const userId = Number(params.userId);
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
+      return false;
+    }
+
     const session = await this.prisma.deviceSession.findFirst({
       select: { id: true },
-      where: { id: sessionId, jti },
+      where: { id: params.sessionId, userId, jti: params.jti },
     });
 
     return session !== null;
@@ -48,9 +54,15 @@ export class PrismaSessionsRepository implements SessionsRepository {
   }
 
   async rotateRefreshToken(params: RotateRefreshTokenParams): Promise<boolean> {
+    const userId = Number(params.userId);
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
+      return false;
+    }
+
     const result = await this.prisma.deviceSession.updateMany({
       where: {
         id: params.sessionId,
+        userId,
         jti: params.currentJti,
       },
       data: {

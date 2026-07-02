@@ -17,6 +17,7 @@ export class UsersService {
     @Inject(authConfig.KEY) private readonly auth: ConfigType<typeof authConfig>,
   ) {}
 
+  /** Проверяет уникальность данных, хеширует пароль и создаёт пользователя в репозитории. */
   async createUser(params: CreateUserParams): Promise<User> {
     const {
       login,
@@ -46,6 +47,7 @@ export class UsersService {
     });
   }
 
+  /** Создаёт неподтверждённого пользователя и отправляет код подтверждения email. */
   async registerUser(params: RegisterUserParams): Promise<User> {
     const code = randomUUID();
     const expiration = new Date();

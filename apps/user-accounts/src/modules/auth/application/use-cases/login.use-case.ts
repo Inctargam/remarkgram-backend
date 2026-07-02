@@ -2,7 +2,6 @@ import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import { randomUUID } from 'node:crypto';
 import { SessionsService } from '../../../sessions/application/sessions.service.js';
 import { AuthService } from '../../auth.service.js';
-import { RefreshTokenValidator } from '../refresh-token-validator.js';
 import type { JwtPair, LoginParams } from '../types/auth.types.js';
 
 export class LoginCommand extends Command<JwtPair> {
@@ -16,12 +15,11 @@ export class LoginUseCase implements ICommandHandler<LoginCommand> {
   constructor(
     private readonly authService: AuthService,
     private readonly sessionsService: SessionsService,
-    private readonly refreshTokenValidator: RefreshTokenValidator,
   ) {}
 
   async execute(command: LoginCommand) {
-    const { loginOrEmail, password, currentRefreshToken, deviceName, ip } = command.params;
-    if (await this.refreshTokenValidator.isActive(currentRefreshToken)) {
+    const { loginOrEmail, password, currentSession, deviceName, ip } = command.params;
+    if (currentSession && (await this.sessionsService.checkSession(currentSession))) {
       throw new Error('The user is already logged in');
     }
 

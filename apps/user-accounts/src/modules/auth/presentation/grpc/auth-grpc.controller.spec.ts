@@ -23,7 +23,7 @@ describe('AuthGrpcController', () => {
         password: 'password',
         ip: '127.0.0.1',
         deviceName: 'Browser',
-        currentRefreshToken: undefined,
+        currentSession: undefined,
       }),
     ).resolves.toEqual({ accessToken: 'access-token', refreshToken: 'refresh-token' });
 
@@ -34,24 +34,32 @@ describe('AuthGrpcController', () => {
       password: 'password',
       ip: '127.0.0.1',
       deviceName: 'Browser',
-      currentRefreshToken: undefined,
+      currentSession: undefined,
     });
   });
 
-  it('passes the raw refresh token to the CQRS command', async () => {
+  it('passes verified refresh-token claims to the CQRS command', async () => {
     commandBus.execute.mockResolvedValue({
       accessToken: 'new-access-token',
       refreshToken: 'new-refresh-token',
     });
 
     await controller.refreshToken({
-      refreshToken: 'current-refresh-token',
+      auth: {
+        userId: '1',
+        sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+        jti: 'current-jti',
+      },
       ip: '127.0.0.1',
       deviceName: 'Browser',
     });
 
     const command = commandBus.execute.mock.calls[0][0] as RefreshTokenCommand;
     expect(command).toBeInstanceOf(RefreshTokenCommand);
-    expect(command.params.refreshToken).toBe('current-refresh-token');
+    expect(command.params.auth).toEqual({
+      userId: '1',
+      sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+      jti: 'current-jti',
+    });
   });
 });

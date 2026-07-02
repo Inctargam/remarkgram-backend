@@ -14,6 +14,7 @@ describe('PrismaSessionsRepository', () => {
 
   it('atomically rotates a refresh token only when the current jti matches', async () => {
     const params = {
+      userId: '1',
       sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
       currentJti: 'old-jti',
       newJti: 'new-jti',
@@ -28,6 +29,7 @@ describe('PrismaSessionsRepository', () => {
     expect(updateMany).toHaveBeenCalledWith({
       where: {
         id: params.sessionId,
+        userId: 1,
         jti: params.currentJti,
       },
       data: {
@@ -45,6 +47,7 @@ describe('PrismaSessionsRepository', () => {
 
     await expect(
       repository.rotateRefreshToken({
+        userId: '1',
         sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
         currentJti: 'stale-jti',
         newJti: 'new-jti',

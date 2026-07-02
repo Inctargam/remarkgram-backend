@@ -1,29 +1,19 @@
-import { Controller, Get, Req } from '@nestjs/common';
-import { status } from '@grpc/grpc-js';
+import { Controller, Get, Req, UseGuards } from '@nestjs/common';
 import type { Device } from '@app/user-accounts-grpc';
+import { Public } from '../../../../../common/presentation/http/decorators/public.decorator.js';
 import { UserAccountsGrpcClientAdapter } from '../../../infrastructure/grpc/user-accounts-grpc-client.adapter.js';
-import type { RequestWithRefreshTokenCookie } from '../auth-request.types.js';
-import { mapGrpcErrorToHttp } from '../grpc-error.mapper.js';
+import type { RequestWithRefreshSession } from '../auth-request.types.js';
+import { RefreshTokenGuard } from '../guards/refresh-token.guard.js';
 
 @Controller('security/devices')
 export class DevicesHttpController {
   constructor(private readonly userAccountsClient: UserAccountsGrpcClientAdapter) {}
 
+  @Public()
+  @UseGuards(RefreshTokenGuard)
   @Get()
-  async getDevices(@Req() request: RequestWithRefreshTokenCookie): Promise<Device[]> {
-    const refreshToken = request.cookies.refreshToken;
-    if (!refreshToken) {
-      throw mapGrpcErrorToHttp({
-        code: status.UNAUTHENTICATED,
-        details: 'Invalid authorization method',
-      });
-    }
-
-    try {
-      const response = await this.userAccountsClient.getDevices({ refreshToken });
-      return response.devices;
-    } catch (error) {
-      throw mapGrpcErrorToHttp(error);
-    }
+  async getDevices(@Req() request: RequestWithRefreshSession): Promise<Device[]> {
+    const response = await this.userAccountsClient.getDevices({ auth: request.refreshTokenClaims });
+    return response.devices;
   }
 }

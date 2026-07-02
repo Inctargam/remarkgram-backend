@@ -7,6 +7,7 @@ export class EmailService {
 
   constructor(private readonly mailerService: MailerService) {}
 
+  /** Отправляет пользователю ссылку с кодом подтверждения регистрации. */
   async sendConfirmationCode(to: string, code: string): Promise<void> {
     const url = new URL('/auth/registration-confirmation', 'https://remarkgram.com/');
     url.searchParams.set('code', code);

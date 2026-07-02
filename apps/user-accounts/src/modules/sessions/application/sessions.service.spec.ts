@@ -34,6 +34,7 @@ describe('SessionsService', () => {
 
   it('rotates the refresh token for an existing session', async () => {
     const params = {
+      userId: '1',
       sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
       currentJti: 'old-jti',
       newJti: 'new-jti',
@@ -53,6 +54,7 @@ describe('SessionsService', () => {
 
     await expect(
       service.rotateRefreshToken({
+        userId: '1',
         sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
         currentJti: 'stale-jti',
         newJti: 'new-jti',

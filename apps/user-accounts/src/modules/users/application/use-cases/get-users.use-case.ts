@@ -8,7 +8,7 @@ export class GetUsersQuery extends Query<User[]> {}
 export class GetUsersUseCase implements IQueryHandler<GetUsersQuery> {
   constructor(private readonly usersRepository: UsersRepository) {}
 
-  async execute() {
+  execute() {
     return this.usersRepository.findMany();
   }
 }

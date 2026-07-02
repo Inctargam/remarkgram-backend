@@ -36,19 +36,19 @@ export class UserAccountsGrpcClientAdapter implements OnModuleInit {
     this.sessionsClient = this.client.getService<SessionsServiceClient>(SESSIONS_SERVICE_NAME);
   }
 
-  async getUsers(): Promise<GetUsersResponse> {
+  getUsers(): Promise<GetUsersResponse> {
     return firstValueFrom(this.usersClient.getUsers({}));
   }
 
-  async login(request: LoginRequest): Promise<TokenPairResponse> {
+  login(request: LoginRequest): Promise<TokenPairResponse> {
     return firstValueFrom(this.authClient.login(request));
   }
 
-  async refreshToken(request: RefreshTokenRequest): Promise<TokenPairResponse> {
+  refreshToken(request: RefreshTokenRequest): Promise<TokenPairResponse> {
     return firstValueFrom(this.authClient.refreshToken(request));
   }
 
-  async getDevices(request: GetDevicesRequest): Promise<GetDevicesResponse> {
+  getDevices(request: GetDevicesRequest): Promise<GetDevicesResponse> {
     return firstValueFrom(this.sessionsClient.getDevices(request));
   }
 }

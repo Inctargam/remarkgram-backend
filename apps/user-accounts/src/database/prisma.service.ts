@@ -12,6 +12,7 @@ export class PrismaService extends PrismaClient implements OnModuleDestroy {
     });
   }
 
+  /** Закрывает соединения Prisma при завершении работы Nest-приложения. */
   async onModuleDestroy(): Promise<void> {
     await this.$disconnect();
   }

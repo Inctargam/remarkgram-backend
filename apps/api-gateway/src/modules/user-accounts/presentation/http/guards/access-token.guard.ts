@@ -1,9 +1,13 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
+import { Public } from '../../../../../common/presentation/http/decorators/public.decorator.js';
 import type { RequestWithOptionalUserId } from '../auth-request.types.js';
-import { Public } from '../decorators/public.decorator.js';
 
+/**
+ * Защищает HTTP-эндпоинты, требующие access-токен, и добавляет идентификатор пользователя в request.
+ * Эндпоинты с декоратором Public пропускаются без обязательной аутентификации.
+ */
 @Injectable()
 export class AccessTokenGuard implements CanActivate {
   constructor(
@@ -11,6 +15,7 @@ export class AccessTokenGuard implements CanActivate {
     private readonly reflector: Reflector,
   ) {}
 
+  /** Проверяет Bearer access-токен и сохраняет claim sub как userId текущего запроса. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<RequestWithOptionalUserId>();
     const isPublic = this.reflector.getAllAndOverride(Public, [context.getHandler(), context.getClass()]);

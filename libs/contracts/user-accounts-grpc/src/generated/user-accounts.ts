@@ -28,13 +28,19 @@ export interface LoginRequest {
   password: string;
   ip: string;
   deviceName: string;
-  currentRefreshToken?: string | undefined;
+  currentSession: VerifiedRefreshTokenClaims | undefined;
 }
 
 export interface RefreshTokenRequest {
-  refreshToken: string;
+  auth: VerifiedRefreshTokenClaims | undefined;
   ip: string;
   deviceName: string;
+}
+
+export interface VerifiedRefreshTokenClaims {
+  userId: string;
+  sessionId: string;
+  jti: string;
 }
 
 export interface TokenPairResponse {
@@ -43,7 +49,7 @@ export interface TokenPairResponse {
 }
 
 export interface GetDevicesRequest {
-  refreshToken: string;
+  auth: VerifiedRefreshTokenClaims | undefined;
 }
 
 export interface Device {

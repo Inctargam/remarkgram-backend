@@ -5,6 +5,12 @@ export type SessionView = {
   sessionId: string;
 };
 
+export type SessionIdentity = {
+  userId: string;
+  sessionId: string;
+  jti: string;
+};
+
 export type CreateSessionParams = {
   userId: string;
   sessionId: string;
@@ -16,6 +22,7 @@ export type CreateSessionParams = {
 };
 
 export type RotateRefreshTokenParams = {
+  userId: string;
   sessionId: string;
   currentJti: string;
   newJti: string;

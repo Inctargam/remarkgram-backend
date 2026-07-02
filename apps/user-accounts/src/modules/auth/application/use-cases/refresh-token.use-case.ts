@@ -1,7 +1,6 @@
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import { SessionsService } from '../../../sessions/application/sessions.service.js';
 import { AuthService } from '../../auth.service.js';
-import { RefreshTokenValidator } from '../refresh-token-validator.js';
 import type { JwtPair, RefreshTokenParams } from '../types/auth.types.js';
 
 export class RefreshTokenCommand extends Command<JwtPair> {
@@ -15,21 +14,18 @@ export class RefreshTokenUseCase implements ICommandHandler<RefreshTokenCommand>
   constructor(
     private readonly authService: AuthService,
     private readonly sessionsService: SessionsService,
-    private readonly refreshTokenValidator: RefreshTokenValidator,
   ) {}
 
   async execute(command: RefreshTokenCommand) {
-    const { refreshToken: currentRefreshToken, deviceName, ip } = command.params;
-    const payload = await this.refreshTokenValidator.validate(currentRefreshToken);
-    const userId = payload.sub;
-    const sessionId = payload.sessionId;
-    const currentJti = payload.jti;
+    const { auth, deviceName, ip } = command.params;
+    const { userId, sessionId, jti: currentJti } = auth;
     const { accessToken, refreshToken, refreshTokenPayload } = await this.authService.generateTokenPair({
       userId,
       sessionId,
     });
 
     await this.sessionsService.rotateRefreshToken({
+      userId,
       sessionId,
       currentJti,
       newJti: refreshTokenPayload.jti,

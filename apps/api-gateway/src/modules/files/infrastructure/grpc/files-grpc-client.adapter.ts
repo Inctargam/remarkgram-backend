@@ -14,7 +14,7 @@ export class FilesGrpcClientAdapter implements OnModuleInit {
     this.filesClient = this.client.getService<FilesServiceClient>(FILES_SERVICE_NAME);
   }
 
-  async uploadFile(request: UploadFileRequest): Promise<UploadFileResponse> {
+  uploadFile(request: UploadFileRequest): Promise<UploadFileResponse> {
     return firstValueFrom(this.filesClient.uploadFile(request));
   }
 }

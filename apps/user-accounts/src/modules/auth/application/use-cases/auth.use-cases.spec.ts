@@ -1,7 +1,6 @@
 import type { AuthService } from '../../auth.service.js';
 import type { SessionsService } from '../../../sessions/application/sessions.service.js';
 import { User } from '../../../users/domain/entities/user.entity.js';
-import type { RefreshTokenValidator } from '../refresh-token-validator.js';
 import { LoginCommand, LoginUseCase } from './login.use-case.js';
 import { RefreshTokenCommand, RefreshTokenUseCase } from './refresh-token.use-case.js';
 
@@ -38,14 +37,11 @@ describe('auth use cases', () => {
     };
     const sessionsService = {
       createSession: vi.fn<SessionsService['createSession']>().mockResolvedValue(undefined),
-    };
-    const refreshTokenValidator = {
-      isActive: vi.fn<RefreshTokenValidator['isActive']>().mockResolvedValue(false),
+      checkSession: vi.fn<SessionsService['checkSession']>().mockResolvedValue(false),
     };
     const useCase = new LoginUseCase(
       authService as unknown as AuthService,
       sessionsService as unknown as SessionsService,
-      refreshTokenValidator as unknown as RefreshTokenValidator,
     );
 
     await expect(useCase.execute(new LoginCommand(params))).resolves.toEqual({
@@ -70,29 +66,23 @@ describe('auth use cases', () => {
   });
 
   it('RefreshTokenUseCase rotates the token for the same session', async () => {
+    const currentSession = {
+      userId: '1',
+      sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+      jti: 'old-jti',
+    };
     const authService = {
       generateTokenPair: vi.fn<AuthService['generateTokenPair']>().mockResolvedValue(tokenPair),
     };
     const sessionsService = {
       rotateRefreshToken: vi.fn<SessionsService['rotateRefreshToken']>().mockResolvedValue(undefined),
     };
-    const currentPayload = {
-      sub: '1',
-      sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
-      jti: 'old-jti',
-      iat: 50,
-      exp: 100,
-    };
-    const refreshTokenValidator = {
-      validate: vi.fn<RefreshTokenValidator['validate']>().mockResolvedValue(currentPayload),
-    };
     const useCase = new RefreshTokenUseCase(
       authService as unknown as AuthService,
       sessionsService as unknown as SessionsService,
-      refreshTokenValidator as unknown as RefreshTokenValidator,
     );
     const refreshParams = {
-      refreshToken: 'current-refresh-token',
+      auth: currentSession,
       ip: params.ip,
       deviceName: params.deviceName,
     };
@@ -102,12 +92,13 @@ describe('auth use cases', () => {
       refreshToken: tokenPair.refreshToken,
     });
     expect(authService.generateTokenPair).toHaveBeenCalledWith({
-      userId: currentPayload.sub,
-      sessionId: currentPayload.sessionId,
+      userId: currentSession.userId,
+      sessionId: currentSession.sessionId,
     });
     expect(sessionsService.rotateRefreshToken).toHaveBeenCalledWith({
-      sessionId: currentPayload.sessionId,
-      currentJti: currentPayload.jti,
+      userId: currentSession.userId,
+      sessionId: currentSession.sessionId,
+      currentJti: currentSession.jti,
       newJti: 'new-jti',
       deviceName: params.deviceName,
       ip: params.ip,

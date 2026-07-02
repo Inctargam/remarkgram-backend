@@ -7,14 +7,14 @@ import { configValidationUtility } from '@app/config';
 export class UserAccountsHttpConfig {
   @IsString()
   @IsNotEmpty()
-  readonly jwtPrivateKey: string;
+  readonly jwtPublicKey: string;
 
   @IsInt()
   @Min(1)
   readonly refreshTokenCookieMaxAgeMs: number;
 
   constructor(configService: ConfigService) {
-    this.jwtPrivateKey = configService.getOrThrow<string>('JWT_PRIVATE_KEY');
+    this.jwtPublicKey = configService.getOrThrow<string>('JWT_PUBLIC_KEY');
     this.refreshTokenCookieMaxAgeMs = configValidationUtility.convertToNumber(
       configService.getOrThrow<string>('REFRESH_TOKEN_COOKIE_MAX_AGE_MS'),
     );

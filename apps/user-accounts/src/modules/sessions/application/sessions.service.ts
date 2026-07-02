@@ -1,16 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import { SessionsRepository } from './ports/sessions.repository.js';
-import type { CreateSessionParams, RotateRefreshTokenParams } from './types/sessions.types.js';
+import type {
+  CreateSessionParams,
+  RotateRefreshTokenParams,
+  SessionIdentity,
+} from './types/sessions.types.js';
 
 @Injectable()
 export class SessionsService {
   constructor(private readonly sessionsRepository: SessionsRepository) {}
 
-  async createSession(params: CreateSessionParams): Promise<void> {
-    await this.sessionsRepository.createSession(params);
+  /** Сохраняет новую пользовательскую сессию после успешного входа. */
+  createSession(params: CreateSessionParams): Promise<void> {
+    return this.sessionsRepository.createSession(params);
   }
 
+  /** Атомарно заменяет jti refresh-токена и отклоняет повторное использование старого токена. */
   async rotateRefreshToken(params: RotateRefreshTokenParams): Promise<void> {
     const wasRotated = await this.sessionsRepository.rotateRefreshToken(params);
     if (!wasRotated) {
@@ -18,11 +24,15 @@ export class SessionsService {
     }
   }
 
-  async checkSession(jti: string, sessionId: string): Promise<boolean> {
-    return this.sessionsRepository.isSessionActive(jti, sessionId);
+  /** Проверяет, существует ли активная сессия с указанными userId, sessionId и jti. */
+  checkSession(params: SessionIdentity): Promise<boolean> {
+    return this.sessionsRepository.isSessionActive(params);
   }
 
-  // Для удаления сессий проверяем, что запрос отправляет владелец сессии. Пока не используется
+  /**
+   * Проверяет существование сессии и принадлежность пользователю. Понадобится, например, при удалении
+   * конкретной сессии по sessionId, чтобы пользователь не мог удалить чужую сессию.
+   */
   async assertSessionOwnership(userId: string, sessionId: string): Promise<void> {
     if (!isUUID(sessionId)) {
       throw new Error('Session not found');

@@ -25,11 +25,12 @@ export type LoginParams = {
   password: string;
   ip: string;
   deviceName: string;
-  currentRefreshToken?: string;
+  currentSession?: SessionIdentity;
 };
 
 export type RefreshTokenParams = {
-  refreshToken: string;
+  auth: SessionIdentity;
   ip: string;
   deviceName: string;
 };
+import type { SessionIdentity } from '../../../sessions/application/types/sessions.types.js';

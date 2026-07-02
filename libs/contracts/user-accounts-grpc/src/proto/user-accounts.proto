@@ -32,13 +32,19 @@ message LoginRequest {
   string password = 2;
   string ip = 3;
   string device_name = 4;
-  optional string current_refresh_token = 5;
+  VerifiedRefreshTokenClaims current_session = 5;
 }
 
 message RefreshTokenRequest {
-  string refresh_token = 1;
+  VerifiedRefreshTokenClaims auth = 1;
   string ip = 2;
   string device_name = 3;
+}
+
+message VerifiedRefreshTokenClaims {
+  string user_id = 1;
+  string session_id = 2;
+  string jti = 3;
 }
 
 message TokenPairResponse {
@@ -47,7 +53,7 @@ message TokenPairResponse {
 }
 
 message GetDevicesRequest {
-  string refresh_token = 1;
+  VerifiedRefreshTokenClaims auth = 1;
 }
 
 message Device {
