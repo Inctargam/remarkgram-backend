@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME } from '@app/user-accounts-grpc';
 import { join } from 'node:path';
-import { UserAccountsGrpcClientConfigModule } from '../../config/user-accounts-grpc-client-config.module.js';
-import { UserAccountsGrpcClientConfig } from '../../config/user-accounts-grpc-client.config.js';
+import { userAccountsGrpcClientConfig } from '../../config/user-accounts-grpc-client.config.js';
 
 const protoPath = join(
   import.meta.dirname,
@@ -15,9 +15,8 @@ const protoPath = join(
     ClientsModule.registerAsync([
       {
         name: REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
-        imports: [UserAccountsGrpcClientConfigModule],
-        inject: [UserAccountsGrpcClientConfig],
-        useFactory: (config: UserAccountsGrpcClientConfig) => ({
+        inject: [userAccountsGrpcClientConfig.KEY],
+        useFactory: (config: ConfigType<typeof userAccountsGrpcClientConfig>) => ({
           transport: Transport.GRPC,
           options: {
             package: REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,

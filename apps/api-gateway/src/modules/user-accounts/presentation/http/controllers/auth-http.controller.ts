@@ -11,6 +11,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { type ConfigType } from '@nestjs/config';
 import {
   AUTH_SERVICE_NAME,
   REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
@@ -20,7 +21,7 @@ import type { ClientGrpc } from '@nestjs/microservices';
 import type { Response } from 'express';
 import { firstValueFrom } from 'rxjs';
 import { Public } from '../../../../../common/presentation/http/decorators/public.decorator.js';
-import { UserAccountsHttpConfig } from '../../../config/user-accounts-http.config.js';
+import { userAccountsHttpConfig } from '../../../config/user-accounts-http.config.js';
 import type { RequestWithOptionalRefreshSession, RequestWithRefreshSession } from '../auth-request.types.js';
 import { LoginDto } from '../dto/input/login.dto.js';
 import { AccessTokenResponseDto } from '../dto/output/access-token-response.dto.js';
@@ -34,7 +35,8 @@ export class AuthHttpController implements OnModuleInit {
   constructor(
     @Inject(REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME)
     private readonly grpcClient: ClientGrpc,
-    private readonly config: UserAccountsHttpConfig,
+    @Inject(userAccountsHttpConfig.KEY)
+    private readonly config: ConfigType<typeof userAccountsHttpConfig>,
   ) {}
 
   onModuleInit(): void {

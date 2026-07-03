@@ -5,7 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { authConfig } from './config/auth.config.js';
 import { databaseConfig } from './config/database.config.js';
 import { emailConfig } from './config/email.config.js';
-import { UserAccountsGrpcConfig } from './config/user-accounts-grpc.config.js';
+import { userAccountsGrpcConfig } from './config/user-accounts-grpc.config.js';
 import { PrismaModule } from './database/prisma.module.js';
 import { LoginUseCase } from './modules/auth/application/use-cases/login.use-case.js';
 import { RefreshTokenUseCase } from './modules/auth/application/use-cases/refresh-token.use-case.js';
@@ -43,7 +43,7 @@ import { UsersGrpcController } from './modules/users/presentation/grpc/users-grp
         `.env.production`,
         '.env',
       ],
-      load: [authConfig, databaseConfig, emailConfig],
+      load: [authConfig, databaseConfig, emailConfig, userAccountsGrpcConfig],
     }),
     CqrsModule,
     PrismaModule,
@@ -58,7 +58,6 @@ import { UsersGrpcController } from './modules/users/presentation/grpc/users-grp
   ],
   controllers: [AuthGrpcController, SessionsGrpcController, UsersGrpcController],
   providers: [
-    UserAccountsGrpcConfig,
     {
       provide: UsersRepository,
       useClass: PrismaUsersRepository,

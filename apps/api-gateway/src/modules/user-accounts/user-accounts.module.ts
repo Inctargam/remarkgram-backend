@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
-import { UserAccountsHttpConfigModule } from './config/user-accounts-http-config.module.js';
-import { UserAccountsHttpConfig } from './config/user-accounts-http.config.js';
+import { userAccountsHttpConfig } from './config/user-accounts-http.config.js';
 import { UserAccountsGrpcClientModule } from './infrastructure/grpc/user-accounts-grpc-client.module.js';
 import { AuthHttpController } from './presentation/http/controllers/auth-http.controller.js';
 import { DevicesHttpController } from './presentation/http/controllers/devices-http.controller.js';
@@ -14,11 +14,9 @@ import { RefreshTokenGuard } from './presentation/http/guards/refresh-token.guar
 @Module({
   imports: [
     UserAccountsGrpcClientModule,
-    UserAccountsHttpConfigModule,
     JwtModule.registerAsync({
-      imports: [UserAccountsHttpConfigModule],
-      inject: [UserAccountsHttpConfig],
-      useFactory: (config: UserAccountsHttpConfig) => ({
+      inject: [userAccountsHttpConfig.KEY],
+      useFactory: (config: ConfigType<typeof userAccountsHttpConfig>) => ({
         publicKey: config.jwtPublicKey,
         verifyOptions: { algorithms: ['RS256'] },
       }),

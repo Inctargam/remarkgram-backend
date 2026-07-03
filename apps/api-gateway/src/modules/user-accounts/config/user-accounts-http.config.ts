@@ -1,23 +1,26 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { registerAs } from '@nestjs/config';
+import { plainToInstance, Type } from 'class-transformer';
 import { IsInt, IsNotEmpty, IsString, Min } from 'class-validator';
 import { configValidationUtility } from '@app/config';
 
-@Injectable()
-export class UserAccountsHttpConfig {
+class UserAccountsHttpConfig {
   @IsString()
   @IsNotEmpty()
-  readonly jwtPublicKey: string;
+  declare readonly jwtPublicKey: string;
 
   @IsInt()
   @Min(1)
-  readonly refreshTokenCookieMaxAgeMs: number;
-
-  constructor(configService: ConfigService) {
-    this.jwtPublicKey = configService.getOrThrow<string>('JWT_PUBLIC_KEY');
-    this.refreshTokenCookieMaxAgeMs = configValidationUtility.convertToNumber(
-      configService.getOrThrow<string>('REFRESH_TOKEN_COOKIE_MAX_AGE_MS'),
-    );
-    configValidationUtility.validateConfig(this);
-  }
+  @Type(() => Number)
+  declare readonly refreshTokenCookieMaxAgeMs: number;
 }
+
+export const userAccountsHttpConfig = registerAs('userAccountsHttp', () => {
+  const config = plainToInstance(UserAccountsHttpConfig, {
+    jwtPublicKey: process.env.JWT_PUBLIC_KEY,
+    refreshTokenCookieMaxAgeMs: process.env.REFRESH_TOKEN_COOKIE_MAX_AGE_MS,
+  });
+
+  configValidationUtility.validateConfig(config);
+
+  return config;
+});

@@ -2,8 +2,11 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER } from '@nestjs/core';
 import { GrpcToHttpExceptionFilter } from './common/presentation/http/filters/grpc-to-http-exception.filter.js';
-import { ApiGatewayConfig } from './config/api-gateway.config.js';
+import { apiGatewayConfig } from './config/api-gateway.config.js';
+import { filesGrpcClientConfig } from './modules/files/config/files-grpc-client.config.js';
 import { FilesModule } from './modules/files/files.module.js';
+import { userAccountsGrpcClientConfig } from './modules/user-accounts/config/user-accounts-grpc-client.config.js';
+import { userAccountsHttpConfig } from './modules/user-accounts/config/user-accounts-http.config.js';
 import { UserAccountsModule } from './modules/user-accounts/user-accounts.module.js';
 
 @Module({
@@ -20,12 +23,12 @@ import { UserAccountsModule } from './modules/user-accounts/user-accounts.module
         `.env.production`,
         '.env',
       ],
+      load: [apiGatewayConfig, filesGrpcClientConfig, userAccountsGrpcClientConfig, userAccountsHttpConfig],
     }),
     FilesModule,
     UserAccountsModule,
   ],
   providers: [
-    ApiGatewayConfig,
     {
       provide: APP_FILTER,
       useClass: GrpcToHttpExceptionFilter,
