@@ -30,6 +30,13 @@ export class DevicesHttpController implements OnModuleInit {
   getDevices(@Req() request: RequestWithRefreshSession): Observable<DeviceResponseDto[]> {
     return this.sessionsClient
       .getDevices({ auth: request.refreshTokenClaims })
-      .pipe(map((response) => response.devices.map((device) => DeviceResponseDto.fromGrpc(device))));
+      .pipe(
+        map((response) =>
+          response.devices.map(
+            (device) =>
+              new DeviceResponseDto(device.ip, device.title, device.lastActiveDate, device.deviceId),
+          ),
+        ),
+      );
   }
 }

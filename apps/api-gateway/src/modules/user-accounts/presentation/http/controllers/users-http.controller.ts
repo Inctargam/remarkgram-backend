@@ -27,6 +27,10 @@ export class UsersHttpController implements OnModuleInit {
   findMany(): Observable<UserResponseDto[]> {
     return this.usersClient
       .getUsers({})
-      .pipe(map((response) => response.users.map((user) => UserResponseDto.fromGrpc(user))));
+      .pipe(
+        map((response) =>
+          response.users.map((user) => new UserResponseDto(user.id, user.username, user.email)),
+        ),
+      );
   }
 }
