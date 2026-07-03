@@ -1,7 +1,7 @@
 import type { ConfigType } from '@nestjs/config';
 import type { authConfig } from '../../../../config/auth.config.js';
 import type { EmailService } from '../../../notifications/email.service.js';
-import { User } from '../../domain/entities/user.entity.js';
+import { createTestUser } from '../../../../../test/factories/user.factory.js';
 import type { UsersRepository } from '../ports/users.repository.js';
 import type { UsersService } from '../users.service.js';
 import { CreateUserCommand, CreateUserUseCase } from './create-user.use-case.js';
@@ -17,7 +17,7 @@ import {
 
 describe('user registration use cases', () => {
   it('CreateUserUseCase delegates user creation to UsersService', async () => {
-    const user = User.restore({ id: 1, username: 'user', email: 'user@example.com' });
+    const user = createTestUser();
     const usersService = { createUser: vi.fn().mockResolvedValue(user) };
     const useCase = new CreateUserUseCase(usersService as unknown as UsersService);
     const params = { login: 'user', email: 'user@example.com', password: 'password' };
@@ -116,10 +116,7 @@ describe('RegistrationEmailResendingUseCase', () => {
 
   it('sends and persists a new confirmation code', async () => {
     usersRepository.findByLoginOrEmail.mockResolvedValue(
-      User.restore({
-        id: 1,
-        username: 'user',
-        email: 'user@example.com',
+      createTestUser({
         confirmation: { isConfirmed: false, code: 'old-code', expiration: new Date() },
       }),
     );
@@ -147,10 +144,7 @@ describe('RegistrationEmailResendingUseCase', () => {
 
   it('rejects an already confirmed email', async () => {
     usersRepository.findByLoginOrEmail.mockResolvedValue(
-      User.restore({
-        id: 1,
-        username: 'user',
-        email: 'user@example.com',
+      createTestUser({
         confirmation: { isConfirmed: true, code: null, expiration: null },
       }),
     );

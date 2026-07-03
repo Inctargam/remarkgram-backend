@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import type { authConfig } from '../../../config/auth.config.js';
 import type { SessionsService } from '../../sessions/application/sessions.service.js';
 import type { UsersRepository } from '../../users/application/ports/users.repository.js';
-import { User } from '../../users/domain/entities/user.entity.js';
+import { createTestUser } from '../../../../test/factories/user.factory.js';
 import { AuthService } from './auth.service.js';
 
 describe('AuthService', () => {
@@ -40,12 +40,7 @@ describe('AuthService', () => {
 
   it('validates login and password', async () => {
     const hash = await bcrypt.hash('password', 4);
-    const user = User.restore({
-      id: 1,
-      username: 'user',
-      email: 'user@example.com',
-      hash,
-    });
+    const user = createTestUser({ hash });
     usersRepository.findByLoginOrEmail.mockResolvedValue(user);
 
     await expect(service.validateCredentials('user', 'password')).resolves.toBe(user);

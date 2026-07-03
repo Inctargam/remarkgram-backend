@@ -1,4 +1,4 @@
-type UserProps = {
+export type UserProps = {
   id: number;
   username: string;
   email: string;
@@ -20,52 +20,28 @@ export type PasswordRecoveryInfo = {
   expiration: Date | null;
 };
 
-type RestoreUserProps = Pick<UserProps, 'id' | 'username' | 'email'> &
-  Partial<Omit<UserProps, 'id' | 'username' | 'email'>>;
-
 export class User {
-  private constructor(private readonly props: UserProps) {}
+  readonly id: number;
+  readonly username: string;
+  readonly email: string;
+  readonly hash: string;
+  readonly createdAt: Date;
+  readonly confirmation: ConfirmationInfo;
+  readonly passwordRecovery: PasswordRecoveryInfo;
+  readonly deletedAt: Date | null;
 
-  static restore(props: RestoreUserProps): User {
-    return new User({
-      hash: '',
-      createdAt: new Date(0),
-      confirmation: { isConfirmed: true, code: null, expiration: null },
-      passwordRecovery: { code: null, expiration: null },
-      deletedAt: null,
-      ...props,
-    });
+  private constructor(props: UserProps) {
+    this.id = props.id;
+    this.username = props.username;
+    this.email = props.email;
+    this.hash = props.hash;
+    this.createdAt = props.createdAt;
+    this.confirmation = props.confirmation;
+    this.passwordRecovery = props.passwordRecovery;
+    this.deletedAt = props.deletedAt;
   }
 
-  get id(): number {
-    return this.props.id;
-  }
-
-  get email(): string {
-    return this.props.email;
-  }
-
-  get username(): string {
-    return this.props.username;
-  }
-
-  get hash(): string {
-    return this.props.hash;
-  }
-
-  get createdAt(): Date {
-    return this.props.createdAt;
-  }
-
-  get confirmation(): ConfirmationInfo {
-    return this.props.confirmation;
-  }
-
-  get passwordRecovery(): PasswordRecoveryInfo {
-    return this.props.passwordRecovery;
-  }
-
-  get deletedAt(): Date | null {
-    return this.props.deletedAt;
+  static restore(props: UserProps): User {
+    return new User(props);
   }
 }

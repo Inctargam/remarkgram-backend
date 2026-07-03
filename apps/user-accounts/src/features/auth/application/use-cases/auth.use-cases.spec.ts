@@ -1,6 +1,6 @@
 import type { AuthService } from '../auth.service.js';
 import type { SessionsService } from '../../../sessions/application/sessions.service.js';
-import { User } from '../../../users/domain/entities/user.entity.js';
+import { createTestUser } from '../../../../../test/factories/user.factory.js';
 import { LoginCommand, LoginUseCase } from './login.use-case.js';
 import { RefreshTokenCommand, RefreshTokenUseCase } from './refresh-token.use-case.js';
 
@@ -11,10 +11,7 @@ describe('auth use cases', () => {
     ip: '127.0.0.1',
     deviceName: 'Browser',
   };
-  const user = User.restore({
-    id: 1,
-    username: 'user',
-    email: 'user@example.com',
+  const user = createTestUser({
     hash: 'hash',
     confirmation: { isConfirmed: true, code: null, expiration: null },
   });

@@ -2,7 +2,7 @@ import type { ConfigType } from '@nestjs/config';
 import type { authConfig } from '../../../config/auth.config.js';
 import type { AuthService } from '../../auth/application/auth.service.js';
 import type { EmailService } from '../../notifications/email.service.js';
-import { User } from '../domain/entities/user.entity.js';
+import { createTestUser } from '../../../../test/factories/user.factory.js';
 import type { UsersRepository } from './ports/users.repository.js';
 import type { CreateUserRepositoryParams } from './types/users.types.js';
 import { UsersService } from './users.service.js';
@@ -34,8 +34,7 @@ describe('UsersService', () => {
     authService.hashPassword.mockResolvedValue('password-hash');
     usersRepository.create.mockImplementation((params: CreateUserRepositoryParams) =>
       Promise.resolve(
-        User.restore({
-          id: 1,
+        createTestUser({
           username: params.username,
           email: params.email,
           hash: params.hash,
