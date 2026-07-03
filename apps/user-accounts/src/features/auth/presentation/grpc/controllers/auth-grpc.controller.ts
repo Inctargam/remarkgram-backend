@@ -1,5 +1,7 @@
 import { Controller, UseFilters } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
+import { status } from '@grpc/grpc-js';
+import { RpcException } from '@nestjs/microservices';
 import { AuthServiceControllerMethods } from '@app/user-accounts-grpc';
 import type { LoginRequest, RefreshTokenRequest, TokenPairResponse } from '@app/user-accounts-grpc';
 import { UserAccountsRpcExceptionFilter } from '../../../../../common/presentation/grpc/user-accounts-rpc-exception.filter.js';
@@ -26,7 +28,10 @@ export class AuthGrpcController {
 
   async refreshToken(request: RefreshTokenRequest): Promise<TokenPairResponse> {
     if (!request.auth) {
-      throw new Error('Invalid authorization method');
+      throw new RpcException({
+        code: status.UNAUTHENTICATED,
+        message: 'Invalid authorization method',
+      });
     }
 
     return this.commandBus.execute(

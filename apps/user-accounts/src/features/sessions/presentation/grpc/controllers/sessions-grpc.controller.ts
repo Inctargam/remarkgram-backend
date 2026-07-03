@@ -1,5 +1,7 @@
 import { Controller, UseFilters } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
+import { status } from '@grpc/grpc-js';
+import { RpcException } from '@nestjs/microservices';
 import { SessionsServiceControllerMethods } from '@app/user-accounts-grpc';
 import type { GetDevicesRequest, GetDevicesResponse } from '@app/user-accounts-grpc';
 import { UserAccountsRpcExceptionFilter } from '../../../../../common/presentation/grpc/user-accounts-rpc-exception.filter.js';
@@ -13,7 +15,10 @@ export class SessionsGrpcController {
 
   async getDevices(request: GetDevicesRequest): Promise<GetDevicesResponse> {
     if (!request.auth) {
-      throw new Error('Invalid authorization method');
+      throw new RpcException({
+        code: status.UNAUTHENTICATED,
+        message: 'Invalid authorization method',
+      });
     }
 
     const sessions = await this.queryBus.execute(new GetSessionsQuery(request.auth));

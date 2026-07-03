@@ -4,9 +4,11 @@ import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
 import { authConfig } from '../../../config/auth.config.js';
+import { NoActiveSessionError } from '../../sessions/application/errors/sessions.errors.js';
 import { SessionsService } from '../../sessions/application/sessions.service.js';
 import { UsersRepository } from '../../users/application/ports/users.repository.js';
 import type { User } from '../../users/domain/entities/user.entity.js';
+import { IncorrectCredentialsError, InvalidRefreshTokenError } from './errors/auth.errors.js';
 import type { GeneratedTokenPair, GenerateTokenPairParams, JwtRefreshPayload } from './types/auth.types.js';
 
 @Injectable()
@@ -28,7 +30,7 @@ export class AuthService {
     const user = await this.usersRepository.findByEmail(email);
 
     if (!user || !(await bcrypt.compare(password, user.hash))) {
-      throw new Error('Incorrect email/password');
+      throw new IncorrectCredentialsError();
     }
 
     return user;
@@ -56,7 +58,7 @@ export class AuthService {
   async validateRefreshToken(refreshToken: string): Promise<JwtRefreshPayload> {
     const payload = await this.decodeRefreshToken(refreshToken);
     if (!payload) {
-      throw new Error('Invalid refresh token');
+      throw new InvalidRefreshTokenError();
     }
 
     if (
@@ -66,7 +68,7 @@ export class AuthService {
         jti: payload.jti,
       }))
     ) {
-      throw new Error('No active session found');
+      throw new NoActiveSessionError();
     }
 
     return payload;

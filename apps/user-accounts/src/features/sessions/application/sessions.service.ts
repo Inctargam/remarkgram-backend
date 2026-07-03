@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { isUUID } from 'class-validator';
+import {
+  NoActiveSessionError,
+  SessionAccessDeniedError,
+  SessionNotFoundError,
+} from './errors/sessions.errors.js';
 import { SessionsRepository } from './ports/sessions.repository.js';
 import type {
   CreateSessionParams,
@@ -20,7 +25,7 @@ export class SessionsService {
   async rotateRefreshToken(params: RotateRefreshTokenParams): Promise<void> {
     const wasRotated = await this.sessionsRepository.rotateRefreshToken(params);
     if (!wasRotated) {
-      throw new Error('No active session found');
+      throw new NoActiveSessionError();
     }
   }
 
@@ -35,16 +40,16 @@ export class SessionsService {
    */
   async assertSessionOwnership(userId: string, sessionId: string): Promise<void> {
     if (!isUUID(sessionId)) {
-      throw new Error('Session not found');
+      throw new SessionNotFoundError();
     }
 
     const sessionOwner = await this.sessionsRepository.getSessionOwner(sessionId);
     if (sessionOwner === null) {
-      throw new Error('Session not found');
+      throw new SessionNotFoundError();
     }
 
     if (sessionOwner !== userId) {
-      throw new Error('Access denied');
+      throw new SessionAccessDeniedError();
     }
   }
 }

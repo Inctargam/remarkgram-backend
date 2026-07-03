@@ -4,6 +4,7 @@ import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import { randomUUID } from 'node:crypto';
 import { authConfig } from '../../../../config/auth.config.js';
 import { EmailService } from '../../../notifications/email.service.js';
+import { EmailAlreadyConfirmedError, IncorrectEmailError } from '../errors/users.errors.js';
 import { UsersRepository } from '../ports/users.repository.js';
 
 export class RegistrationEmailResendingCommand extends Command<void> {
@@ -24,11 +25,11 @@ export class RegistrationEmailResendingUseCase implements ICommandHandler<Regist
     const user = await this.usersRepository.findByEmail(command.email);
 
     if (!user) {
-      throw new Error('Email is incorrect');
+      throw new IncorrectEmailError();
     }
 
     if (user.confirmation.isConfirmed) {
-      throw new Error('Email is already confirmed');
+      throw new EmailAlreadyConfirmedError();
     }
 
     const code = randomUUID();

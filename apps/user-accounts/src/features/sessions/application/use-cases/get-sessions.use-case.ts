@@ -1,4 +1,5 @@
 import { Query, QueryHandler, type IQueryHandler } from '@nestjs/cqrs';
+import { NoActiveSessionError } from '../errors/sessions.errors.js';
 import { SessionsQueryRepository } from '../ports/sessions-query.repository.js';
 import { SessionsService } from '../sessions.service.js';
 import type { SessionIdentity, SessionView } from '../types/sessions.types.js';
@@ -18,7 +19,7 @@ export class GetSessionsUseCase implements IQueryHandler<GetSessionsQuery> {
 
   async execute(query: GetSessionsQuery) {
     if (!(await this.sessionsService.checkSession(query.auth))) {
-      throw new Error('No active session found');
+      throw new NoActiveSessionError();
     }
 
     return this.sessionsQueryRepository.getActiveSessions(query.auth.userId);

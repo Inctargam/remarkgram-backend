@@ -2,6 +2,7 @@ import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import { randomUUID } from 'node:crypto';
 import { SessionsService } from '../../../sessions/application/sessions.service.js';
 import { AuthService } from '../auth.service.js';
+import { EmailNotConfirmedError, UserAlreadyLoggedInError } from '../errors/auth.errors.js';
 import type { JwtPair, LoginParams } from '../types/auth.types.js';
 
 export class LoginCommand extends Command<JwtPair> {
@@ -20,12 +21,12 @@ export class LoginUseCase implements ICommandHandler<LoginCommand> {
   async execute(command: LoginCommand) {
     const { email, password, currentSession, deviceName, ip } = command.params;
     if (currentSession && (await this.sessionsService.checkSession(currentSession))) {
-      throw new Error('The user is already logged in');
+      throw new UserAlreadyLoggedInError();
     }
 
     const user = await this.authService.validateCredentials(email, password);
     if (!user.confirmation.isConfirmed) {
-      throw new Error('Email has not been confirmed');
+      throw new EmailNotConfirmedError();
     }
 
     const sessionId = randomUUID();

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../../database/prisma.service.js';
+import { InvalidUserIdError } from '../../application/errors/sessions.errors.js';
 import { SessionsRepository } from '../../application/ports/sessions.repository.js';
 import type {
   CreateSessionParams,
@@ -37,7 +38,7 @@ export class PrismaSessionsRepository implements SessionsRepository {
   async createSession(params: CreateSessionParams): Promise<void> {
     const userId = Number(params.userId);
     if (!Number.isSafeInteger(userId) || userId <= 0) {
-      throw new Error('Unauthorized');
+      throw new InvalidUserIdError();
     }
 
     await this.prisma.deviceSession.create({

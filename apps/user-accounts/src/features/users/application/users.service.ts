@@ -4,6 +4,7 @@ import { authConfig } from '../../../config/auth.config.js';
 import { AuthService } from '../../auth/application/auth.service.js';
 import { EmailService } from '../../notifications/email.service.js';
 import type { User } from '../domain/entities/user.entity.js';
+import { EmailAlreadyExistsError, UsernameAlreadyExistsError } from './errors/users.errors.js';
 import { UsersRepository } from './ports/users.repository.js';
 import type { CreateUserParams, RegisterUserParams } from './types/users.types.js';
 
@@ -27,11 +28,11 @@ export class UsersService {
     } = params;
 
     if (await this.usersRepository.isUsernameExists(username)) {
-      throw new Error('Username already exists');
+      throw new UsernameAlreadyExistsError();
     }
 
     if (await this.usersRepository.isEmailExists(email)) {
-      throw new Error('Email already exists');
+      throw new EmailAlreadyExistsError();
     }
 
     const hash = await this.authService.hashPassword(password);
