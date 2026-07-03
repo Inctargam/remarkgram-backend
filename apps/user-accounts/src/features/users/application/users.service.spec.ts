@@ -59,7 +59,7 @@ describe('UsersService', () => {
 
   it('creates an already confirmed user', async () => {
     const user = await service.createUser({
-      login: 'user',
+      username: 'user',
       email: 'user@example.com',
       password: 'password',
     });
@@ -76,18 +76,18 @@ describe('UsersService', () => {
     expect(user.username).toBe('user');
   });
 
-  it('rejects an existing login before hashing the password', async () => {
+  it('rejects an existing username before hashing the password', async () => {
     usersRepository.isUsernameExists.mockResolvedValue(true);
 
     await expect(
-      service.createUser({ login: 'user', email: 'user@example.com', password: 'password' }),
-    ).rejects.toThrow('Login already exists');
+      service.createUser({ username: 'user', email: 'user@example.com', password: 'password' }),
+    ).rejects.toThrow('Username already exists');
     expect(authService.hashPassword).not.toHaveBeenCalled();
   });
 
   it('registers an unconfirmed user and sends its confirmation code', async () => {
     await service.registerUser({
-      login: 'user',
+      username: 'user',
       email: 'user@example.com',
       password: 'password',
     });

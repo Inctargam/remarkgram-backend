@@ -6,7 +6,7 @@ import { RefreshTokenCommand, RefreshTokenUseCase } from './refresh-token.use-ca
 
 describe('auth use cases', () => {
   const params = {
-    loginOrEmail: 'user',
+    email: 'user@example.com',
     password: 'password',
     ip: '127.0.0.1',
     deviceName: 'Browser',

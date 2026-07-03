@@ -24,11 +24,11 @@ export class AuthService {
   }
 
   /** Проверяет логин или email и сравнивает переданный пароль с сохранённым хешем. */
-  async validateCredentials(loginOrEmail: string, password: string): Promise<User> {
-    const user = await this.usersRepository.findByLoginOrEmail(loginOrEmail);
+  async validateCredentials(email: string, password: string): Promise<User> {
+    const user = await this.usersRepository.findByEmail(email);
 
     if (!user || !(await bcrypt.compare(password, user.hash))) {
-      throw new Error('Incorrect login/password');
+      throw new Error('Incorrect email/password');
     }
 
     return user;

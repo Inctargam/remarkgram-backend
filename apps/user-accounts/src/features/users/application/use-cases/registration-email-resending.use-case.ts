@@ -21,7 +21,7 @@ export class RegistrationEmailResendingUseCase implements ICommandHandler<Regist
   ) {}
 
   async execute(command: RegistrationEmailResendingCommand) {
-    const user = await this.usersRepository.findByLoginOrEmail(command.email);
+    const user = await this.usersRepository.findByEmail(command.email);
 
     if (!user) {
       throw new Error('Email is incorrect');

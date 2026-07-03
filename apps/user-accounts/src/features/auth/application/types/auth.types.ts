@@ -21,7 +21,7 @@ export type GeneratedTokenPair = JwtPair & {
 };
 
 export type LoginParams = {
-  loginOrEmail: string;
+  email: string;
   password: string;
   ip: string;
   deviceName: string;

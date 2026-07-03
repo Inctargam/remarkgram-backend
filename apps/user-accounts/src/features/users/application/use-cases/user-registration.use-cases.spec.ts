@@ -20,7 +20,7 @@ describe('user registration use cases', () => {
     const user = createTestUser();
     const usersService = { createUser: vi.fn().mockResolvedValue(user) };
     const useCase = new CreateUserUseCase(usersService as unknown as UsersService);
-    const params = { login: 'user', email: 'user@example.com', password: 'password' };
+    const params = { username: 'user', email: 'user@example.com', password: 'password' };
 
     await expect(useCase.execute(new CreateUserCommand(params))).resolves.toBe(user);
     expect(usersService.createUser).toHaveBeenCalledWith(params);
@@ -29,7 +29,7 @@ describe('user registration use cases', () => {
   it('RegisterUserUseCase delegates registration to UsersService', async () => {
     const usersService = { registerUser: vi.fn().mockResolvedValue(undefined) };
     const useCase = new RegisterUserUseCase(usersService as unknown as UsersService);
-    const params = { login: 'user', email: 'user@example.com', password: 'password' };
+    const params = { username: 'user', email: 'user@example.com', password: 'password' };
 
     await useCase.execute(new RegisterUserCommand(params));
 
@@ -88,7 +88,7 @@ describe('RegistrationConfirmationUseCase', () => {
 
 describe('RegistrationEmailResendingUseCase', () => {
   const usersRepository = {
-    findByLoginOrEmail: vi.fn<UsersRepository['findByLoginOrEmail']>(),
+    findByEmail: vi.fn<UsersRepository['findByEmail']>(),
     updateConfirmationCode: vi.fn<UsersRepository['updateConfirmationCode']>(),
   };
   const emailService = {
@@ -115,7 +115,7 @@ describe('RegistrationEmailResendingUseCase', () => {
   });
 
   it('sends and persists a new confirmation code', async () => {
-    usersRepository.findByLoginOrEmail.mockResolvedValue(
+    usersRepository.findByEmail.mockResolvedValue(
       createTestUser({
         confirmation: { isConfirmed: false, code: 'old-code', expiration: new Date() },
       }),
@@ -135,7 +135,7 @@ describe('RegistrationEmailResendingUseCase', () => {
   });
 
   it('rejects an unknown email', async () => {
-    usersRepository.findByLoginOrEmail.mockResolvedValue(null);
+    usersRepository.findByEmail.mockResolvedValue(null);
 
     await expect(useCase.execute(new RegistrationEmailResendingCommand('user@example.com'))).rejects.toThrow(
       'Email is incorrect',
@@ -143,7 +143,7 @@ describe('RegistrationEmailResendingUseCase', () => {
   });
 
   it('rejects an already confirmed email', async () => {
-    usersRepository.findByLoginOrEmail.mockResolvedValue(
+    usersRepository.findByEmail.mockResolvedValue(
       createTestUser({
         confirmation: { isConfirmed: true, code: null, expiration: null },
       }),

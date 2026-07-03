@@ -4,7 +4,7 @@ import type { CreateUserRepositoryParams, UpdateConfirmationCodeParams } from '.
 
 export abstract class UsersRepository {
   abstract findMany(): Promise<User[]>;
-  abstract findByLoginOrEmail(loginOrEmail: string): Promise<User | null>;
+  abstract findByEmail(email: string): Promise<User | null>;
   abstract isUsernameExists(username: string): Promise<boolean>;
   abstract isEmailExists(email: string): Promise<boolean>;
   abstract create(params: CreateUserRepositoryParams): Promise<User>;

@@ -164,14 +164,14 @@ describe('ApiGateway (e2e)', () => {
     const response = await request(app.getHttpServer() as SupertestApp)
       .post('/auth/login')
       .set('User-Agent', 'Browser')
-      .send({ loginOrEmail: 'user', password: 'password' })
+      .send({ email: 'user@example.com', password: 'password' })
       .expect(200)
       .expect({ accessToken: 'login-access-token' });
 
     expect(response.headers['set-cookie']).toBeDefined();
     expect(authServiceClient.login).toHaveBeenCalledWith(
       expect.objectContaining({
-        loginOrEmail: 'user',
+        email: 'user@example.com',
         password: 'password',
         deviceName: 'Browser',
       }),

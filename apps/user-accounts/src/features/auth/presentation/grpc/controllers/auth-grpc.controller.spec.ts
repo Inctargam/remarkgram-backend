@@ -19,7 +19,7 @@ describe('AuthGrpcController', () => {
 
     await expect(
       controller.login({
-        loginOrEmail: 'user',
+        email: 'user@example.com',
         password: 'password',
         ip: '127.0.0.1',
         deviceName: 'Browser',
@@ -30,7 +30,7 @@ describe('AuthGrpcController', () => {
     const command = commandBus.execute.mock.calls[0][0] as LoginCommand;
     expect(command).toBeInstanceOf(LoginCommand);
     expect(command.params).toEqual({
-      loginOrEmail: 'user',
+      email: 'user@example.com',
       password: 'password',
       ip: '127.0.0.1',
       deviceName: 'Browser',

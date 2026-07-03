@@ -15,7 +15,7 @@ export class AuthGrpcController {
   async login(request: LoginRequest): Promise<TokenPairResponse> {
     return this.commandBus.execute(
       new LoginCommand({
-        loginOrEmail: request.loginOrEmail,
+        email: request.email,
         password: request.password,
         ip: request.ip,
         deviceName: request.deviceName,

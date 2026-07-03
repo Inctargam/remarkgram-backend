@@ -56,7 +56,7 @@ export class AuthHttpController implements OnModuleInit {
   ): Promise<AccessTokenResponseDto> {
     const tokens = await firstValueFrom(
       this.authClient.login({
-        loginOrEmail: input.loginOrEmail,
+        email: input.email,
         password: input.password,
         ip,
         deviceName: userAgent ?? 'unknown',

@@ -19,15 +19,15 @@ export class UsersService {
   /** Проверяет уникальность данных, хеширует пароль и создаёт пользователя в репозитории. */
   async createUser(params: CreateUserParams): Promise<User> {
     const {
-      login,
+      username,
       email,
       password,
       confirmation = { isConfirmed: true, code: null, expiration: null },
       passwordRecovery = { code: null, expiration: null },
     } = params;
 
-    if (await this.usersRepository.isUsernameExists(login)) {
-      throw new Error('Login already exists');
+    if (await this.usersRepository.isUsernameExists(username)) {
+      throw new Error('Username already exists');
     }
 
     if (await this.usersRepository.isEmailExists(email)) {
@@ -37,7 +37,7 @@ export class UsersService {
     const hash = await this.authService.hashPassword(password);
 
     return this.usersRepository.create({
-      username: login,
+      username,
       email,
       hash,
       createdAt: new Date(),

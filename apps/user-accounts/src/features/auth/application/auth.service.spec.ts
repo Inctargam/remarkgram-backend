@@ -9,7 +9,7 @@ import { AuthService } from './auth.service.js';
 
 describe('AuthService', () => {
   const usersRepository = {
-    findByLoginOrEmail: vi.fn<UsersRepository['findByLoginOrEmail']>(),
+    findByEmail: vi.fn<UsersRepository['findByEmail']>(),
   };
   const sessionsService = {
     checkSession: vi.fn<SessionsService['checkSession']>(),
@@ -38,22 +38,22 @@ describe('AuthService', () => {
     );
   });
 
-  it('validates login and password', async () => {
+  it('validates username and password', async () => {
     const hash = await bcrypt.hash('password', 4);
     const user = createTestUser({ hash });
-    usersRepository.findByLoginOrEmail.mockResolvedValue(user);
+    usersRepository.findByEmail.mockResolvedValue(user);
 
-    await expect(service.validateCredentials('user', 'password')).resolves.toBe(user);
-    await expect(service.validateCredentials('user', 'wrong-password')).rejects.toThrow(
-      'Incorrect login/password',
+    await expect(service.validateCredentials('user@example.com', 'password')).resolves.toBe(user);
+    await expect(service.validateCredentials('user@example.com', 'wrong-password')).rejects.toThrow(
+      'Incorrect email/password',
     );
   });
 
   it('rejects an unknown user', async () => {
-    usersRepository.findByLoginOrEmail.mockResolvedValue(null);
+    usersRepository.findByEmail.mockResolvedValue(null);
 
-    await expect(service.validateCredentials('unknown', 'password')).rejects.toThrow(
-      'Incorrect login/password',
+    await expect(service.validateCredentials('unknown@example.com', 'password')).rejects.toThrow(
+      'Incorrect email/password',
     );
   });
 

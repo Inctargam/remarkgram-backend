@@ -24,7 +24,7 @@ export interface GetUsersResponse {
 }
 
 export interface LoginRequest {
-  loginOrEmail: string;
+  email: string;
   password: string;
   ip: string;
   deviceName: string;

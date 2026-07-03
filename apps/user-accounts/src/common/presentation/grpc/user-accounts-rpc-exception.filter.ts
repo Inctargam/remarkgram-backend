@@ -3,7 +3,7 @@ import { status } from '@grpc/grpc-js';
 import { BaseRpcExceptionFilter, RpcException } from '@nestjs/microservices';
 
 const authenticationErrors = new Set([
-  'Incorrect login/password',
+  'Incorrect email/password',
   'Email has not been confirmed',
   'The user is already logged in',
   'Invalid authorization method',

@@ -1,11 +1,10 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
 import { Trim } from '../../../../../../common/presentation/http/decorators/trim.decorator.js';
 
 export class LoginDto {
-  @IsString()
   @Trim()
-  @IsNotEmpty()
-  declare loginOrEmail: string;
+  @IsEmail()
+  declare email: string;
 
   @IsString()
   @Trim()

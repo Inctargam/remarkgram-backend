@@ -18,12 +18,12 @@ export class LoginUseCase implements ICommandHandler<LoginCommand> {
   ) {}
 
   async execute(command: LoginCommand) {
-    const { loginOrEmail, password, currentSession, deviceName, ip } = command.params;
+    const { email, password, currentSession, deviceName, ip } = command.params;
     if (currentSession && (await this.sessionsService.checkSession(currentSession))) {
       throw new Error('The user is already logged in');
     }
 
-    const user = await this.authService.validateCredentials(loginOrEmail, password);
+    const user = await this.authService.validateCredentials(email, password);
     if (!user.confirmation.isConfirmed) {
       throw new Error('Email has not been confirmed');
     }

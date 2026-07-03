@@ -1,14 +1,14 @@
 import type { ConfirmationInfo, PasswordRecoveryInfo } from '../../domain/entities/user.entity.js';
 
 export type CreateUserParams = {
-  login: string;
+  username: string;
   email: string;
   password: string;
   confirmation?: ConfirmationInfo;
   passwordRecovery?: PasswordRecoveryInfo;
 };
 
-export type RegisterUserParams = Pick<CreateUserParams, 'login' | 'email' | 'password'>;
+export type RegisterUserParams = Pick<CreateUserParams, 'username' | 'email' | 'password'>;
 
 export type CreateUserRepositoryParams = {
   username: string;
