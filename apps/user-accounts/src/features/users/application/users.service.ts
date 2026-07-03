@@ -1,6 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-import { randomUUID } from 'node:crypto';
 import { authConfig } from '../../../config/auth.config.js';
 import { AuthService } from '../../auth/application/auth.service.js';
 import { EmailService } from '../../notifications/email.service.js';
@@ -49,7 +48,7 @@ export class UsersService {
 
   /** Создаёт неподтверждённого пользователя и отправляет код подтверждения email. */
   async registerUser(params: RegisterUserParams): Promise<User> {
-    const code = randomUUID();
+    const code = crypto.randomUUID();
     const expiration = new Date();
     expiration.setHours(expiration.getHours() + this.auth.confirmationCodeExpiresIn);
 
