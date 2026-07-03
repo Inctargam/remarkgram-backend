@@ -4,7 +4,7 @@ import { status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
 import { AuthServiceControllerMethods } from '@app/user-accounts-grpc';
 import type { LoginRequest, RefreshTokenRequest, TokenPairResponse } from '@app/user-accounts-grpc';
-import { UserAccountsRpcExceptionFilter } from '../../../../../common/presentation/grpc/user-accounts-rpc-exception.filter.js';
+import { UserAccountsRpcExceptionFilter } from '../../../../../common/grpc/filters/user-accounts-rpc-exception.filter.js';
 import { LoginCommand } from '../../../application/use-cases/login.use-case.js';
 import { RefreshTokenCommand } from '../../../application/use-cases/refresh-token.use-case.js';
 

@@ -1,9 +1,6 @@
 import { status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
-import {
-  type UserAccountsError,
-  UserAccountsErrorCode,
-} from '../../application/errors/user-accounts.error.js';
+import { type UserAccountsError, UserAccountsErrorCode } from '../../errors/user-accounts.error.js';
 
 export const mapUserAccountsErrorToRpcException = (error: UserAccountsError): RpcException => {
   let grpcStatus: status;

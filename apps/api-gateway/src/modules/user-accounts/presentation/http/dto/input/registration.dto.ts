@@ -1,5 +1,5 @@
 import { IsEmail, IsString, Length, Matches } from 'class-validator';
-import { Trim } from '../../../../../../common/presentation/http/decorators/trim.decorator.js';
+import { Trim } from '../../../../../../common/http/decorators/trim.decorator.js';
 
 export class RegistrationDto {
   @IsString()

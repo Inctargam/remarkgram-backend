@@ -20,7 +20,7 @@ import {
 import type { ClientGrpc } from '@nestjs/microservices';
 import type { Response } from 'express';
 import { firstValueFrom } from 'rxjs';
-import { Public } from '../../../../../common/presentation/http/decorators/public.decorator.js';
+import { Public } from '../../../../../common/http/decorators/public.decorator.js';
 import { userAccountsHttpConfig } from '../../../config/user-accounts-http.config.js';
 import type { RequestWithOptionalRefreshSession, RequestWithRefreshSession } from '../auth-request.types.js';
 import { LoginDto } from '../dto/input/login.dto.js';

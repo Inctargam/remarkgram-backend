@@ -2,7 +2,7 @@ import { Controller, UseFilters } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
 import { UsersServiceControllerMethods } from '@app/user-accounts-grpc';
 import type { GetUsersResponse } from '@app/user-accounts-grpc';
-import { UserAccountsRpcExceptionFilter } from '../../../../../common/presentation/grpc/user-accounts-rpc-exception.filter.js';
+import { UserAccountsRpcExceptionFilter } from '../../../../../common/grpc/filters/user-accounts-rpc-exception.filter.js';
 import { GetUsersQuery } from '../../../application/use-cases/get-users.use-case.js';
 
 @Controller()

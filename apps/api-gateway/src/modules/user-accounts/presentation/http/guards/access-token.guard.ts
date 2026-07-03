@@ -1,7 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { Public } from '../../../../../common/presentation/http/decorators/public.decorator.js';
+import { Public } from '../../../../../common/http/decorators/public.decorator.js';
 import type { RequestWithOptionalUserId } from '../auth-request.types.js';
 
 /**
