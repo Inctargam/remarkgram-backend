@@ -4,7 +4,8 @@ import { Public } from '../../../../../common/presentation/http/decorators/publi
 import { UserAccountsHttpConfig } from '../../../config/user-accounts-http.config.js';
 import { UserAccountsGrpcClientAdapter } from '../../../infrastructure/grpc/user-accounts-grpc-client.adapter.js';
 import type { RequestWithOptionalRefreshSession, RequestWithRefreshSession } from '../auth-request.types.js';
-import { LoginInputDto } from '../dto/login-input.dto.js';
+import { LoginDto } from '../dto/input/login.dto.js';
+import { AccessTokenResponseDto } from '../dto/output/access-token-response.dto.js';
 import { OptionalRefreshTokenGuard } from '../guards/optional-refresh-token.guard.js';
 import { RefreshTokenGuard } from '../guards/refresh-token.guard.js';
 
@@ -20,12 +21,12 @@ export class AuthHttpController {
   @Post('login')
   @HttpCode(200)
   async login(
-    @Body() input: LoginInputDto,
+    @Body() input: LoginDto,
     @Req() request: RequestWithOptionalRefreshSession,
     @Res({ passthrough: true }) response: Response,
     @Headers('User-Agent') userAgent: string | undefined,
     @Ip() ip: string,
-  ): Promise<{ accessToken: string }> {
+  ): Promise<AccessTokenResponseDto> {
     const tokens = await this.userAccountsClient.login({
       loginOrEmail: input.loginOrEmail,
       password: input.password,
@@ -35,7 +36,7 @@ export class AuthHttpController {
     });
 
     this.setRefreshTokenCookie(response, tokens.refreshToken);
-    return { accessToken: tokens.accessToken };
+    return new AccessTokenResponseDto(tokens.accessToken);
   }
 
   @Public()
@@ -47,7 +48,7 @@ export class AuthHttpController {
     @Res({ passthrough: true }) response: Response,
     @Headers('User-Agent') userAgent: string | undefined,
     @Ip() ip: string,
-  ): Promise<{ accessToken: string }> {
+  ): Promise<AccessTokenResponseDto> {
     const tokens = await this.userAccountsClient.refreshToken({
       auth: request.refreshTokenClaims,
       ip,
@@ -55,7 +56,7 @@ export class AuthHttpController {
     });
 
     this.setRefreshTokenCookie(response, tokens.refreshToken);
-    return { accessToken: tokens.accessToken };
+    return new AccessTokenResponseDto(tokens.accessToken);
   }
 
   private setRefreshTokenCookie(response: Response, refreshToken: string): void {

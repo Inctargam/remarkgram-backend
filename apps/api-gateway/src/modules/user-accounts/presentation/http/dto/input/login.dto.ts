@@ -1,7 +1,7 @@
 import { IsNotEmpty, IsString } from 'class-validator';
-import { Trim } from '../../../../../common/presentation/http/decorators/trim.decorator.js';
+import { Trim } from '../../../../../../common/presentation/http/decorators/trim.decorator.js';
 
-export class LoginInputDto {
+export class LoginDto {
   @IsString()
   @Trim()
   @IsNotEmpty()

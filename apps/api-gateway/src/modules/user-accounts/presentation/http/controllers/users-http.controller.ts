@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
-import type { User } from '@app/user-accounts-grpc';
 import { Public } from '../../../../../common/presentation/http/decorators/public.decorator.js';
 import { UserAccountsGrpcClientAdapter } from '../../../infrastructure/grpc/user-accounts-grpc-client.adapter.js';
+import { UserResponseDto } from '../dto/output/user-response.dto.js';
 
 @Controller('users')
 export class UsersHttpController {
@@ -9,8 +9,8 @@ export class UsersHttpController {
 
   @Public()
   @Get()
-  async findMany(): Promise<User[]> {
+  async findMany(): Promise<UserResponseDto[]> {
     const response = await this.userAccountsClient.getUsers();
-    return response.users;
+    return response.users.map((user) => UserResponseDto.fromGrpc(user));
   }
 }
