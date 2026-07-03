@@ -1,10 +1,5 @@
-import { Transform, type TransformFnParams } from 'class-transformer';
 import { IsNotEmpty, IsString } from 'class-validator';
-
-const Trim = () =>
-  Transform(({ value }: TransformFnParams): unknown =>
-    typeof value === 'string' ? value.trim() : (value as unknown),
-  );
+import { Trim } from '../../../../../common/presentation/http/decorators/trim.decorator.js';
 
 export class LoginInputDto {
   @IsString()
