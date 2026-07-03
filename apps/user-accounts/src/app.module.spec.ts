@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
-import { AuthService } from './modules/auth/auth.service.js';
-import { SessionsService } from './modules/sessions/application/sessions.service.js';
-import { UsersService } from './modules/users/application/users.service.js';
+import { AuthService } from './features/auth/auth.service.js';
+import { SessionsService } from './features/sessions/application/sessions.service.js';
+import { UsersService } from './features/users/application/users.service.js';
 import { UserAccountsModule } from './app.module.js';
 
 describe('UserAccountsModule', () => {
