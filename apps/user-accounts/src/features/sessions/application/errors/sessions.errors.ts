@@ -1,7 +1,4 @@
-import {
-  UserAccountsError,
-  UserAccountsErrorCode,
-} from '../../../../common/application/errors/user-accounts.error.js';
+import { UserAccountsError, UserAccountsErrorCode } from '../../../../common/errors/user-accounts.error.js';
 
 export class NoActiveSessionError extends UserAccountsError {
   readonly code = UserAccountsErrorCode.NO_ACTIVE_SESSION;

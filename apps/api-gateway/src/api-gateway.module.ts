@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER } from '@nestjs/core';
-import { GrpcToHttpExceptionFilter } from './common/presentation/http/filters/grpc-to-http-exception.filter.js';
+import { GrpcToHttpExceptionFilter } from './common/http/filters/grpc-to-http-exception.filter.js';
 import { apiGatewayConfig } from './config/api-gateway.config.js';
 import { filesGrpcClientConfig } from './modules/files/config/files-grpc-client.config.js';
 import { FilesModule } from './modules/files/files.module.js';
