@@ -1,6 +1,6 @@
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import { SessionsService } from '../../../sessions/application/sessions.service.js';
-import { AuthService } from '../../auth.service.js';
+import { AuthService } from '../auth.service.js';
 import type { JwtPair, RefreshTokenParams } from '../types/auth.types.js';
 
 export class RefreshTokenCommand extends Command<JwtPair> {

@@ -3,15 +3,11 @@ import type { ConfigType } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
-import { authConfig } from '../../config/auth.config.js';
-import { SessionsService } from '../sessions/application/sessions.service.js';
-import { UsersRepository } from '../users/application/ports/users.repository.js';
-import type { User } from '../users/domain/entities/user.entity.js';
-import type {
-  GeneratedTokenPair,
-  GenerateTokenPairParams,
-  JwtRefreshPayload,
-} from './application/types/auth.types.js';
+import { authConfig } from '../../../config/auth.config.js';
+import { SessionsService } from '../../sessions/application/sessions.service.js';
+import { UsersRepository } from '../../users/application/ports/users.repository.js';
+import type { User } from '../../users/domain/entities/user.entity.js';
+import type { GeneratedTokenPair, GenerateTokenPairParams, JwtRefreshPayload } from './types/auth.types.js';
 
 @Injectable()
 export class AuthService {

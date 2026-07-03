@@ -1,4 +1,4 @@
-import type { AuthService } from '../../auth.service.js';
+import type { AuthService } from '../auth.service.js';
 import type { SessionsService } from '../../../sessions/application/sessions.service.js';
 import { User } from '../../../users/domain/entities/user.entity.js';
 import { LoginCommand, LoginUseCase } from './login.use-case.js';

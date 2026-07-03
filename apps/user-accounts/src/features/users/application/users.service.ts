@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { authConfig } from '../../../config/auth.config.js';
-import { AuthService } from '../../auth/auth.service.js';
+import { AuthService } from '../../auth/application/auth.service.js';
 import { EmailService } from '../../notifications/email.service.js';
 import type { User } from '../domain/entities/user.entity.js';
 import { UsersRepository } from './ports/users.repository.js';

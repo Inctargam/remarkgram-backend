@@ -1,6 +1,6 @@
 import type { ConfigType } from '@nestjs/config';
 import type { authConfig } from '../../../config/auth.config.js';
-import type { AuthService } from '../../auth/auth.service.js';
+import type { AuthService } from '../../auth/application/auth.service.js';
 import type { EmailService } from '../../notifications/email.service.js';
 import { User } from '../domain/entities/user.entity.js';
 import type { UsersRepository } from './ports/users.repository.js';

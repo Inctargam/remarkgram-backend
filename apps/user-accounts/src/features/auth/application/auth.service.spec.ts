@@ -1,10 +1,10 @@
 import type { ConfigType } from '@nestjs/config';
 import type { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
-import type { authConfig } from '../../config/auth.config.js';
-import type { SessionsService } from '../sessions/application/sessions.service.js';
-import type { UsersRepository } from '../users/application/ports/users.repository.js';
-import { User } from '../users/domain/entities/user.entity.js';
+import type { authConfig } from '../../../config/auth.config.js';
+import type { SessionsService } from '../../sessions/application/sessions.service.js';
+import type { UsersRepository } from '../../users/application/ports/users.repository.js';
+import { User } from '../../users/domain/entities/user.entity.js';
 import { AuthService } from './auth.service.js';
 
 describe('AuthService', () => {

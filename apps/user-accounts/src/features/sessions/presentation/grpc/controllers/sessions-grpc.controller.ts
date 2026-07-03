@@ -2,8 +2,8 @@ import { Controller, UseFilters } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
 import { SessionsServiceControllerMethods } from '@app/user-accounts-grpc';
 import type { GetDevicesRequest, GetDevicesResponse } from '@app/user-accounts-grpc';
-import { UserAccountsRpcExceptionFilter } from '../../../../common/presentation/grpc/user-accounts-rpc-exception.filter.js';
-import { GetSessionsQuery } from '../../application/use-cases/get-sessions.use-case.js';
+import { UserAccountsRpcExceptionFilter } from '../../../../../common/presentation/grpc/user-accounts-rpc-exception.filter.js';
+import { GetSessionsQuery } from '../../../application/use-cases/get-sessions.use-case.js';
 
 @Controller()
 @SessionsServiceControllerMethods()

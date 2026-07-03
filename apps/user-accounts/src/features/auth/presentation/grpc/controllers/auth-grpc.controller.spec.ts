@@ -1,6 +1,6 @@
 import type { CommandBus } from '@nestjs/cqrs';
-import { LoginCommand } from '../../application/use-cases/login.use-case.js';
-import { RefreshTokenCommand } from '../../application/use-cases/refresh-token.use-case.js';
+import { LoginCommand } from '../../../application/use-cases/login.use-case.js';
+import { RefreshTokenCommand } from '../../../application/use-cases/refresh-token.use-case.js';
 import { AuthGrpcController } from './auth-grpc.controller.js';
 
 describe('AuthGrpcController', () => {

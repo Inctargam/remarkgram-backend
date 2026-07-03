@@ -1,7 +1,7 @@
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import { randomUUID } from 'node:crypto';
 import { SessionsService } from '../../../sessions/application/sessions.service.js';
-import { AuthService } from '../../auth.service.js';
+import { AuthService } from '../auth.service.js';
 import type { JwtPair, LoginParams } from '../types/auth.types.js';
 
 export class LoginCommand extends Command<JwtPair> {
