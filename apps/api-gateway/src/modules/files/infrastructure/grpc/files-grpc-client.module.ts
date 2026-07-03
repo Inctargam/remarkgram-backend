@@ -4,7 +4,6 @@ import { REMARKGRAM_FILES_V1_PACKAGE_NAME } from '@app/files-grpc';
 import { join } from 'node:path';
 import { FilesGrpcClientConfig } from '../../config/files-grpc-client.config.js';
 import { FilesGrpcClientConfigModule } from '../../config/files-grpc-client-config.module.js';
-import { FilesGrpcClientAdapter } from './files-grpc-client.adapter.js';
 
 const protoPath = join(
   import.meta.dirname,
@@ -29,7 +28,6 @@ const protoPath = join(
       },
     ]),
   ],
-  providers: [FilesGrpcClientAdapter],
-  exports: [FilesGrpcClientAdapter],
+  exports: [ClientsModule],
 })
 export class FilesGrpcClientModule {}

@@ -1,8 +1,26 @@
-import { Body, Controller, Headers, HttpCode, Ip, Post, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Headers,
+  HttpCode,
+  Inject,
+  Ip,
+  type OnModuleInit,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  AUTH_SERVICE_NAME,
+  REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
+  type AuthServiceClient,
+} from '@app/user-accounts-grpc';
+import type { ClientGrpc } from '@nestjs/microservices';
 import type { Response } from 'express';
+import { firstValueFrom } from 'rxjs';
 import { Public } from '../../../../../common/presentation/http/decorators/public.decorator.js';
 import { UserAccountsHttpConfig } from '../../../config/user-accounts-http.config.js';
-import { UserAccountsGrpcClientAdapter } from '../../../infrastructure/grpc/user-accounts-grpc-client.adapter.js';
 import type { RequestWithOptionalRefreshSession, RequestWithRefreshSession } from '../auth-request.types.js';
 import { LoginDto } from '../dto/input/login.dto.js';
 import { AccessTokenResponseDto } from '../dto/output/access-token-response.dto.js';
@@ -10,11 +28,18 @@ import { OptionalRefreshTokenGuard } from '../guards/optional-refresh-token.guar
 import { RefreshTokenGuard } from '../guards/refresh-token.guard.js';
 
 @Controller('auth')
-export class AuthHttpController {
+export class AuthHttpController implements OnModuleInit {
+  private authClient!: AuthServiceClient;
+
   constructor(
-    private readonly userAccountsClient: UserAccountsGrpcClientAdapter,
+    @Inject(REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME)
+    private readonly grpcClient: ClientGrpc,
     private readonly config: UserAccountsHttpConfig,
   ) {}
+
+  onModuleInit(): void {
+    this.authClient = this.grpcClient.getService<AuthServiceClient>(AUTH_SERVICE_NAME);
+  }
 
   @Public()
   @UseGuards(OptionalRefreshTokenGuard)
@@ -27,13 +52,15 @@ export class AuthHttpController {
     @Headers('User-Agent') userAgent: string | undefined,
     @Ip() ip: string,
   ): Promise<AccessTokenResponseDto> {
-    const tokens = await this.userAccountsClient.login({
-      loginOrEmail: input.loginOrEmail,
-      password: input.password,
-      ip,
-      deviceName: userAgent ?? 'unknown',
-      currentSession: request.refreshTokenClaims,
-    });
+    const tokens = await firstValueFrom(
+      this.authClient.login({
+        loginOrEmail: input.loginOrEmail,
+        password: input.password,
+        ip,
+        deviceName: userAgent ?? 'unknown',
+        currentSession: request.refreshTokenClaims,
+      }),
+    );
 
     this.setRefreshTokenCookie(response, tokens.refreshToken);
     return new AccessTokenResponseDto(tokens.accessToken);
@@ -49,11 +76,13 @@ export class AuthHttpController {
     @Headers('User-Agent') userAgent: string | undefined,
     @Ip() ip: string,
   ): Promise<AccessTokenResponseDto> {
-    const tokens = await this.userAccountsClient.refreshToken({
-      auth: request.refreshTokenClaims,
-      ip,
-      deviceName: userAgent ?? 'unknown',
-    });
+    const tokens = await firstValueFrom(
+      this.authClient.refreshToken({
+        auth: request.refreshTokenClaims,
+        ip,
+        deviceName: userAgent ?? 'unknown',
+      }),
+    );
 
     this.setRefreshTokenCookie(response, tokens.refreshToken);
     return new AccessTokenResponseDto(tokens.accessToken);

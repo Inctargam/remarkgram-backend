@@ -2,29 +2,65 @@ import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { status } from '@grpc/grpc-js';
+import {
+  FILES_SERVICE_NAME,
+  REMARKGRAM_FILES_V1_PACKAGE_NAME,
+  type FilesServiceClient,
+} from '@app/files-grpc';
+import {
+  AUTH_SERVICE_NAME,
+  REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
+  SESSIONS_SERVICE_NAME,
+  USERS_SERVICE_NAME,
+  type AuthServiceClient,
+  type SessionsServiceClient,
+  type UsersServiceClient,
+} from '@app/user-accounts-grpc';
 import { JwtService } from '@nestjs/jwt';
 import cookieParser from 'cookie-parser';
+import { of, throwError } from 'rxjs';
 import request from 'supertest';
 import { ApiGatewayModule } from './../src/api-gateway.module.js';
-import { FilesGrpcClientAdapter } from '../src/modules/files/infrastructure/grpc/files-grpc-client.adapter.js';
-import { UserAccountsGrpcClientAdapter } from '../src/modules/user-accounts/infrastructure/grpc/user-accounts-grpc-client.adapter.js';
 
 type SupertestApp = Parameters<typeof request>[0];
 
 describe('ApiGateway (e2e)', () => {
   let app: INestApplication;
-  const uploadFile = vi.fn();
+  const filesServiceClient = {
+    uploadFile: vi.fn<FilesServiceClient['uploadFile']>(),
+  };
+  const usersServiceClient = {
+    getUsers: vi.fn<UsersServiceClient['getUsers']>(),
+  };
+  const authServiceClient = {
+    login: vi.fn<AuthServiceClient['login']>(),
+    refreshToken: vi.fn<AuthServiceClient['refreshToken']>(),
+  };
+  const sessionsServiceClient = {
+    getDevices: vi.fn<SessionsServiceClient['getDevices']>(),
+  };
+  const filesGrpcClient = {
+    getService: vi.fn(() => filesServiceClient),
+  };
+  const userAccountsGrpcClient = {
+    getService: vi.fn((serviceName: string) => {
+      switch (serviceName) {
+        case USERS_SERVICE_NAME:
+          return usersServiceClient;
+        case AUTH_SERVICE_NAME:
+          return authServiceClient;
+        case SESSIONS_SERVICE_NAME:
+          return sessionsServiceClient;
+        default:
+          throw new Error(`Unknown user accounts gRPC service: ${serviceName}`);
+      }
+    }),
+  };
   const jwtService = { verifyAsync: vi.fn() };
   const refreshTokenClaims = {
     userId: '1',
     sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
     jti: 'current-jti',
-  };
-  const userAccountsClient = {
-    getUsers: vi.fn(),
-    login: vi.fn(),
-    refreshToken: vi.fn(),
-    getDevices: vi.fn(),
   };
 
   beforeEach(async () => {
@@ -34,41 +70,49 @@ describe('ApiGateway (e2e)', () => {
     vi.stubEnv('USER_ACCOUNTS_GRPC_URL', 'localhost:50052');
     vi.stubEnv('JWT_PUBLIC_KEY', 'public-key');
     vi.stubEnv('REFRESH_TOKEN_COOKIE_MAX_AGE_MS', '1200000');
-    uploadFile.mockResolvedValue({ id: 'file-id' });
+    filesServiceClient.uploadFile.mockReturnValue(of({ id: 'file-id' }));
     jwtService.verifyAsync.mockResolvedValue({
       sub: refreshTokenClaims.userId,
       sessionId: refreshTokenClaims.sessionId,
       jti: refreshTokenClaims.jti,
     });
-    userAccountsClient.getUsers.mockResolvedValue({
-      users: [{ id: 1, username: 'user', email: 'user@example.com' }],
-    });
-    userAccountsClient.login.mockResolvedValue({
-      accessToken: 'login-access-token',
-      refreshToken: 'login-refresh-token',
-    });
-    userAccountsClient.refreshToken.mockResolvedValue({
-      accessToken: 'rotated-access-token',
-      refreshToken: 'rotated-refresh-token',
-    });
-    userAccountsClient.getDevices.mockResolvedValue({
-      devices: [
-        {
-          ip: '127.0.0.1',
-          title: 'Browser',
-          lastActiveDate: '2026-07-01T12:00:00.000Z',
-          deviceId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
-        },
-      ],
-    });
+    usersServiceClient.getUsers.mockReturnValue(
+      of({
+        users: [{ id: 1, username: 'user', email: 'user@example.com' }],
+      }),
+    );
+    authServiceClient.login.mockReturnValue(
+      of({
+        accessToken: 'login-access-token',
+        refreshToken: 'login-refresh-token',
+      }),
+    );
+    authServiceClient.refreshToken.mockReturnValue(
+      of({
+        accessToken: 'rotated-access-token',
+        refreshToken: 'rotated-refresh-token',
+      }),
+    );
+    sessionsServiceClient.getDevices.mockReturnValue(
+      of({
+        devices: [
+          {
+            ip: '127.0.0.1',
+            title: 'Browser',
+            lastActiveDate: '2026-07-01T12:00:00.000Z',
+            deviceId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+          },
+        ],
+      }),
+    );
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [ApiGatewayModule],
     })
-      .overrideProvider(FilesGrpcClientAdapter)
-      .useValue({ uploadFile })
-      .overrideProvider(UserAccountsGrpcClientAdapter)
-      .useValue(userAccountsClient)
+      .overrideProvider(REMARKGRAM_FILES_V1_PACKAGE_NAME)
+      .useValue(filesGrpcClient)
+      .overrideProvider(REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME)
+      .useValue(userAccountsGrpcClient)
       .overrideProvider(JwtService)
       .useValue(jwtService)
       .compile();
@@ -85,7 +129,10 @@ describe('ApiGateway (e2e)', () => {
       .expect(201)
       .expect({ id: 'file-id' });
 
-    expect(uploadFile).toHaveBeenCalledWith({ originalFilename: 'supper-name-files.png' });
+    expect(filesServiceClient.uploadFile).toHaveBeenCalledWith({
+      originalFilename: 'supper-name-files.png',
+    });
+    expect(filesGrpcClient.getService).toHaveBeenCalledWith(FILES_SERVICE_NAME);
   });
 
   it('GET /users delegates to user-accounts over gRPC', async () => {
@@ -94,14 +141,16 @@ describe('ApiGateway (e2e)', () => {
       .expect(200)
       .expect([{ id: 1, username: 'user', email: 'user@example.com' }]);
 
-    expect(userAccountsClient.getUsers).toHaveBeenCalledOnce();
+    expect(usersServiceClient.getUsers).toHaveBeenCalledOnce();
   });
 
   it('maps user-accounts gRPC errors to HTTP errors', async () => {
-    userAccountsClient.getUsers.mockRejectedValueOnce({
-      code: status.UNAUTHENTICATED,
-      details: 'Authentication failed',
-    });
+    usersServiceClient.getUsers.mockReturnValueOnce(
+      throwError(() => ({
+        code: status.UNAUTHENTICATED,
+        details: 'Authentication failed',
+      })),
+    );
 
     const response = await request(app.getHttpServer() as SupertestApp)
       .get('/users')
@@ -120,7 +169,7 @@ describe('ApiGateway (e2e)', () => {
       .expect({ accessToken: 'login-access-token' });
 
     expect(response.headers['set-cookie']).toBeDefined();
-    expect(userAccountsClient.login).toHaveBeenCalledWith(
+    expect(authServiceClient.login).toHaveBeenCalledWith(
       expect.objectContaining({
         loginOrEmail: 'user',
         password: 'password',
@@ -137,7 +186,7 @@ describe('ApiGateway (e2e)', () => {
       .expect(200)
       .expect({ accessToken: 'rotated-access-token' });
 
-    expect(userAccountsClient.refreshToken).toHaveBeenCalledWith(
+    expect(authServiceClient.refreshToken).toHaveBeenCalledWith(
       expect.objectContaining({
         auth: refreshTokenClaims,
         deviceName: 'Browser',
@@ -159,7 +208,7 @@ describe('ApiGateway (e2e)', () => {
       .set('Cookie', 'refreshToken=invalid-refresh-token')
       .expect(401);
 
-    expect(userAccountsClient.refreshToken).not.toHaveBeenCalled();
+    expect(authServiceClient.refreshToken).not.toHaveBeenCalled();
   });
 
   it('GET /security/devices delegates the refresh token to user-accounts', async () => {
@@ -176,7 +225,7 @@ describe('ApiGateway (e2e)', () => {
         },
       ]);
 
-    expect(userAccountsClient.getDevices).toHaveBeenCalledWith({
+    expect(sessionsServiceClient.getDevices).toHaveBeenCalledWith({
       auth: refreshTokenClaims,
     });
   });

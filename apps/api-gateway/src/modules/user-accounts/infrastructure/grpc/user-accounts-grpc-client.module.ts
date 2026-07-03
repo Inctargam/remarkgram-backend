@@ -4,7 +4,6 @@ import { REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME } from '@app/user-accounts-grp
 import { join } from 'node:path';
 import { UserAccountsGrpcClientConfigModule } from '../../config/user-accounts-grpc-client-config.module.js';
 import { UserAccountsGrpcClientConfig } from '../../config/user-accounts-grpc-client.config.js';
-import { UserAccountsGrpcClientAdapter } from './user-accounts-grpc-client.adapter.js';
 
 const protoPath = join(
   import.meta.dirname,
@@ -29,7 +28,6 @@ const protoPath = join(
       },
     ]),
   ],
-  providers: [UserAccountsGrpcClientAdapter],
-  exports: [UserAccountsGrpcClientAdapter],
+  exports: [ClientsModule],
 })
 export class UserAccountsGrpcClientModule {}
