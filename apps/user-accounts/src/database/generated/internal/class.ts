@@ -14,12 +14,12 @@ import * as runtime from '@prisma/client/runtime/client';
 import type * as Prisma from './prismaNamespace.ts';
 
 const config: runtime.GetPrismaClientConfig = {
-  previewFeatures: [],
+  previewFeatures: ['partialIndexes'],
   clientVersion: '7.8.0',
   engineVersion: '3c6e192761c0362d496ed980de936e2f3cebcd3a',
   activeProvider: 'postgresql',
   inlineSchema:
-    'generator client {\n  provider = "prisma-client"\n  output   = "../src/database/generated"\n}\n\ndatasource db {\n  provider = "postgresql"\n}\n\nmodel User {\n  id        Int      @id @default(autoincrement())\n  username  String   @unique @db.VarChar\n  email     String   @unique @db.VarChar\n  hash      String   @db.VarChar\n  createdAt DateTime @db.Timestamptz\n\n  isConfirmed            Boolean\n  confirmationCode       String?   @db.VarChar\n  confirmationExpiration DateTime? @db.Timestamptz\n\n  passwordRecoveryCode       String?   @db.VarChar\n  passwordRecoveryExpiration DateTime? @db.Timestamptz\n\n  deletedAt DateTime? @db.Timestamptz\n\n  sessions DeviceSession[]\n\n  @@map("users")\n}\n\nmodel DeviceSession {\n  id     String @id @db.Uuid\n  userId Int\n\n  deviceName String @db.VarChar\n  ip         String @db.VarChar\n  jti        String @db.VarChar\n\n  lastActiveAt DateTime @db.Timestamptz\n  expiresAt    DateTime @db.Timestamptz\n\n  user User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)\n\n  @@index([userId])\n  @@map("device_sessions")\n}\n',
+    'generator client {\n  provider        = "prisma-client"\n  output          = "../src/database/generated"\n  previewFeatures = ["partialIndexes"]\n}\n\ndatasource db {\n  provider = "postgresql"\n}\n\nmodel User {\n  id        Int      @id @default(autoincrement())\n  username  String   @db.VarChar\n  email     String   @db.VarChar\n  hash      String   @db.VarChar\n  createdAt DateTime @db.Timestamptz\n\n  isConfirmed            Boolean\n  confirmationCode       String?   @db.VarChar\n  confirmationExpiration DateTime? @db.Timestamptz\n\n  passwordRecoveryCode       String?   @db.VarChar\n  passwordRecoveryExpiration DateTime? @db.Timestamptz\n\n  deletedAt DateTime? @db.Timestamptz\n\n  sessions DeviceSession[]\n\n  @@unique([username], where: { deletedAt: null })\n  @@unique([email], where: { deletedAt: null })\n  @@map("users")\n}\n\nmodel DeviceSession {\n  id     String @id @db.Uuid\n  userId Int\n\n  deviceName String @db.VarChar\n  ip         String @db.VarChar\n  jti        String @db.VarChar\n\n  lastActiveAt DateTime @db.Timestamptz\n  expiresAt    DateTime @db.Timestamptz\n\n  user User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)\n\n  @@index([userId])\n  @@map("device_sessions")\n}\n',
   runtimeDataModel: {
     models: {},
     enums: {},
