@@ -1,7 +1,6 @@
 import { Inject } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
-import { randomUUID } from 'node:crypto';
 import { authConfig } from '../../../../config/auth.config.js';
 import { EmailService } from '../../../notifications/email.service.js';
 import type { RegisterUserParams } from '../types/users.types.js';
@@ -22,7 +21,7 @@ export class RegisterUserUseCase implements ICommandHandler<RegisterUserCommand>
   ) {}
 
   async execute(command: RegisterUserCommand) {
-    const code = randomUUID();
+    const code = crypto.randomUUID();
     const expiration = new Date();
     expiration.setHours(expiration.getHours() + this.auth.confirmationCodeExpiresIn);
 
