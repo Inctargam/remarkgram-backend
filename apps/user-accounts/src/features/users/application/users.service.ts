@@ -1,20 +1,15 @@
-import { Inject, Injectable } from '@nestjs/common';
-import type { ConfigType } from '@nestjs/config';
-import { authConfig } from '../../../config/auth.config.js';
+import { Injectable } from '@nestjs/common';
 import { AuthService } from '../../auth/application/auth.service.js';
-import { EmailService } from '../../notifications/email.service.js';
 import type { User } from '../domain/entities/user.entity.js';
 import { EmailAlreadyExistsError, UsernameAlreadyExistsError } from './errors/users.errors.js';
 import { UsersRepository } from './ports/users.repository.js';
-import type { CreateUserParams, RegisterUserParams } from './types/users.types.js';
+import type { CreateUserParams } from './types/users.types.js';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly authService: AuthService,
-    private readonly emailService: EmailService,
-    @Inject(authConfig.KEY) private readonly auth: ConfigType<typeof authConfig>,
   ) {}
 
   /** Проверяет уникальность данных, хеширует пароль и создаёт пользователя в репозитории. */
@@ -45,22 +40,5 @@ export class UsersService {
       confirmation,
       passwordRecovery,
     });
-  }
-
-  /** Создаёт неподтверждённого пользователя и отправляет код подтверждения email. */
-  async registerUser(params: RegisterUserParams): Promise<User> {
-    const code = crypto.randomUUID();
-    const expiration = new Date();
-    expiration.setHours(expiration.getHours() + this.auth.confirmationCodeExpiresIn);
-
-    const user = await this.createUser({
-      ...params,
-      confirmation: { isConfirmed: false, code, expiration },
-      passwordRecovery: { code: null, expiration: null },
-    });
-
-    await this.emailService.sendConfirmationCode(params.email, code);
-
-    return user;
   }
 }

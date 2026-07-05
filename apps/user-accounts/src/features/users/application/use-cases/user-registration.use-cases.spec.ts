@@ -25,15 +25,64 @@ describe('user registration use cases', () => {
     await expect(useCase.execute(new CreateUserCommand(params))).resolves.toBe(user);
     expect(usersService.createUser).toHaveBeenCalledWith(params);
   });
+});
 
-  it('RegisterUserUseCase delegates registration to UsersService', async () => {
-    const usersService = { registerUser: vi.fn().mockResolvedValue(undefined) };
-    const useCase = new RegisterUserUseCase(usersService as unknown as UsersService);
-    const params = { username: 'user', email: 'user@example.com', password: 'password' };
+describe('RegisterUserUseCase', () => {
+  const usersService = {
+    createUser: vi.fn<UsersService['createUser']>(),
+  };
+  const emailService = {
+    sendConfirmationCode: vi.fn<EmailService['sendConfirmationCode']>(),
+  };
+  const auth = { confirmationCodeExpiresIn: 24 } as ConfigType<typeof authConfig>;
+  let useCase: RegisterUserUseCase;
 
-    await useCase.execute(new RegisterUserCommand(params));
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T12:00:00.000Z'));
+    vi.clearAllMocks();
+    usersService.createUser.mockResolvedValue(createTestUser());
+    emailService.sendConfirmationCode.mockResolvedValue(undefined);
+    useCase = new RegisterUserUseCase(
+      usersService as unknown as UsersService,
+      emailService as unknown as EmailService,
+      auth,
+    );
+  });
 
-    expect(usersService.registerUser).toHaveBeenCalledWith(params);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('creates an unconfirmed user and sends its confirmation code', async () => {
+    await useCase.execute(
+      new RegisterUserCommand({
+        username: 'user',
+        email: 'user@example.com',
+        password: 'password',
+      }),
+    );
+
+    const createParams = usersService.createUser.mock.calls[0][0];
+    expect(typeof createParams.confirmation?.code).toBe('string');
+    expect(createParams).toEqual({
+      username: 'user',
+      email: 'user@example.com',
+      password: 'password',
+      confirmation: {
+        isConfirmed: false,
+        code: createParams.confirmation?.code,
+        expiration: new Date('2026-07-02T12:00:00.000Z'),
+      },
+      passwordRecovery: { code: null, expiration: null },
+    });
+    expect(emailService.sendConfirmationCode).toHaveBeenCalledWith(
+      'user@example.com',
+      createParams.confirmation?.code,
+    );
+    expect(usersService.createUser.mock.invocationCallOrder[0]).toBeLessThan(
+      emailService.sendConfirmationCode.mock.invocationCallOrder[0],
+    );
   });
 });
 
