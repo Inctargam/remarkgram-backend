@@ -35,6 +35,11 @@ export class LoginUseCase implements ICommandHandler<LoginCommand> {
       sessionId,
     });
 
+    // При одновременных запросах с одного устройства (двойной клик, нестабильная сеть)
+    // оба запроса пройдут все проверки и создадут разные сессии с одинаковым userId+deviceName.
+    // Первая сессия станет «мусорной» — у клиента будет только последний refresh-токен.
+    // Решения: rate limiting на уровне API Gateway (рекомендуется) или уникальный индекс
+    // на (userId, deviceName) с upsert, если deviceName однозначно идентифицирует устройство.
     await this.sessionsService.createSession({
       userId,
       sessionId,
