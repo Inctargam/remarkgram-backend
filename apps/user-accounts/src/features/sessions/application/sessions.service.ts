@@ -11,6 +11,7 @@ import type {
   RotateRefreshTokenParams,
   SessionIdentity,
 } from './types/sessions.types.js';
+import type { TransactionContext } from '../../../common/application/unit-of-work.js';
 
 @Injectable()
 export class SessionsService {
@@ -32,6 +33,26 @@ export class SessionsService {
   /** Проверяет, существует ли активная сессия с указанными userId, sessionId и jti. */
   checkSession(params: SessionIdentity): Promise<boolean> {
     return this.sessionsRepository.isSessionActive(params);
+  }
+
+  /** Удаляет текущую сессию пользователя по данным проверенного refresh-токена. */
+  deleteCurrentSession(params: SessionIdentity): Promise<boolean> {
+    return this.sessionsRepository.deleteCurrentSession(params);
+  }
+
+  /** Удаляет указанную сессию пользователя через hard delete. */
+  deleteUserSession(userId: string, sessionId: string): Promise<boolean> {
+    return this.sessionsRepository.deleteUserSession(userId, sessionId);
+  }
+
+  /** Удаляет все сессии пользователя, кроме текущей refresh-сессии. */
+  deleteOtherUserSessions(userId: string, currentSessionId: string): Promise<number> {
+    return this.sessionsRepository.deleteOtherUserSessions(userId, currentSessionId);
+  }
+
+  /** Удаляет все сессии пользователя после security-sensitive события, например сброса пароля. */
+  deleteAllUserSessions(userId: string, ctx?: TransactionContext): Promise<number> {
+    return this.sessionsRepository.deleteAllUserSessions(userId, ctx);
   }
 
   /**

@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import type { TransactionContext } from '../../../../common/application/unit-of-work.js';
+import type { Prisma } from '../../../../database/generated/client.js';
 import { PrismaService } from '../../../../database/prisma.service.js';
 import { InvalidUserIdError } from '../../application/errors/sessions.errors.js';
 import { SessionsRepository } from '../../application/ports/sessions.repository.js';
@@ -16,6 +18,10 @@ export class PrismaSessionsRepository implements SessionsRepository {
     const id = Number(raw);
     if (!Number.isSafeInteger(id) || id <= 0) throw new InvalidUserIdError();
     return id;
+  }
+
+  private getClient(ctx?: TransactionContext): PrismaService | Prisma.TransactionClient {
+    return (ctx as Prisma.TransactionClient | undefined) ?? this.prisma;
   }
 
   async isSessionActive(params: SessionIdentity): Promise<boolean> {
@@ -73,5 +79,57 @@ export class PrismaSessionsRepository implements SessionsRepository {
     });
 
     return result.count === 1;
+  }
+
+  async deleteCurrentSession(params: SessionIdentity): Promise<boolean> {
+    const userId = this.parseUserId(params.userId);
+
+    const result = await this.prisma.deviceSession.deleteMany({
+      where: {
+        id: params.sessionId,
+        userId,
+        jti: params.jti,
+      },
+    });
+
+    return result.count === 1;
+  }
+
+  async deleteUserSession(userId: string, sessionId: string): Promise<boolean> {
+    const numericUserId = this.parseUserId(userId);
+
+    const result = await this.prisma.deviceSession.deleteMany({
+      where: {
+        id: sessionId,
+        userId: numericUserId,
+      },
+    });
+
+    return result.count === 1;
+  }
+
+  async deleteOtherUserSessions(userId: string, currentSessionId: string): Promise<number> {
+    const numericUserId = this.parseUserId(userId);
+
+    const result = await this.prisma.deviceSession.deleteMany({
+      where: {
+        userId: numericUserId,
+        id: { not: currentSessionId },
+      },
+    });
+
+    return result.count;
+  }
+
+  async deleteAllUserSessions(userId: string, ctx?: TransactionContext): Promise<number> {
+    const numericUserId = this.parseUserId(userId);
+
+    const result = await this.getClient(ctx).deviceSession.deleteMany({
+      where: {
+        userId: numericUserId,
+      },
+    });
+
+    return result.count;
   }
 }

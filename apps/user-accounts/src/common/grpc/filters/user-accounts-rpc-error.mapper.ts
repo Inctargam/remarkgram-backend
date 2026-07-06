@@ -34,6 +34,7 @@ export const mapUserAccountsErrorToRpcException = (error: UserAccountsError): Rp
       grpcStatus = status.PERMISSION_DENIED;
       break;
 
+    case UserAccountsErrorCode.INVALID_PASSWORD_RESET_TOKEN:
     case UserAccountsErrorCode.INVALID_CONFIRMATION_CODE:
     case UserAccountsErrorCode.INCORRECT_EMAIL:
       grpcStatus = status.INVALID_ARGUMENT;

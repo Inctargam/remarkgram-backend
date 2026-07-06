@@ -9,10 +9,12 @@ import {
 } from '@app/files-grpc';
 import {
   AUTH_SERVICE_NAME,
+  PASSWORD_RESET_SERVICE_NAME,
   REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
   SESSIONS_SERVICE_NAME,
   USERS_SERVICE_NAME,
   type AuthServiceClient,
+  type PasswordResetServiceClient,
   type SessionsServiceClient,
   type UsersServiceClient,
 } from '@app/user-accounts-grpc';
@@ -39,6 +41,10 @@ describe('ApiGateway (e2e)', () => {
   const sessionsServiceClient = {
     getDevices: vi.fn<SessionsServiceClient['getDevices']>(),
   };
+  const passwordResetServiceClient = {
+    requestPasswordReset: vi.fn<PasswordResetServiceClient['requestPasswordReset']>(),
+    confirmPasswordReset: vi.fn<PasswordResetServiceClient['confirmPasswordReset']>(),
+  };
   const filesGrpcClient = {
     getService: vi.fn(() => filesServiceClient),
   };
@@ -51,6 +57,8 @@ describe('ApiGateway (e2e)', () => {
           return authServiceClient;
         case SESSIONS_SERVICE_NAME:
           return sessionsServiceClient;
+        case PASSWORD_RESET_SERVICE_NAME:
+          return passwordResetServiceClient;
         default:
           throw new Error(`Unknown user accounts gRPC service: ${serviceName}`);
       }
@@ -105,6 +113,8 @@ describe('ApiGateway (e2e)', () => {
         ],
       }),
     );
+    passwordResetServiceClient.requestPasswordReset.mockReturnValue(of({ accepted: true }));
+    passwordResetServiceClient.confirmPasswordReset.mockReturnValue(of({}));
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [ApiGatewayModule],
@@ -192,6 +202,31 @@ describe('ApiGateway (e2e)', () => {
         deviceName: 'Browser',
       }),
     );
+  });
+
+  it('POST /auth/password-reset/request delegates email to user-accounts', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post('/auth/password-reset/request')
+      .send({ email: 'user@example.com' })
+      .expect(200)
+      .expect({ message: 'If this email exists, password reset instructions were sent.' });
+
+    expect(passwordResetServiceClient.requestPasswordReset).toHaveBeenCalledWith({
+      email: 'user@example.com',
+    });
+  });
+
+  it('POST /auth/password-reset/confirm delegates token and new password to user-accounts', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post('/auth/password-reset/confirm')
+      .send({ token: 'raw-reset-token', newPassword: 'Newpass1' })
+      .expect(200)
+      .expect({ message: 'Password has been changed successfully.' });
+
+    expect(passwordResetServiceClient.confirmPasswordReset).toHaveBeenCalledWith({
+      token: 'raw-reset-token',
+      newPassword: 'Newpass1',
+    });
   });
 
   it('rejects refresh without a cookie as an HTTP authentication error', async () => {

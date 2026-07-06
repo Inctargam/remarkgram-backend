@@ -63,6 +63,44 @@ export interface GetDevicesResponse {
   devices: Device[];
 }
 
+export interface LogoutCurrentSessionRequest {
+  auth: VerifiedRefreshTokenClaims | undefined;
+}
+
+export interface LogoutCurrentSessionResponse {
+}
+
+export interface DeleteDeviceRequest {
+  auth: VerifiedRefreshTokenClaims | undefined;
+  deviceId: string;
+}
+
+export interface DeleteDeviceResponse {
+}
+
+export interface DeleteOtherDevicesRequest {
+  auth: VerifiedRefreshTokenClaims | undefined;
+}
+
+export interface DeleteOtherDevicesResponse {
+}
+
+export interface RequestPasswordResetRequest {
+  email: string;
+}
+
+export interface RequestPasswordResetResponse {
+  accepted: boolean;
+}
+
+export interface ConfirmPasswordResetRequest {
+  token: string;
+  newPassword: string;
+}
+
+export interface ConfirmPasswordResetResponse {
+}
+
 export const REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME = "remarkgram.user_accounts.v1";
 
 export interface UsersServiceClient {
@@ -123,17 +161,35 @@ export const AUTH_SERVICE_NAME = "AuthService";
 
 export interface SessionsServiceClient {
   getDevices(request: GetDevicesRequest): Observable<GetDevicesResponse>;
+
+  logoutCurrentSession(request: LogoutCurrentSessionRequest): Observable<LogoutCurrentSessionResponse>;
+
+  deleteDevice(request: DeleteDeviceRequest): Observable<DeleteDeviceResponse>;
+
+  deleteOtherDevices(request: DeleteOtherDevicesRequest): Observable<DeleteOtherDevicesResponse>;
 }
 
 export interface SessionsServiceController {
   getDevices(
     request: GetDevicesRequest,
   ): Promise<GetDevicesResponse> | Observable<GetDevicesResponse> | GetDevicesResponse;
+
+  logoutCurrentSession(
+    request: LogoutCurrentSessionRequest,
+  ): Promise<LogoutCurrentSessionResponse> | Observable<LogoutCurrentSessionResponse> | LogoutCurrentSessionResponse;
+
+  deleteDevice(
+    request: DeleteDeviceRequest,
+  ): Promise<DeleteDeviceResponse> | Observable<DeleteDeviceResponse> | DeleteDeviceResponse;
+
+  deleteOtherDevices(
+    request: DeleteOtherDevicesRequest,
+  ): Promise<DeleteOtherDevicesResponse> | Observable<DeleteOtherDevicesResponse> | DeleteOtherDevicesResponse;
 }
 
 export function SessionsServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["getDevices"];
+    const grpcMethods: string[] = ["getDevices", "logoutCurrentSession", "deleteDevice", "deleteOtherDevices"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("SessionsService", method)(constructor.prototype[method], method, descriptor);
@@ -147,3 +203,36 @@ export function SessionsServiceControllerMethods() {
 }
 
 export const SESSIONS_SERVICE_NAME = "SessionsService";
+
+export interface PasswordResetServiceClient {
+  requestPasswordReset(request: RequestPasswordResetRequest): Observable<RequestPasswordResetResponse>;
+
+  confirmPasswordReset(request: ConfirmPasswordResetRequest): Observable<ConfirmPasswordResetResponse>;
+}
+
+export interface PasswordResetServiceController {
+  requestPasswordReset(
+    request: RequestPasswordResetRequest,
+  ): Promise<RequestPasswordResetResponse> | Observable<RequestPasswordResetResponse> | RequestPasswordResetResponse;
+
+  confirmPasswordReset(
+    request: ConfirmPasswordResetRequest,
+  ): Promise<ConfirmPasswordResetResponse> | Observable<ConfirmPasswordResetResponse> | ConfirmPasswordResetResponse;
+}
+
+export function PasswordResetServiceControllerMethods() {
+  return function (constructor: Function) {
+    const grpcMethods: string[] = ["requestPasswordReset", "confirmPasswordReset"];
+    for (const method of grpcMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcMethod("PasswordResetService", method)(constructor.prototype[method], method, descriptor);
+    }
+    const grpcStreamMethods: string[] = [];
+    for (const method of grpcStreamMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcStreamMethod("PasswordResetService", method)(constructor.prototype[method], method, descriptor);
+    }
+  };
+}
+
+export const PASSWORD_RESET_SERVICE_NAME = "PasswordResetService";

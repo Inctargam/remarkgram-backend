@@ -3,6 +3,7 @@ import { MailerModule } from '@nestjs-modules/mailer';
 import type { ConfigType } from '@nestjs/config';
 import { emailConfig } from '../../config/email.config.js';
 import { EmailService } from './email.service.js';
+import { PasswordResetTokenEmailHandler } from './use-cases/password-reset-token-email.event-use-case.js';
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { EmailService } from './email.service.js';
       }),
     }),
   ],
-  providers: [EmailService],
+  providers: [EmailService, PasswordResetTokenEmailHandler],
   exports: [EmailService],
 })
 export class NotificationsModule {}
