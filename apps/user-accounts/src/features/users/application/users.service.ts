@@ -22,6 +22,8 @@ export class UsersService {
       passwordRecovery = { code: null, expiration: null },
     } = params;
 
+    // Это предварительные проверки для раннего отказа до затратного хеширования пароля. Они не защищают
+    // от race condition: окончательную уникальность гарантируют индексы БД и обработка P2002 в репозитории.
     if (await this.usersRepository.isUsernameExists(username)) {
       throw new UsernameAlreadyExistsError();
     }
