@@ -3,6 +3,7 @@ import type { authConfig } from '../../../../config/auth.config.js';
 import type { EmailService } from '../../../notifications/email.service.js';
 import { createTestUser } from '../../../../../test/factories/user.factory.js';
 import { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
+import { PasswordRecoveryInfo } from '../../domain/value-objects/password-recovery-info.js';
 import type { UsersRepository } from '../ports/users.repository.js';
 import type { UsersService } from '../users.service.js';
 import { CreateUserCommand, CreateUserUseCase } from './create-user.use-case.js';
@@ -85,7 +86,7 @@ describe('RegisterUserUseCase', () => {
         code: createParams.confirmation?.code,
         expiration: new Date('2026-07-02T12:00:00.000Z'),
       },
-      passwordRecovery: { code: null, expiration: null },
+      passwordRecovery: PasswordRecoveryInfo.inactive(),
     });
     expect(emailService.sendConfirmationCode).toHaveBeenCalledWith(
       'user@example.com',

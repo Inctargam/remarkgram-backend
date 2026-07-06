@@ -1,4 +1,5 @@
 import type { ConfirmationInfo } from '../value-objects/confirmation-info.js';
+import type { PasswordRecoveryInfo } from '../value-objects/password-recovery-info.js';
 
 export type UserProps = {
   id: number;
@@ -9,11 +10,6 @@ export type UserProps = {
   confirmation: ConfirmationInfo;
   passwordRecovery: PasswordRecoveryInfo;
   deletedAt: Date | null;
-};
-
-export type PasswordRecoveryInfo = {
-  code: string | null;
-  expiration: Date | null;
 };
 
 export class User {

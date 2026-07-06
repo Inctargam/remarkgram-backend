@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AuthService } from '../../auth/application/auth.service.js';
 import type { User } from '../domain/entities/user.entity.js';
 import { ConfirmationInfo } from '../domain/value-objects/confirmation-info.js';
+import { PasswordRecoveryInfo } from '../domain/value-objects/password-recovery-info.js';
 import { EmailAlreadyExistsError, UsernameAlreadyExistsError } from './errors/users.errors.js';
 import { UsersRepository } from './ports/users.repository.js';
 import type { CreateUserParams } from './types/users.types.js';
@@ -20,7 +21,7 @@ export class UsersService {
       email,
       password,
       confirmation = ConfirmationInfo.confirmed(),
-      passwordRecovery = { code: null, expiration: null },
+      passwordRecovery = PasswordRecoveryInfo.inactive(),
     } = params;
 
     // Это предварительные проверки для раннего отказа до затратного хеширования пароля. Они не защищают

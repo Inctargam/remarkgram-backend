@@ -6,6 +6,7 @@ import {
 } from '../../../application/errors/users.errors.js';
 import type { CreateUserRepositoryParams } from '../../../application/types/users.types.js';
 import { ConfirmationInfo } from '../../../domain/value-objects/confirmation-info.js';
+import { PasswordRecoveryInfo } from '../../../domain/value-objects/password-recovery-info.js';
 import { PrismaUsersRepository } from './prisma-users.repository.js';
 
 describe('PrismaUsersRepository', () => {
@@ -19,7 +20,7 @@ describe('PrismaUsersRepository', () => {
     hash: 'password-hash',
     createdAt: new Date('2026-07-06T12:00:00.000Z'),
     confirmation: ConfirmationInfo.pending('confirmation-code', new Date('2026-07-06T13:00:00.000Z')),
-    passwordRecovery: { code: null, expiration: null },
+    passwordRecovery: PasswordRecoveryInfo.inactive(),
   };
 
   beforeEach(() => {
