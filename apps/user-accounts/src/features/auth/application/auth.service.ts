@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
-import { randomUUID } from 'node:crypto';
+
 import { authConfig } from '../../../config/auth.config.js';
 import { NoActiveSessionError } from '../../sessions/application/errors/sessions.errors.js';
 import { SessionsService } from '../../sessions/application/sessions.service.js';
@@ -87,7 +87,7 @@ export class AuthService {
   /** Выпускает refresh-токен, связанный с конкретной сессией и уникальным jti. */
   private generateRefreshToken(userId: string, sessionId: string): Promise<string> {
     return this.jwtService.signAsync(
-      { sub: userId, sessionId, jti: randomUUID() },
+      { sub: userId, sessionId, jti: crypto.randomUUID() },
       {
         expiresIn: this.auth.refreshTokenExpiresIn,
       },

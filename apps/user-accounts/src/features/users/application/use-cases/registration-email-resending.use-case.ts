@@ -1,7 +1,6 @@
 import { Inject } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
-import { randomUUID } from 'node:crypto';
 import { authConfig } from '../../../../config/auth.config.js';
 import { EmailService } from '../../../notifications/email.service.js';
 import { EmailAlreadyConfirmedError, IncorrectEmailError } from '../errors/users.errors.js';
@@ -32,7 +31,7 @@ export class RegistrationEmailResendingUseCase implements ICommandHandler<Regist
       throw new EmailAlreadyConfirmedError();
     }
 
-    const code = randomUUID();
+    const code = crypto.randomUUID();
     const expiration = new Date();
     expiration.setHours(expiration.getHours() + this.auth.confirmationCodeExpiresIn);
 

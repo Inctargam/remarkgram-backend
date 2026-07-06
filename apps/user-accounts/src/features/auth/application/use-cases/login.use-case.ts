@@ -1,5 +1,4 @@
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
-import { randomUUID } from 'node:crypto';
 import { SessionsService } from '../../../sessions/application/sessions.service.js';
 import { AuthService } from '../auth.service.js';
 import { EmailNotConfirmedError, UserAlreadyLoggedInError } from '../errors/auth.errors.js';
@@ -29,7 +28,7 @@ export class LoginUseCase implements ICommandHandler<LoginCommand> {
       throw new EmailNotConfirmedError();
     }
 
-    const sessionId = randomUUID();
+    const sessionId = crypto.randomUUID();
     const userId = user.id.toString();
     const { accessToken, refreshToken, refreshTokenPayload } = await this.authService.generateTokenPair({
       userId,
