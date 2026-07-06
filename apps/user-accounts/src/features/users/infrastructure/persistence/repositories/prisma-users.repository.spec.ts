@@ -58,8 +58,46 @@ describe('PrismaUsersRepository', () => {
         confirmationCode: null,
         confirmationExpiration: null,
       },
-      where: { confirmationCode: 'confirmation-code', deletedAt: null },
+      where: { confirmationCode: 'confirmation-code', isConfirmed: false, deletedAt: null },
     });
+  });
+
+  it('reports that confirmation lost a race when no unconfirmed row was updated', async () => {
+    updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(repository.confirmUser('confirmation-code')).resolves.toBe(false);
+  });
+
+  it('updates a confirmation code only for an unconfirmed user', async () => {
+    const expiration = new Date('2026-07-06T13:00:00.000Z');
+    updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(
+      repository.updateConfirmationCode({
+        email: 'user@example.com',
+        code: 'new-confirmation-code',
+        expiration,
+      }),
+    ).resolves.toBe(true);
+    expect(updateMany).toHaveBeenCalledWith({
+      data: {
+        confirmationCode: 'new-confirmation-code',
+        confirmationExpiration: expiration,
+      },
+      where: { email: 'user@example.com', isConfirmed: false, deletedAt: null },
+    });
+  });
+
+  it('reports that confirmation-code update lost a race when no unconfirmed row was updated', async () => {
+    updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      repository.updateConfirmationCode({
+        email: 'user@example.com',
+        code: 'new-confirmation-code',
+        expiration: new Date('2026-07-06T13:00:00.000Z'),
+      }),
+    ).resolves.toBe(false);
   });
 
   it.each([
