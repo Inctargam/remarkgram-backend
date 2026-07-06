@@ -1,5 +1,6 @@
 import type { AuthService } from '../../auth/application/auth.service.js';
 import { createTestUser } from '../../../../test/factories/user.factory.js';
+import { ConfirmationInfo } from '../domain/value-objects/confirmation-info.js';
 import type { UsersRepository } from './ports/users.repository.js';
 import type { CreateUserRepositoryParams } from './types/users.types.js';
 import { UsersService } from './users.service.js';
@@ -58,7 +59,7 @@ describe('UsersService', () => {
       email: 'user@example.com',
       hash: 'password-hash',
       createdAt: new Date('2026-07-01T12:00:00.000Z'),
-      confirmation: { isConfirmed: true, code: null, expiration: null },
+      confirmation: ConfirmationInfo.confirmed(),
       passwordRecovery: { code: null, expiration: null },
     });
     expect(user.username).toBe('user');

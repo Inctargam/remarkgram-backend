@@ -1,5 +1,5 @@
 import type { User } from '../../domain/entities/user.entity.js';
-import type { ConfirmationInfo } from '../../domain/entities/user.entity.js';
+import type { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
 import type {
   CreateUserRepositoryParams,
   ReleaseExpiredRegistrationCredentialsParams,

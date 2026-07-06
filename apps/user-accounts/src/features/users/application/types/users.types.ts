@@ -1,4 +1,5 @@
-import type { ConfirmationInfo, PasswordRecoveryInfo } from '../../domain/entities/user.entity.js';
+import type { PasswordRecoveryInfo } from '../../domain/entities/user.entity.js';
+import type { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
 
 export type CreateUserParams = {
   username: string;

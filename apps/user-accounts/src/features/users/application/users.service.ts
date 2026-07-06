@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AuthService } from '../../auth/application/auth.service.js';
 import type { User } from '../domain/entities/user.entity.js';
+import { ConfirmationInfo } from '../domain/value-objects/confirmation-info.js';
 import { EmailAlreadyExistsError, UsernameAlreadyExistsError } from './errors/users.errors.js';
 import { UsersRepository } from './ports/users.repository.js';
 import type { CreateUserParams } from './types/users.types.js';
@@ -18,7 +19,7 @@ export class UsersService {
       username,
       email,
       password,
-      confirmation = { isConfirmed: true, code: null, expiration: null },
+      confirmation = ConfirmationInfo.confirmed(),
       passwordRecovery = { code: null, expiration: null },
     } = params;
 

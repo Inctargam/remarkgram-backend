@@ -1,5 +1,6 @@
 import type { User as PrismaUser } from '../../../../../database/generated/client.js';
 import { User } from '../../../domain/entities/user.entity.js';
+import { ConfirmationInfo } from '../../../domain/value-objects/confirmation-info.js';
 
 export class UserPrismaMapper {
   static toDomain(row: PrismaUser): User {
@@ -9,11 +10,11 @@ export class UserPrismaMapper {
       email: row.email,
       hash: row.hash,
       createdAt: row.createdAt,
-      confirmation: {
+      confirmation: ConfirmationInfo.restore({
         isConfirmed: row.isConfirmed,
         code: row.confirmationCode,
         expiration: row.confirmationExpiration,
-      },
+      }),
       passwordRecovery: {
         code: row.passwordRecoveryCode,
         expiration: row.passwordRecoveryExpiration,

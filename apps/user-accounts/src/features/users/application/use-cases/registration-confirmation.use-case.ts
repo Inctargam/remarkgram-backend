@@ -23,11 +23,11 @@ export class RegistrationConfirmationUseCase implements ICommandHandler<Registra
       throw new InvalidConfirmationCodeError();
     }
 
-    if (confirmation.isConfirmed) {
+    if (confirmation.isConfirmed === true) {
       throw new EmailAlreadyConfirmedError();
     }
 
-    if (!confirmation.expiration || confirmation.expiration < new Date()) {
+    if (confirmation.isExpired(new Date())) {
       throw new ConfirmationCodeExpiredError();
     }
 

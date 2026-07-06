@@ -5,6 +5,7 @@ import {
   UsernameAlreadyExistsError,
 } from '../../../application/errors/users.errors.js';
 import type { CreateUserRepositoryParams } from '../../../application/types/users.types.js';
+import { ConfirmationInfo } from '../../../domain/value-objects/confirmation-info.js';
 import { PrismaUsersRepository } from './prisma-users.repository.js';
 
 describe('PrismaUsersRepository', () => {
@@ -17,11 +18,7 @@ describe('PrismaUsersRepository', () => {
     email: 'user@example.com',
     hash: 'password-hash',
     createdAt: new Date('2026-07-06T12:00:00.000Z'),
-    confirmation: {
-      isConfirmed: false,
-      code: 'confirmation-code',
-      expiration: new Date('2026-07-06T13:00:00.000Z'),
-    },
+    confirmation: ConfirmationInfo.pending('confirmation-code', new Date('2026-07-06T13:00:00.000Z')),
     passwordRecovery: { code: null, expiration: null },
   };
 
@@ -47,6 +44,20 @@ describe('PrismaUsersRepository', () => {
         OR: [{ username: 'user_123' }, { email: 'user@example.com' }],
       },
       data: { deletedAt: now },
+    });
+  });
+
+  it('clears confirmation code and expiration when confirming a user', async () => {
+    updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(repository.confirmUser('confirmation-code')).resolves.toBe(true);
+    expect(updateMany).toHaveBeenCalledWith({
+      data: {
+        isConfirmed: true,
+        confirmationCode: null,
+        confirmationExpiration: null,
+      },
+      where: { confirmationCode: 'confirmation-code', deletedAt: null },
     });
   });
 

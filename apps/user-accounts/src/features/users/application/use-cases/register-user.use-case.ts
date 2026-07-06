@@ -3,6 +3,7 @@ import type { ConfigType } from '@nestjs/config';
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import { authConfig } from '../../../../config/auth.config.js';
 import { EmailService } from '../../../notifications/email.service.js';
+import { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
 import { UsersRepository } from '../ports/users.repository.js';
 import type { RegisterUserParams } from '../types/users.types.js';
 import { UsersService } from '../users.service.js';
@@ -39,7 +40,7 @@ export class RegisterUserUseCase implements ICommandHandler<RegisterUserCommand>
 
     await this.usersService.createUser({
       ...command.params,
-      confirmation: { isConfirmed: false, code, expiration },
+      confirmation: ConfirmationInfo.pending(code, expiration),
       passwordRecovery: { code: null, expiration: null },
     });
 

@@ -1,3 +1,5 @@
+import type { ConfirmationInfo } from '../value-objects/confirmation-info.js';
+
 export type UserProps = {
   id: number;
   username: string;
@@ -7,12 +9,6 @@ export type UserProps = {
   confirmation: ConfirmationInfo;
   passwordRecovery: PasswordRecoveryInfo;
   deletedAt: Date | null;
-};
-
-export type ConfirmationInfo = {
-  isConfirmed: boolean;
-  code: string | null;
-  expiration: Date | null;
 };
 
 export type PasswordRecoveryInfo = {

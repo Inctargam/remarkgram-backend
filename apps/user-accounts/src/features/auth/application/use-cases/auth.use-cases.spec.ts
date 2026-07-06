@@ -1,6 +1,7 @@
 import type { AuthService } from '../auth.service.js';
 import type { SessionsService } from '../../../sessions/application/sessions.service.js';
 import { createTestUser } from '../../../../../test/factories/user.factory.js';
+import { ConfirmationInfo } from '../../../users/domain/value-objects/confirmation-info.js';
 import { LoginCommand, LoginUseCase } from './login.use-case.js';
 import { RefreshTokenCommand, RefreshTokenUseCase } from './refresh-token.use-case.js';
 
@@ -13,7 +14,7 @@ describe('auth use cases', () => {
   };
   const user = createTestUser({
     hash: 'hash',
-    confirmation: { isConfirmed: true, code: null, expiration: null },
+    confirmation: ConfirmationInfo.confirmed(),
   });
   const tokenPair = {
     accessToken: 'access-token',

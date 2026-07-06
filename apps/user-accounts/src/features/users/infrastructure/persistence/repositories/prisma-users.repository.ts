@@ -12,6 +12,7 @@ import type {
   UpdateConfirmationCodeParams,
 } from '../../../application/types/users.types.js';
 import { User } from '../../../domain/entities/user.entity.js';
+import { ConfirmationInfo } from '../../../domain/value-objects/confirmation-info.js';
 import { UserPrismaMapper } from '../mappers/user-prisma.mapper.js';
 
 type UniqueConstraintMeta = {
@@ -123,7 +124,7 @@ export class PrismaUsersRepository implements UsersRepository {
     });
   }
 
-  async getConfirmationInfo(code: string) {
+  async getConfirmationInfo(code: string): Promise<ConfirmationInfo | null> {
     const user = await this.prisma.user.findFirst({
       select: {
         isConfirmed: true,
@@ -135,17 +136,18 @@ export class PrismaUsersRepository implements UsersRepository {
 
     if (!user) return null;
 
-    return {
+    return ConfirmationInfo.restore({
       isConfirmed: user.isConfirmed,
       code: user.confirmationCode,
       expiration: user.confirmationExpiration,
-    };
+    });
   }
 
   async confirmUser(code: string): Promise<boolean> {
     const result = await this.prisma.user.updateMany({
       data: {
         isConfirmed: true,
+        confirmationCode: null,
         confirmationExpiration: null,
       },
       where: { confirmationCode: code, deletedAt: null },

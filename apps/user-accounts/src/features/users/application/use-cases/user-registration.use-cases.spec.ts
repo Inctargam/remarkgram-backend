@@ -2,6 +2,7 @@ import type { ConfigType } from '@nestjs/config';
 import type { authConfig } from '../../../../config/auth.config.js';
 import type { EmailService } from '../../../notifications/email.service.js';
 import { createTestUser } from '../../../../../test/factories/user.factory.js';
+import { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
 import type { UsersRepository } from '../ports/users.repository.js';
 import type { UsersService } from '../users.service.js';
 import { CreateUserCommand, CreateUserUseCase } from './create-user.use-case.js';
@@ -119,11 +120,9 @@ describe('RegistrationConfirmationUseCase', () => {
   });
 
   it('confirms a user with an active code', async () => {
-    usersRepository.getConfirmationInfo.mockResolvedValue({
-      isConfirmed: false,
-      code: 'code',
-      expiration: new Date('2026-07-01T13:00:00.000Z'),
-    });
+    usersRepository.getConfirmationInfo.mockResolvedValue(
+      ConfirmationInfo.pending('code', new Date('2026-07-01T13:00:00.000Z')),
+    );
 
     await useCase.execute(new RegistrationConfirmationCommand('code'));
 
@@ -132,14 +131,9 @@ describe('RegistrationConfirmationUseCase', () => {
 
   it.each([
     [null, 'Confirmation code is invalid'],
-    [
-      { isConfirmed: true, code: 'code', expiration: new Date('2026-07-01T13:00:00.000Z') },
-      'Email is already confirmed',
-    ],
-    [
-      { isConfirmed: false, code: 'code', expiration: new Date('2026-07-01T11:00:00.000Z') },
-      'Confirmation code has expired',
-    ],
+    [ConfirmationInfo.confirmed(), 'Email is already confirmed'],
+    [ConfirmationInfo.pending('code', new Date('2026-07-01T11:00:00.000Z')), 'Confirmation code has expired'],
+    [ConfirmationInfo.pending('code', new Date('2026-07-01T12:00:00.000Z')), 'Confirmation code has expired'],
   ])('rejects invalid confirmation info', async (confirmation, message) => {
     usersRepository.getConfirmationInfo.mockResolvedValue(confirmation);
 
@@ -179,7 +173,7 @@ describe('RegistrationEmailResendingUseCase', () => {
   it('sends and persists a new confirmation code', async () => {
     usersRepository.findByEmail.mockResolvedValue(
       createTestUser({
-        confirmation: { isConfirmed: false, code: 'old-code', expiration: new Date() },
+        confirmation: ConfirmationInfo.pending('old-code', new Date()),
       }),
     );
 
@@ -207,7 +201,7 @@ describe('RegistrationEmailResendingUseCase', () => {
   it('rejects an already confirmed email', async () => {
     usersRepository.findByEmail.mockResolvedValue(
       createTestUser({
-        confirmation: { isConfirmed: true, code: null, expiration: null },
+        confirmation: ConfirmationInfo.confirmed(),
       }),
     );
 
