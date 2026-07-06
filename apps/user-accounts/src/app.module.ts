@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { authConfig } from './config/auth.config.js';
 import { databaseConfig } from './config/database.config.js';
 import { emailConfig } from './config/email.config.js';
+import { passwordResetConfig } from './config/password-reset.config.js';
 import { userAccountsGrpcConfig } from './config/user-accounts-grpc.config.js';
 import { PrismaModule } from './database/prisma.module.js';
 import { AuthService } from './features/auth/application/auth.service.js';
@@ -12,6 +13,16 @@ import { LoginUseCase } from './features/auth/application/use-cases/login.use-ca
 import { RefreshTokenUseCase } from './features/auth/application/use-cases/refresh-token.use-case.js';
 import { AuthGrpcController } from './features/auth/presentation/grpc/controllers/auth-grpc.controller.js';
 import { NotificationsModule } from './features/notifications/notifications.module.js';
+import { PasswordHasher } from './features/password-reset/application/ports/password-hasher.js';
+import { PasswordResetTokenService } from './features/password-reset/application/ports/password-reset-token.service.js';
+import { PasswordResetTokensRepository } from './features/password-reset/application/ports/password-reset-tokens.repository.js';
+import { PasswordResetUsersRepository } from './features/password-reset/application/ports/password-reset-users.repository.js';
+import { ConfirmPasswordResetUseCase } from './features/password-reset/application/use-cases/confirm-password-reset.use-case.js';
+import { RequestPasswordResetUseCase } from './features/password-reset/application/use-cases/request-password-reset.use-case.js';
+import { HmacPasswordResetTokenService } from './features/password-reset/infrastructure/crypto/hmac-password-reset-token.service.js';
+import { PrismaPasswordResetUsersRepository } from './features/password-reset/infrastructure/persistence/prisma-password-reset-users.repository.js';
+import { PrismaPasswordRestTokensRepository } from './features/password-reset/infrastructure/persistence/prisma-password-rest-tokens.repository.js';
+import { PasswordResetGrpcController } from './features/password-reset/presentation/grpc/controllers/password-reset-grpc.controller.js';
 import { SessionsQueryRepository } from './features/sessions/application/ports/sessions-query.repository.js';
 import { SessionsRepository } from './features/sessions/application/ports/sessions.repository.js';
 import { SessionsService } from './features/sessions/application/sessions.service.js';
@@ -29,6 +40,27 @@ import { UsersService } from './features/users/application/users.service.js';
 import { PrismaUsersRepository } from './features/users/infrastructure/persistence/repositories/prisma-users.repository.js';
 import { UsersGrpcController } from './features/users/presentation/grpc/controllers/users-grpc.controller.js';
 
+const PASSWORD_RESET_PROVIDERS = [
+  {
+    provide: PasswordResetTokensRepository,
+    useClass: PrismaPasswordRestTokensRepository,
+  },
+  {
+    provide: PasswordResetUsersRepository,
+    useClass: PrismaPasswordResetUsersRepository,
+  },
+  {
+    provide: PasswordHasher,
+    useExisting: AuthService,
+  },
+  {
+    provide: PasswordResetTokenService,
+    useClass: HmacPasswordResetTokenService,
+  },
+  RequestPasswordResetUseCase,
+  ConfirmPasswordResetUseCase,
+];
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -43,7 +75,7 @@ import { UsersGrpcController } from './features/users/presentation/grpc/controll
         `.env.production`,
         '.env',
       ],
-      load: [authConfig, databaseConfig, emailConfig, userAccountsGrpcConfig],
+      load: [authConfig, databaseConfig, emailConfig, passwordResetConfig, userAccountsGrpcConfig],
     }),
     CqrsModule,
     PrismaModule,
@@ -56,7 +88,7 @@ import { UsersGrpcController } from './features/users/presentation/grpc/controll
       }),
     }),
   ],
-  controllers: [AuthGrpcController, SessionsGrpcController, UsersGrpcController],
+  controllers: [AuthGrpcController, SessionsGrpcController, UsersGrpcController, PasswordResetGrpcController],
   providers: [
     {
       provide: UsersRepository,
@@ -81,6 +113,7 @@ import { UsersGrpcController } from './features/users/presentation/grpc/controll
     RegisterUserUseCase,
     RegistrationConfirmationUseCase,
     RegistrationEmailResendingUseCase,
+    ...PASSWORD_RESET_PROVIDERS,
   ],
 })
 export class UserAccountsModule {}
