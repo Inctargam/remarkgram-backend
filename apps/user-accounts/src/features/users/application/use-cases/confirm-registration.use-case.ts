@@ -6,17 +6,17 @@ import {
 } from '../errors/users.errors.js';
 import { UsersRepository } from '../ports/users.repository.js';
 
-export class RegistrationConfirmationCommand extends Command<void> {
+export class ConfirmRegistrationCommand extends Command<void> {
   constructor(public readonly code: string) {
     super();
   }
 }
 
-@CommandHandler(RegistrationConfirmationCommand)
-export class RegistrationConfirmationUseCase implements ICommandHandler<RegistrationConfirmationCommand> {
+@CommandHandler(ConfirmRegistrationCommand)
+export class ConfirmRegistrationUseCase implements ICommandHandler<ConfirmRegistrationCommand> {
   constructor(private readonly usersRepository: UsersRepository) {}
 
-  async execute(command: RegistrationConfirmationCommand) {
+  async execute(command: ConfirmRegistrationCommand) {
     const confirmation = await this.usersRepository.getConfirmationInfo(command.code);
 
     if (!confirmation) {

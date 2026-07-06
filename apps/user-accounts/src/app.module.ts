@@ -23,8 +23,8 @@ import { UsersRepository } from './features/users/application/ports/users.reposi
 import { CreateUserUseCase } from './features/users/application/use-cases/create-user.use-case.js';
 import { GetUsersUseCase } from './features/users/application/use-cases/get-users.use-case.js';
 import { RegisterUserUseCase } from './features/users/application/use-cases/register-user.use-case.js';
-import { RegistrationConfirmationUseCase } from './features/users/application/use-cases/registration-confirmation.use-case.js';
-import { RegistrationEmailResendingUseCase } from './features/users/application/use-cases/registration-email-resending.use-case.js';
+import { ConfirmRegistrationUseCase } from './features/users/application/use-cases/confirm-registration.use-case.js';
+import { ResendRegistrationConfirmationUseCase } from './features/users/application/use-cases/resend-registration-confirmation.use-case.js';
 import { UsersService } from './features/users/application/users.service.js';
 import { PrismaUsersRepository } from './features/users/infrastructure/persistence/repositories/prisma-users.repository.js';
 import { UsersGrpcController } from './features/users/presentation/grpc/controllers/users-grpc.controller.js';
@@ -79,8 +79,8 @@ import { UsersGrpcController } from './features/users/presentation/grpc/controll
     CreateUserUseCase,
     GetUsersUseCase,
     RegisterUserUseCase,
-    RegistrationConfirmationUseCase,
-    RegistrationEmailResendingUseCase,
+    ConfirmRegistrationUseCase,
+    ResendRegistrationConfirmationUseCase,
   ],
 })
 export class UserAccountsModule {}

@@ -6,21 +6,21 @@ import { EmailService } from '../../../notifications/email.service.js';
 import { EmailAlreadyConfirmedError, IncorrectEmailError } from '../errors/users.errors.js';
 import { UsersRepository } from '../ports/users.repository.js';
 
-export class RegistrationEmailResendingCommand extends Command<void> {
+export class ResendRegistrationConfirmationCommand extends Command<void> {
   constructor(public readonly email: string) {
     super();
   }
 }
 
-@CommandHandler(RegistrationEmailResendingCommand)
-export class RegistrationEmailResendingUseCase implements ICommandHandler<RegistrationEmailResendingCommand> {
+@CommandHandler(ResendRegistrationConfirmationCommand)
+export class ResendRegistrationConfirmationUseCase implements ICommandHandler<ResendRegistrationConfirmationCommand> {
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly emailService: EmailService,
     @Inject(authConfig.KEY) private readonly auth: ConfigType<typeof authConfig>,
   ) {}
 
-  async execute(command: RegistrationEmailResendingCommand) {
+  async execute(command: ResendRegistrationConfirmationCommand) {
     const user = await this.usersRepository.findByEmail(command.email);
 
     if (!user) {
