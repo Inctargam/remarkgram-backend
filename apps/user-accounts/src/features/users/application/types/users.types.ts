@@ -19,6 +19,10 @@ export type CreateUserRepositoryParams = {
   passwordRecovery: PasswordRecoveryInfo;
 };
 
+export type ReleaseExpiredRegistrationCredentialsParams = Pick<RegisterUserParams, 'username' | 'email'> & {
+  now: Date;
+};
+
 export type UpdateConfirmationCodeParams = {
   email: string;
   code: string;

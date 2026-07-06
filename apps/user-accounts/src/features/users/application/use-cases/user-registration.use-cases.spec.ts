@@ -28,6 +28,9 @@ describe('user registration use cases', () => {
 });
 
 describe('RegisterUserUseCase', () => {
+  const usersRepository = {
+    releaseExpiredRegistrationCredentials: vi.fn<UsersRepository['releaseExpiredRegistrationCredentials']>(),
+  };
   const usersService = {
     createUser: vi.fn<UsersService['createUser']>(),
   };
@@ -41,9 +44,11 @@ describe('RegisterUserUseCase', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-01T12:00:00.000Z'));
     vi.clearAllMocks();
+    usersRepository.releaseExpiredRegistrationCredentials.mockResolvedValue(undefined);
     usersService.createUser.mockResolvedValue(createTestUser());
     emailService.sendConfirmationCode.mockResolvedValue(undefined);
     useCase = new RegisterUserUseCase(
+      usersRepository as unknown as UsersRepository,
       usersService as unknown as UsersService,
       emailService as unknown as EmailService,
       auth,
@@ -63,6 +68,11 @@ describe('RegisterUserUseCase', () => {
       }),
     );
 
+    expect(usersRepository.releaseExpiredRegistrationCredentials).toHaveBeenCalledWith({
+      username: 'user',
+      email: 'user@example.com',
+      now: new Date('2026-07-01T12:00:00.000Z'),
+    });
     const createParams = usersService.createUser.mock.calls[0][0];
     expect(typeof createParams.confirmation?.code).toBe('string');
     expect(createParams).toEqual({
@@ -79,6 +89,9 @@ describe('RegisterUserUseCase', () => {
     expect(emailService.sendConfirmationCode).toHaveBeenCalledWith(
       'user@example.com',
       createParams.confirmation?.code,
+    );
+    expect(usersRepository.releaseExpiredRegistrationCredentials.mock.invocationCallOrder[0]).toBeLessThan(
+      usersService.createUser.mock.invocationCallOrder[0],
     );
     expect(usersService.createUser.mock.invocationCallOrder[0]).toBeLessThan(
       emailService.sendConfirmationCode.mock.invocationCallOrder[0],

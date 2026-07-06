@@ -1,12 +1,28 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../../../../../database/generated/client.js';
 import { PrismaService } from '../../../../../database/prisma.service.js';
+import {
+  EmailAlreadyExistsError,
+  UsernameAlreadyExistsError,
+} from '../../../application/errors/users.errors.js';
 import { UsersRepository } from '../../../application/ports/users.repository.js';
 import type {
   CreateUserRepositoryParams,
+  ReleaseExpiredRegistrationCredentialsParams,
   UpdateConfirmationCodeParams,
 } from '../../../application/types/users.types.js';
 import { User } from '../../../domain/entities/user.entity.js';
 import { UserPrismaMapper } from '../mappers/user-prisma.mapper.js';
+
+type UniqueConstraintMeta = {
+  driverAdapterError?: {
+    cause?: {
+      constraint?: {
+        fields?: string[];
+      };
+    };
+  };
+};
 
 @Injectable()
 export class PrismaUsersRepository implements UsersRepository {
@@ -51,21 +67,55 @@ export class PrismaUsersRepository implements UsersRepository {
 
   async create(params: CreateUserRepositoryParams): Promise<User> {
     const { username, email, hash, createdAt, confirmation, passwordRecovery } = params;
-    const user = await this.prisma.user.create({
-      data: {
-        username,
-        email,
-        hash,
-        createdAt,
-        isConfirmed: confirmation.isConfirmed,
-        confirmationCode: confirmation.code,
-        confirmationExpiration: confirmation.expiration,
-        passwordRecoveryCode: passwordRecovery.code,
-        passwordRecoveryExpiration: passwordRecovery.expiration,
-      },
-    });
 
-    return UserPrismaMapper.toDomain(user);
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          username,
+          email,
+          hash,
+          createdAt,
+          isConfirmed: confirmation.isConfirmed,
+          confirmationCode: confirmation.code,
+          confirmationExpiration: confirmation.expiration,
+          passwordRecoveryCode: passwordRecovery.code,
+          passwordRecoveryExpiration: passwordRecovery.expiration,
+        },
+      });
+
+      return UserPrismaMapper.toDomain(user);
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+        throw error;
+      }
+
+      const meta = error.meta as UniqueConstraintMeta | undefined;
+      const fields = meta?.driverAdapterError?.cause?.constraint?.fields ?? [];
+
+      if (fields.includes('username')) {
+        throw new UsernameAlreadyExistsError();
+      }
+
+      if (fields.includes('email')) {
+        throw new EmailAlreadyExistsError();
+      }
+
+      throw error;
+    }
+  }
+
+  async releaseExpiredRegistrationCredentials(
+    params: ReleaseExpiredRegistrationCredentialsParams,
+  ): Promise<void> {
+    await this.prisma.user.updateMany({
+      where: {
+        deletedAt: null,
+        isConfirmed: false,
+        confirmationExpiration: { lte: params.now },
+        OR: [{ username: params.username }, { email: params.email }],
+      },
+      data: { deletedAt: params.now },
+    });
   }
 
   async getConfirmationInfo(code: string) {
