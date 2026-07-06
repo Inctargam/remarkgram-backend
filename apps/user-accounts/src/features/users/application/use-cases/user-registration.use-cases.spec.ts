@@ -2,6 +2,8 @@ import type { ConfigType } from '@nestjs/config';
 import type { authConfig } from '../../../../config/auth.config.js';
 import type { EmailService } from '../../../notifications/email.service.js';
 import { createTestUser } from '../../../../../test/factories/user.factory.js';
+import { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
+import { PasswordRecoveryInfo } from '../../domain/value-objects/password-recovery-info.js';
 import type { UsersRepository } from '../ports/users.repository.js';
 import type { UsersService } from '../users.service.js';
 import { CreateUserCommand, CreateUserUseCase } from './create-user.use-case.js';
@@ -25,15 +27,77 @@ describe('user registration use cases', () => {
     await expect(useCase.execute(new CreateUserCommand(params))).resolves.toBe(user);
     expect(usersService.createUser).toHaveBeenCalledWith(params);
   });
+});
 
-  it('RegisterUserUseCase delegates registration to UsersService', async () => {
-    const usersService = { registerUser: vi.fn().mockResolvedValue(undefined) };
-    const useCase = new RegisterUserUseCase(usersService as unknown as UsersService);
-    const params = { username: 'user', email: 'user@example.com', password: 'password' };
+describe('RegisterUserUseCase', () => {
+  const usersRepository = {
+    releaseExpiredRegistrationCredentials: vi.fn<UsersRepository['releaseExpiredRegistrationCredentials']>(),
+  };
+  const usersService = {
+    createUser: vi.fn<UsersService['createUser']>(),
+  };
+  const emailService = {
+    sendConfirmationCode: vi.fn<EmailService['sendConfirmationCode']>(),
+  };
+  const auth = { confirmationCodeExpiresIn: 24 } as ConfigType<typeof authConfig>;
+  let useCase: RegisterUserUseCase;
 
-    await useCase.execute(new RegisterUserCommand(params));
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T12:00:00.000Z'));
+    vi.clearAllMocks();
+    usersRepository.releaseExpiredRegistrationCredentials.mockResolvedValue(undefined);
+    usersService.createUser.mockResolvedValue(createTestUser());
+    emailService.sendConfirmationCode.mockResolvedValue(undefined);
+    useCase = new RegisterUserUseCase(
+      usersRepository as unknown as UsersRepository,
+      usersService as unknown as UsersService,
+      emailService as unknown as EmailService,
+      auth,
+    );
+  });
 
-    expect(usersService.registerUser).toHaveBeenCalledWith(params);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('creates an unconfirmed user and sends its confirmation code', async () => {
+    await useCase.execute(
+      new RegisterUserCommand({
+        username: 'user',
+        email: 'user@example.com',
+        password: 'password',
+      }),
+    );
+
+    expect(usersRepository.releaseExpiredRegistrationCredentials).toHaveBeenCalledWith({
+      username: 'user',
+      email: 'user@example.com',
+      now: new Date('2026-07-01T12:00:00.000Z'),
+    });
+    const createParams = usersService.createUser.mock.calls[0][0];
+    expect(typeof createParams.confirmation?.code).toBe('string');
+    expect(createParams).toEqual({
+      username: 'user',
+      email: 'user@example.com',
+      password: 'password',
+      confirmation: {
+        isConfirmed: false,
+        code: createParams.confirmation?.code,
+        expiration: new Date('2026-07-02T12:00:00.000Z'),
+      },
+      passwordRecovery: PasswordRecoveryInfo.inactive(),
+    });
+    expect(emailService.sendConfirmationCode).toHaveBeenCalledWith(
+      'user@example.com',
+      createParams.confirmation?.code,
+    );
+    expect(usersRepository.releaseExpiredRegistrationCredentials.mock.invocationCallOrder[0]).toBeLessThan(
+      usersService.createUser.mock.invocationCallOrder[0],
+    );
+    expect(usersService.createUser.mock.invocationCallOrder[0]).toBeLessThan(
+      emailService.sendConfirmationCode.mock.invocationCallOrder[0],
+    );
   });
 });
 
@@ -57,11 +121,9 @@ describe('RegistrationConfirmationUseCase', () => {
   });
 
   it('confirms a user with an active code', async () => {
-    usersRepository.getConfirmationInfo.mockResolvedValue({
-      isConfirmed: false,
-      code: 'code',
-      expiration: new Date('2026-07-01T13:00:00.000Z'),
-    });
+    usersRepository.getConfirmationInfo.mockResolvedValue(
+      ConfirmationInfo.pending('code', new Date('2026-07-01T13:00:00.000Z')),
+    );
 
     await useCase.execute(new RegistrationConfirmationCommand('code'));
 
@@ -70,14 +132,9 @@ describe('RegistrationConfirmationUseCase', () => {
 
   it.each([
     [null, 'Confirmation code is invalid'],
-    [
-      { isConfirmed: true, code: 'code', expiration: new Date('2026-07-01T13:00:00.000Z') },
-      'Email is already confirmed',
-    ],
-    [
-      { isConfirmed: false, code: 'code', expiration: new Date('2026-07-01T11:00:00.000Z') },
-      'Confirmation code has expired',
-    ],
+    [ConfirmationInfo.confirmed(), 'Email is already confirmed'],
+    [ConfirmationInfo.pending('code', new Date('2026-07-01T11:00:00.000Z')), 'Confirmation code has expired'],
+    [ConfirmationInfo.pending('code', new Date('2026-07-01T12:00:00.000Z')), 'Confirmation code has expired'],
   ])('rejects invalid confirmation info', async (confirmation, message) => {
     usersRepository.getConfirmationInfo.mockResolvedValue(confirmation);
 
@@ -117,7 +174,7 @@ describe('RegistrationEmailResendingUseCase', () => {
   it('sends and persists a new confirmation code', async () => {
     usersRepository.findByEmail.mockResolvedValue(
       createTestUser({
-        confirmation: { isConfirmed: false, code: 'old-code', expiration: new Date() },
+        confirmation: ConfirmationInfo.pending('old-code', new Date()),
       }),
     );
 
@@ -129,9 +186,6 @@ describe('RegistrationEmailResendingUseCase', () => {
       code,
       expiration: new Date('2026-07-02T12:00:00.000Z'),
     });
-    expect(emailService.sendConfirmationCode.mock.invocationCallOrder[0]).toBeLessThan(
-      usersRepository.updateConfirmationCode.mock.invocationCallOrder[0],
-    );
   });
 
   it('rejects an unknown email', async () => {
@@ -145,12 +199,26 @@ describe('RegistrationEmailResendingUseCase', () => {
   it('rejects an already confirmed email', async () => {
     usersRepository.findByEmail.mockResolvedValue(
       createTestUser({
-        confirmation: { isConfirmed: true, code: null, expiration: null },
+        confirmation: ConfirmationInfo.confirmed(),
       }),
     );
 
     await expect(useCase.execute(new RegistrationEmailResendingCommand('user@example.com'))).rejects.toThrow(
       'Email is already confirmed',
     );
+  });
+
+  it('does not send email and throws when updateConfirmationCode reports no rows updated (race condition)', async () => {
+    usersRepository.findByEmail.mockResolvedValue(
+      createTestUser({
+        confirmation: ConfirmationInfo.pending('old-code', new Date()),
+      }),
+    );
+    usersRepository.updateConfirmationCode.mockResolvedValue(false);
+
+    await expect(useCase.execute(new RegistrationEmailResendingCommand('user@example.com'))).rejects.toThrow(
+      'Email is already confirmed',
+    );
+    expect(emailService.sendConfirmationCode).not.toHaveBeenCalled();
   });
 });

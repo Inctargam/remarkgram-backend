@@ -1,6 +1,7 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/database/generated"
+  provider        = "prisma-client"
+  output          = "../src/database/generated"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -8,15 +9,15 @@ datasource db {
 }
 
 model User {
-  id       Int    @id @default(autoincrement())
-  username String @unique @db.VarChar
-  email    String @unique @db.VarChar
-  hash     String @db.VarChar
+  id        Int      @id @default(autoincrement())
+  username  String   @db.VarChar
+  email     String   @db.VarChar
+  hash      String   @db.VarChar
   createdAt DateTime @db.Timestamptz
-  
-  isConfirmed Boolean
-  confirmationCode        String?   @db.VarChar
-  confirmationExpiration  DateTime? @db.Timestamptz
+
+  isConfirmed            Boolean
+  confirmationCode       String?   @db.VarChar
+  confirmationExpiration DateTime? @db.Timestamptz
 
   passwordRecoveryCode       String?   @db.VarChar
   passwordRecoveryExpiration DateTime? @db.Timestamptz
@@ -25,6 +26,8 @@ model User {
 
   sessions DeviceSession[]
 
+  @@unique([username], where: { deletedAt: null })
+  @@unique([email], where: { deletedAt: null })
   @@map("users")
 }
 
