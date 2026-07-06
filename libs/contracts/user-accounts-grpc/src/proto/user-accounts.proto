@@ -13,6 +13,9 @@ service AuthService {
 
 service SessionsService {
   rpc GetDevices(GetDevicesRequest) returns (GetDevicesResponse);
+  rpc LogoutCurrentSession(LogoutCurrentSessionRequest) returns (LogoutCurrentSessionResponse);
+  rpc DeleteDevice(DeleteDeviceRequest) returns (DeleteDeviceResponse);
+  rpc DeleteOtherDevices(DeleteOtherDevicesRequest) returns (DeleteOtherDevicesResponse);
 }
 
 message GetUsersRequest {}
@@ -66,6 +69,25 @@ message Device {
 message GetDevicesResponse {
   repeated Device devices = 1;
 }
+
+message LogoutCurrentSessionRequest {
+  VerifiedRefreshTokenClaims auth = 1;
+}
+
+message LogoutCurrentSessionResponse {}
+
+message DeleteDeviceRequest {
+  VerifiedRefreshTokenClaims auth = 1;
+  string device_id = 2;
+}
+
+message DeleteDeviceResponse {}
+
+message DeleteOtherDevicesRequest {
+  VerifiedRefreshTokenClaims auth = 1;
+}
+
+message DeleteOtherDevicesResponse {}
 
 
 service PasswordResetService {

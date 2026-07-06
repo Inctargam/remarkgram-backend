@@ -63,6 +63,28 @@ export interface GetDevicesResponse {
   devices: Device[];
 }
 
+export interface LogoutCurrentSessionRequest {
+  auth: VerifiedRefreshTokenClaims | undefined;
+}
+
+export interface LogoutCurrentSessionResponse {
+}
+
+export interface DeleteDeviceRequest {
+  auth: VerifiedRefreshTokenClaims | undefined;
+  deviceId: string;
+}
+
+export interface DeleteDeviceResponse {
+}
+
+export interface DeleteOtherDevicesRequest {
+  auth: VerifiedRefreshTokenClaims | undefined;
+}
+
+export interface DeleteOtherDevicesResponse {
+}
+
 export interface RequestPasswordResetRequest {
   email: string;
 }
@@ -139,17 +161,35 @@ export const AUTH_SERVICE_NAME = "AuthService";
 
 export interface SessionsServiceClient {
   getDevices(request: GetDevicesRequest): Observable<GetDevicesResponse>;
+
+  logoutCurrentSession(request: LogoutCurrentSessionRequest): Observable<LogoutCurrentSessionResponse>;
+
+  deleteDevice(request: DeleteDeviceRequest): Observable<DeleteDeviceResponse>;
+
+  deleteOtherDevices(request: DeleteOtherDevicesRequest): Observable<DeleteOtherDevicesResponse>;
 }
 
 export interface SessionsServiceController {
   getDevices(
     request: GetDevicesRequest,
   ): Promise<GetDevicesResponse> | Observable<GetDevicesResponse> | GetDevicesResponse;
+
+  logoutCurrentSession(
+    request: LogoutCurrentSessionRequest,
+  ): Promise<LogoutCurrentSessionResponse> | Observable<LogoutCurrentSessionResponse> | LogoutCurrentSessionResponse;
+
+  deleteDevice(
+    request: DeleteDeviceRequest,
+  ): Promise<DeleteDeviceResponse> | Observable<DeleteDeviceResponse> | DeleteDeviceResponse;
+
+  deleteOtherDevices(
+    request: DeleteOtherDevicesRequest,
+  ): Promise<DeleteOtherDevicesResponse> | Observable<DeleteOtherDevicesResponse> | DeleteOtherDevicesResponse;
 }
 
 export function SessionsServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["getDevices"];
+    const grpcMethods: string[] = ["getDevices", "logoutCurrentSession", "deleteDevice", "deleteOtherDevices"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("SessionsService", method)(constructor.prototype[method], method, descriptor);

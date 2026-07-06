@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { Logger } from '@nestjs/common';
 import type { PasswordResetTokensRepository } from '../ports/password-reset-tokens.repository.js';
 import type { PasswordResetUsersRepository } from '../ports/password-reset-users.repository.js';
 import { PasswordHasher } from '../ports/password-hasher.js';
@@ -9,6 +10,8 @@ import {
 import { InvalidPasswordResetTokenError } from '../errors/password-reset.errors.js';
 import { PasswordResetToken } from '../../domain/entities/password-reset-token.entity.js';
 import { expect } from 'vitest';
+import type { UnitOfWork } from '../../../../common/application/unit-of-work.js';
+import type { PasswordResetSessionInvalidator } from '../ports/password-reset-session-invalidator.js';
 import type { PasswordResetTokenService } from '../ports/password-reset-token.service.js';
 
 describe('ConfirmPasswordResetUseCase', () => {
@@ -32,6 +35,14 @@ describe('ConfirmPasswordResetUseCase', () => {
   let tokenService: {
     generateTokenPair: ReturnType<typeof vi.fn<PasswordResetTokenService['generateTokenPair']>>;
     hashToken: ReturnType<typeof vi.fn<PasswordResetTokenService['hashToken']>>;
+  };
+  let sessionInvalidator: {
+    invalidateAllUserSessions: ReturnType<
+      typeof vi.fn<PasswordResetSessionInvalidator['invalidateAllUserSessions']>
+    >;
+  };
+  let unitOfWork: {
+    run: ReturnType<typeof vi.fn<UnitOfWork['run']>>;
   };
   let useCase: ConfirmPasswordResetUseCase;
 
@@ -58,18 +69,27 @@ describe('ConfirmPasswordResetUseCase', () => {
       generateTokenPair: vi.fn(),
       hashToken: vi.fn().mockReturnValue('hashed-reset-token'),
     };
+    sessionInvalidator = {
+      invalidateAllUserSessions: vi.fn().mockResolvedValue(undefined),
+    };
+    unitOfWork = {
+      run: vi.fn(async (handler) => handler('transaction-context')),
+    };
 
     useCase = new ConfirmPasswordResetUseCase(
       usersRepository,
       tokensRepository,
       passwordHasher,
       tokenService,
+      sessionInvalidator,
+      unitOfWork as unknown as UnitOfWork,
     );
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.setSystemTime(now);
+    vi.restoreAllMocks();
   });
 
   it('returns the error: InvalidPasswordResetTokenError, when token not found', async () => {
@@ -86,9 +106,11 @@ describe('ConfirmPasswordResetUseCase', () => {
 
     expect(tokenService.hashToken).toHaveBeenCalledWith('rest-token-invalid');
     expect(tokensRepository.findByTokenHash).toHaveBeenCalledWith('hashed-reset-token');
+    expect(unitOfWork.run).not.toHaveBeenCalled();
     expect(passwordHasher.hashPassword).not.toHaveBeenCalled();
     expect(usersRepository.updatePasswordHash).not.toHaveBeenCalled();
     expect(tokensRepository.markAsUsed).not.toHaveBeenCalled();
+    expect(sessionInvalidator.invalidateAllUserSessions).not.toHaveBeenCalled();
   });
 
   it('returns InvalidPasswordResetTokenError when attempting to reuse a token', async () => {
@@ -109,9 +131,11 @@ describe('ConfirmPasswordResetUseCase', () => {
 
     expect(tokenService.hashToken).toHaveBeenCalledWith('token');
     expect(tokensRepository.findByTokenHash).toHaveBeenCalledWith('hashed-reset-token');
+    expect(unitOfWork.run).not.toHaveBeenCalled();
     expect(passwordHasher.hashPassword).not.toHaveBeenCalled();
     expect(usersRepository.updatePasswordHash).not.toHaveBeenCalled();
     expect(tokensRepository.markAsUsed).not.toHaveBeenCalled();
+    expect(sessionInvalidator.invalidateAllUserSessions).not.toHaveBeenCalled();
   });
 
   it('success update password and mark as used token for confirmed user', async () => {
@@ -150,7 +174,42 @@ describe('ConfirmPasswordResetUseCase', () => {
     expect(tokenService.hashToken).toHaveBeenCalledWith(inputDtoCmd.token);
     expect(tokensRepository.findByTokenHash).toHaveBeenCalledWith('hashed-reset-token');
     expect(passwordHasher.hashPassword).toHaveBeenCalledWith(inputDtoCmd.newPassword);
-    expect(usersRepository.updatePasswordHash).toHaveBeenCalledWith(1, 'hashed-' + inputDtoCmd.newPassword);
-    expect(tokensRepository.markAsUsed).toHaveBeenCalledWith(passwordResetToken.id, now);
+    expect(unitOfWork.run).toHaveBeenCalledOnce();
+    expect(usersRepository.updatePasswordHash).toHaveBeenCalledWith(
+      1,
+      'hashed-' + inputDtoCmd.newPassword,
+      'transaction-context',
+    );
+    expect(tokensRepository.markAsUsed).toHaveBeenCalledWith(
+      passwordResetToken.id,
+      now,
+      'transaction-context',
+    );
+    expect(sessionInvalidator.invalidateAllUserSessions).toHaveBeenCalledWith(1, 'transaction-context');
+  });
+
+  it('logs and rethrows transaction errors', async () => {
+    const error = new Error('transaction failed');
+    const loggerErrorSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    passwordHasher.hashPassword.mockResolvedValue('hashed-new-password');
+    unitOfWork.run.mockRejectedValue(error);
+
+    tokensRepository.findByTokenHash.mockResolvedValue(
+      PasswordResetToken.restore({
+        id: randomUUID(),
+        userId: 1,
+        tokenHash: 'hashed-reset-token',
+        createdAt: now,
+        expiresAt: new Date('2026-07-01T12:30:00.000Z'),
+        usedAt: null,
+        revokedAt: null,
+      }),
+    );
+
+    await expect(
+      useCase.execute(new ConfirmPasswordResetCommand({ token: 'token', newPassword: 'new-password' })),
+    ).rejects.toBe(error);
+
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to confirm password reset transaction', error);
   });
 });

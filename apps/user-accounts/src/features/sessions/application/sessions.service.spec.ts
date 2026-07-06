@@ -7,6 +7,10 @@ describe('SessionsService', () => {
     rotateRefreshToken: vi.fn<SessionsRepository['rotateRefreshToken']>(),
     isSessionActive: vi.fn<SessionsRepository['isSessionActive']>(),
     getSessionOwner: vi.fn<SessionsRepository['getSessionOwner']>(),
+    deleteCurrentSession: vi.fn<SessionsRepository['deleteCurrentSession']>(),
+    deleteUserSession: vi.fn<SessionsRepository['deleteUserSession']>(),
+    deleteOtherUserSessions: vi.fn<SessionsRepository['deleteOtherUserSessions']>(),
+    deleteAllUserSessions: vi.fn<SessionsRepository['deleteAllUserSessions']>(),
   };
   let service: SessionsService;
 
@@ -64,6 +68,47 @@ describe('SessionsService', () => {
         expiresAt: new Date('2026-07-02T12:00:00.000Z'),
       }),
     ).rejects.toThrow('No active session found');
+  });
+
+  it('deletes the current session', async () => {
+    const auth = {
+      userId: '1',
+      sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+      jti: 'jti',
+    };
+    sessionsRepository.deleteCurrentSession.mockResolvedValue(true);
+
+    await expect(service.deleteCurrentSession(auth)).resolves.toBe(true);
+    expect(sessionsRepository.deleteCurrentSession).toHaveBeenCalledWith(auth);
+  });
+
+  it('deletes a selected user session', async () => {
+    sessionsRepository.deleteUserSession.mockResolvedValue(true);
+
+    await expect(service.deleteUserSession('1', 'e3637e61-194b-4f79-9676-e59a20bb7c42')).resolves.toBe(true);
+    expect(sessionsRepository.deleteUserSession).toHaveBeenCalledWith(
+      '1',
+      'e3637e61-194b-4f79-9676-e59a20bb7c42',
+    );
+  });
+
+  it('deletes other user sessions', async () => {
+    sessionsRepository.deleteOtherUserSessions.mockResolvedValue(2);
+
+    await expect(service.deleteOtherUserSessions('1', 'e3637e61-194b-4f79-9676-e59a20bb7c42')).resolves.toBe(
+      2,
+    );
+    expect(sessionsRepository.deleteOtherUserSessions).toHaveBeenCalledWith(
+      '1',
+      'e3637e61-194b-4f79-9676-e59a20bb7c42',
+    );
+  });
+
+  it('deletes all user sessions', async () => {
+    sessionsRepository.deleteAllUserSessions.mockResolvedValue(3);
+
+    await expect(service.deleteAllUserSessions('1')).resolves.toBe(3);
+    expect(sessionsRepository.deleteAllUserSessions).toHaveBeenCalledWith('1', undefined);
   });
 
   it('checks session ownership', async () => {

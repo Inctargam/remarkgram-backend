@@ -4,6 +4,7 @@ import { PrismaService } from '../../../../database/prisma.service.js';
 import type { CreatePasswordResetTokenParams } from '../../application/types/password-reset.types.js';
 import { PasswordResetToken } from '../../domain/entities/password-reset-token.entity.js';
 import type { Prisma } from '../../../../database/generated/client.js';
+import type { TransactionContext } from '../../../../common/application/unit-of-work.js';
 
 type PasswordResetTokensPrismaClient = PrismaService | Prisma.TransactionClient;
 
@@ -13,14 +14,14 @@ export class PrismaPasswordRestTokensRepository extends PasswordResetTokensRepos
     super();
   }
 
-  getClient(ctx?: Prisma.TransactionClient): PasswordResetTokensPrismaClient {
-    return ctx ?? this.prisma;
+  getClient(ctx?: TransactionContext): PasswordResetTokensPrismaClient {
+    return (ctx as Prisma.TransactionClient | undefined) ?? this.prisma;
   }
 
   /** Создаёт токен сброса пароля и возвращает доменную модель с полями, сгенерированными БД. */
   async create(
     params: CreatePasswordResetTokenParams,
-    ctx?: Prisma.TransactionClient,
+    ctx?: TransactionContext,
   ): Promise<PasswordResetToken> {
     const client = this.getClient(ctx);
     const passwordResetToken = await client.passwordResetToken.create({
@@ -35,10 +36,7 @@ export class PrismaPasswordRestTokensRepository extends PasswordResetTokensRepos
   }
 
   /** Ищет токен сброса пароля по хешу сырого токена. */
-  async findByTokenHash(
-    tokenHash: string,
-    ctx?: Prisma.TransactionClient,
-  ): Promise<PasswordResetToken | null> {
+  async findByTokenHash(tokenHash: string, ctx?: TransactionContext): Promise<PasswordResetToken | null> {
     const client = this.getClient(ctx);
     const passResetToken = await client.passwordResetToken.findUnique({
       where: {
@@ -54,7 +52,7 @@ export class PrismaPasswordRestTokensRepository extends PasswordResetTokensRepos
   }
 
   /** Отзывает все ещё не использованные и не отозванные токены пользователя. */
-  async revokeActiveByUserId(userId: number, now: Date, ctx?: Prisma.TransactionClient): Promise<void> {
+  async revokeActiveByUserId(userId: number, now: Date, ctx?: TransactionContext): Promise<void> {
     const client = this.getClient(ctx);
     await client.passwordResetToken.updateMany({
       where: {
@@ -72,7 +70,7 @@ export class PrismaPasswordRestTokensRepository extends PasswordResetTokensRepos
   }
 
   /** Помечает токен использованным и возвращает true, если запись была обновлена. */
-  async markAsUsed(tokenId: string, usedAt: Date, ctx?: Prisma.TransactionClient): Promise<boolean> {
+  async markAsUsed(tokenId: string, usedAt: Date, ctx?: TransactionContext): Promise<boolean> {
     const client = this.getClient(ctx);
     const result = await client.passwordResetToken.updateMany({
       where: {
@@ -90,7 +88,7 @@ export class PrismaPasswordRestTokensRepository extends PasswordResetTokensRepos
   async existsCreatedAfter(
     userId: number,
     cooldownStartedAt: Date,
-    ctx?: Prisma.TransactionClient,
+    ctx?: TransactionContext,
   ): Promise<boolean> {
     const client = this.getClient(ctx);
     const result = await client.passwordResetToken.findFirst({

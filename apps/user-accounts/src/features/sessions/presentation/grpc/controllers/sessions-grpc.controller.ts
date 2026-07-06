@@ -1,18 +1,34 @@
 import { Controller, UseFilters } from '@nestjs/common';
-import { QueryBus } from '@nestjs/cqrs';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
 import { SessionsServiceControllerMethods } from '@app/user-accounts-grpc';
-import type { GetDevicesRequest, GetDevicesResponse } from '@app/user-accounts-grpc';
+import type {
+  DeleteDeviceRequest,
+  DeleteDeviceResponse,
+  DeleteOtherDevicesRequest,
+  DeleteOtherDevicesResponse,
+  GetDevicesRequest,
+  GetDevicesResponse,
+  LogoutCurrentSessionRequest,
+  LogoutCurrentSessionResponse,
+} from '@app/user-accounts-grpc';
 import { UserAccountsRpcExceptionFilter } from '../../../../../common/grpc/filters/user-accounts-rpc-exception.filter.js';
+import { DeleteOtherSessionsCommand } from '../../../application/use-cases/delete-other-sessions.use-case.js';
+import { DeleteSessionCommand } from '../../../application/use-cases/delete-session.use-case.js';
 import { GetSessionsQuery } from '../../../application/use-cases/get-sessions.use-case.js';
+import { LogoutCurrentSessionCommand } from '../../../application/use-cases/logout-current-session.use-case.js';
 
 @Controller()
 @SessionsServiceControllerMethods()
 @UseFilters(UserAccountsRpcExceptionFilter)
 export class SessionsGrpcController {
-  constructor(private readonly queryBus: QueryBus) {}
+  constructor(
+    private readonly queryBus: QueryBus,
+    private readonly commandBus: CommandBus,
+  ) {}
 
+  /** Возвращает список активных пользовательских устройств для текущей refresh-сессии. */
   async getDevices(request: GetDevicesRequest): Promise<GetDevicesResponse> {
     if (!request.auth) {
       throw new RpcException({
@@ -31,5 +47,52 @@ export class SessionsGrpcController {
         deviceId: session.sessionId,
       })),
     };
+  }
+
+  /** Выполняет hard delete текущей сессии пользователя. */
+  async logoutCurrentSession(request: LogoutCurrentSessionRequest): Promise<LogoutCurrentSessionResponse> {
+    if (!request.auth) {
+      throw new RpcException({
+        code: status.UNAUTHENTICATED,
+        message: 'Invalid authorization method',
+      });
+    }
+
+    await this.commandBus.execute(new LogoutCurrentSessionCommand(request.auth));
+
+    return {};
+  }
+
+  /** Выполняет hard delete выбранной пользовательской сессии по deviceId. */
+  async deleteDevice(request: DeleteDeviceRequest): Promise<DeleteDeviceResponse> {
+    if (!request.auth) {
+      throw new RpcException({
+        code: status.UNAUTHENTICATED,
+        message: 'Invalid authorization method',
+      });
+    }
+
+    await this.commandBus.execute(
+      new DeleteSessionCommand({
+        auth: request.auth,
+        sessionId: request.deviceId,
+      }),
+    );
+
+    return {};
+  }
+
+  /** Выполняет hard delete всех пользовательских сессий, кроме текущей. */
+  async deleteOtherDevices(request: DeleteOtherDevicesRequest): Promise<DeleteOtherDevicesResponse> {
+    if (!request.auth) {
+      throw new RpcException({
+        code: status.UNAUTHENTICATED,
+        message: 'Invalid authorization method',
+      });
+    }
+
+    await this.commandBus.execute(new DeleteOtherSessionsCommand(request.auth));
+
+    return {};
   }
 }

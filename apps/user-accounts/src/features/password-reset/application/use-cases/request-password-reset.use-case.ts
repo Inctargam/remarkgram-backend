@@ -5,11 +5,12 @@ import type {
   RequestPasswordResetParams,
   RequestPasswordResetResult,
 } from '../types/password-reset.types.js';
-import { Inject } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import { passwordResetConfig } from '../../../../config/password-reset.config.js';
 import type { ConfigType } from '@nestjs/config';
 import { PasswordResetTokenEmailEvent } from '../../../notifications/use-cases/password-reset-token-email.event-use-case.js';
 import { PasswordResetTokenService } from '../ports/password-reset-token.service.js';
+import { UnitOfWork } from '../../../../common/application/unit-of-work.js';
 
 export class RequestPasswordResetCommand extends Command<RequestPasswordResetResult> {
   constructor(public readonly params: RequestPasswordResetParams) {
@@ -19,41 +20,63 @@ export class RequestPasswordResetCommand extends Command<RequestPasswordResetRes
 
 @CommandHandler(RequestPasswordResetCommand)
 export class RequestPasswordResetUseCase implements ICommandHandler<RequestPasswordResetCommand> {
+  private readonly logger = new Logger(RequestPasswordResetUseCase.name);
+
   constructor(
     private readonly usersRepository: PasswordResetUsersRepository,
     private readonly tokensRepository: PasswordResetTokensRepository,
     @Inject(passwordResetConfig.KEY) private readonly config: ConfigType<typeof passwordResetConfig>,
     private readonly eventBus: EventBus,
     private readonly tokenService: PasswordResetTokenService,
+    private readonly unitOfWork: UnitOfWork,
   ) {}
 
   async execute(command: RequestPasswordResetCommand): Promise<RequestPasswordResetResult> {
-    const user = await this.usersRepository.findByConfirmedEmail(command.params.email);
+    try {
+      const emailEvent = await this.unitOfWork.run(async (ctx) => {
+        const user = await this.usersRepository.findByConfirmedEmail(command.params.email, ctx);
 
-    if (!user) {
-      return;
+        if (!user) {
+          return;
+        }
+
+        const now = new Date();
+        const cooldownStartedAt = new Date(now.getTime() - this.config.emailCooldownMinutes * 60_000);
+        const hasRecentToken = await this.tokensRepository.existsCreatedAfter(
+          user.id,
+          cooldownStartedAt,
+          ctx,
+        );
+
+        if (hasRecentToken) {
+          return;
+        }
+
+        const expiresAt = new Date(now);
+        expiresAt.setMinutes(expiresAt.getMinutes() + this.config.tokenTtlMinutes);
+
+        const { rawToken, tokenHash } = this.tokenService.generateTokenPair();
+
+        await this.tokensRepository.revokeActiveByUserId(user.id, now, ctx);
+        await this.tokensRepository.create(
+          {
+            userId: user.id,
+            tokenHash,
+            expiresAt,
+            createdAt: now,
+          },
+          ctx,
+        );
+
+        return new PasswordResetTokenEmailEvent(user.email, rawToken);
+      });
+
+      if (emailEvent) {
+        this.eventBus.publish(emailEvent);
+      }
+    } catch (error) {
+      this.logger.error('Failed to request password reset transaction', error);
+      throw error;
     }
-    const now = new Date();
-    const cooldownStartedAt = new Date(now.getTime() - this.config.emailCooldownMinutes * 60_000);
-    const hasRecentToken = await this.tokensRepository.existsCreatedAfter(user.id, cooldownStartedAt);
-
-    if (hasRecentToken) {
-      return;
-    }
-
-    const expiresAt = new Date(now);
-    expiresAt.setMinutes(expiresAt.getMinutes() + this.config.tokenTtlMinutes);
-
-    const { rawToken, tokenHash } = this.tokenService.generateTokenPair();
-
-    await this.tokensRepository.revokeActiveByUserId(user.id, now);
-    await this.tokensRepository.create({
-      userId: user.id,
-      tokenHash,
-      expiresAt,
-      createdAt: now,
-    });
-
-    this.eventBus.publish(new PasswordResetTokenEmailEvent(user.email, rawToken));
   }
 }

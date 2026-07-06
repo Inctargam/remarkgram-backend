@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../../database/prisma.service.js';
 import type { Prisma } from '../../../../database/generated/client.js';
+import type { TransactionContext } from '../../../../common/application/unit-of-work.js';
 import { PasswordResetUsersRepository } from '../../application/ports/password-reset-users.repository.js';
 import type { PasswordResetUser } from '../../application/types/password-reset.types.js';
 
@@ -13,15 +14,12 @@ export class PrismaPasswordResetUsersRepository extends PasswordResetUsersReposi
   }
 
   /** Возвращает транзакционный Prisma client, если он передан, иначе основной PrismaService. */
-  getClient(ctx?: Prisma.TransactionClient): PasswordResetUsersPrismaClient {
-    return ctx ?? this.prisma;
+  getClient(ctx?: TransactionContext): PasswordResetUsersPrismaClient {
+    return (ctx as Prisma.TransactionClient | undefined) ?? this.prisma;
   }
 
   /** Ищет подтверждённого и не удалённого пользователя по email для сценария сброса пароля. */
-  async findByConfirmedEmail(
-    email: string,
-    ctx?: Prisma.TransactionClient,
-  ): Promise<PasswordResetUser | null> {
+  async findByConfirmedEmail(email: string, ctx?: TransactionContext): Promise<PasswordResetUser | null> {
     const client = this.getClient(ctx);
     const user = await client.user.findFirst({
       select: {
@@ -39,11 +37,7 @@ export class PrismaPasswordResetUsersRepository extends PasswordResetUsersReposi
   }
 
   /** Обновляет хеш пароля пользователя и фиксирует время смены пароля. */
-  async updatePasswordHash(
-    userId: number,
-    passwordHash: string,
-    ctx?: Prisma.TransactionClient,
-  ): Promise<boolean> {
+  async updatePasswordHash(userId: number, passwordHash: string, ctx?: TransactionContext): Promise<boolean> {
     const client = this.getClient(ctx);
     const result = await client.user.updateMany({
       data: {

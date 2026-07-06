@@ -4,6 +4,9 @@ import { Inject, Logger } from '@nestjs/common';
 import { passwordResetConfig } from '../../../config/password-reset.config.js';
 import type { ConfigType } from '@nestjs/config';
 
+const DEFAULT_FRONTEND_URL = 'https://remarkgram.com';
+const DEFAULT_PASSWORD_RESET_PATH = '/auth/password-reset/confirm';
+
 export class PasswordResetTokenEmailEvent {
   constructor(
     public readonly email: string,
@@ -36,13 +39,35 @@ export class PasswordResetTokenEmailHandler implements IEventHandler<PasswordRes
   }
 
   private buildPasswordResetUrl(token: string): URL {
-    const frontendUrl = this.config.frontendUrl || 'https://remarkgram.com';
-    const url = new URL('/auth/password-reset/confirm', frontendUrl);
-    url.searchParams.set('token', token);
-
-    return url;
+    return buildPasswordResetUrl(token, this.config.frontendUrl);
   }
 }
+
+export function buildPasswordResetUrl(token: string, frontendUrl: string): URL {
+  const url = new URL(frontendUrl);
+
+  if (url.pathname === '/' && !url.search) {
+    url.pathname = DEFAULT_PASSWORD_RESET_PATH;
+  }
+
+  url.searchParams.set('token', token);
+
+  return url;
+}
+
+// function normalizeFrontendUrl(frontendUrl: string): string {
+//   const trimmedFrontendUrl = frontendUrl.trim();
+//
+//   if (!trimmedFrontendUrl) {
+//     return DEFAULT_FRONTEND_URL;
+//   }
+//
+//   if (/^[a-z][a-z\d+\-.]*:\/\//i.test(trimmedFrontendUrl)) {
+//     return trimmedFrontendUrl;
+//   }
+//
+//   return `http://${trimmedFrontendUrl}`;
+// }
 
 export function buildPasswordResetEmailText(resetUrl: string): string {
   return [
