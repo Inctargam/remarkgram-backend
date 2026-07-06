@@ -85,10 +85,14 @@ export class PrismaUsersRepository implements UsersRepository {
 
       return UserPrismaMapper.toDomain(user);
     } catch (error) {
+      // Предварительные проверки в UsersService не исключают конкурентную вставку. В таком случае
+      // уникальный индекс отклоняет второй INSERT, а Prisma возвращает ошибку P2002.
       if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
         throw error;
       }
 
+      // PostgreSQL-адаптер Prisma передаёт в metadata поля нарушенного уникального индекса.
+      // Преобразуем инфраструктурную ошибку в соответствующую прикладную ошибку пользователя.
       const meta = error.meta as UniqueConstraintMeta | undefined;
       const fields = meta?.driverAdapterError?.cause?.constraint?.fields ?? [];
 
@@ -100,6 +104,7 @@ export class PrismaUsersRepository implements UsersRepository {
         throw new EmailAlreadyExistsError();
       }
 
+      // Неизвестное уникальное ограничение нельзя безопасно интерпретировать как username или email.
       throw error;
     }
   }
