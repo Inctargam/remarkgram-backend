@@ -36,11 +36,16 @@ export class RegistrationEmailResendingUseCase implements ICommandHandler<Regist
     const expiration = new Date();
     expiration.setHours(expiration.getHours() + this.auth.confirmationCodeExpiresIn);
 
-    await this.emailService.sendConfirmationCode(command.email, code);
-    await this.usersRepository.updateConfirmationCode({
+    const updated = await this.usersRepository.updateConfirmationCode({
       email: command.email,
       code,
       expiration,
     });
+
+    if (!updated) {
+      throw new EmailAlreadyConfirmedError();
+    }
+
+    await this.emailService.sendConfirmationCode(command.email, code);
   }
 }

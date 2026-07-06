@@ -186,9 +186,6 @@ describe('RegistrationEmailResendingUseCase', () => {
       code,
       expiration: new Date('2026-07-02T12:00:00.000Z'),
     });
-    expect(emailService.sendConfirmationCode.mock.invocationCallOrder[0]).toBeLessThan(
-      usersRepository.updateConfirmationCode.mock.invocationCallOrder[0],
-    );
   });
 
   it('rejects an unknown email', async () => {
@@ -209,5 +206,19 @@ describe('RegistrationEmailResendingUseCase', () => {
     await expect(useCase.execute(new RegistrationEmailResendingCommand('user@example.com'))).rejects.toThrow(
       'Email is already confirmed',
     );
+  });
+
+  it('does not send email and throws when updateConfirmationCode reports no rows updated (race condition)', async () => {
+    usersRepository.findByEmail.mockResolvedValue(
+      createTestUser({
+        confirmation: ConfirmationInfo.pending('old-code', new Date()),
+      }),
+    );
+    usersRepository.updateConfirmationCode.mockResolvedValue(false);
+
+    await expect(useCase.execute(new RegistrationEmailResendingCommand('user@example.com'))).rejects.toThrow(
+      'Email is already confirmed',
+    );
+    expect(emailService.sendConfirmationCode).not.toHaveBeenCalled();
   });
 });
