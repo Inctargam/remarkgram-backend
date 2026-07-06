@@ -162,7 +162,7 @@ export class PrismaUsersRepository implements UsersRepository {
         confirmationCode: params.code,
         confirmationExpiration: params.expiration,
       },
-      where: { email: params.email, isConfirmed: false, deletedAt: null },
+      where: { id: params.userId, isConfirmed: false, deletedAt: null },
     });
 
     return result.count > 0;

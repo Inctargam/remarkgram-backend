@@ -48,7 +48,7 @@ describe('ResendRegistrationConfirmationUseCase', () => {
 
     const code = emailService.sendConfirmationCode.mock.calls[0][1];
     expect(usersRepository.updateConfirmationCode).toHaveBeenCalledWith({
-      email: 'user@example.com',
+      userId: 1,
       code,
       expiration: new Date('2026-07-02T12:00:00.000Z'),
     });

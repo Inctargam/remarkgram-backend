@@ -74,7 +74,7 @@ describe('PrismaUsersRepository', () => {
 
     await expect(
       repository.updateConfirmationCode({
-        email: 'user@example.com',
+        userId: 1,
         code: 'new-confirmation-code',
         expiration,
       }),
@@ -84,7 +84,7 @@ describe('PrismaUsersRepository', () => {
         confirmationCode: 'new-confirmation-code',
         confirmationExpiration: expiration,
       },
-      where: { email: 'user@example.com', isConfirmed: false, deletedAt: null },
+      where: { id: 1, isConfirmed: false, deletedAt: null },
     });
   });
 
@@ -93,7 +93,7 @@ describe('PrismaUsersRepository', () => {
 
     await expect(
       repository.updateConfirmationCode({
-        email: 'user@example.com',
+        userId: 1,
         code: 'new-confirmation-code',
         expiration: new Date('2026-07-06T13:00:00.000Z'),
       }),

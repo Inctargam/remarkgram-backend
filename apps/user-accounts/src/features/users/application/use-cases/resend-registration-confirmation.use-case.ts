@@ -36,7 +36,7 @@ export class ResendRegistrationConfirmationUseCase implements ICommandHandler<Re
     expiration.setHours(expiration.getHours() + this.auth.confirmationCodeExpiresIn);
 
     const wasUpdated = await this.usersRepository.updateConfirmationCode({
-      email: command.email,
+      userId: user.id,
       code,
       expiration,
     });
