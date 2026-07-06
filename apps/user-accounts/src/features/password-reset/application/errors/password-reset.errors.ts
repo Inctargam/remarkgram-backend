@@ -7,4 +7,3 @@ export class InvalidPasswordResetTokenError extends UserAccountsError {
     super('Reset link is invalid or expired.');
   }
 }
-
