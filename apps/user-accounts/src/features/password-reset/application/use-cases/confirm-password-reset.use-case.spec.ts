@@ -54,13 +54,13 @@ describe('ConfirmPasswordResetUseCase', () => {
 
     usersRepository = {
       findByConfirmedEmailForUpdate: vi.fn(),
-      updatePasswordHash: vi.fn(),
+      updatePasswordHash: vi.fn().mockResolvedValue(true),
     };
     tokensRepository = {
       create: vi.fn(),
       findByTokenHash: vi.fn(),
       revokeActiveByUserId: vi.fn().mockResolvedValue(undefined),
-      markAsUsed: vi.fn(),
+      markAsUsed: vi.fn().mockResolvedValue(true),
       existsCreatedAfter: vi.fn(),
     };
 
@@ -187,7 +187,68 @@ describe('ConfirmPasswordResetUseCase', () => {
       now,
       'transaction-context',
     );
+    expect(tokensRepository.markAsUsed).toHaveBeenCalledBefore(usersRepository.updatePasswordHash);
     expect(sessionInvalidator.invalidateAllUserSessions).toHaveBeenCalledWith(1, 'transaction-context');
+  });
+
+  it('rejects when token was already consumed concurrently', async () => {
+    vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const passwordResetToken = PasswordResetToken.restore({
+      id: randomUUID(),
+      userId: 1,
+      tokenHash: 'hashed-reset-token',
+      createdAt: now,
+      expiresAt: new Date('2026-07-01T12:30:00.000Z'),
+      usedAt: null,
+      revokedAt: null,
+    });
+    tokensRepository.findByTokenHash.mockResolvedValue(passwordResetToken);
+    tokensRepository.markAsUsed.mockResolvedValue(false);
+    passwordHasher.hashPassword.mockResolvedValue('hashed-new-password');
+
+    await expect(
+      useCase.execute(new ConfirmPasswordResetCommand({ token: 'token', newPassword: 'new-password' })),
+    ).rejects.toBeInstanceOf(InvalidPasswordResetTokenError);
+
+    expect(tokensRepository.markAsUsed).toHaveBeenCalledWith(
+      passwordResetToken.id,
+      now,
+      'transaction-context',
+    );
+    expect(usersRepository.updatePasswordHash).not.toHaveBeenCalled();
+    expect(sessionInvalidator.invalidateAllUserSessions).not.toHaveBeenCalled();
+  });
+
+  it('rejects when password was not updated', async () => {
+    vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const passwordResetToken = PasswordResetToken.restore({
+      id: randomUUID(),
+      userId: 1,
+      tokenHash: 'hashed-reset-token',
+      createdAt: now,
+      expiresAt: new Date('2026-07-01T12:30:00.000Z'),
+      usedAt: null,
+      revokedAt: null,
+    });
+    tokensRepository.findByTokenHash.mockResolvedValue(passwordResetToken);
+    usersRepository.updatePasswordHash.mockResolvedValue(false);
+    passwordHasher.hashPassword.mockResolvedValue('hashed-new-password');
+
+    await expect(
+      useCase.execute(new ConfirmPasswordResetCommand({ token: 'token', newPassword: 'new-password' })),
+    ).rejects.toBeInstanceOf(InvalidPasswordResetTokenError);
+
+    expect(tokensRepository.markAsUsed).toHaveBeenCalledWith(
+      passwordResetToken.id,
+      now,
+      'transaction-context',
+    );
+    expect(usersRepository.updatePasswordHash).toHaveBeenCalledWith(
+      1,
+      'hashed-new-password',
+      'transaction-context',
+    );
+    expect(sessionInvalidator.invalidateAllUserSessions).not.toHaveBeenCalled();
   });
 
   it('logs and rethrows transaction errors', async () => {

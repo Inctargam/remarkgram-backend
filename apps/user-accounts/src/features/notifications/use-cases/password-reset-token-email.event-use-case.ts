@@ -44,7 +44,7 @@ export class PasswordResetTokenEmailHandler implements IEventHandler<PasswordRes
 }
 
 export function buildPasswordResetUrl(token: string, frontendUrl: string): URL {
-  const url = new URL(frontendUrl);
+  const url = new URL(normalizeFrontendUrl(frontendUrl));
 
   if (url.pathname === '/' && !url.search) {
     url.pathname = DEFAULT_PASSWORD_RESET_PATH;
@@ -55,19 +55,19 @@ export function buildPasswordResetUrl(token: string, frontendUrl: string): URL {
   return url;
 }
 
-// function normalizeFrontendUrl(frontendUrl: string): string {
-//   const trimmedFrontendUrl = frontendUrl.trim();
-//
-//   if (!trimmedFrontendUrl) {
-//     return DEFAULT_FRONTEND_URL;
-//   }
-//
-//   if (/^[a-z][a-z\d+\-.]*:\/\//i.test(trimmedFrontendUrl)) {
-//     return trimmedFrontendUrl;
-//   }
-//
-//   return `http://${trimmedFrontendUrl}`;
-// }
+function normalizeFrontendUrl(frontendUrl: string): string {
+  const trimmedFrontendUrl = frontendUrl.trim();
+
+  if (!trimmedFrontendUrl) {
+    return DEFAULT_FRONTEND_URL;
+  }
+
+  if (/^[a-z][a-z\d+\-.]*:\/\//i.test(trimmedFrontendUrl)) {
+    return trimmedFrontendUrl;
+  }
+
+  return `http://${trimmedFrontendUrl}`;
+}
 
 export function buildPasswordResetEmailText(resetUrl: string): string {
   return [
