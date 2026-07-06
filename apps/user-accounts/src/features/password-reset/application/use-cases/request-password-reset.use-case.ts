@@ -34,7 +34,7 @@ export class RequestPasswordResetUseCase implements ICommandHandler<RequestPassw
   async execute(command: RequestPasswordResetCommand): Promise<RequestPasswordResetResult> {
     try {
       const emailEvent = await this.unitOfWork.run(async (ctx) => {
-        const user = await this.usersRepository.findByConfirmedEmail(command.params.email, ctx);
+        const user = await this.usersRepository.findByConfirmedEmailForUpdate(command.params.email, ctx);
 
         if (!user) {
           return;

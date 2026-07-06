@@ -19,21 +19,34 @@ export class PrismaPasswordResetUsersRepository extends PasswordResetUsersReposi
   }
 
   /** Ищет подтверждённого и не удалённого пользователя по email для сценария сброса пароля. */
-  async findByConfirmedEmail(email: string, ctx?: TransactionContext): Promise<PasswordResetUser | null> {
+  async findByConfirmedEmailForUpdate(
+    email: string,
+    ctx?: TransactionContext,
+  ): Promise<PasswordResetUser | null> {
     const client = this.getClient(ctx);
-    const user = await client.user.findFirst({
-      select: {
-        id: true,
-        email: true,
-      },
-      where: {
-        email,
-        isConfirmed: true,
-        deletedAt: null,
-      },
-    });
 
-    return user;
+    const users = await client.$queryRaw<Array<{ id: number; email: string }>>`
+        SELECT id, email
+        FROM "users"
+        WHERE email = ${email}
+          AND "isConfirmed" = TRUE
+          AND "deletedAt" IS NULL
+            FOR UPDATE
+    `;
+
+    // const user = await client.user.findFirst({
+    //   select: {
+    //     id: true,
+    //     email: true,
+    //   },
+    //   where: {
+    //     email,
+    //     isConfirmed: true,
+    //     deletedAt: null,
+    //   },
+    // });
+
+    return users.length > 0 ? users[0] : null;
   }
 
   /** Обновляет хеш пароля пользователя и фиксирует время смены пароля. */

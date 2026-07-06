@@ -53,8 +53,20 @@ export class ConfirmPasswordResetUseCase implements ICommandHandler<ConfirmPassw
 
     try {
       await this.unitOfWork.run(async (ctx) => {
-        await this.usersRepository.updatePasswordHash(resetToken.userId, passwordHash, ctx);
-        await this.tokensRepository.markAsUsed(resetToken.id, now, ctx);
+        const markedAsUsed = await this.tokensRepository.markAsUsed(resetToken.id, now, ctx);
+
+        if (!markedAsUsed) {
+          throw new InvalidPasswordResetTokenError();
+        }
+        const passwordWasUpdated = await this.usersRepository.updatePasswordHash(
+          resetToken.userId,
+          passwordHash,
+          ctx,
+        );
+        if (!passwordWasUpdated) {
+          throw new InvalidPasswordResetTokenError();
+        }
+
         await this.sessionInvalidator.invalidateAllUserSessions(resetToken.userId, ctx);
       });
     } catch (error) {

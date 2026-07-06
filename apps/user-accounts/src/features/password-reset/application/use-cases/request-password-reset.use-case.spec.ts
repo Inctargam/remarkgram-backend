@@ -20,7 +20,9 @@ describe('RequestPasswordResetUseCase', () => {
   };
 
   let usersRepository: {
-    findByConfirmedEmail: ReturnType<typeof vi.fn<PasswordResetUsersRepository['findByConfirmedEmail']>>;
+    findByConfirmedEmailForUpdate: ReturnType<
+      typeof vi.fn<PasswordResetUsersRepository['findByConfirmedEmailForUpdate']>
+    >;
     updatePasswordHash: ReturnType<typeof vi.fn<PasswordResetUsersRepository['updatePasswordHash']>>;
   };
   let tokensRepository: {
@@ -47,7 +49,7 @@ describe('RequestPasswordResetUseCase', () => {
     vi.setSystemTime(now);
 
     usersRepository = {
-      findByConfirmedEmail: vi.fn(),
+      findByConfirmedEmailForUpdate: vi.fn(),
       updatePasswordHash: vi.fn(),
     };
     tokensRepository = {
@@ -86,14 +88,14 @@ describe('RequestPasswordResetUseCase', () => {
   });
 
   it('does not create a token and send email when confirmed user is not found', async () => {
-    usersRepository.findByConfirmedEmail.mockResolvedValue(null);
+    usersRepository.findByConfirmedEmailForUpdate.mockResolvedValue(null);
 
     await expect(
       useCase.execute(new RequestPasswordResetCommand({ email: 'missing@example.com' })),
     ).resolves.toBeUndefined();
 
     expect(unitOfWork.run).toHaveBeenCalledOnce();
-    expect(usersRepository.findByConfirmedEmail).toHaveBeenCalledWith(
+    expect(usersRepository.findByConfirmedEmailForUpdate).toHaveBeenCalledWith(
       'missing@example.com',
       'transaction-context',
     );
@@ -105,7 +107,7 @@ describe('RequestPasswordResetUseCase', () => {
   });
 
   it('revokes active tokens and creates a hashed reset token for confirmed user', async () => {
-    usersRepository.findByConfirmedEmail.mockResolvedValue({
+    usersRepository.findByConfirmedEmailForUpdate.mockResolvedValue({
       id: 1,
       email: 'user@example.com',
     });
@@ -115,7 +117,7 @@ describe('RequestPasswordResetUseCase', () => {
     ).resolves.toBeUndefined();
 
     expect(unitOfWork.run).toHaveBeenCalledOnce();
-    expect(usersRepository.findByConfirmedEmail).toHaveBeenCalledWith(
+    expect(usersRepository.findByConfirmedEmailForUpdate).toHaveBeenCalledWith(
       'user@example.com',
       'transaction-context',
     );
@@ -143,7 +145,7 @@ describe('RequestPasswordResetUseCase', () => {
   });
 
   it('does not create a token or send email while cooldown is active', async () => {
-    usersRepository.findByConfirmedEmail.mockResolvedValue({
+    usersRepository.findByConfirmedEmailForUpdate.mockResolvedValue({
       id: 1,
       email: 'user@example.com',
     });

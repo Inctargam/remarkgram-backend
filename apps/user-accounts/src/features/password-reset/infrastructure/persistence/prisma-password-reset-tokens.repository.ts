@@ -9,7 +9,7 @@ import type { TransactionContext } from '../../../../common/application/unit-of-
 type PasswordResetTokensPrismaClient = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
-export class PrismaPasswordRestTokensRepository extends PasswordResetTokensRepository {
+export class PrismaPasswordResetTokensRepository extends PasswordResetTokensRepository {
   constructor(private readonly prisma: PrismaService) {
     super();
   }
@@ -70,15 +70,17 @@ export class PrismaPasswordRestTokensRepository extends PasswordResetTokensRepos
   }
 
   /** Помечает токен использованным и возвращает true, если запись была обновлена. */
-  async markAsUsed(tokenId: string, usedAt: Date, ctx?: TransactionContext): Promise<boolean> {
+  async markAsUsed(tokenId: string, now: Date, ctx?: TransactionContext): Promise<boolean> {
     const client = this.getClient(ctx);
     const result = await client.passwordResetToken.updateMany({
       where: {
         id: tokenId,
         usedAt: null,
+        revokedAt: null,
+        expiresAt: { gt: now },
       },
       data: {
-        usedAt,
+        usedAt: now,
       },
     });
 

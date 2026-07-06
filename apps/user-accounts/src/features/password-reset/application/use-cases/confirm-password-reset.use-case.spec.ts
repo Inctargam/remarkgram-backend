@@ -18,7 +18,9 @@ describe('ConfirmPasswordResetUseCase', () => {
   const now = new Date('2026-07-01T12:00:00.000Z');
 
   let usersRepository: {
-    findByConfirmedEmail: ReturnType<typeof vi.fn<PasswordResetUsersRepository['findByConfirmedEmail']>>;
+    findByConfirmedEmailForUpdate: ReturnType<
+      typeof vi.fn<PasswordResetUsersRepository['findByConfirmedEmailForUpdate']>
+    >;
     updatePasswordHash: ReturnType<typeof vi.fn<PasswordResetUsersRepository['updatePasswordHash']>>;
   };
   let tokensRepository: {
@@ -51,7 +53,7 @@ describe('ConfirmPasswordResetUseCase', () => {
     vi.setSystemTime(now);
 
     usersRepository = {
-      findByConfirmedEmail: vi.fn(),
+      findByConfirmedEmailForUpdate: vi.fn(),
       updatePasswordHash: vi.fn(),
     };
     tokensRepository = {
@@ -145,7 +147,7 @@ describe('ConfirmPasswordResetUseCase', () => {
     };
     passwordHasher.hashPassword.mockResolvedValue('hashed-' + inputDtoCmd.newPassword);
 
-    usersRepository.findByConfirmedEmail.mockResolvedValue({
+    usersRepository.findByConfirmedEmailForUpdate.mockResolvedValue({
       id: 1,
       email: 'test@test.com',
     });

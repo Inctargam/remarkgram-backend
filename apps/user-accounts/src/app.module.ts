@@ -25,7 +25,7 @@ import { RequestPasswordResetUseCase } from './features/password-reset/applicati
 import { SessionsPasswordResetSessionInvalidator } from './features/password-reset/infrastructure/adapters/sessions-password-reset-session-invalidator.js';
 import { HmacPasswordResetTokenService } from './features/password-reset/infrastructure/crypto/hmac-password-reset-token.service.js';
 import { PrismaPasswordResetUsersRepository } from './features/password-reset/infrastructure/persistence/prisma-password-reset-users.repository.js';
-import { PrismaPasswordRestTokensRepository } from './features/password-reset/infrastructure/persistence/prisma-password-rest-tokens.repository.js';
+import { PrismaPasswordResetTokensRepository } from './features/password-reset/infrastructure/persistence/prisma-password-reset-tokens.repository.js';
 import { PasswordResetGrpcController } from './features/password-reset/presentation/grpc/controllers/password-reset-grpc.controller.js';
 import { SessionsQueryRepository } from './features/sessions/application/ports/sessions-query.repository.js';
 import { SessionsRepository } from './features/sessions/application/ports/sessions.repository.js';
@@ -120,7 +120,7 @@ import { UsersGrpcController } from './features/users/presentation/grpc/controll
     },
     {
       provide: PasswordResetTokensRepository,
-      useClass: PrismaPasswordRestTokensRepository,
+      useClass: PrismaPasswordResetTokensRepository,
     },
     {
       provide: PasswordResetUsersRepository,
