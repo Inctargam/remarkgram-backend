@@ -31,6 +31,10 @@ export class RegistrationConfirmationUseCase implements ICommandHandler<Registra
       throw new ConfirmationCodeExpiredError();
     }
 
-    await this.usersRepository.confirmUser(command.code);
+    const confirmed = await this.usersRepository.confirmUser(command.code);
+
+    if (!confirmed) {
+      throw new EmailAlreadyConfirmedError();
+    }
   }
 }

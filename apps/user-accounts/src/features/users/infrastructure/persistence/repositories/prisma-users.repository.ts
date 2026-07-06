@@ -150,7 +150,7 @@ export class PrismaUsersRepository implements UsersRepository {
         confirmationCode: null,
         confirmationExpiration: null,
       },
-      where: { confirmationCode: code, deletedAt: null },
+      where: { confirmationCode: code, isConfirmed: false, deletedAt: null },
     });
 
     return result.count > 0;
