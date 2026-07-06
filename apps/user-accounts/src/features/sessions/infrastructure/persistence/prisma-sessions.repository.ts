@@ -12,11 +12,14 @@ import type {
 export class PrismaSessionsRepository implements SessionsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  private parseUserId(raw: string): number {
+    const id = Number(raw);
+    if (!Number.isSafeInteger(id) || id <= 0) throw new InvalidUserIdError();
+    return id;
+  }
+
   async isSessionActive(params: SessionIdentity): Promise<boolean> {
-    const userId = Number(params.userId);
-    if (!Number.isSafeInteger(userId) || userId <= 0) {
-      return false;
-    }
+    const userId = this.parseUserId(params.userId);
 
     const session = await this.prisma.deviceSession.findFirst({
       select: { id: true },
@@ -36,10 +39,7 @@ export class PrismaSessionsRepository implements SessionsRepository {
   }
 
   async createSession(params: CreateSessionParams): Promise<void> {
-    const userId = Number(params.userId);
-    if (!Number.isSafeInteger(userId) || userId <= 0) {
-      throw new InvalidUserIdError();
-    }
+    const userId = this.parseUserId(params.userId);
 
     await this.prisma.deviceSession.create({
       data: {
@@ -55,10 +55,7 @@ export class PrismaSessionsRepository implements SessionsRepository {
   }
 
   async rotateRefreshToken(params: RotateRefreshTokenParams): Promise<boolean> {
-    const userId = Number(params.userId);
-    if (!Number.isSafeInteger(userId) || userId <= 0) {
-      return false;
-    }
+    const userId = this.parseUserId(params.userId);
 
     const result = await this.prisma.deviceSession.updateMany({
       where: {

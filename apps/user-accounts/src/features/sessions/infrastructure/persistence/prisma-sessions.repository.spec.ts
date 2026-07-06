@@ -1,4 +1,5 @@
 import type { PrismaService } from '../../../../database/prisma.service.js';
+import { InvalidUserIdError } from '../../application/errors/sessions.errors.js';
 import { PrismaSessionsRepository } from './prisma-sessions.repository.js';
 
 describe('PrismaSessionsRepository', () => {
@@ -57,5 +58,32 @@ describe('PrismaSessionsRepository', () => {
         expiresAt: new Date('2026-07-02T12:00:00.000Z'),
       }),
     ).resolves.toBe(false);
+  });
+
+  it.each(['0', '-1', 'abc', ''])('throws on invalid userId in rotateRefreshToken', async (userId) => {
+    await expect(
+      repository.rotateRefreshToken({
+        userId,
+        sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+        currentJti: 'jti',
+        newJti: 'new-jti',
+        deviceName: 'Browser',
+        ip: '127.0.0.1',
+        lastActiveAt: new Date(),
+        expiresAt: new Date(),
+      }),
+    ).rejects.toThrow(InvalidUserIdError);
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each(['0', '-1', 'abc', ''])('throws on invalid userId in isSessionActive', async (userId) => {
+    const findFirst = vi.fn();
+    const prismaWithFindFirst = { deviceSession: { updateMany, findFirst } };
+    const repo = new PrismaSessionsRepository(prismaWithFindFirst as unknown as PrismaService);
+
+    await expect(
+      repo.isSessionActive({ userId, sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42', jti: 'jti' }),
+    ).rejects.toThrow(InvalidUserIdError);
+    expect(findFirst).not.toHaveBeenCalled();
   });
 });
