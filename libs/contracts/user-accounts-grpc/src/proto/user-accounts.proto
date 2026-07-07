@@ -90,6 +90,7 @@ message Device {
   string title = 2;
   string last_active_date = 3;
   string device_id = 4;
+  bool is_current = 5;
 }
 
 message GetDevicesResponse {

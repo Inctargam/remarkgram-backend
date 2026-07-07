@@ -80,6 +80,7 @@ export interface Device {
   title: string;
   lastActiveDate: string;
   deviceId: string;
+  isCurrent: boolean;
 }
 
 export interface GetDevicesResponse {

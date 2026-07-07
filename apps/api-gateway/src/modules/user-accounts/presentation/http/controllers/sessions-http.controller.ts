@@ -47,7 +47,13 @@ export class SessionsHttpController implements OnModuleInit {
         map((response) =>
           response.devices.map(
             (device) =>
-              new DeviceResponseDto(device.ip, device.title, device.lastActiveDate, device.deviceId),
+              new DeviceResponseDto(
+                device.ip,
+                device.title,
+                device.lastActiveDate,
+                device.deviceId,
+                device.isCurrent,
+              ),
           ),
         ),
       );

@@ -3,6 +3,7 @@ export type SessionView = {
   deviceName: string;
   lastActiveAt: Date;
   sessionId: string;
+  isCurrent: boolean;
 };
 
 export type SessionIdentity = {

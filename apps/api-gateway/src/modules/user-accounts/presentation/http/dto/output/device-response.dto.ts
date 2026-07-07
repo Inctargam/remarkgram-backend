@@ -4,5 +4,6 @@ export class DeviceResponseDto {
     readonly title: string,
     readonly lastActiveDate: string,
     readonly deviceId: string,
+    readonly isCurrent: boolean,
   ) {}
 }

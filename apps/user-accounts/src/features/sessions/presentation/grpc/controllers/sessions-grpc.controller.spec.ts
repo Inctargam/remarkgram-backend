@@ -15,6 +15,7 @@ describe('SessionsGrpcController', () => {
         deviceName: 'Browser',
         lastActiveAt: new Date('2026-07-01T12:00:00.000Z'),
         sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+        isCurrent: true,
       },
     ]);
     const controller = new SessionsGrpcController(
@@ -37,6 +38,7 @@ describe('SessionsGrpcController', () => {
           title: 'Browser',
           lastActiveDate: '2026-07-01T12:00:00.000Z',
           deviceId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+          isCurrent: true,
         },
       ],
     });

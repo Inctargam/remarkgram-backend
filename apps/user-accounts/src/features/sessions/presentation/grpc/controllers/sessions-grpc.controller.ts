@@ -45,6 +45,7 @@ export class SessionsGrpcController {
         title: session.deviceName,
         lastActiveDate: session.lastActiveAt.toISOString(),
         deviceId: session.sessionId,
+        isCurrent: session.isCurrent,
       })),
     };
   }

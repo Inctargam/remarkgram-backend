@@ -22,6 +22,6 @@ export class GetSessionsUseCase implements IQueryHandler<GetSessionsQuery> {
       throw new NoActiveSessionError();
     }
 
-    return this.sessionsQueryRepository.getActiveSessions(query.auth.userId);
+    return this.sessionsQueryRepository.getActiveSessions(query.auth.userId, query.auth.sessionId);
   }
 }

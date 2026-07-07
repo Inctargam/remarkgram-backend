@@ -125,6 +125,7 @@ describe('ApiGateway (e2e)', () => {
             title: 'Browser',
             lastActiveDate: '2026-07-01T12:00:00.000Z',
             deviceId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+            isCurrent: true,
           },
         ],
       }),
@@ -337,6 +338,7 @@ describe('ApiGateway (e2e)', () => {
           title: 'Browser',
           lastActiveDate: '2026-07-01T12:00:00.000Z',
           deviceId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+          isCurrent: true,
         },
       ]);
 
