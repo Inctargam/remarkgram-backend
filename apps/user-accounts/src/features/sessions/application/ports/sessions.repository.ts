@@ -1,5 +1,9 @@
 import type {
   CreateSessionParams,
+  RevokeAllSessionsParams,
+  RevokeCurrentSessionParams,
+  RevokeOtherSessionsParams,
+  RevokeSessionParams,
   RotateRefreshTokenParams,
   SessionIdentity,
 } from '../types/sessions.types.js';
@@ -10,8 +14,8 @@ export abstract class SessionsRepository {
   abstract getSessionOwner(sessionId: string): Promise<string | null>;
   abstract createSession(params: CreateSessionParams): Promise<void>;
   abstract rotateRefreshToken(params: RotateRefreshTokenParams): Promise<boolean>;
-  abstract deleteCurrentSession(params: SessionIdentity): Promise<boolean>;
-  abstract deleteUserSession(userId: string, sessionId: string): Promise<boolean>;
-  abstract deleteOtherUserSessions(userId: string, currentSessionId: string): Promise<number>;
-  abstract deleteAllUserSessions(userId: string, ctx?: TransactionContext): Promise<number>;
+  abstract revokeCurrentSession(params: RevokeCurrentSessionParams): Promise<boolean>;
+  abstract revokeUserSession(params: RevokeSessionParams): Promise<boolean>;
+  abstract revokeOtherUserSessions(params: RevokeOtherSessionsParams): Promise<number>;
+  abstract revokeAllUserSessions(params: RevokeAllSessionsParams, ctx?: TransactionContext): Promise<number>;
 }

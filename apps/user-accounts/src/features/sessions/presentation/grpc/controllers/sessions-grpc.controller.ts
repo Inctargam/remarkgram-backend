@@ -49,8 +49,9 @@ export class SessionsGrpcController {
     };
   }
 
-  /** Выполняет hard delete текущей сессии пользователя. */
+  /** Выполняет soft delete текущей сессии пользователя. */
   async logoutCurrentSession(request: LogoutCurrentSessionRequest): Promise<LogoutCurrentSessionResponse> {
+    //::TODO рекомендуют для безопасности использовать идемпотентный подход
     if (!request.auth) {
       throw new RpcException({
         code: status.UNAUTHENTICATED,
@@ -63,7 +64,7 @@ export class SessionsGrpcController {
     return {};
   }
 
-  /** Выполняет hard delete выбранной пользовательской сессии по deviceId. */
+  /** Выполняет soft delete выбранной пользовательской сессии по deviceId. */
   async deleteDevice(request: DeleteDeviceRequest): Promise<DeleteDeviceResponse> {
     if (!request.auth) {
       throw new RpcException({
@@ -82,7 +83,7 @@ export class SessionsGrpcController {
     return {};
   }
 
-  /** Выполняет hard delete всех пользовательских сессий, кроме текущей. */
+  /** Выполняет soft delete всех пользовательских сессий, кроме текущей. */
   async deleteOtherDevices(request: DeleteOtherDevicesRequest): Promise<DeleteOtherDevicesResponse> {
     if (!request.auth) {
       throw new RpcException({

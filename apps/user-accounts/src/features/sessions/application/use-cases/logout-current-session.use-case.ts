@@ -12,8 +12,11 @@ export class LogoutCurrentSessionCommand extends Command<void> {
 export class LogoutCurrentSessionUseCase implements ICommandHandler<LogoutCurrentSessionCommand> {
   constructor(private readonly sessionsService: SessionsService) {}
 
-  /** Выполняет идемпотентный hard delete текущей refresh-сессии пользователя. */
+  /** Выполняет идемпотентный отзыв текущей refresh-сессии пользователя. */
   async execute(command: LogoutCurrentSessionCommand): Promise<void> {
-    await this.sessionsService.deleteCurrentSession(command.auth);
+    await this.sessionsService.revokeCurrentSession({
+      ...command.auth,
+      reason: 'USER_LOGOUT',
+    });
   }
 }

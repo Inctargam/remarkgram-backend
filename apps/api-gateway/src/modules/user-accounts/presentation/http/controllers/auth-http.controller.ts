@@ -14,10 +14,12 @@ import {
 import { type ConfigType } from '@nestjs/config';
 import {
   AUTH_SERVICE_NAME,
-  REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
   type AuthServiceClient,
-  PasswordResetServiceClient,
   PASSWORD_RESET_SERVICE_NAME,
+  PasswordResetServiceClient,
+  REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
+  SESSIONS_SERVICE_NAME,
+  SessionsServiceClient,
 } from '@app/user-accounts-grpc';
 import type { ClientGrpc } from '@nestjs/microservices';
 import type { Response } from 'express';
@@ -37,6 +39,7 @@ import { ConfirmPasswordResetDto } from '../dto/input/confirm-password-reset.dto
 export class AuthHttpController implements OnModuleInit {
   private authClient!: AuthServiceClient;
   private passResetClient!: PasswordResetServiceClient;
+  private sessionsClient!: SessionsServiceClient;
 
   constructor(
     @Inject(REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME)
@@ -49,6 +52,7 @@ export class AuthHttpController implements OnModuleInit {
     this.authClient = this.grpcClient.getService<AuthServiceClient>(AUTH_SERVICE_NAME);
     this.passResetClient =
       this.grpcClient.getService<PasswordResetServiceClient>(PASSWORD_RESET_SERVICE_NAME);
+    this.sessionsClient = this.grpcClient.getService<SessionsServiceClient>(SESSIONS_SERVICE_NAME);
   }
 
   @Public()
@@ -114,6 +118,13 @@ export class AuthHttpController implements OnModuleInit {
     return {
       message: 'Password has been changed successfully.',
     };
+  }
+
+  @UseGuards(RefreshTokenGuard)
+  @Post('logout')
+  @HttpCode(204)
+  async logout(@Req() request: RequestWithRefreshSession): Promise<void> {
+    await firstValueFrom(this.sessionsClient.logoutCurrentSession({ auth: request.refreshTokenClaims }));
   }
 
   private setRefreshTokenCookie(response: Response, refreshToken: string): void {

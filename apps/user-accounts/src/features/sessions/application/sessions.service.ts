@@ -8,6 +8,10 @@ import {
 import { SessionsRepository } from './ports/sessions.repository.js';
 import type {
   CreateSessionParams,
+  RevokeAllSessionsParams,
+  RevokeCurrentSessionParams,
+  RevokeOtherSessionsParams,
+  RevokeSessionParams,
   RotateRefreshTokenParams,
   SessionIdentity,
 } from './types/sessions.types.js';
@@ -36,23 +40,23 @@ export class SessionsService {
   }
 
   /** Удаляет текущую сессию пользователя по данным проверенного refresh-токена. */
-  deleteCurrentSession(params: SessionIdentity): Promise<boolean> {
-    return this.sessionsRepository.deleteCurrentSession(params);
+  revokeCurrentSession(params: RevokeCurrentSessionParams): Promise<boolean> {
+    return this.sessionsRepository.revokeCurrentSession(params);
   }
 
-  /** Удаляет указанную сессию пользователя через hard delete. */
-  deleteUserSession(userId: string, sessionId: string): Promise<boolean> {
-    return this.sessionsRepository.deleteUserSession(userId, sessionId);
+  /** Отозвать указанную сессию пользователя через hard delete. */
+  revokeUserSession(params: RevokeSessionParams): Promise<boolean> {
+    return this.sessionsRepository.revokeUserSession(params);
   }
 
-  /** Удаляет все сессии пользователя, кроме текущей refresh-сессии. */
-  deleteOtherUserSessions(userId: string, currentSessionId: string): Promise<number> {
-    return this.sessionsRepository.deleteOtherUserSessions(userId, currentSessionId);
+  /** Отозвать все сессии пользователя, кроме текущей refresh-сессии. */
+  revokeOtherUserSessions(params: RevokeOtherSessionsParams): Promise<number> {
+    return this.sessionsRepository.revokeOtherUserSessions(params);
   }
 
-  /** Удаляет все сессии пользователя после security-sensitive события, например сброса пароля. */
-  deleteAllUserSessions(userId: string, ctx?: TransactionContext): Promise<number> {
-    return this.sessionsRepository.deleteAllUserSessions(userId, ctx);
+  /** Отозвать все сессии пользователя после security-sensitive события, например сброса пароля. */
+  revokeAllUserSessions(params: RevokeAllSessionsParams, ctx?: TransactionContext): Promise<number> {
+    return this.sessionsRepository.revokeAllUserSessions(params, ctx);
   }
 
   /**

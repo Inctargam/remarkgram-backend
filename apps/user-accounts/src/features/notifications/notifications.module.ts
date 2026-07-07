@@ -9,20 +9,22 @@ import { PasswordResetTokenEmailHandler } from './use-cases/password-reset-token
   imports: [
     MailerModule.forRootAsync({
       inject: [emailConfig.KEY],
-      useFactory: (email: ConfigType<typeof emailConfig>) => ({
-        transport: {
-          host: email.smtpUrl,
-          auth: {
-            user: email.emailCredentials.user,
-            pass: email.emailCredentials.password,
+      useFactory: (email: ConfigType<typeof emailConfig>) => {
+        return {
+          transport: {
+            host: email.smtpUrl,
+            auth: {
+              user: email.emailCredentials.user,
+              pass: email.emailCredentials.password,
+            },
+            port: 465,
+            secure: true,
           },
-          port: 465,
-          secure: true,
-        },
-        defaults: {
-          from: '"Vyacheslav Solovev" <slvsl.spb@gmail.com>',
-        },
-      }),
+          defaults: {
+            from: email.emailCredentials.user,
+          },
+        };
+      },
     }),
   ],
   providers: [EmailService, PasswordResetTokenEmailHandler],

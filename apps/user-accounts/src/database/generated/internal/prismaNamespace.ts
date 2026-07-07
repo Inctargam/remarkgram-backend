@@ -692,7 +692,9 @@ export const DeviceSessionScalarFieldEnum = {
   ip: 'ip',
   jti: 'jti',
   lastActiveAt: 'lastActiveAt',
-  expiresAt: 'expiresAt'
+  expiresAt: 'expiresAt',
+  revokedAt: 'revokedAt',
+  revokedReason: 'revokedReason'
 } as const
 
 export type DeviceSessionScalarFieldEnum = (typeof DeviceSessionScalarFieldEnum)[keyof typeof DeviceSessionScalarFieldEnum]
@@ -787,6 +789,20 @@ export type ListDateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaM
  * Reference to a field of type 'Boolean'
  */
 export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
+    
+
+
+/**
+ * Reference to a field of type 'RevokedReason'
+ */
+export type EnumRevokedReasonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'RevokedReason'>
+    
+
+
+/**
+ * Reference to a field of type 'RevokedReason[]'
+ */
+export type ListEnumRevokedReasonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'RevokedReason[]'>
     
 
 

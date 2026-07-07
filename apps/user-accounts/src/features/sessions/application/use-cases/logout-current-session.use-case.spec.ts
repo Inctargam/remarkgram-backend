@@ -5,9 +5,9 @@ import {
 } from './logout-current-session.use-case.js';
 
 describe('LogoutCurrentSessionUseCase', () => {
-  it('deletes current session by verified refresh-token claims', async () => {
+  it('revokes current session by verified refresh-token claims', async () => {
     const sessionsService = {
-      deleteCurrentSession: vi.fn<SessionsService['deleteCurrentSession']>().mockResolvedValue(true),
+      revokeCurrentSession: vi.fn<SessionsService['revokeCurrentSession']>().mockResolvedValue(true),
     };
     const useCase = new LogoutCurrentSessionUseCase(sessionsService as unknown as SessionsService);
     const auth = {
@@ -17,12 +17,15 @@ describe('LogoutCurrentSessionUseCase', () => {
     };
 
     await expect(useCase.execute(new LogoutCurrentSessionCommand(auth))).resolves.toBeUndefined();
-    expect(sessionsService.deleteCurrentSession).toHaveBeenCalledWith(auth);
+    expect(sessionsService.revokeCurrentSession).toHaveBeenCalledWith({
+      ...auth,
+      reason: 'USER_LOGOUT',
+    });
   });
 
   it('keeps logout idempotent when current session is already absent', async () => {
     const sessionsService = {
-      deleteCurrentSession: vi.fn<SessionsService['deleteCurrentSession']>().mockResolvedValue(false),
+      revokeCurrentSession: vi.fn<SessionsService['revokeCurrentSession']>().mockResolvedValue(false),
     };
     const useCase = new LogoutCurrentSessionUseCase(sessionsService as unknown as SessionsService);
 

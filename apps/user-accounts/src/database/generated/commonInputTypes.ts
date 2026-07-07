@@ -187,6 +187,13 @@ export type UuidFilter<$PrismaModel = never> = {
   not?: Prisma.NestedUuidFilter<$PrismaModel> | string
 }
 
+export type EnumRevokedReasonNullableFilter<$PrismaModel = never> = {
+  equals?: $Enums.RevokedReason | Prisma.EnumRevokedReasonFieldRefInput<$PrismaModel> | null
+  in?: $Enums.RevokedReason[] | Prisma.ListEnumRevokedReasonFieldRefInput<$PrismaModel> | null
+  notIn?: $Enums.RevokedReason[] | Prisma.ListEnumRevokedReasonFieldRefInput<$PrismaModel> | null
+  not?: Prisma.NestedEnumRevokedReasonNullableFilter<$PrismaModel> | $Enums.RevokedReason | null
+}
+
 export type UuidWithAggregatesFilter<$PrismaModel = never> = {
   equals?: string | Prisma.StringFieldRefInput<$PrismaModel>
   in?: string[] | Prisma.ListStringFieldRefInput<$PrismaModel>
@@ -200,6 +207,16 @@ export type UuidWithAggregatesFilter<$PrismaModel = never> = {
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedStringFilter<$PrismaModel>
   _max?: Prisma.NestedStringFilter<$PrismaModel>
+}
+
+export type EnumRevokedReasonNullableWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.RevokedReason | Prisma.EnumRevokedReasonFieldRefInput<$PrismaModel> | null
+  in?: $Enums.RevokedReason[] | Prisma.ListEnumRevokedReasonFieldRefInput<$PrismaModel> | null
+  notIn?: $Enums.RevokedReason[] | Prisma.ListEnumRevokedReasonFieldRefInput<$PrismaModel> | null
+  not?: Prisma.NestedEnumRevokedReasonNullableWithAggregatesFilter<$PrismaModel> | $Enums.RevokedReason | null
+  _count?: Prisma.NestedIntNullableFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumRevokedReasonNullableFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumRevokedReasonNullableFilter<$PrismaModel>
 }
 
 export type NestedIntFilter<$PrismaModel = never> = {
@@ -387,6 +404,13 @@ export type NestedUuidFilter<$PrismaModel = never> = {
   not?: Prisma.NestedUuidFilter<$PrismaModel> | string
 }
 
+export type NestedEnumRevokedReasonNullableFilter<$PrismaModel = never> = {
+  equals?: $Enums.RevokedReason | Prisma.EnumRevokedReasonFieldRefInput<$PrismaModel> | null
+  in?: $Enums.RevokedReason[] | Prisma.ListEnumRevokedReasonFieldRefInput<$PrismaModel> | null
+  notIn?: $Enums.RevokedReason[] | Prisma.ListEnumRevokedReasonFieldRefInput<$PrismaModel> | null
+  not?: Prisma.NestedEnumRevokedReasonNullableFilter<$PrismaModel> | $Enums.RevokedReason | null
+}
+
 export type NestedUuidWithAggregatesFilter<$PrismaModel = never> = {
   equals?: string | Prisma.StringFieldRefInput<$PrismaModel>
   in?: string[] | Prisma.ListStringFieldRefInput<$PrismaModel>
@@ -399,6 +423,16 @@ export type NestedUuidWithAggregatesFilter<$PrismaModel = never> = {
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedStringFilter<$PrismaModel>
   _max?: Prisma.NestedStringFilter<$PrismaModel>
+}
+
+export type NestedEnumRevokedReasonNullableWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.RevokedReason | Prisma.EnumRevokedReasonFieldRefInput<$PrismaModel> | null
+  in?: $Enums.RevokedReason[] | Prisma.ListEnumRevokedReasonFieldRefInput<$PrismaModel> | null
+  notIn?: $Enums.RevokedReason[] | Prisma.ListEnumRevokedReasonFieldRefInput<$PrismaModel> | null
+  not?: Prisma.NestedEnumRevokedReasonNullableWithAggregatesFilter<$PrismaModel> | $Enums.RevokedReason | null
+  _count?: Prisma.NestedIntNullableFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumRevokedReasonNullableFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumRevokedReasonNullableFilter<$PrismaModel>
 }
 
 

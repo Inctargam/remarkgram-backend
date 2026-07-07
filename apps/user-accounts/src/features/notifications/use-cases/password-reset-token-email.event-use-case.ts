@@ -28,6 +28,7 @@ export class PasswordResetTokenEmailHandler implements IEventHandler<PasswordRes
 
     try {
       await this.mailerService.sendMail({
+        from: 'remarkgram.support@gmail.com',
         to: event.email,
         subject: 'Reset your Remarkgram password',
         text: buildPasswordResetEmailText(url.href),

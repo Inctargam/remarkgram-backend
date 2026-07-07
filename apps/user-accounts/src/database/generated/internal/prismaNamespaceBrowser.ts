@@ -97,7 +97,9 @@ export const DeviceSessionScalarFieldEnum = {
   ip: 'ip',
   jti: 'jti',
   lastActiveAt: 'lastActiveAt',
-  expiresAt: 'expiresAt'
+  expiresAt: 'expiresAt',
+  revokedAt: 'revokedAt',
+  revokedReason: 'revokedReason'
 } as const
 
 export type DeviceSessionScalarFieldEnum = (typeof DeviceSessionScalarFieldEnum)[keyof typeof DeviceSessionScalarFieldEnum]

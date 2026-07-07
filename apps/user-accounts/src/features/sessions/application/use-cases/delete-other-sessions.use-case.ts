@@ -19,6 +19,10 @@ export class DeleteOtherSessionsUseCase implements ICommandHandler<DeleteOtherSe
       throw new NoActiveSessionError();
     }
 
-    await this.sessionsService.deleteOtherUserSessions(command.auth.userId, command.auth.sessionId);
+    await this.sessionsService.revokeOtherUserSessions({
+      userId: command.auth.userId,
+      currentSessionId: command.auth.sessionId,
+      reason: 'LOGOUT_ALL',
+    });
   }
 }

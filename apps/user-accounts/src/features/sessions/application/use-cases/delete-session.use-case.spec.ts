@@ -8,10 +8,10 @@ describe('DeleteSessionUseCase', () => {
     jti: 'jti',
   };
 
-  it('deletes selected user session when current session is active', async () => {
+  it('revokes selected user session when current session is active', async () => {
     const sessionsService = {
       checkSession: vi.fn<SessionsService['checkSession']>().mockResolvedValue(true),
-      deleteUserSession: vi.fn<SessionsService['deleteUserSession']>().mockResolvedValue(true),
+      revokeUserSession: vi.fn<SessionsService['revokeUserSession']>().mockResolvedValue(true),
     };
     const useCase = new DeleteSessionUseCase(sessionsService as unknown as SessionsService);
 
@@ -25,16 +25,17 @@ describe('DeleteSessionUseCase', () => {
     ).resolves.toBeUndefined();
 
     expect(sessionsService.checkSession).toHaveBeenCalledWith(auth);
-    expect(sessionsService.deleteUserSession).toHaveBeenCalledWith(
-      '1',
-      'f318f7c0-c8cf-4fc2-93a5-a83234fb0f24',
-    );
+    expect(sessionsService.revokeUserSession).toHaveBeenCalledWith({
+      userId: '1',
+      sessionId: 'f318f7c0-c8cf-4fc2-93a5-a83234fb0f24',
+      reason: 'USER_LOGOUT',
+    });
   });
 
   it('rejects delete when current session is inactive', async () => {
     const sessionsService = {
       checkSession: vi.fn<SessionsService['checkSession']>().mockResolvedValue(false),
-      deleteUserSession: vi.fn<SessionsService['deleteUserSession']>(),
+      revokeUserSession: vi.fn<SessionsService['revokeUserSession']>(),
     };
     const useCase = new DeleteSessionUseCase(sessionsService as unknown as SessionsService);
 
@@ -47,13 +48,13 @@ describe('DeleteSessionUseCase', () => {
       ),
     ).rejects.toThrow('No active session found');
 
-    expect(sessionsService.deleteUserSession).not.toHaveBeenCalled();
+    expect(sessionsService.revokeUserSession).not.toHaveBeenCalled();
   });
 
   it('rejects delete when selected session does not belong to current user', async () => {
     const sessionsService = {
       checkSession: vi.fn<SessionsService['checkSession']>().mockResolvedValue(true),
-      deleteUserSession: vi.fn<SessionsService['deleteUserSession']>().mockResolvedValue(false),
+      revokeUserSession: vi.fn<SessionsService['revokeUserSession']>().mockResolvedValue(false),
     };
     const useCase = new DeleteSessionUseCase(sessionsService as unknown as SessionsService);
 

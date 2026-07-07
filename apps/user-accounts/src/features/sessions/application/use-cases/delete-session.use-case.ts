@@ -18,16 +18,17 @@ export class DeleteSessionCommand extends Command<void> {
 export class DeleteSessionUseCase implements ICommandHandler<DeleteSessionCommand> {
   constructor(private readonly sessionsService: SessionsService) {}
 
-  /** Удаляет выбранную сессию пользователя после проверки активности текущей сессии. */
+  /** Отзывает выбранную сессию пользователя после проверки активности текущей сессии. */
   async execute(command: DeleteSessionCommand): Promise<void> {
     if (!(await this.sessionsService.checkSession(command.params.auth))) {
       throw new NoActiveSessionError();
     }
 
-    const wasDeleted = await this.sessionsService.deleteUserSession(
-      command.params.auth.userId,
-      command.params.sessionId,
-    );
+    const wasDeleted = await this.sessionsService.revokeUserSession({
+      userId: command.params.auth.userId,
+      sessionId: command.params.sessionId,
+      reason: 'USER_LOGOUT',
+    });
 
     if (!wasDeleted) {
       throw new SessionNotFoundError();
