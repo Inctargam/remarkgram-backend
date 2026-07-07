@@ -9,15 +9,15 @@ import type { ClientGrpc } from '@nestjs/microservices';
 import {
   ApiBadGatewayResponse,
   ApiCreatedResponse,
+  ApiExcludeController,
   ApiOperation,
   ApiServiceUnavailableResponse,
-  ApiTags,
 } from '@nestjs/swagger';
 import type { Observable } from 'rxjs';
 import { Public } from '../../../../../common/http/decorators/public.decorator.js';
 import { UploadFileResponseDto } from '../dto/output/upload-file-response.dto.js';
 
-@ApiTags('Files')
+@ApiExcludeController()
 @Controller('files')
 export class FilesHttpController implements OnModuleInit {
   private filesClient!: FilesServiceClient;

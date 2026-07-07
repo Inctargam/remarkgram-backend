@@ -189,10 +189,10 @@ describe('ApiGateway (e2e)', () => {
         '/auth/sessions/others',
         '/auth/sessions/{sessionId}',
         '/testing/all-data',
-        '/users',
-        '/files',
       ]),
     );
+    expect(document.paths).not.toHaveProperty('/users');
+    expect(document.paths).not.toHaveProperty('/files');
     expect(document.components.schemas.DeviceResponseDto?.properties).toHaveProperty('isCurrent');
   });
 

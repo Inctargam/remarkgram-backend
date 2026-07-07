@@ -7,16 +7,16 @@ import {
 import type { ClientGrpc } from '@nestjs/microservices';
 import {
   ApiBadGatewayResponse,
+  ApiExcludeController,
   ApiOkResponse,
   ApiOperation,
   ApiServiceUnavailableResponse,
-  ApiTags,
 } from '@nestjs/swagger';
 import { map, type Observable } from 'rxjs';
 import { Public } from '../../../../../common/http/decorators/public.decorator.js';
 import { UserResponseDto } from '../dto/output/user-response.dto.js';
 
-@ApiTags('Users')
+@ApiExcludeController()
 @Controller('users')
 export class UsersHttpController implements OnModuleInit {
   private usersClient!: UsersServiceClient;

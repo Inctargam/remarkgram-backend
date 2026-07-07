@@ -35,8 +35,6 @@ const swaggerConfig = new DocumentBuilder()
   .addTag('Auth', 'Registration, authentication and password reset.')
   .addTag('Sessions', 'Active session management.')
   .addTag('Testing', 'Development and test utilities.')
-  .addTag('Users', 'User queries.')
-  .addTag('Files', 'File operations.')
   .build();
 
 export const createSwaggerDocument = (app: INestApplication) =>
