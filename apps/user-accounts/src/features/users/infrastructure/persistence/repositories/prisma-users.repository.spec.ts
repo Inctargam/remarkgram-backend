@@ -12,8 +12,8 @@ import { PrismaUsersRepository } from './prisma-users.repository.js';
 describe('PrismaUsersRepository', () => {
   const create = vi.fn();
   const updateMany = vi.fn();
-  const queryRaw = vi.fn();
-  const prisma = { user: { create, updateMany }, $queryRaw: queryRaw };
+  const executeRaw = vi.fn();
+  const prisma = { user: { create, updateMany }, $executeRaw: executeRaw };
   const repository = new PrismaUsersRepository(prisma as unknown as PrismaService);
   const params: CreateUserRepositoryParams = {
     username: 'user_123',
@@ -50,25 +50,17 @@ describe('PrismaUsersRepository', () => {
   });
 
   it('clears confirmation code and expiration when confirming a user', async () => {
-    const result = {
-      wasConfirmed: true,
-      checkedAt: new Date('2026-07-06T12:00:00.000Z'),
-    };
-    queryRaw.mockResolvedValue([result]);
+    executeRaw.mockResolvedValue(1);
 
-    await expect(repository.confirmUser('confirmation-code')).resolves.toEqual(result);
-    expect(queryRaw).toHaveBeenCalledOnce();
-    expect(queryRaw.mock.calls[0][1]).toBe('confirmation-code');
+    await expect(repository.confirmUser('confirmation-code')).resolves.toBe(true);
+    expect(executeRaw).toHaveBeenCalledOnce();
+    expect(executeRaw.mock.calls[0][1]).toBe('confirmation-code');
   });
 
-  it('reports that confirmation lost a race when no unconfirmed row was updated', async () => {
-    const result = {
-      wasConfirmed: false,
-      checkedAt: new Date('2026-07-06T12:00:00.000Z'),
-    };
-    queryRaw.mockResolvedValue([result]);
+  it('reports that the user was not confirmed when no row was updated', async () => {
+    executeRaw.mockResolvedValue(0);
 
-    await expect(repository.confirmUser('confirmation-code')).resolves.toEqual(result);
+    await expect(repository.confirmUser('confirmation-code')).resolves.toBe(false);
   });
 
   it('updates a confirmation code only for an unconfirmed user', async () => {

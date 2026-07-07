@@ -1,7 +1,5 @@
 import type { User } from '../../domain/entities/user.entity.js';
-import type { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
 import type {
-  ConfirmUserResult,
   CreateUserRepositoryParams,
   ReleaseExpiredRegistrationCredentialsParams,
   UpdateConfirmationCodeParams,
@@ -16,7 +14,6 @@ export abstract class UsersRepository {
   abstract releaseExpiredRegistrationCredentials(
     params: ReleaseExpiredRegistrationCredentialsParams,
   ): Promise<void>;
-  abstract getConfirmationInfo(code: string): Promise<ConfirmationInfo | null>;
-  abstract confirmUser(code: string): Promise<ConfirmUserResult>;
+  abstract confirmUser(code: string): Promise<boolean>;
   abstract updateConfirmationCode(params: UpdateConfirmationCodeParams): Promise<boolean>;
 }

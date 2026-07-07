@@ -7,13 +7,11 @@ import {
 } from '../../../application/errors/users.errors.js';
 import { UsersRepository } from '../../../application/ports/users.repository.js';
 import type {
-  ConfirmUserResult,
   CreateUserRepositoryParams,
   ReleaseExpiredRegistrationCredentialsParams,
   UpdateConfirmationCodeParams,
 } from '../../../application/types/users.types.js';
 import { User } from '../../../domain/entities/user.entity.js';
-import { ConfirmationInfo } from '../../../domain/value-objects/confirmation-info.js';
 import { UserPrismaMapper } from '../mappers/user-prisma.mapper.js';
 
 type UniqueConstraintMeta = {
@@ -125,49 +123,22 @@ export class PrismaUsersRepository implements UsersRepository {
     });
   }
 
-  async getConfirmationInfo(code: string): Promise<ConfirmationInfo | null> {
-    const user = await this.prisma.user.findFirst({
-      select: {
-        isConfirmed: true,
-        confirmationCode: true,
-        confirmationExpiration: true,
-      },
-      where: { confirmationCode: code, deletedAt: null },
-    });
-
-    if (!user) return null;
-
-    return ConfirmationInfo.restore({
-      isConfirmed: user.isConfirmed,
-      code: user.confirmationCode,
-      expiration: user.confirmationExpiration,
-    });
-  }
-
-  async confirmUser(code: string): Promise<ConfirmUserResult> {
-    const [result] = await this.prisma.$queryRaw<ConfirmUserResult[]>`
-      WITH "confirmationAttempt" AS (
-        UPDATE "users"
-        SET
-          "isConfirmed" = TRUE,
-          "confirmationCode" = NULL,
-          "confirmationExpiration" = NULL
-        WHERE "confirmationCode" = ${code}
-          AND "confirmationExpiration" > CURRENT_TIMESTAMP
-          AND "isConfirmed" = FALSE
-          AND "deletedAt" IS NULL
-        RETURNING 1
-      )
-      SELECT
-        EXISTS(SELECT 1 FROM "confirmationAttempt") AS "wasConfirmed",
-        CURRENT_TIMESTAMP AS "checkedAt"
+  async confirmUser(code: string): Promise<boolean> {
+    // Проверка срока действия и подтверждение выполняются одним SQL statement. CURRENT_TIMESTAMP вычисляется
+    // базой непосредственно при UPDATE, поэтому код, истёкший до начала операции, подтвердить невозможно.
+    const updatedCount = await this.prisma.$executeRaw`
+      UPDATE "users"
+      SET
+        "isConfirmed" = TRUE,
+        "confirmationCode" = NULL,
+        "confirmationExpiration" = NULL
+      WHERE "confirmationCode" = ${code}
+        AND "confirmationExpiration" > CURRENT_TIMESTAMP
+        AND "isConfirmed" = FALSE
+        AND "deletedAt" IS NULL
     `;
 
-    if (!result) {
-      throw new Error('Confirmation query returned no result');
-    }
-
-    return result;
+    return updatedCount > 0;
   }
 
   /** Атомарно заменяет confirmation code, только пока в записи хранится ожидаемый предыдущий код. */

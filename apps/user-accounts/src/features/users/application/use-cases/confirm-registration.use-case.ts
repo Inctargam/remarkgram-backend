@@ -1,9 +1,5 @@
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
-import {
-  ConfirmationCodeExpiredError,
-  EmailAlreadyConfirmedError,
-  InvalidConfirmationCodeError,
-} from '../errors/users.errors.js';
+import { InvalidConfirmationCodeError } from '../errors/users.errors.js';
 import { UsersRepository } from '../ports/users.repository.js';
 
 export class ConfirmRegistrationCommand extends Command<void> {
@@ -17,30 +13,14 @@ export class ConfirmRegistrationUseCase implements ICommandHandler<ConfirmRegist
   constructor(private readonly usersRepository: UsersRepository) {}
 
   async execute(command: ConfirmRegistrationCommand) {
-    const confirmation = await this.usersRepository.getConfirmationInfo(command.code);
-
-    if (!confirmation) {
-      throw new InvalidConfirmationCodeError();
-    }
-
-    if (confirmation.isConfirmed === true) {
-      throw new EmailAlreadyConfirmedError();
-    }
-
-    const { wasConfirmed, checkedAt } = await this.usersRepository.confirmUser(command.code);
+    const wasConfirmed = await this.usersRepository.confirmUser(command.code);
 
     if (!wasConfirmed) {
-      // checkedAt намеренно возвращается из того же SQL statement, в котором CURRENT_TIMESTAMP проверяет
-      // срок действия кода. Если после await создать новую дату, код может истечь уже после завершения UPDATE,
-      // который вернул false по другой причине, например из-за конкурентного подтверждения пользователя.
-      // Тогда более позднее время приложения ошибочно превратит EmailAlreadyConfirmedError в
-      // ConfirmationCodeExpiredError. Сравнение с checkedAt фиксирует единый момент принятия решения в БД
-      // и устраняет race condition при определении причины отказа.
-      if (confirmation.isExpired(checkedAt)) {
-        throw new ConfirmationCodeExpiredError();
-      }
-
-      throw new EmailAlreadyConfirmedError();
+      // Ноль обновлённых строк означает любое несовпадение ожидаемого состояния: код отсутствует, истёк,
+      // уже заменён конкурентным resend или использован другим confirm-запросом. Точную причину без нового
+      // чтения определить нельзя, а повторное чтение само подвержено race condition, поэтому возвращаем
+      // одну обобщённую ошибку недействительного confirmation code.
+      throw new InvalidConfirmationCodeError();
     }
   }
 }
