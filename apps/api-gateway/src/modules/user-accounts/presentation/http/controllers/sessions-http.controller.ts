@@ -17,6 +17,19 @@ import {
   type SessionsServiceClient,
 } from '@app/user-accounts-grpc';
 import type { ClientGrpc } from '@nestjs/microservices';
+import {
+  ApiBadGatewayResponse,
+  ApiCookieAuth,
+  ApiForbiddenResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiServiceUnavailableResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { firstValueFrom, map, type Observable } from 'rxjs';
 import { Public } from '../../../../../common/http/decorators/public.decorator.js';
@@ -24,6 +37,11 @@ import type { RequestWithRefreshSession } from '../auth-request.types.js';
 import { DeviceResponseDto } from '../dto/output/device-response.dto.js';
 import { RefreshTokenGuard } from '../guards/refresh-token.guard.js';
 
+@ApiTags('Sessions')
+@ApiCookieAuth('refreshToken')
+@ApiUnauthorizedResponse({ description: 'The refresh token or its session is invalid.' })
+@ApiBadGatewayResponse({ description: 'The upstream service returned an unexpected error.' })
+@ApiServiceUnavailableResponse({ description: 'The user-accounts service is unavailable.' })
 @Public()
 @UseGuards(RefreshTokenGuard)
 @Controller('auth/sessions')
@@ -40,6 +58,8 @@ export class SessionsHttpController implements OnModuleInit {
   }
 
   @Get()
+  @ApiOperation({ summary: 'Get the active sessions of the current user' })
+  @ApiOkResponse({ description: 'Active, unexpired sessions.', type: [DeviceResponseDto] })
   getSessions(@Req() request: RequestWithRefreshSession): Observable<DeviceResponseDto[]> {
     return this.sessionsClient
       .getDevices({ auth: request.refreshTokenClaims })
@@ -61,6 +81,10 @@ export class SessionsHttpController implements OnModuleInit {
 
   @Delete('current')
   @HttpCode(204)
+  @ApiOperation({ summary: 'Log out from the current session' })
+  @ApiNoContentResponse({
+    description: 'The current session was revoked and the refresh cookie was cleared.',
+  })
   async logoutCurrentSession(
     @Req() request: RequestWithRefreshSession,
     @Res({ passthrough: true }) response: Response,
@@ -71,12 +95,19 @@ export class SessionsHttpController implements OnModuleInit {
 
   @Delete('others')
   @HttpCode(204)
+  @ApiOperation({ summary: 'Revoke every session except the current one' })
+  @ApiNoContentResponse({ description: 'All other sessions were revoked.' })
   async deleteOtherSessions(@Req() request: RequestWithRefreshSession): Promise<void> {
     await firstValueFrom(this.sessionsClient.deleteOtherDevices({ auth: request.refreshTokenClaims }));
   }
 
   @Delete(':sessionId')
   @HttpCode(204)
+  @ApiOperation({ summary: 'Revoke a selected session' })
+  @ApiParam({ name: 'sessionId', format: 'uuid', description: 'Session identifier.' })
+  @ApiNoContentResponse({ description: 'The selected session was revoked.' })
+  @ApiNotFoundResponse({ description: 'The session does not exist.' })
+  @ApiForbiddenResponse({ description: 'The session belongs to another user.' })
   async deleteSession(
     @Param('sessionId', new ParseUUIDPipe({ version: '4' })) sessionId: string,
     @Req() request: RequestWithRefreshSession,

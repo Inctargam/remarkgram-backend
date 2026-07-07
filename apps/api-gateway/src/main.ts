@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import { ApiGatewayModule } from './api-gateway.module.js';
 import { apiGatewayConfig } from './config/api-gateway.config.js';
+import { setupSwagger } from './swagger.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(ApiGatewayModule);
@@ -11,6 +12,7 @@ async function bootstrap() {
 
   app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
+  setupSwagger(app);
 
   const port = config.port;
   await app.listen(port);

@@ -26,6 +26,7 @@ import cookieParser from 'cookie-parser';
 import { of, throwError } from 'rxjs';
 import request from 'supertest';
 import { ApiGatewayModule } from './../src/api-gateway.module.js';
+import { setupSwagger } from './../src/swagger.js';
 
 type SupertestApp = Parameters<typeof request>[0];
 
@@ -150,7 +151,37 @@ describe('ApiGateway (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
+    setupSwagger(app);
     await app.init();
+  });
+
+  it('GET /api/docs-json exposes the implemented HTTP API', async () => {
+    const response = await request(app.getHttpServer() as SupertestApp)
+      .get('/api/docs-json')
+      .expect(200);
+    const document = response.body as {
+      paths: Record<string, unknown>;
+      components: { schemas: Record<string, { properties?: Record<string, unknown> }> };
+    };
+
+    expect(Object.keys(document.paths)).toEqual(
+      expect.arrayContaining([
+        '/auth/registration',
+        '/auth/registration/confirmation',
+        '/auth/registration/resend-confirmation',
+        '/auth/login',
+        '/auth/refresh-token',
+        '/auth/password-reset/request',
+        '/auth/password-reset/confirm',
+        '/auth/sessions',
+        '/auth/sessions/current',
+        '/auth/sessions/others',
+        '/auth/sessions/{sessionId}',
+        '/users',
+        '/files',
+      ]),
+    );
+    expect(document.components.schemas.DeviceResponseDto?.properties).toHaveProperty('isCurrent');
   });
 
   it('POST /files', async () => {
