@@ -14,10 +14,12 @@ import {
 import { type ConfigType } from '@nestjs/config';
 import {
   AUTH_SERVICE_NAME,
+  REGISTRATION_SERVICE_NAME,
   REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
   type AuthServiceClient,
   PasswordResetServiceClient,
   PASSWORD_RESET_SERVICE_NAME,
+  type RegistrationServiceClient,
 } from '@app/user-accounts-grpc';
 import type { ClientGrpc } from '@nestjs/microservices';
 import type { Response } from 'express';
@@ -32,10 +34,14 @@ import { RefreshTokenGuard } from '../guards/refresh-token.guard.js';
 import { PasswordResetDto } from '../dto/input/password-reset.dto.js';
 import { PasswordResetResponse } from '../dto/output/password-reset.response.dto.js';
 import { ConfirmPasswordResetDto } from '../dto/input/confirm-password-reset.dto.js';
+import { RegistrationDto } from '../dto/input/registration.dto.js';
+import { ConfirmRegistrationDto } from '../dto/input/confirm-registration.dto.js';
+import { ResendRegistrationConfirmationDto } from '../dto/input/resend-registration-confirmation.dto.js';
 
 @Controller('auth')
 export class AuthHttpController implements OnModuleInit {
   private authClient!: AuthServiceClient;
+  private registrationClient!: RegistrationServiceClient;
   private passResetClient!: PasswordResetServiceClient;
 
   constructor(
@@ -47,8 +53,37 @@ export class AuthHttpController implements OnModuleInit {
 
   onModuleInit(): void {
     this.authClient = this.grpcClient.getService<AuthServiceClient>(AUTH_SERVICE_NAME);
+    this.registrationClient =
+      this.grpcClient.getService<RegistrationServiceClient>(REGISTRATION_SERVICE_NAME);
     this.passResetClient =
       this.grpcClient.getService<PasswordResetServiceClient>(PASSWORD_RESET_SERVICE_NAME);
+  }
+
+  @Public()
+  @Post('registration')
+  @HttpCode(204)
+  async register(@Body() input: RegistrationDto): Promise<void> {
+    await firstValueFrom(
+      this.registrationClient.registerUser({
+        username: input.username,
+        email: input.email,
+        password: input.password,
+      }),
+    );
+  }
+
+  @Public()
+  @Post('registration/confirmation')
+  @HttpCode(204)
+  async confirmRegistration(@Body() input: ConfirmRegistrationDto): Promise<void> {
+    await firstValueFrom(this.registrationClient.confirmRegistration({ code: input.code }));
+  }
+
+  @Public()
+  @Post('registration/resend-confirmation')
+  @HttpCode(204)
+  async resendRegistrationConfirmation(@Body() input: ResendRegistrationConfirmationDto): Promise<void> {
+    await firstValueFrom(this.registrationClient.resendRegistrationConfirmation({ email: input.email }));
   }
 
   @Public()

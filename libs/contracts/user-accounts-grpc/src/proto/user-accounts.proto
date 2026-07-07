@@ -11,6 +11,12 @@ service AuthService {
   rpc RefreshToken(RefreshTokenRequest) returns (TokenPairResponse);
 }
 
+service RegistrationService {
+  rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
+  rpc ConfirmRegistration(ConfirmRegistrationRequest) returns (ConfirmRegistrationResponse);
+  rpc ResendRegistrationConfirmation(ResendRegistrationConfirmationRequest) returns (ResendRegistrationConfirmationResponse);
+}
+
 service SessionsService {
   rpc GetDevices(GetDevicesRequest) returns (GetDevicesResponse);
   rpc LogoutCurrentSession(LogoutCurrentSessionRequest) returns (LogoutCurrentSessionResponse);
@@ -54,6 +60,26 @@ message TokenPairResponse {
   string access_token = 1;
   string refresh_token = 2;
 }
+
+message RegisterUserRequest {
+  string username = 1;
+  string email = 2;
+  string password = 3;
+}
+
+message RegisterUserResponse {}
+
+message ConfirmRegistrationRequest {
+  string code = 1;
+}
+
+message ConfirmRegistrationResponse {}
+
+message ResendRegistrationConfirmationRequest {
+  string email = 1;
+}
+
+message ResendRegistrationConfirmationResponse {}
 
 message GetDevicesRequest {
   VerifiedRefreshTokenClaims auth = 1;

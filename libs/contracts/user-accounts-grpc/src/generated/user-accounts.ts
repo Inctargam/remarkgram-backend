@@ -48,6 +48,29 @@ export interface TokenPairResponse {
   refreshToken: string;
 }
 
+export interface RegisterUserRequest {
+  username: string;
+  email: string;
+  password: string;
+}
+
+export interface RegisterUserResponse {
+}
+
+export interface ConfirmRegistrationRequest {
+  code: string;
+}
+
+export interface ConfirmRegistrationResponse {
+}
+
+export interface ResendRegistrationConfirmationRequest {
+  email: string;
+}
+
+export interface ResendRegistrationConfirmationResponse {
+}
+
 export interface GetDevicesRequest {
   auth: VerifiedRefreshTokenClaims | undefined;
 }
@@ -158,6 +181,50 @@ export function AuthServiceControllerMethods() {
 }
 
 export const AUTH_SERVICE_NAME = "AuthService";
+
+export interface RegistrationServiceClient {
+  registerUser(request: RegisterUserRequest): Observable<RegisterUserResponse>;
+
+  confirmRegistration(request: ConfirmRegistrationRequest): Observable<ConfirmRegistrationResponse>;
+
+  resendRegistrationConfirmation(
+    request: ResendRegistrationConfirmationRequest,
+  ): Observable<ResendRegistrationConfirmationResponse>;
+}
+
+export interface RegistrationServiceController {
+  registerUser(
+    request: RegisterUserRequest,
+  ): Promise<RegisterUserResponse> | Observable<RegisterUserResponse> | RegisterUserResponse;
+
+  confirmRegistration(
+    request: ConfirmRegistrationRequest,
+  ): Promise<ConfirmRegistrationResponse> | Observable<ConfirmRegistrationResponse> | ConfirmRegistrationResponse;
+
+  resendRegistrationConfirmation(
+    request: ResendRegistrationConfirmationRequest,
+  ):
+    | Promise<ResendRegistrationConfirmationResponse>
+    | Observable<ResendRegistrationConfirmationResponse>
+    | ResendRegistrationConfirmationResponse;
+}
+
+export function RegistrationServiceControllerMethods() {
+  return function (constructor: Function) {
+    const grpcMethods: string[] = ["registerUser", "confirmRegistration", "resendRegistrationConfirmation"];
+    for (const method of grpcMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcMethod("RegistrationService", method)(constructor.prototype[method], method, descriptor);
+    }
+    const grpcStreamMethods: string[] = [];
+    for (const method of grpcStreamMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcStreamMethod("RegistrationService", method)(constructor.prototype[method], method, descriptor);
+    }
+  };
+}
+
+export const REGISTRATION_SERVICE_NAME = "RegistrationService";
 
 export interface SessionsServiceClient {
   getDevices(request: GetDevicesRequest): Observable<GetDevicesResponse>;

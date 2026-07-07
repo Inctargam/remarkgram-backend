@@ -10,11 +10,13 @@ import {
 import {
   AUTH_SERVICE_NAME,
   PASSWORD_RESET_SERVICE_NAME,
+  REGISTRATION_SERVICE_NAME,
   REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
   SESSIONS_SERVICE_NAME,
   USERS_SERVICE_NAME,
   type AuthServiceClient,
   type PasswordResetServiceClient,
+  type RegistrationServiceClient,
   type SessionsServiceClient,
   type UsersServiceClient,
 } from '@app/user-accounts-grpc';
@@ -38,6 +40,11 @@ describe('ApiGateway (e2e)', () => {
     login: vi.fn<AuthServiceClient['login']>(),
     refreshToken: vi.fn<AuthServiceClient['refreshToken']>(),
   };
+  const registrationServiceClient = {
+    registerUser: vi.fn<RegistrationServiceClient['registerUser']>(),
+    confirmRegistration: vi.fn<RegistrationServiceClient['confirmRegistration']>(),
+    resendRegistrationConfirmation: vi.fn<RegistrationServiceClient['resendRegistrationConfirmation']>(),
+  };
   const sessionsServiceClient = {
     getDevices: vi.fn<SessionsServiceClient['getDevices']>(),
   };
@@ -55,6 +62,8 @@ describe('ApiGateway (e2e)', () => {
           return usersServiceClient;
         case AUTH_SERVICE_NAME:
           return authServiceClient;
+        case REGISTRATION_SERVICE_NAME:
+          return registrationServiceClient;
         case SESSIONS_SERVICE_NAME:
           return sessionsServiceClient;
         case PASSWORD_RESET_SERVICE_NAME:
@@ -101,6 +110,9 @@ describe('ApiGateway (e2e)', () => {
         refreshToken: 'rotated-refresh-token',
       }),
     );
+    registrationServiceClient.registerUser.mockReturnValue(of({}));
+    registrationServiceClient.confirmRegistration.mockReturnValue(of({}));
+    registrationServiceClient.resendRegistrationConfirmation.mockReturnValue(of({}));
     sessionsServiceClient.getDevices.mockReturnValue(
       of({
         devices: [
@@ -186,6 +198,45 @@ describe('ApiGateway (e2e)', () => {
         deviceName: 'Browser',
       }),
     );
+  });
+
+  it('POST /auth/registration delegates validated registration data', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post('/auth/registration')
+      .send({
+        username: 'user_123',
+        email: 'user@example.com',
+        password: 'Password1!',
+      })
+      .expect(204);
+
+    expect(registrationServiceClient.registerUser).toHaveBeenCalledWith({
+      username: 'user_123',
+      email: 'user@example.com',
+      password: 'Password1!',
+    });
+  });
+
+  it('POST /auth/registration/confirmation delegates a confirmation code', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post('/auth/registration/confirmation')
+      .send({ code: 'confirmation-code' })
+      .expect(204);
+
+    expect(registrationServiceClient.confirmRegistration).toHaveBeenCalledWith({
+      code: 'confirmation-code',
+    });
+  });
+
+  it('POST /auth/registration/resend-confirmation delegates an email', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post('/auth/registration/resend-confirmation')
+      .send({ email: 'user@example.com' })
+      .expect(204);
+
+    expect(registrationServiceClient.resendRegistrationConfirmation).toHaveBeenCalledWith({
+      email: 'user@example.com',
+    });
   });
 
   it('POST /auth/refresh-token delegates the cookie to user-accounts', async () => {

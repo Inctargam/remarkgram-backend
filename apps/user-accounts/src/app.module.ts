@@ -46,6 +46,7 @@ import { ResendRegistrationConfirmationUseCase } from './features/users/applicat
 import { UsersService } from './features/users/application/users.service.js';
 import { PrismaUsersRepository } from './features/users/infrastructure/persistence/repositories/prisma-users.repository.js';
 import { UsersGrpcController } from './features/users/presentation/grpc/controllers/users-grpc.controller.js';
+import { RegistrationGrpcController } from './features/users/presentation/grpc/controllers/registration-grpc.controller.js';
 
 @Module({
   imports: [
@@ -74,7 +75,13 @@ import { UsersGrpcController } from './features/users/presentation/grpc/controll
       }),
     }),
   ],
-  controllers: [AuthGrpcController, SessionsGrpcController, UsersGrpcController, PasswordResetGrpcController],
+  controllers: [
+    AuthGrpcController,
+    RegistrationGrpcController,
+    SessionsGrpcController,
+    UsersGrpcController,
+    PasswordResetGrpcController,
+  ],
   providers: [
     {
       provide: UsersRepository,
