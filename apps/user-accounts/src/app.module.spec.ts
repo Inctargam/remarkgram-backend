@@ -19,8 +19,8 @@ describe('UserAccountsModule', () => {
     vi.stubEnv('PASSWORD_RESET_EMAIL_COOLDOWN_MINUTES', '2');
     vi.stubEnv('FRONTEND_URL', '');
     vi.stubEnv('DATABASE_URL', 'postgresql://user:password@localhost:5432/database');
-    vi.stubEnv('EMAIL_LOGIN_GOOGLE', 'user@example.com');
-    vi.stubEnv('EMAIL_PASSWORD_GOOGLE', 'password');
+    vi.stubEnv('EMAIL_LOGIN', 'user@example.com');
+    vi.stubEnv('EMAIL_PASSWORD', 'password');
     vi.stubEnv('SMTP_URL', 'smtp.example.com');
     vi.stubEnv('USER_ACCOUNTS_GRPC_URL', 'localhost:50052');
 

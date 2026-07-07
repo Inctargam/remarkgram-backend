@@ -4,8 +4,8 @@ import { emailConfig } from './email.config.js';
 describe('emailConfig', () => {
   beforeEach(() => {
     vi.stubEnv('SMTP_URL', 'smtp.example.com');
-    vi.stubEnv('EMAIL_LOGIN_GOOGLE', 'user@example.com');
-    vi.stubEnv('EMAIL_PASSWORD_GOOGLE', 'password');
+    vi.stubEnv('EMAIL_LOGIN', 'user@example.com');
+    vi.stubEnv('EMAIL_PASSWORD', 'password');
   });
 
   afterEach(() => {
