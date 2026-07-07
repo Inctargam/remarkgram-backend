@@ -1,9 +1,5 @@
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
-import {
-  ConfirmationCodeExpiredError,
-  EmailAlreadyConfirmedError,
-  InvalidConfirmationCodeError,
-} from '../errors/users.errors.js';
+import { InvalidConfirmationCodeError } from '../errors/users.errors.js';
 import { UsersRepository } from '../ports/users.repository.js';
 
 export class ConfirmRegistrationCommand extends Command<void> {
@@ -17,24 +13,14 @@ export class ConfirmRegistrationUseCase implements ICommandHandler<ConfirmRegist
   constructor(private readonly usersRepository: UsersRepository) {}
 
   async execute(command: ConfirmRegistrationCommand) {
-    const confirmation = await this.usersRepository.getConfirmationInfo(command.code);
-
-    if (!confirmation) {
-      throw new InvalidConfirmationCodeError();
-    }
-
-    if (confirmation.isConfirmed === true) {
-      throw new EmailAlreadyConfirmedError();
-    }
-
-    if (confirmation.isExpired(new Date())) {
-      throw new ConfirmationCodeExpiredError();
-    }
-
     const wasConfirmed = await this.usersRepository.confirmUser(command.code);
 
     if (!wasConfirmed) {
-      throw new EmailAlreadyConfirmedError();
+      // Ноль обновлённых строк означает любое несовпадение ожидаемого состояния: код отсутствует, истёк,
+      // уже заменён конкурентным resend или использован другим confirm-запросом. Точную причину без нового
+      // чтения определить нельзя, а повторное чтение само подвержено race condition, поэтому возвращаем
+      // одну обобщённую ошибку недействительного confirmation code.
+      throw new InvalidConfirmationCodeError();
     }
   }
 }

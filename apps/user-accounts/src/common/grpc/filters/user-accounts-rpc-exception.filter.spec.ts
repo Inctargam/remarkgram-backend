@@ -1,4 +1,5 @@
 import { status } from '@grpc/grpc-js';
+import { USER_ACCOUNTS_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
 import type { ArgumentsHost } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 import {
@@ -27,9 +28,20 @@ describe('UserAccountsRpcExceptionFilter', () => {
     [new SessionAccessDeniedError(), status.PERMISSION_DENIED],
     [new InvalidConfirmationCodeError(), status.INVALID_ARGUMENT],
   ])('maps %s to the corresponding gRPC status', async (error, code) => {
-    await expect(firstValueFrom(filter.catch(error, host))).rejects.toEqual({
-      code,
-      message: error.message,
-    });
+    const rpcError: unknown = await firstValueFrom(filter.catch(error, host)).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(rpcError).toEqual(
+      expect.objectContaining({
+        code,
+        message: error.message,
+      }),
+    );
+    expect(
+      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(
+        USER_ACCOUNTS_ERROR_CODE_METADATA_KEY,
+      ),
+    ).toEqual([error.code]);
   });
 });

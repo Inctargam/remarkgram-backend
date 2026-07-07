@@ -6,7 +6,6 @@ describe('HmacPasswordResetTokenService', () => {
     tokenTtlMinutes: 30,
     tokenSecret: 'test-secret',
     emailCooldownMinutes: 2,
-    frontendUrl: 'http://localhost:3000',
   };
 
   let service: HmacPasswordResetTokenService;

@@ -8,7 +8,8 @@ import { join } from 'node:path';
 import { userAccountsGrpcClientConfig } from './config/user-accounts-grpc-client.config.js';
 import { userAccountsHttpConfig } from './config/user-accounts-http.config.js';
 import { AuthHttpController } from './presentation/http/controllers/auth-http.controller.js';
-import { DevicesHttpController } from './presentation/http/controllers/devices-http.controller.js';
+import { SessionsHttpController } from './presentation/http/controllers/sessions-http.controller.js';
+import { TestingHttpController } from './presentation/http/controllers/testing-http.controller.js';
 import { UsersHttpController } from './presentation/http/controllers/users-http.controller.js';
 import { AccessTokenGuard } from './presentation/http/guards/access-token.guard.js';
 import { OptionalRefreshTokenGuard } from './presentation/http/guards/optional-refresh-token.guard.js';
@@ -43,7 +44,7 @@ const protoPath = join(
       }),
     }),
   ],
-  controllers: [AuthHttpController, DevicesHttpController, UsersHttpController],
+  controllers: [AuthHttpController, SessionsHttpController, TestingHttpController, UsersHttpController],
   providers: [
     OptionalRefreshTokenGuard,
     RefreshTokenGuard,

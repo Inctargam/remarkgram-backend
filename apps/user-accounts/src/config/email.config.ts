@@ -27,8 +27,8 @@ class EmailConfig {
 export const emailConfig = registerAs('email', () => {
   const config = plainToInstance(EmailConfig, {
     emailCredentials: {
-      user: process.env.EMAIL_LOGIN_GOOGLE,
-      password: process.env.EMAIL_PASSWORD_GOOGLE,
+      user: process.env.EMAIL_LOGIN,
+      password: process.env.EMAIL_PASSWORD,
     },
     smtpUrl: process.env.SMTP_URL,
   });

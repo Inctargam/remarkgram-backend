@@ -1,7 +1,7 @@
 import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
-import { status } from '@grpc/grpc-js';
+import { Metadata, status } from '@grpc/grpc-js';
 import {
   FILES_SERVICE_NAME,
   REMARKGRAM_FILES_V1_PACKAGE_NAME,
@@ -10,12 +10,17 @@ import {
 import {
   AUTH_SERVICE_NAME,
   PASSWORD_RESET_SERVICE_NAME,
+  REGISTRATION_SERVICE_NAME,
   REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
   SESSIONS_SERVICE_NAME,
+  TESTING_SERVICE_NAME,
   USERS_SERVICE_NAME,
+  USER_ACCOUNTS_ERROR_CODE_METADATA_KEY,
   type AuthServiceClient,
   type PasswordResetServiceClient,
+  type RegistrationServiceClient,
   type SessionsServiceClient,
+  type TestingServiceClient,
   type UsersServiceClient,
 } from '@app/user-accounts-grpc';
 import { JwtService } from '@nestjs/jwt';
@@ -23,10 +28,12 @@ import cookieParser from 'cookie-parser';
 import { of, throwError } from 'rxjs';
 import request from 'supertest';
 import { ApiGatewayModule } from './../src/api-gateway.module.js';
+import { setupSwagger } from './../src/swagger.js';
 
 type SupertestApp = Parameters<typeof request>[0];
 
 describe('ApiGateway (e2e)', () => {
+  const testingEndpointKey = 'testing-key-with-at-least-32-characters';
   let app: INestApplication;
   const filesServiceClient = {
     uploadFile: vi.fn<FilesServiceClient['uploadFile']>(),
@@ -38,8 +45,19 @@ describe('ApiGateway (e2e)', () => {
     login: vi.fn<AuthServiceClient['login']>(),
     refreshToken: vi.fn<AuthServiceClient['refreshToken']>(),
   };
+  const registrationServiceClient = {
+    registerUser: vi.fn<RegistrationServiceClient['registerUser']>(),
+    confirmRegistration: vi.fn<RegistrationServiceClient['confirmRegistration']>(),
+    resendRegistrationConfirmation: vi.fn<RegistrationServiceClient['resendRegistrationConfirmation']>(),
+  };
   const sessionsServiceClient = {
     getDevices: vi.fn<SessionsServiceClient['getDevices']>(),
+    logoutCurrentSession: vi.fn<SessionsServiceClient['logoutCurrentSession']>(),
+    deleteDevice: vi.fn<SessionsServiceClient['deleteDevice']>(),
+    deleteOtherDevices: vi.fn<SessionsServiceClient['deleteOtherDevices']>(),
+  };
+  const testingServiceClient = {
+    deleteAllData: vi.fn<TestingServiceClient['deleteAllData']>(),
   };
   const passwordResetServiceClient = {
     requestPasswordReset: vi.fn<PasswordResetServiceClient['requestPasswordReset']>(),
@@ -55,8 +73,12 @@ describe('ApiGateway (e2e)', () => {
           return usersServiceClient;
         case AUTH_SERVICE_NAME:
           return authServiceClient;
+        case REGISTRATION_SERVICE_NAME:
+          return registrationServiceClient;
         case SESSIONS_SERVICE_NAME:
           return sessionsServiceClient;
+        case TESTING_SERVICE_NAME:
+          return testingServiceClient;
         case PASSWORD_RESET_SERVICE_NAME:
           return passwordResetServiceClient;
         default:
@@ -78,6 +100,8 @@ describe('ApiGateway (e2e)', () => {
     vi.stubEnv('USER_ACCOUNTS_GRPC_URL', 'localhost:50052');
     vi.stubEnv('JWT_PUBLIC_KEY', 'public-key');
     vi.stubEnv('REFRESH_TOKEN_COOKIE_MAX_AGE_MS', '1200000');
+    vi.stubEnv('ENABLE_TESTING_ENDPOINTS', 'true');
+    vi.stubEnv('TESTING_ENDPOINT_KEY', testingEndpointKey);
     filesServiceClient.uploadFile.mockReturnValue(of({ id: 'file-id' }));
     jwtService.verifyAsync.mockResolvedValue({
       sub: refreshTokenClaims.userId,
@@ -101,6 +125,9 @@ describe('ApiGateway (e2e)', () => {
         refreshToken: 'rotated-refresh-token',
       }),
     );
+    registrationServiceClient.registerUser.mockReturnValue(of({}));
+    registrationServiceClient.confirmRegistration.mockReturnValue(of({}));
+    registrationServiceClient.resendRegistrationConfirmation.mockReturnValue(of({}));
     sessionsServiceClient.getDevices.mockReturnValue(
       of({
         devices: [
@@ -109,10 +136,15 @@ describe('ApiGateway (e2e)', () => {
             title: 'Browser',
             lastActiveDate: '2026-07-01T12:00:00.000Z',
             deviceId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+            isCurrent: true,
           },
         ],
       }),
     );
+    sessionsServiceClient.logoutCurrentSession.mockReturnValue(of({}));
+    sessionsServiceClient.deleteDevice.mockReturnValue(of({}));
+    sessionsServiceClient.deleteOtherDevices.mockReturnValue(of({}));
+    testingServiceClient.deleteAllData.mockReturnValue(of({}));
     passwordResetServiceClient.requestPasswordReset.mockReturnValue(of({ accepted: true }));
     passwordResetServiceClient.confirmPasswordReset.mockReturnValue(of({}));
 
@@ -130,7 +162,79 @@ describe('ApiGateway (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
+    setupSwagger(app);
     await app.init();
+  });
+
+  it('GET /api/docs-json exposes the implemented HTTP API', async () => {
+    const response = await request(app.getHttpServer() as SupertestApp)
+      .get('/api/docs-json')
+      .expect(200);
+    const document = response.body as {
+      paths: Record<string, unknown>;
+      components: { schemas: Record<string, { properties?: Record<string, unknown> }> };
+    };
+
+    expect(Object.keys(document.paths)).toEqual(
+      expect.arrayContaining([
+        '/auth/registration',
+        '/auth/registration/confirmation',
+        '/auth/registration/resend-confirmation',
+        '/auth/login',
+        '/auth/refresh-token',
+        '/auth/password-reset/request',
+        '/auth/password-reset/confirm',
+        '/auth/sessions',
+        '/auth/sessions/current',
+        '/auth/sessions/others',
+        '/auth/sessions/{sessionId}',
+        '/testing/all-data',
+      ]),
+    );
+    expect(document.paths).not.toHaveProperty('/users');
+    expect(document.paths).not.toHaveProperty('/files');
+    expect(document.components.schemas.DeviceResponseDto?.properties).toHaveProperty('isCurrent');
+
+    type OpenApiResponse = {
+      content?: {
+        'application/json'?: {
+          examples?: Record<string, { value: Record<string, unknown> }>;
+        };
+      };
+    };
+    type OpenApiOperation = { responses: Record<string, OpenApiResponse> };
+    const passwordResetConfirmation = document.paths['/auth/password-reset/confirm'] as {
+      post: OpenApiOperation;
+    };
+    const registrationConfirmation = document.paths['/auth/registration/confirmation'] as {
+      post: OpenApiOperation;
+    };
+    const deleteSession = document.paths['/auth/sessions/{sessionId}'] as {
+      delete: OpenApiOperation;
+    };
+
+    expect(
+      passwordResetConfirmation.post.responses['400'].content?.['application/json']?.examples
+        ?.invalidPasswordResetToken?.value,
+    ).toEqual({
+      statusCode: 400,
+      code: 'INVALID_PASSWORD_RESET_TOKEN',
+      message: 'Reset link is invalid or expired.',
+    });
+    expect(registrationConfirmation.post.responses).not.toHaveProperty('409');
+    expect(deleteSession.delete.responses).not.toHaveProperty('403');
+    expect(document.components.schemas.ApiErrorResponseDto?.properties?.statusCode).not.toHaveProperty(
+      'example',
+    );
+  });
+
+  it('DELETE /testing/all-data clears user-accounts data', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .delete('/testing/all-data')
+      .set('X-Testing-Key', testingEndpointKey)
+      .expect(204);
+
+    expect(testingServiceClient.deleteAllData).toHaveBeenCalledWith({});
   });
 
   it('POST /files', async () => {
@@ -165,9 +269,31 @@ describe('ApiGateway (e2e)', () => {
     const response = await request(app.getHttpServer() as SupertestApp)
       .get('/users')
       .expect(401);
-    const body = response.body as { message: string };
+    const body = response.body as { code: string; message: string };
 
     expect(body.message).toBe('Authentication failed');
+    expect(body.code).toBe('UNAUTHENTICATED');
+  });
+
+  it('preserves user-accounts error codes while mapping gRPC status to HTTP', async () => {
+    const metadata = new Metadata();
+    metadata.set(USER_ACCOUNTS_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED');
+    usersServiceClient.getUsers.mockReturnValueOnce(
+      throwError(() => ({
+        code: status.FAILED_PRECONDITION,
+        details: 'Email has not been confirmed',
+        metadata,
+      })),
+    );
+
+    await request(app.getHttpServer() as SupertestApp)
+      .get('/users')
+      .expect(409)
+      .expect({
+        statusCode: 409,
+        code: 'EMAIL_NOT_CONFIRMED',
+        message: 'Email has not been confirmed',
+      });
   });
 
   it('POST /auth/login delegates credentials and stores the refresh token in a cookie', async () => {
@@ -186,6 +312,45 @@ describe('ApiGateway (e2e)', () => {
         deviceName: 'Browser',
       }),
     );
+  });
+
+  it('POST /auth/registration delegates validated registration data', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post('/auth/registration')
+      .send({
+        username: 'user_123',
+        email: 'user@example.com',
+        password: 'Password1!',
+      })
+      .expect(201);
+
+    expect(registrationServiceClient.registerUser).toHaveBeenCalledWith({
+      username: 'user_123',
+      email: 'user@example.com',
+      password: 'Password1!',
+    });
+  });
+
+  it('POST /auth/registration/confirmation delegates a confirmation code', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post('/auth/registration/confirmation')
+      .send({ code: 'confirmation-code' })
+      .expect(204);
+
+    expect(registrationServiceClient.confirmRegistration).toHaveBeenCalledWith({
+      code: 'confirmation-code',
+    });
+  });
+
+  it('POST /auth/registration/resend-confirmation delegates an email', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post('/auth/registration/resend-confirmation')
+      .send({ email: 'user@example.com' })
+      .expect(204);
+
+    expect(registrationServiceClient.resendRegistrationConfirmation).toHaveBeenCalledWith({
+      email: 'user@example.com',
+    });
   });
 
   it('POST /auth/refresh-token delegates the cookie to user-accounts', async () => {
@@ -208,7 +373,7 @@ describe('ApiGateway (e2e)', () => {
     await request(app.getHttpServer() as SupertestApp)
       .post('/auth/password-reset/request')
       .send({ email: 'user@example.com' })
-      .expect(200)
+      .expect(202)
       .expect({ message: 'If this email exists, password reset instructions were sent.' });
 
     expect(passwordResetServiceClient.requestPasswordReset).toHaveBeenCalledWith({
@@ -246,9 +411,9 @@ describe('ApiGateway (e2e)', () => {
     expect(authServiceClient.refreshToken).not.toHaveBeenCalled();
   });
 
-  it('GET /security/devices delegates the refresh token to user-accounts', async () => {
+  it('GET /auth/sessions delegates the refresh token to user-accounts', async () => {
     await request(app.getHttpServer() as SupertestApp)
-      .get('/security/devices')
+      .get('/auth/sessions')
       .set('Cookie', 'refreshToken=current-refresh-token')
       .expect(200)
       .expect([
@@ -257,10 +422,48 @@ describe('ApiGateway (e2e)', () => {
           title: 'Browser',
           lastActiveDate: '2026-07-01T12:00:00.000Z',
           deviceId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+          isCurrent: true,
         },
       ]);
 
     expect(sessionsServiceClient.getDevices).toHaveBeenCalledWith({
+      auth: refreshTokenClaims,
+    });
+  });
+
+  it('DELETE /auth/sessions/current logs out the current session and clears the cookie', async () => {
+    const response = await request(app.getHttpServer() as SupertestApp)
+      .delete('/auth/sessions/current')
+      .set('Cookie', 'refreshToken=current-refresh-token')
+      .expect(204);
+
+    expect(sessionsServiceClient.logoutCurrentSession).toHaveBeenCalledWith({
+      auth: refreshTokenClaims,
+    });
+    expect(response.headers['set-cookie']?.[0]).toContain('refreshToken=;');
+  });
+
+  it('DELETE /auth/sessions/:sessionId deletes the selected session', async () => {
+    const sessionId = '7a63d7e0-9ae7-4e5b-84e4-d770bdb5ef92';
+
+    await request(app.getHttpServer() as SupertestApp)
+      .delete(`/auth/sessions/${sessionId}`)
+      .set('Cookie', 'refreshToken=current-refresh-token')
+      .expect(204);
+
+    expect(sessionsServiceClient.deleteDevice).toHaveBeenCalledWith({
+      auth: refreshTokenClaims,
+      deviceId: sessionId,
+    });
+  });
+
+  it('DELETE /auth/sessions/others deletes all sessions except the current one', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .delete('/auth/sessions/others')
+      .set('Cookie', 'refreshToken=current-refresh-token')
+      .expect(204);
+
+    expect(sessionsServiceClient.deleteOtherDevices).toHaveBeenCalledWith({
       auth: refreshTokenClaims,
     });
   });

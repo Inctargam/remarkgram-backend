@@ -6,7 +6,6 @@ describe('passwordResetConfig', () => {
     vi.stubEnv('PASSWORD_RESET_TOKEN_TTL_MINUTES', '30');
     vi.stubEnv('PASSWORD_RESET_TOKEN_SECRET', 'private');
     vi.stubEnv('PASSWORD_RESET_EMAIL_COOLDOWN_MINUTES', '2');
-    vi.stubEnv('FRONTEND_URL', '');
   });
 
   afterEach(() => {
@@ -18,7 +17,6 @@ describe('passwordResetConfig', () => {
       tokenTtlMinutes: 30,
       tokenSecret: 'private',
       emailCooldownMinutes: 2,
-      frontendUrl: '',
     });
   });
 

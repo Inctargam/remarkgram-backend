@@ -11,11 +11,21 @@ service AuthService {
   rpc RefreshToken(RefreshTokenRequest) returns (TokenPairResponse);
 }
 
+service RegistrationService {
+  rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
+  rpc ConfirmRegistration(ConfirmRegistrationRequest) returns (ConfirmRegistrationResponse);
+  rpc ResendRegistrationConfirmation(ResendRegistrationConfirmationRequest) returns (ResendRegistrationConfirmationResponse);
+}
+
 service SessionsService {
   rpc GetDevices(GetDevicesRequest) returns (GetDevicesResponse);
   rpc LogoutCurrentSession(LogoutCurrentSessionRequest) returns (LogoutCurrentSessionResponse);
   rpc DeleteDevice(DeleteDeviceRequest) returns (DeleteDeviceResponse);
   rpc DeleteOtherDevices(DeleteOtherDevicesRequest) returns (DeleteOtherDevicesResponse);
+}
+
+service TestingService {
+  rpc DeleteAllData(DeleteAllDataRequest) returns (DeleteAllDataResponse);
 }
 
 message GetUsersRequest {}
@@ -55,6 +65,26 @@ message TokenPairResponse {
   string refresh_token = 2;
 }
 
+message RegisterUserRequest {
+  string username = 1;
+  string email = 2;
+  string password = 3;
+}
+
+message RegisterUserResponse {}
+
+message ConfirmRegistrationRequest {
+  string code = 1;
+}
+
+message ConfirmRegistrationResponse {}
+
+message ResendRegistrationConfirmationRequest {
+  string email = 1;
+}
+
+message ResendRegistrationConfirmationResponse {}
+
 message GetDevicesRequest {
   VerifiedRefreshTokenClaims auth = 1;
 }
@@ -64,6 +94,7 @@ message Device {
   string title = 2;
   string last_active_date = 3;
   string device_id = 4;
+  bool is_current = 5;
 }
 
 message GetDevicesResponse {
@@ -88,6 +119,10 @@ message DeleteOtherDevicesRequest {
 }
 
 message DeleteOtherDevicesResponse {}
+
+message DeleteAllDataRequest {}
+
+message DeleteAllDataResponse {}
 
 
 service PasswordResetService {

@@ -6,6 +6,7 @@ import { UnitOfWork } from './common/application/unit-of-work.js';
 import { authConfig } from './config/auth.config.js';
 import { databaseConfig } from './config/database.config.js';
 import { emailConfig } from './config/email.config.js';
+import { frontendConfig } from './config/frontend.config.js';
 import { passwordResetConfig } from './config/password-reset.config.js';
 import { userAccountsGrpcConfig } from './config/user-accounts-grpc.config.js';
 import { PrismaModule } from './database/prisma.module.js';
@@ -37,6 +38,10 @@ import { LogoutCurrentSessionUseCase } from './features/sessions/application/use
 import { PrismaSessionsQueryRepository } from './features/sessions/infrastructure/persistence/prisma-sessions-query.repository.js';
 import { PrismaSessionsRepository } from './features/sessions/infrastructure/persistence/prisma-sessions.repository.js';
 import { SessionsGrpcController } from './features/sessions/presentation/grpc/controllers/sessions-grpc.controller.js';
+import { TestingRepository } from './features/testing/application/ports/testing.repository.js';
+import { DeleteAllDataUseCase } from './features/testing/application/use-cases/delete-all-data.use-case.js';
+import { PrismaTestingRepository } from './features/testing/infrastructure/persistence/prisma-testing.repository.js';
+import { TestingGrpcController } from './features/testing/presentation/grpc/controllers/testing-grpc.controller.js';
 import { UsersRepository } from './features/users/application/ports/users.repository.js';
 import { CreateUserUseCase } from './features/users/application/use-cases/create-user.use-case.js';
 import { ConfirmRegistrationUseCase } from './features/users/application/use-cases/confirm-registration.use-case.js';
@@ -46,6 +51,7 @@ import { ResendRegistrationConfirmationUseCase } from './features/users/applicat
 import { UsersService } from './features/users/application/users.service.js';
 import { PrismaUsersRepository } from './features/users/infrastructure/persistence/repositories/prisma-users.repository.js';
 import { UsersGrpcController } from './features/users/presentation/grpc/controllers/users-grpc.controller.js';
+import { RegistrationGrpcController } from './features/users/presentation/grpc/controllers/registration-grpc.controller.js';
 
 @Module({
   imports: [
@@ -61,7 +67,14 @@ import { UsersGrpcController } from './features/users/presentation/grpc/controll
         `.env.production`,
         '.env',
       ],
-      load: [authConfig, databaseConfig, emailConfig, passwordResetConfig, userAccountsGrpcConfig],
+      load: [
+        authConfig,
+        databaseConfig,
+        emailConfig,
+        frontendConfig,
+        passwordResetConfig,
+        userAccountsGrpcConfig,
+      ],
     }),
     CqrsModule,
     PrismaModule,
@@ -74,7 +87,14 @@ import { UsersGrpcController } from './features/users/presentation/grpc/controll
       }),
     }),
   ],
-  controllers: [AuthGrpcController, SessionsGrpcController, UsersGrpcController, PasswordResetGrpcController],
+  controllers: [
+    AuthGrpcController,
+    RegistrationGrpcController,
+    SessionsGrpcController,
+    UsersGrpcController,
+    PasswordResetGrpcController,
+    TestingGrpcController,
+  ],
   providers: [
     {
       provide: UsersRepository,
@@ -99,6 +119,10 @@ import { UsersGrpcController } from './features/users/presentation/grpc/controll
     {
       provide: PasswordResetUsersRepository,
       useClass: PrismaPasswordResetUsersRepository,
+    },
+    {
+      provide: TestingRepository,
+      useClass: PrismaTestingRepository,
     },
     {
       provide: PasswordHasher,
@@ -128,6 +152,7 @@ import { UsersGrpcController } from './features/users/presentation/grpc/controll
     ResendRegistrationConfirmationUseCase,
     RequestPasswordResetUseCase,
     ConfirmPasswordResetUseCase,
+    DeleteAllDataUseCase,
   ],
 })
 export class UserAccountsModule {}

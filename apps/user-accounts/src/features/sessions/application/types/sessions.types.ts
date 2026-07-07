@@ -3,6 +3,7 @@ export type SessionView = {
   deviceName: string;
   lastActiveAt: Date;
   sessionId: string;
+  isCurrent: boolean;
 };
 
 export type SessionIdentity = {
@@ -21,6 +22,7 @@ export type SessionRevokedReason =
 
 export type CreateSessionParams = {
   userId: string;
+  expectedPasswordHash: string;
   sessionId: string;
   deviceName: string;
   ip: string;
