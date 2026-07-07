@@ -6,6 +6,7 @@ import { UnitOfWork } from './common/application/unit-of-work.js';
 import { authConfig } from './config/auth.config.js';
 import { databaseConfig } from './config/database.config.js';
 import { emailConfig } from './config/email.config.js';
+import { frontendConfig } from './config/frontend.config.js';
 import { passwordResetConfig } from './config/password-reset.config.js';
 import { userAccountsGrpcConfig } from './config/user-accounts-grpc.config.js';
 import { PrismaModule } from './database/prisma.module.js';
@@ -62,7 +63,14 @@ import { RegistrationGrpcController } from './features/users/presentation/grpc/c
         `.env.production`,
         '.env',
       ],
-      load: [authConfig, databaseConfig, emailConfig, passwordResetConfig, userAccountsGrpcConfig],
+      load: [
+        authConfig,
+        databaseConfig,
+        emailConfig,
+        frontendConfig,
+        passwordResetConfig,
+        userAccountsGrpcConfig,
+      ],
     }),
     CqrsModule,
     PrismaModule,

@@ -17,9 +17,6 @@ class PasswordResetConfig {
   @Min(1)
   @Type(() => Number)
   declare readonly emailCooldownMinutes: number;
-
-  @IsString()
-  declare readonly frontendUrl: string;
 }
 
 export const passwordResetConfig = registerAs('passwordReset', () => {
@@ -27,7 +24,6 @@ export const passwordResetConfig = registerAs('passwordReset', () => {
     tokenTtlMinutes: process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES,
     tokenSecret: process.env.PASSWORD_RESET_TOKEN_SECRET,
     emailCooldownMinutes: process.env.PASSWORD_RESET_EMAIL_COOLDOWN_MINUTES,
-    frontendUrl: process.env.FRONTEND_URL,
   });
 
   configValidationUtility.validateConfig(config);

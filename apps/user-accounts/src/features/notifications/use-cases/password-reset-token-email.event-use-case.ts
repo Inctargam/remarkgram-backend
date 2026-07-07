@@ -1,11 +1,10 @@
 import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
 import { MailerService } from '@nestjs-modules/mailer';
 import { Inject, Logger } from '@nestjs/common';
-import { passwordResetConfig } from '../../../config/password-reset.config.js';
 import type { ConfigType } from '@nestjs/config';
+import { frontendConfig } from '../../../config/frontend.config.js';
 
-const DEFAULT_FRONTEND_URL = 'https://remarkgram.com';
-const DEFAULT_PASSWORD_RESET_PATH = '/auth/password-reset/confirm';
+const PASSWORD_RESET_PATH = '/auth/password-reset/confirm';
 
 export class PasswordResetTokenEmailEvent {
   constructor(
@@ -20,11 +19,11 @@ export class PasswordResetTokenEmailHandler implements IEventHandler<PasswordRes
 
   constructor(
     private readonly mailerService: MailerService,
-    @Inject(passwordResetConfig.KEY) private readonly config: ConfigType<typeof passwordResetConfig>,
+    @Inject(frontendConfig.KEY) private readonly frontend: ConfigType<typeof frontendConfig>,
   ) {}
 
   async handle(event: PasswordResetTokenEmailEvent): Promise<void> {
-    const url = this.buildPasswordResetUrl(event.token);
+    const url = buildPasswordResetUrl(event.token, this.frontend.baseUrl);
 
     try {
       await this.mailerService.sendMail({
@@ -37,36 +36,13 @@ export class PasswordResetTokenEmailHandler implements IEventHandler<PasswordRes
       this.logger.error('Failed to send password reset email', error);
     }
   }
-
-  private buildPasswordResetUrl(token: string): URL {
-    return buildPasswordResetUrl(token, this.config.frontendUrl);
-  }
 }
 
 export function buildPasswordResetUrl(token: string, frontendUrl: string): URL {
-  const url = new URL(normalizeFrontendUrl(frontendUrl));
-
-  if (url.pathname === '/' && !url.search) {
-    url.pathname = DEFAULT_PASSWORD_RESET_PATH;
-  }
-
+  const url = new URL(PASSWORD_RESET_PATH, frontendUrl);
   url.searchParams.set('token', token);
 
   return url;
-}
-
-function normalizeFrontendUrl(frontendUrl: string): string {
-  const trimmedFrontendUrl = frontendUrl.trim();
-
-  if (!trimmedFrontendUrl) {
-    return DEFAULT_FRONTEND_URL;
-  }
-
-  if (/^[a-z][a-z\d+\-.]*:\/\//i.test(trimmedFrontendUrl)) {
-    return trimmedFrontendUrl;
-  }
-
-  return `http://${trimmedFrontendUrl}`;
 }
 
 export function buildPasswordResetEmailText(resetUrl: string): string {

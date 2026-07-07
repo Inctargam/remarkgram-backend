@@ -77,4 +77,21 @@ describe('RegisterUserUseCase', () => {
       emailService.sendConfirmationCode.mock.invocationCallOrder[0],
     );
   });
+
+  it('propagates confirmation email delivery errors', async () => {
+    const error = new Error('SMTP unavailable');
+    emailService.sendConfirmationCode.mockRejectedValue(error);
+
+    await expect(
+      useCase.execute(
+        new RegisterUserCommand({
+          username: 'user',
+          email: 'user@example.com',
+          password: 'password',
+        }),
+      ),
+    ).rejects.toBe(error);
+
+    expect(usersService.createUser).toHaveBeenCalledOnce();
+  });
 });
