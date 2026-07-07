@@ -26,20 +26,22 @@ import {
   ApiAcceptedResponse,
   ApiBadGatewayResponse,
   ApiBadRequestResponse,
-  ApiConflictResponse,
   ApiCookieAuth,
   ApiCreatedResponse,
+  ApiExtraModels,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiResponse,
   ApiServiceUnavailableResponse,
   ApiTags,
-  ApiUnauthorizedResponse,
+  getSchemaPath,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { firstValueFrom } from 'rxjs';
 import { ApiErrorResponseDto } from '../../../../../common/http/api-error-response.dto.js';
 import { Public } from '../../../../../common/http/decorators/public.decorator.js';
+import { ValidationErrorResponseDto } from '../../../../../common/http/validation-error-response.dto.js';
 import { userAccountsHttpConfig } from '../../../config/user-accounts-http.config.js';
 import type { RequestWithOptionalRefreshSession, RequestWithRefreshSession } from '../auth-request.types.js';
 import { LoginDto } from '../dto/input/login.dto.js';
@@ -55,6 +57,7 @@ import { ResendRegistrationConfirmationDto } from '../dto/input/resend-registrat
 import { ConfirmPasswordResetResponseDto } from '../dto/output/confirm-password-reset-response.dto.js';
 
 @ApiTags('Auth')
+@ApiExtraModels(ApiErrorResponseDto, ValidationErrorResponseDto)
 @ApiBadGatewayResponse({ description: 'The upstream service returned an unexpected error.' })
 @ApiServiceUnavailableResponse({ description: 'The user-accounts service is unavailable.' })
 @Controller('auth')
@@ -83,10 +86,33 @@ export class AuthHttpController implements OnModuleInit {
   @HttpCode(201)
   @ApiOperation({ summary: 'Register a user and send an email confirmation link' })
   @ApiCreatedResponse({ description: 'The user was registered and the confirmation email was sent.' })
-  @ApiBadRequestResponse({ description: 'The request body is invalid.', type: ApiErrorResponseDto })
-  @ApiConflictResponse({
+  @ApiBadRequestResponse({ description: 'The request body is invalid.', type: ValidationErrorResponseDto })
+  @ApiResponse({
+    status: 409,
     description: 'The username or email is already reserved.',
-    type: ApiErrorResponseDto,
+    content: {
+      'application/json': {
+        schema: { $ref: getSchemaPath(ApiErrorResponseDto) },
+        examples: {
+          usernameAlreadyExists: {
+            summary: 'Username is already reserved',
+            value: {
+              statusCode: 409,
+              code: 'USERNAME_ALREADY_EXISTS',
+              message: 'Username already exists',
+            },
+          },
+          emailAlreadyExists: {
+            summary: 'Email is already reserved',
+            value: {
+              statusCode: 409,
+              code: 'EMAIL_ALREADY_EXISTS',
+              message: 'Email already exists',
+            },
+          },
+        },
+      },
+    },
   })
   async register(@Body() input: RegistrationDto): Promise<void> {
     await firstValueFrom(
@@ -103,10 +129,37 @@ export class AuthHttpController implements OnModuleInit {
   @HttpCode(204)
   @ApiOperation({ summary: 'Confirm registration using the code from the email link' })
   @ApiNoContentResponse({ description: 'The email was confirmed.' })
-  @ApiBadRequestResponse({ description: 'The confirmation code is invalid.', type: ApiErrorResponseDto })
-  @ApiConflictResponse({
-    description: 'The confirmation code has expired or the email is already confirmed.',
-    type: ApiErrorResponseDto,
+  @ApiResponse({
+    status: 400,
+    description: 'The request body or confirmation code is invalid.',
+    content: {
+      'application/json': {
+        schema: {
+          oneOf: [
+            { $ref: getSchemaPath(ApiErrorResponseDto) },
+            { $ref: getSchemaPath(ValidationErrorResponseDto) },
+          ],
+        },
+        examples: {
+          validationError: {
+            summary: 'Request validation failed',
+            value: {
+              statusCode: 400,
+              message: ['code should not be empty'],
+              error: 'Bad Request',
+            },
+          },
+          invalidConfirmationCode: {
+            summary: 'Confirmation code is invalid, expired, replaced or already used',
+            value: {
+              statusCode: 400,
+              code: 'INVALID_CONFIRMATION_CODE',
+              message: 'Confirmation code is invalid',
+            },
+          },
+        },
+      },
+    },
   })
   async confirmRegistration(@Body() input: ConfirmRegistrationDto): Promise<void> {
     await firstValueFrom(this.registrationClient.confirmRegistration({ code: input.code }));
@@ -117,8 +170,57 @@ export class AuthHttpController implements OnModuleInit {
   @HttpCode(204)
   @ApiOperation({ summary: 'Send a new registration confirmation link' })
   @ApiNoContentResponse({ description: 'A new confirmation email was sent when resending was applicable.' })
-  @ApiBadRequestResponse({ description: 'The email is invalid or unknown.', type: ApiErrorResponseDto })
-  @ApiConflictResponse({ description: 'The email is already confirmed.', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: 'The email is malformed or does not belong to a user.',
+    content: {
+      'application/json': {
+        schema: {
+          oneOf: [
+            { $ref: getSchemaPath(ApiErrorResponseDto) },
+            { $ref: getSchemaPath(ValidationErrorResponseDto) },
+          ],
+        },
+        examples: {
+          validationError: {
+            summary: 'Email format is invalid',
+            value: {
+              statusCode: 400,
+              message: ['email must be an email'],
+              error: 'Bad Request',
+            },
+          },
+          incorrectEmail: {
+            summary: 'Email does not belong to a user',
+            value: {
+              statusCode: 400,
+              code: 'INCORRECT_EMAIL',
+              message: 'Email is incorrect',
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'The email is already confirmed.',
+    content: {
+      'application/json': {
+        schema: { $ref: getSchemaPath(ApiErrorResponseDto) },
+        examples: {
+          emailAlreadyConfirmed: {
+            summary: 'Email is already confirmed',
+            value: {
+              statusCode: 409,
+              code: 'EMAIL_ALREADY_CONFIRMED',
+              message: 'Email is already confirmed',
+            },
+          },
+        },
+      },
+    },
+  })
   async resendRegistrationConfirmation(@Body() input: ResendRegistrationConfirmationDto): Promise<void> {
     await firstValueFrom(this.registrationClient.resendRegistrationConfirmation({ email: input.email }));
   }
@@ -132,11 +234,52 @@ export class AuthHttpController implements OnModuleInit {
     description: 'Returns an access token and stores the refresh token in an httpOnly cookie.',
   })
   @ApiOkResponse({ description: 'Authentication succeeded.', type: AccessTokenResponseDto })
-  @ApiBadRequestResponse({ description: 'The request body is invalid.' })
-  @ApiUnauthorizedResponse({ description: 'The email or password is incorrect.', type: ApiErrorResponseDto })
-  @ApiConflictResponse({
+  @ApiBadRequestResponse({ description: 'The request body is invalid.', type: ValidationErrorResponseDto })
+  @ApiResponse({
+    status: 401,
+    description: 'The email or password is incorrect.',
+    content: {
+      'application/json': {
+        schema: { $ref: getSchemaPath(ApiErrorResponseDto) },
+        examples: {
+          incorrectCredentials: {
+            summary: 'Credentials are incorrect',
+            value: {
+              statusCode: 401,
+              code: 'INCORRECT_CREDENTIALS',
+              message: 'Incorrect email/password',
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 409,
     description: 'The email is not confirmed or the session is already active.',
-    type: ApiErrorResponseDto,
+    content: {
+      'application/json': {
+        schema: { $ref: getSchemaPath(ApiErrorResponseDto) },
+        examples: {
+          emailNotConfirmed: {
+            summary: 'Email is not confirmed',
+            value: {
+              statusCode: 409,
+              code: 'EMAIL_NOT_CONFIRMED',
+              message: 'Email has not been confirmed',
+            },
+          },
+          userAlreadyLoggedIn: {
+            summary: 'The supplied refresh cookie belongs to an active session',
+            value: {
+              statusCode: 409,
+              code: 'USER_ALREADY_LOGGED_IN',
+              message: 'The user is already logged in',
+            },
+          },
+        },
+      },
+    },
   })
   async login(
     @Body() input: LoginDto,
@@ -169,9 +312,24 @@ export class AuthHttpController implements OnModuleInit {
     description: 'Returns a new access token and replaces the refresh token cookie.',
   })
   @ApiOkResponse({ description: 'The token pair was rotated.', type: AccessTokenResponseDto })
-  @ApiUnauthorizedResponse({
+  @ApiResponse({
+    status: 401,
     description: 'The refresh token or its session is invalid.',
-    type: ApiErrorResponseDto,
+    content: {
+      'application/json': {
+        schema: { $ref: getSchemaPath(ApiErrorResponseDto) },
+        examples: {
+          noActiveSession: {
+            summary: 'The refresh token is not linked to an active session',
+            value: {
+              statusCode: 401,
+              code: 'NO_ACTIVE_SESSION',
+              message: 'No active session found',
+            },
+          },
+        },
+      },
+    },
   })
   async refreshToken(
     @Req() request: RequestWithRefreshSession,
@@ -199,7 +357,7 @@ export class AuthHttpController implements OnModuleInit {
     description: 'The request was accepted without revealing whether the email exists.',
     type: PasswordResetResponse,
   })
-  @ApiBadRequestResponse({ description: 'The email is invalid.' })
+  @ApiBadRequestResponse({ description: 'The email is invalid.', type: ValidationErrorResponseDto })
   async passwordReset(@Body() inputDto: PasswordResetDto): Promise<PasswordResetResponse> {
     await firstValueFrom(this.passResetClient.requestPasswordReset(inputDto));
     return new PasswordResetResponse();
@@ -213,9 +371,37 @@ export class AuthHttpController implements OnModuleInit {
     description: 'The password was changed and active sessions were revoked.',
     type: ConfirmPasswordResetResponseDto,
   })
-  @ApiBadRequestResponse({
+  @ApiResponse({
+    status: 400,
     description: 'The reset token or new password is invalid.',
-    type: ApiErrorResponseDto,
+    content: {
+      'application/json': {
+        schema: {
+          oneOf: [
+            { $ref: getSchemaPath(ApiErrorResponseDto) },
+            { $ref: getSchemaPath(ValidationErrorResponseDto) },
+          ],
+        },
+        examples: {
+          validationError: {
+            summary: 'The new password does not satisfy the password policy',
+            value: {
+              statusCode: 400,
+              message: ['newPassword must be longer than or equal to 6 characters'],
+              error: 'Bad Request',
+            },
+          },
+          invalidPasswordResetToken: {
+            summary: 'The reset link is invalid, expired, revoked or already used',
+            value: {
+              statusCode: 400,
+              code: 'INVALID_PASSWORD_RESET_TOKEN',
+              message: 'Reset link is invalid or expired.',
+            },
+          },
+        },
+      },
+    },
   })
   async confirmPasswordReset(
     @Body() inputDto: ConfirmPasswordResetDto,

@@ -194,6 +194,38 @@ describe('ApiGateway (e2e)', () => {
     expect(document.paths).not.toHaveProperty('/users');
     expect(document.paths).not.toHaveProperty('/files');
     expect(document.components.schemas.DeviceResponseDto?.properties).toHaveProperty('isCurrent');
+
+    type OpenApiResponse = {
+      content?: {
+        'application/json'?: {
+          examples?: Record<string, { value: Record<string, unknown> }>;
+        };
+      };
+    };
+    type OpenApiOperation = { responses: Record<string, OpenApiResponse> };
+    const passwordResetConfirmation = document.paths['/auth/password-reset/confirm'] as {
+      post: OpenApiOperation;
+    };
+    const registrationConfirmation = document.paths['/auth/registration/confirmation'] as {
+      post: OpenApiOperation;
+    };
+    const deleteSession = document.paths['/auth/sessions/{sessionId}'] as {
+      delete: OpenApiOperation;
+    };
+
+    expect(
+      passwordResetConfirmation.post.responses['400'].content?.['application/json']?.examples
+        ?.invalidPasswordResetToken?.value,
+    ).toEqual({
+      statusCode: 400,
+      code: 'INVALID_PASSWORD_RESET_TOKEN',
+      message: 'Reset link is invalid or expired.',
+    });
+    expect(registrationConfirmation.post.responses).not.toHaveProperty('409');
+    expect(deleteSession.delete.responses).not.toHaveProperty('403');
+    expect(document.components.schemas.ApiErrorResponseDto?.properties?.statusCode).not.toHaveProperty(
+      'example',
+    );
   });
 
   it('DELETE /testing/all-data clears user-accounts data', async () => {

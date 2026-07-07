@@ -1,13 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ApiErrorResponseDto {
-  @ApiProperty({ example: 409 })
+  @ApiProperty({ description: 'HTTP status code.' })
   readonly statusCode: number;
 
-  @ApiProperty({ example: 'EMAIL_ALREADY_EXISTS' })
+  @ApiProperty({ description: 'Stable machine-readable application error code.' })
   readonly code: string;
 
-  @ApiProperty({ example: 'Email already exists' })
+  @ApiProperty({ description: 'Human-readable diagnostic message.' })
   readonly message: string;
 
   constructor(statusCode: number, code: string, message: string) {
