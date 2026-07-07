@@ -27,13 +27,19 @@ export class ConfirmRegistrationUseCase implements ICommandHandler<ConfirmRegist
       throw new EmailAlreadyConfirmedError();
     }
 
-    if (confirmation.isExpired(new Date())) {
-      throw new ConfirmationCodeExpiredError();
-    }
-
-    const wasConfirmed = await this.usersRepository.confirmUser(command.code);
+    const { wasConfirmed, checkedAt } = await this.usersRepository.confirmUser(command.code);
 
     if (!wasConfirmed) {
+      // checkedAt намеренно возвращается из того же SQL statement, в котором CURRENT_TIMESTAMP проверяет
+      // срок действия кода. Если после await создать новую дату, код может истечь уже после завершения UPDATE,
+      // который вернул false по другой причине, например из-за конкурентного подтверждения пользователя.
+      // Тогда более позднее время приложения ошибочно превратит EmailAlreadyConfirmedError в
+      // ConfirmationCodeExpiredError. Сравнение с checkedAt фиксирует единый момент принятия решения в БД
+      // и устраняет race condition при определении причины отказа.
+      if (confirmation.isExpired(checkedAt)) {
+        throw new ConfirmationCodeExpiredError();
+      }
+
       throw new EmailAlreadyConfirmedError();
     }
   }

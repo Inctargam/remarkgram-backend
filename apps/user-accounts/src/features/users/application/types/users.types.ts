@@ -24,6 +24,11 @@ export type ReleaseExpiredRegistrationCredentialsParams = Pick<RegisterUserParam
   now: Date;
 };
 
+export type ConfirmUserResult = {
+  wasConfirmed: boolean;
+  checkedAt: Date;
+};
+
 export type UpdateConfirmationCodeParams = {
   userId: number;
   code: string;

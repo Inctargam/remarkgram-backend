@@ -13,7 +13,10 @@ describe('ConfirmRegistrationUseCase', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-01T12:00:00.000Z'));
     vi.clearAllMocks();
-    usersRepository.confirmUser.mockResolvedValue(true);
+    usersRepository.confirmUser.mockResolvedValue({
+      wasConfirmed: true,
+      checkedAt: new Date('2026-07-01T12:00:00.000Z'),
+    });
     useCase = new ConfirmRegistrationUseCase(usersRepository as unknown as UsersRepository);
   });
 
@@ -34,8 +37,6 @@ describe('ConfirmRegistrationUseCase', () => {
   it.each([
     [null, 'Confirmation code is invalid'],
     [ConfirmationInfo.confirmed(), 'Email is already confirmed'],
-    [ConfirmationInfo.pending('code', new Date('2026-07-01T11:00:00.000Z')), 'Confirmation code has expired'],
-    [ConfirmationInfo.pending('code', new Date('2026-07-01T12:00:00.000Z')), 'Confirmation code has expired'],
   ])('rejects invalid confirmation info', async (confirmation, message) => {
     usersRepository.getConfirmationInfo.mockResolvedValue(confirmation);
 
@@ -43,11 +44,31 @@ describe('ConfirmRegistrationUseCase', () => {
     expect(usersRepository.confirmUser).not.toHaveBeenCalled();
   });
 
-  it('throws when another request confirms the registration first', async () => {
+  it.each([
+    ConfirmationInfo.pending('code', new Date('2026-07-01T11:00:00.000Z')),
+    ConfirmationInfo.pending('code', new Date('2026-07-01T12:00:00.000Z')),
+  ])('rejects an expired code after the atomic update declines it', async (confirmation) => {
+    usersRepository.getConfirmationInfo.mockResolvedValue(confirmation);
+    usersRepository.confirmUser.mockResolvedValue({
+      wasConfirmed: false,
+      checkedAt: new Date('2026-07-01T12:00:00.000Z'),
+    });
+
+    await expect(useCase.execute(new ConfirmRegistrationCommand('code'))).rejects.toThrow(
+      'Confirmation code has expired',
+    );
+    expect(usersRepository.confirmUser).toHaveBeenCalledWith('code');
+  });
+
+  it('uses the database check timestamp when another request confirms the registration first', async () => {
     usersRepository.getConfirmationInfo.mockResolvedValue(
       ConfirmationInfo.pending('code', new Date('2026-07-01T13:00:00.000Z')),
     );
-    usersRepository.confirmUser.mockResolvedValue(false);
+    usersRepository.confirmUser.mockResolvedValue({
+      wasConfirmed: false,
+      checkedAt: new Date('2026-07-01T12:00:00.000Z'),
+    });
+    vi.setSystemTime(new Date('2026-07-01T14:00:00.000Z'));
 
     await expect(useCase.execute(new ConfirmRegistrationCommand('code'))).rejects.toThrow(
       'Email is already confirmed',
