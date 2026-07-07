@@ -3,17 +3,71 @@ import { InvalidUserIdError } from '../../application/errors/sessions.errors.js'
 import { PrismaSessionsRepository } from './prisma-sessions.repository.js';
 
 describe('PrismaSessionsRepository', () => {
+  const findFirst = vi.fn();
+  const findUnique = vi.fn();
   const updateMany = vi.fn();
-  const deleteMany = vi.fn();
   const executeRaw = vi.fn();
   const prisma = {
-    deviceSession: { updateMany, deleteMany },
+    deviceSession: { findFirst, findUnique, updateMany },
     $executeRaw: executeRaw,
   };
   const repository = new PrismaSessionsRepository(prisma as unknown as PrismaService);
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('checks that a session is active by user, session, jti, revocation and expiration', async () => {
+    findFirst.mockResolvedValue({ id: 'e3637e61-194b-4f79-9676-e59a20bb7c42' });
+
+    await expect(
+      repository.isSessionActive({
+        userId: '1',
+        sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+        jti: 'jti',
+      }),
+    ).resolves.toBe(true);
+    expect(findFirst).toHaveBeenCalledWith({
+      select: { id: true },
+      where: {
+        id: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+        userId: 1,
+        jti: 'jti',
+        revokedAt: null,
+        expiresAt: { gt: expect.any(Date) as Date },
+      },
+    });
+  });
+
+  it('reports a session as inactive when no active row is found', async () => {
+    findFirst.mockResolvedValue(null);
+
+    await expect(
+      repository.isSessionActive({
+        userId: '1',
+        sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+        jti: 'jti',
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it('returns the owner of an active session', async () => {
+    findUnique.mockResolvedValue({ userId: 1 });
+
+    await expect(repository.getSessionOwner('e3637e61-194b-4f79-9676-e59a20bb7c42')).resolves.toBe('1');
+    expect(findUnique).toHaveBeenCalledWith({
+      select: { userId: true },
+      where: {
+        id: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+        revokedAt: null,
+      },
+    });
+  });
+
+  it('returns null when an active session owner is not found', async () => {
+    findUnique.mockResolvedValue(null);
+
+    await expect(repository.getSessionOwner('e3637e61-194b-4f79-9676-e59a20bb7c42')).resolves.toBeNull();
   });
 
   it('creates a session only while the password hash remains unchanged', async () => {
@@ -63,7 +117,7 @@ describe('PrismaSessionsRepository', () => {
     ).resolves.toBe(false);
   });
 
-  it('atomically rotates a refresh token only when the current jti matches', async () => {
+  it('atomically rotates a refresh token only when the current jti matches an active session', async () => {
     const params = {
       userId: '1',
       sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
@@ -82,6 +136,8 @@ describe('PrismaSessionsRepository', () => {
         id: params.sessionId,
         userId: 1,
         jti: params.currentJti,
+        revokedAt: null,
+        expiresAt: { gt: expect.any(Date) as Date },
       },
       data: {
         jti: params.newJti,
@@ -91,129 +147,191 @@ describe('PrismaSessionsRepository', () => {
         expiresAt: params.expiresAt,
       },
     });
+    expect(updateMany).toHaveBeenCalledOnce();
   });
 
-  it('reports a stale refresh token when no session was updated', async () => {
-    updateMany.mockResolvedValue({ count: 0 });
+  it('revokes a still-active session as compromised when refresh token reuse is detected', async () => {
+    const params = {
+      userId: '1',
+      sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+      currentJti: 'stale-jti',
+      newJti: 'new-jti',
+      deviceName: 'Browser',
+      ip: '127.0.0.1',
+      lastActiveAt: new Date('2026-07-01T12:00:00.000Z'),
+      expiresAt: new Date('2026-07-02T12:00:00.000Z'),
+    };
+    updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 });
 
-    await expect(
-      repository.rotateRefreshToken({
-        userId: '1',
-        sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
-        currentJti: 'stale-jti',
-        newJti: 'new-jti',
-        deviceName: 'Browser',
-        ip: '127.0.0.1',
-        lastActiveAt: new Date('2026-07-01T12:00:00.000Z'),
-        expiresAt: new Date('2026-07-02T12:00:00.000Z'),
-      }),
-    ).resolves.toBe(false);
+    await expect(repository.rotateRefreshToken(params)).resolves.toBe(false);
+    expect(updateMany).toHaveBeenNthCalledWith(2, {
+      where: {
+        id: params.sessionId,
+        userId: 1,
+        revokedAt: null,
+        expiresAt: { gt: expect.any(Date) as Date },
+        NOT: { jti: params.currentJti },
+      },
+      data: {
+        revokedAt: expect.any(Date) as Date,
+        revokedReason: 'TOKEN_REUSE_DETECTED',
+      },
+    });
   });
 
-  it('deletes current session only when user, session and jti match', async () => {
-    const auth = {
+  it('revokes current session only when user, session and jti match', async () => {
+    const params = {
       userId: '1',
       sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
       jti: 'jti',
+      reason: 'USER_LOGOUT' as const,
     };
-    deleteMany.mockResolvedValue({ count: 1 });
+    updateMany.mockResolvedValue({ count: 1 });
 
-    await expect(repository.deleteCurrentSession(auth)).resolves.toBe(true);
-    expect(deleteMany).toHaveBeenCalledWith({
+    await expect(repository.revokeCurrentSession(params)).resolves.toBe(true);
+    expect(updateMany).toHaveBeenCalledWith({
       where: {
-        id: auth.sessionId,
+        id: params.sessionId,
         userId: 1,
-        jti: auth.jti,
+        jti: params.jti,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: expect.any(Date) as Date,
+        revokedReason: params.reason,
       },
     });
   });
 
-  it('reports already absent current session as not deleted', async () => {
-    deleteMany.mockResolvedValue({ count: 0 });
+  it('reports already revoked or absent current session as not revoked', async () => {
+    updateMany.mockResolvedValue({ count: 0 });
 
     await expect(
-      repository.deleteCurrentSession({
+      repository.revokeCurrentSession({
         userId: '1',
         sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
         jti: 'jti',
+        reason: 'USER_LOGOUT',
       }),
     ).resolves.toBe(false);
   });
 
-  it('deletes selected user session only when user and session match', async () => {
-    deleteMany.mockResolvedValue({ count: 1 });
+  it('revokes selected user session without checking jti', async () => {
+    updateMany.mockResolvedValue({ count: 1 });
 
-    await expect(repository.deleteUserSession('1', 'f318f7c0-c8cf-4fc2-93a5-a83234fb0f24')).resolves.toBe(
-      true,
-    );
-    expect(deleteMany).toHaveBeenCalledWith({
+    await expect(
+      repository.revokeUserSession({
+        userId: '1',
+        sessionId: 'f318f7c0-c8cf-4fc2-93a5-a83234fb0f24',
+        reason: 'ADMIN_ACTION',
+      }),
+    ).resolves.toBe(true);
+    expect(updateMany).toHaveBeenCalledWith({
       where: {
         id: 'f318f7c0-c8cf-4fc2-93a5-a83234fb0f24',
         userId: 1,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: expect.any(Date) as Date,
+        revokedReason: 'ADMIN_ACTION',
       },
     });
   });
 
-  it('reports selected user session as not deleted when it is absent', async () => {
-    deleteMany.mockResolvedValue({ count: 0 });
-
-    await expect(repository.deleteUserSession('1', 'f318f7c0-c8cf-4fc2-93a5-a83234fb0f24')).resolves.toBe(
-      false,
-    );
-  });
-
-  it('deletes all user sessions except current one', async () => {
-    deleteMany.mockResolvedValue({ count: 2 });
+  it('reports selected user session as not revoked when it is absent or already revoked', async () => {
+    updateMany.mockResolvedValue({ count: 0 });
 
     await expect(
-      repository.deleteOtherUserSessions('1', 'e3637e61-194b-4f79-9676-e59a20bb7c42'),
+      repository.revokeUserSession({
+        userId: '1',
+        sessionId: 'f318f7c0-c8cf-4fc2-93a5-a83234fb0f24',
+        reason: 'ADMIN_ACTION',
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it('revokes all user sessions except current one', async () => {
+    updateMany.mockResolvedValue({ count: 2 });
+
+    await expect(
+      repository.revokeOtherUserSessions({
+        userId: '1',
+        currentSessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+        reason: 'LOGOUT_ALL',
+      }),
     ).resolves.toBe(2);
-    expect(deleteMany).toHaveBeenCalledWith({
+    expect(updateMany).toHaveBeenCalledWith({
       where: {
         userId: 1,
         id: { not: 'e3637e61-194b-4f79-9676-e59a20bb7c42' },
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: expect.any(Date) as Date,
+        revokedReason: 'LOGOUT_ALL',
       },
     });
   });
 
-  it('rejects deleting other sessions when user id is invalid', async () => {
+  it('rejects revoking other sessions when user id is invalid', async () => {
     await expect(
-      repository.deleteOtherUserSessions('invalid-user-id', 'e3637e61-194b-4f79-9676-e59a20bb7c42'),
+      repository.revokeOtherUserSessions({
+        userId: 'invalid-user-id',
+        currentSessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+        reason: 'LOGOUT_ALL',
+      }),
     ).rejects.toThrow(InvalidUserIdError);
-    expect(deleteMany).not.toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
-  it('deletes all user sessions', async () => {
-    deleteMany.mockResolvedValue({ count: 3 });
+  it('revokes all active user sessions', async () => {
+    updateMany.mockResolvedValue({ count: 3 });
 
-    await expect(repository.deleteAllUserSessions('1')).resolves.toBe(3);
-    expect(deleteMany).toHaveBeenCalledWith({
+    await expect(repository.revokeAllUserSessions({ userId: '1', reason: 'PASSWORD_CHANGED' })).resolves.toBe(
+      3,
+    );
+    expect(updateMany).toHaveBeenCalledWith({
       where: {
         userId: 1,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: expect.any(Date) as Date,
+        revokedReason: 'PASSWORD_CHANGED',
       },
     });
   });
 
-  it('deletes all user sessions with transaction client', async () => {
-    const txDeleteMany = vi.fn().mockResolvedValue({ count: 3 });
+  it('revokes all active user sessions with transaction client', async () => {
+    const txUpdateMany = vi.fn().mockResolvedValue({ count: 3 });
     const tx = {
       deviceSession: {
-        deleteMany: txDeleteMany,
+        updateMany: txUpdateMany,
       },
     };
 
-    await expect(repository.deleteAllUserSessions('1', tx as never)).resolves.toBe(3);
-    expect(txDeleteMany).toHaveBeenCalledWith({
+    await expect(
+      repository.revokeAllUserSessions({ userId: '1', reason: 'USER_LOCKED' }, tx as never),
+    ).resolves.toBe(3);
+    expect(txUpdateMany).toHaveBeenCalledWith({
       where: {
         userId: 1,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: expect.any(Date) as Date,
+        revokedReason: 'USER_LOCKED',
       },
     });
-    expect(deleteMany).not.toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
-  it('rejects deleting all sessions when user id is invalid', async () => {
-    await expect(repository.deleteAllUserSessions('invalid-user-id')).rejects.toThrow(InvalidUserIdError);
-    expect(deleteMany).not.toHaveBeenCalled();
+  it('rejects revoking all sessions when user id is invalid', async () => {
+    await expect(
+      repository.revokeAllUserSessions({ userId: 'invalid-user-id', reason: 'PASSWORD_CHANGED' }),
+    ).rejects.toThrow(InvalidUserIdError);
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it.each(['0', '-1', 'abc', ''])('throws on invalid userId in rotateRefreshToken', async (userId) => {
@@ -233,12 +351,8 @@ describe('PrismaSessionsRepository', () => {
   });
 
   it.each(['0', '-1', 'abc', ''])('throws on invalid userId in isSessionActive', async (userId) => {
-    const findFirst = vi.fn();
-    const prismaWithFindFirst = { deviceSession: { updateMany, findFirst } };
-    const repo = new PrismaSessionsRepository(prismaWithFindFirst as unknown as PrismaService);
-
     await expect(
-      repo.isSessionActive({
+      repository.isSessionActive({
         userId,
         sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
         jti: 'jti',

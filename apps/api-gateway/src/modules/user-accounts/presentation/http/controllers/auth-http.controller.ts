@@ -14,15 +14,14 @@ import {
 import { type ConfigType } from '@nestjs/config';
 import {
   AUTH_SERVICE_NAME,
-  REGISTRATION_SERVICE_NAME,
-  REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
   type AuthServiceClient,
+  PASSWORD_RESET_SERVICE_NAME,
   PasswordResetServiceClient,
+  REGISTRATION_SERVICE_NAME,
+  type RegistrationServiceClient,
   REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
   SESSIONS_SERVICE_NAME,
   SessionsServiceClient,
-  PASSWORD_RESET_SERVICE_NAME,
-  type RegistrationServiceClient,
 } from '@app/user-accounts-grpc';
 import type { ClientGrpc } from '@nestjs/microservices';
 import {
