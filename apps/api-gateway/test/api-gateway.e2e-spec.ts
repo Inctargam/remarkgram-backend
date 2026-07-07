@@ -48,6 +48,9 @@ describe('ApiGateway (e2e)', () => {
   };
   const sessionsServiceClient = {
     getDevices: vi.fn<SessionsServiceClient['getDevices']>(),
+    logoutCurrentSession: vi.fn<SessionsServiceClient['logoutCurrentSession']>(),
+    deleteDevice: vi.fn<SessionsServiceClient['deleteDevice']>(),
+    deleteOtherDevices: vi.fn<SessionsServiceClient['deleteOtherDevices']>(),
   };
   const passwordResetServiceClient = {
     requestPasswordReset: vi.fn<PasswordResetServiceClient['requestPasswordReset']>(),
@@ -126,6 +129,9 @@ describe('ApiGateway (e2e)', () => {
         ],
       }),
     );
+    sessionsServiceClient.logoutCurrentSession.mockReturnValue(of({}));
+    sessionsServiceClient.deleteDevice.mockReturnValue(of({}));
+    sessionsServiceClient.deleteOtherDevices.mockReturnValue(of({}));
     passwordResetServiceClient.requestPasswordReset.mockReturnValue(of({ accepted: true }));
     passwordResetServiceClient.confirmPasswordReset.mockReturnValue(of({}));
 
@@ -320,9 +326,9 @@ describe('ApiGateway (e2e)', () => {
     expect(authServiceClient.refreshToken).not.toHaveBeenCalled();
   });
 
-  it('GET /security/devices delegates the refresh token to user-accounts', async () => {
+  it('GET /auth/sessions delegates the refresh token to user-accounts', async () => {
     await request(app.getHttpServer() as SupertestApp)
-      .get('/security/devices')
+      .get('/auth/sessions')
       .set('Cookie', 'refreshToken=current-refresh-token')
       .expect(200)
       .expect([
@@ -335,6 +341,43 @@ describe('ApiGateway (e2e)', () => {
       ]);
 
     expect(sessionsServiceClient.getDevices).toHaveBeenCalledWith({
+      auth: refreshTokenClaims,
+    });
+  });
+
+  it('DELETE /auth/sessions/current logs out the current session and clears the cookie', async () => {
+    const response = await request(app.getHttpServer() as SupertestApp)
+      .delete('/auth/sessions/current')
+      .set('Cookie', 'refreshToken=current-refresh-token')
+      .expect(204);
+
+    expect(sessionsServiceClient.logoutCurrentSession).toHaveBeenCalledWith({
+      auth: refreshTokenClaims,
+    });
+    expect(response.headers['set-cookie']?.[0]).toContain('refreshToken=;');
+  });
+
+  it('DELETE /auth/sessions/:sessionId deletes the selected session', async () => {
+    const sessionId = '7a63d7e0-9ae7-4e5b-84e4-d770bdb5ef92';
+
+    await request(app.getHttpServer() as SupertestApp)
+      .delete(`/auth/sessions/${sessionId}`)
+      .set('Cookie', 'refreshToken=current-refresh-token')
+      .expect(204);
+
+    expect(sessionsServiceClient.deleteDevice).toHaveBeenCalledWith({
+      auth: refreshTokenClaims,
+      deviceId: sessionId,
+    });
+  });
+
+  it('DELETE /auth/sessions/others deletes all sessions except the current one', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .delete('/auth/sessions/others')
+      .set('Cookie', 'refreshToken=current-refresh-token')
+      .expect(204);
+
+    expect(sessionsServiceClient.deleteOtherDevices).toHaveBeenCalledWith({
       auth: refreshTokenClaims,
     });
   });
