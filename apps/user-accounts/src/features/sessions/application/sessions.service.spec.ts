@@ -22,6 +22,7 @@ describe('SessionsService', () => {
   it('creates a session without deleting an existing record', async () => {
     const params = {
       userId: '1',
+      expectedPasswordHash: 'password-hash',
       sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
       deviceName: 'Browser',
       ip: '127.0.0.1',
@@ -29,9 +30,9 @@ describe('SessionsService', () => {
       lastActiveAt: new Date('2026-07-01T12:00:00.000Z'),
       expiresAt: new Date('2026-07-02T12:00:00.000Z'),
     };
-    sessionsRepository.createSession.mockResolvedValue(undefined);
+    sessionsRepository.createSession.mockResolvedValue(true);
 
-    await service.createSession(params);
+    await expect(service.createSession(params)).resolves.toBe(true);
 
     expect(sessionsRepository.createSession).toHaveBeenCalledWith(params);
   });

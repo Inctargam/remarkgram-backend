@@ -8,7 +8,7 @@ import type { TransactionContext } from '../../../../common/application/unit-of-
 export abstract class SessionsRepository {
   abstract isSessionActive(params: SessionIdentity): Promise<boolean>;
   abstract getSessionOwner(sessionId: string): Promise<string | null>;
-  abstract createSession(params: CreateSessionParams): Promise<void>;
+  abstract createSession(params: CreateSessionParams): Promise<boolean>;
   abstract rotateRefreshToken(params: RotateRefreshTokenParams): Promise<boolean>;
   abstract deleteCurrentSession(params: SessionIdentity): Promise<boolean>;
   abstract deleteUserSession(userId: string, sessionId: string): Promise<boolean>;

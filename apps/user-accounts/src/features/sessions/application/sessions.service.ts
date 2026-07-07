@@ -17,8 +17,8 @@ import type { TransactionContext } from '../../../common/application/unit-of-wor
 export class SessionsService {
   constructor(private readonly sessionsRepository: SessionsRepository) {}
 
-  /** Сохраняет новую пользовательскую сессию после успешного входа. */
-  createSession(params: CreateSessionParams): Promise<void> {
+  /** Сохраняет новую сессию, только если хеш пароля не изменился после проверки credentials. */
+  createSession(params: CreateSessionParams): Promise<boolean> {
     return this.sessionsRepository.createSession(params);
   }
 

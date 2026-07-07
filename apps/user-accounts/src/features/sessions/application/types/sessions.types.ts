@@ -13,6 +13,7 @@ export type SessionIdentity = {
 
 export type CreateSessionParams = {
   userId: string;
+  expectedPasswordHash: string;
   sessionId: string;
   deviceName: string;
   ip: string;

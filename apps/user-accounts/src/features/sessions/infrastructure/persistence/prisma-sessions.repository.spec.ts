@@ -5,13 +5,62 @@ import { PrismaSessionsRepository } from './prisma-sessions.repository.js';
 describe('PrismaSessionsRepository', () => {
   const updateMany = vi.fn();
   const deleteMany = vi.fn();
+  const executeRaw = vi.fn();
   const prisma = {
     deviceSession: { updateMany, deleteMany },
+    $executeRaw: executeRaw,
   };
   const repository = new PrismaSessionsRepository(prisma as unknown as PrismaService);
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('creates a session only while the password hash remains unchanged', async () => {
+    const params = {
+      userId: '1',
+      expectedPasswordHash: 'password-hash',
+      sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+      deviceName: 'Browser',
+      ip: '127.0.0.1',
+      jti: 'jti',
+      lastActiveAt: new Date('2026-07-01T12:00:00.000Z'),
+      expiresAt: new Date('2026-07-02T12:00:00.000Z'),
+    };
+    executeRaw.mockResolvedValue(1);
+
+    await expect(repository.createSession(params)).resolves.toBe(true);
+    expect(executeRaw).toHaveBeenCalledOnce();
+    const sql = (executeRaw.mock.calls[0][0] as TemplateStringsArray).join('?');
+    expect(sql).toContain('FOR NO KEY UPDATE');
+    expect(sql).not.toContain('MATERIALIZED');
+    expect(executeRaw.mock.calls[0].slice(1)).toEqual([
+      params.sessionId,
+      params.deviceName,
+      params.ip,
+      params.jti,
+      params.lastActiveAt,
+      params.expiresAt,
+      1,
+      params.expectedPasswordHash,
+    ]);
+  });
+
+  it('does not create a session after the password hash changes', async () => {
+    executeRaw.mockResolvedValue(0);
+
+    await expect(
+      repository.createSession({
+        userId: '1',
+        expectedPasswordHash: 'stale-password-hash',
+        sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+        deviceName: 'Browser',
+        ip: '127.0.0.1',
+        jti: 'jti',
+        lastActiveAt: new Date('2026-07-01T12:00:00.000Z'),
+        expiresAt: new Date('2026-07-02T12:00:00.000Z'),
+      }),
+    ).resolves.toBe(false);
   });
 
   it('atomically rotates a refresh token only when the current jti matches', async () => {

@@ -34,7 +34,7 @@ describe('auth use cases', () => {
       validateCredentials: vi.fn<AuthService['validateCredentials']>().mockResolvedValue(user),
     };
     const sessionsService = {
-      createSession: vi.fn<SessionsService['createSession']>().mockResolvedValue(undefined),
+      createSession: vi.fn<SessionsService['createSession']>().mockResolvedValue(true),
       checkSession: vi.fn<SessionsService['checkSession']>().mockResolvedValue(false),
     };
     const useCase = new LoginUseCase(
@@ -54,6 +54,7 @@ describe('auth use cases', () => {
     });
     expect(sessionsService.createSession).toHaveBeenCalledWith({
       userId: user.id.toString(),
+      expectedPasswordHash: user.hash,
       sessionId: generatedSessionId,
       deviceName: params.deviceName,
       ip: params.ip,
@@ -61,6 +62,23 @@ describe('auth use cases', () => {
       lastActiveAt: new Date(100_000),
       expiresAt: new Date(200_000),
     });
+  });
+
+  it('LoginUseCase rejects credentials when the password changes before session creation', async () => {
+    const authService = {
+      generateTokenPair: vi.fn<AuthService['generateTokenPair']>().mockResolvedValue(tokenPair),
+      validateCredentials: vi.fn<AuthService['validateCredentials']>().mockResolvedValue(user),
+    };
+    const sessionsService = {
+      createSession: vi.fn<SessionsService['createSession']>().mockResolvedValue(false),
+      checkSession: vi.fn<SessionsService['checkSession']>().mockResolvedValue(false),
+    };
+    const useCase = new LoginUseCase(
+      authService as unknown as AuthService,
+      sessionsService as unknown as SessionsService,
+    );
+
+    await expect(useCase.execute(new LoginCommand(params))).rejects.toThrow('Incorrect email/password');
   });
 
   it('RefreshTokenUseCase rotates the token for the same session', async () => {

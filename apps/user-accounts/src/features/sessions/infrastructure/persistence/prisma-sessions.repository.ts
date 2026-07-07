@@ -44,20 +44,47 @@ export class PrismaSessionsRepository implements SessionsRepository {
     return session?.userId.toString() ?? null;
   }
 
-  async createSession(params: CreateSessionParams): Promise<void> {
+  /**
+   * Создаёт login-сессию, только если пароль не изменился после проверки credentials.
+   *
+   * INSERT получает источник из users по id и ожидаемому hash. Если пользователь удалён или password reset
+   * уже изменил hash, SELECT вернёт ноль строк, INSERT ничего не создаст, а метод вернёт false.
+   *
+   * FOR NO KEY UPDATE блокирует найденную строку User до завершения statement и конфликтует с UPDATE hash
+   * и DELETE. Если login захватил блокировку первым, password reset дождётся INSERT, после чего изменит пароль
+   * и удалит созданную сессию. Если reset был первым, login увидит новый hash и не выполнит INSERT.
+   * Проверка ожидаемого состояния, блокировка и создание сессии намеренно объединены в один SQL statement,
+   * чтобы между ними не оставалось TOCTOU-окна.
+   */
+  async createSession(params: CreateSessionParams): Promise<boolean> {
     const userId = this.parseUserId(params.userId);
 
-    await this.prisma.deviceSession.create({
-      data: {
-        id: params.sessionId,
-        userId,
-        deviceName: params.deviceName,
-        ip: params.ip,
-        jti: params.jti,
-        lastActiveAt: params.lastActiveAt,
-        expiresAt: params.expiresAt,
-      },
-    });
+    const insertedCount = await this.prisma.$executeRaw`
+      INSERT INTO "device_sessions" (
+        "id",
+        "userId",
+        "deviceName",
+        "ip",
+        "jti",
+        "lastActiveAt",
+        "expiresAt"
+      )
+      SELECT
+        ${params.sessionId}::uuid,
+        u."id",
+        ${params.deviceName},
+        ${params.ip},
+        ${params.jti},
+        ${params.lastActiveAt},
+        ${params.expiresAt}
+      FROM "users" AS u
+      WHERE u."id" = ${userId}
+        AND u."hash" = ${params.expectedPasswordHash}
+        AND u."deletedAt" IS NULL
+      FOR NO KEY UPDATE
+    `;
+
+    return insertedCount === 1;
   }
 
   async rotateRefreshToken(params: RotateRefreshTokenParams): Promise<boolean> {
