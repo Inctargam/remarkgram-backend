@@ -170,13 +170,19 @@ export class PrismaUsersRepository implements UsersRepository {
     return result;
   }
 
+  /** Атомарно заменяет confirmation code, только пока в записи хранится ожидаемый предыдущий код. */
   async updateConfirmationCode(params: UpdateConfirmationCodeParams): Promise<boolean> {
     const result = await this.prisma.user.updateMany({
       data: {
-        confirmationCode: params.code,
+        confirmationCode: params.newCode,
         confirmationExpiration: params.expiration,
       },
-      where: { id: params.userId, isConfirmed: false, deletedAt: null },
+      where: {
+        id: params.userId,
+        confirmationCode: params.expectedCode,
+        isConfirmed: false,
+        deletedAt: null,
+      },
     });
 
     return result.count > 0;

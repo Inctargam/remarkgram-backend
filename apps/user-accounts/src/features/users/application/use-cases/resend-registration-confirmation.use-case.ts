@@ -27,7 +27,8 @@ export class ResendRegistrationConfirmationUseCase implements ICommandHandler<Re
       throw new IncorrectEmailError();
     }
 
-    if (user.confirmation.isConfirmed) {
+    const expectedCode = user.confirmation.code;
+    if (user.confirmation.isConfirmed || expectedCode === null) {
       throw new EmailAlreadyConfirmedError();
     }
 
@@ -35,14 +36,22 @@ export class ResendRegistrationConfirmationUseCase implements ICommandHandler<Re
     const expiration = new Date();
     expiration.setHours(expiration.getHours() + this.auth.confirmationCodeExpiresIn);
 
+    // expectedCode превращает обновление в compare-and-swap: если конкурентный resend уже заменил код,
+    // этот запрос обновит ноль строк и не отправит второе письмо с уже невалидным кодом.
     const wasUpdated = await this.usersRepository.updateConfirmationCode({
       userId: user.id,
-      code,
+      expectedCode,
+      newCode: code,
       expiration,
     });
 
     if (!wasUpdated) {
-      throw new EmailAlreadyConfirmedError();
+      // Запись не обновилась, потому что после чтения пользователя её состояние изменил другой запрос:
+      // например, конкурентный resend уже заменил ожидаемый confirmation code или пользователь подтвердил email.
+      // Поэтому нельзя считать, что email обязательно подтверждён, и выбрасывать EmailAlreadyConfirmedError.
+      // Завершаем запрос успешно без дополнительных изменений и отправки письма: новый код этого запроса
+      // не сохранён, а актуальный код уже записал другой конкурентный запрос.
+      return;
     }
 
     await this.emailService.sendConfirmationCode(command.email, code);

@@ -31,6 +31,7 @@ export type ConfirmUserResult = {
 
 export type UpdateConfirmationCodeParams = {
   userId: number;
-  code: string;
+  expectedCode: string;
+  newCode: string;
   expiration: Date;
 };

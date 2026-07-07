@@ -78,7 +78,8 @@ describe('PrismaUsersRepository', () => {
     await expect(
       repository.updateConfirmationCode({
         userId: 1,
-        code: 'new-confirmation-code',
+        expectedCode: 'old-confirmation-code',
+        newCode: 'new-confirmation-code',
         expiration,
       }),
     ).resolves.toBe(true);
@@ -87,7 +88,12 @@ describe('PrismaUsersRepository', () => {
         confirmationCode: 'new-confirmation-code',
         confirmationExpiration: expiration,
       },
-      where: { id: 1, isConfirmed: false, deletedAt: null },
+      where: {
+        id: 1,
+        confirmationCode: 'old-confirmation-code',
+        isConfirmed: false,
+        deletedAt: null,
+      },
     });
   });
 
@@ -97,7 +103,8 @@ describe('PrismaUsersRepository', () => {
     await expect(
       repository.updateConfirmationCode({
         userId: 1,
-        code: 'new-confirmation-code',
+        expectedCode: 'old-confirmation-code',
+        newCode: 'new-confirmation-code',
         expiration: new Date('2026-07-06T13:00:00.000Z'),
       }),
     ).resolves.toBe(false);

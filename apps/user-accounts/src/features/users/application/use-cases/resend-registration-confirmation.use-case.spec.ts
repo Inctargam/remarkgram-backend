@@ -49,7 +49,8 @@ describe('ResendRegistrationConfirmationUseCase', () => {
     const code = emailService.sendConfirmationCode.mock.calls[0][1];
     expect(usersRepository.updateConfirmationCode).toHaveBeenCalledWith({
       userId: 1,
-      code,
+      expectedCode: 'old-code',
+      newCode: code,
       expiration: new Date('2026-07-02T12:00:00.000Z'),
     });
     expect(usersRepository.updateConfirmationCode.mock.invocationCallOrder[0]).toBeLessThan(
@@ -77,7 +78,7 @@ describe('ResendRegistrationConfirmationUseCase', () => {
     ).rejects.toThrow('Email is already confirmed');
   });
 
-  it('does not send email and throws when updateConfirmationCode reports no rows updated (race condition)', async () => {
+  it('completes without sending email when a concurrent request has already changed the code', async () => {
     usersRepository.findByEmail.mockResolvedValue(
       createTestUser({
         confirmation: ConfirmationInfo.pending('old-code', new Date()),
@@ -87,7 +88,7 @@ describe('ResendRegistrationConfirmationUseCase', () => {
 
     await expect(
       useCase.execute(new ResendRegistrationConfirmationCommand('user@example.com')),
-    ).rejects.toThrow('Email is already confirmed');
+    ).resolves.toBeUndefined();
     expect(emailService.sendConfirmationCode).not.toHaveBeenCalled();
   });
 });
