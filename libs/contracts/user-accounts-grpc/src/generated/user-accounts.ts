@@ -109,6 +109,12 @@ export interface DeleteOtherDevicesRequest {
 export interface DeleteOtherDevicesResponse {
 }
 
+export interface DeleteAllDataRequest {
+}
+
+export interface DeleteAllDataResponse {
+}
+
 export interface RequestPasswordResetRequest {
   email: string;
 }
@@ -271,6 +277,33 @@ export function SessionsServiceControllerMethods() {
 }
 
 export const SESSIONS_SERVICE_NAME = "SessionsService";
+
+export interface TestingServiceClient {
+  deleteAllData(request: DeleteAllDataRequest): Observable<DeleteAllDataResponse>;
+}
+
+export interface TestingServiceController {
+  deleteAllData(
+    request: DeleteAllDataRequest,
+  ): Promise<DeleteAllDataResponse> | Observable<DeleteAllDataResponse> | DeleteAllDataResponse;
+}
+
+export function TestingServiceControllerMethods() {
+  return function (constructor: Function) {
+    const grpcMethods: string[] = ["deleteAllData"];
+    for (const method of grpcMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcMethod("TestingService", method)(constructor.prototype[method], method, descriptor);
+    }
+    const grpcStreamMethods: string[] = [];
+    for (const method of grpcStreamMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcStreamMethod("TestingService", method)(constructor.prototype[method], method, descriptor);
+    }
+  };
+}
+
+export const TESTING_SERVICE_NAME = "TestingService";
 
 export interface PasswordResetServiceClient {
   requestPasswordReset(request: RequestPasswordResetRequest): Observable<RequestPasswordResetResponse>;

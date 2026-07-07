@@ -13,12 +13,14 @@ import {
   REGISTRATION_SERVICE_NAME,
   REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
   SESSIONS_SERVICE_NAME,
+  TESTING_SERVICE_NAME,
   USERS_SERVICE_NAME,
   USER_ACCOUNTS_ERROR_CODE_METADATA_KEY,
   type AuthServiceClient,
   type PasswordResetServiceClient,
   type RegistrationServiceClient,
   type SessionsServiceClient,
+  type TestingServiceClient,
   type UsersServiceClient,
 } from '@app/user-accounts-grpc';
 import { JwtService } from '@nestjs/jwt';
@@ -31,6 +33,7 @@ import { setupSwagger } from './../src/swagger.js';
 type SupertestApp = Parameters<typeof request>[0];
 
 describe('ApiGateway (e2e)', () => {
+  const testingEndpointKey = 'testing-key-with-at-least-32-characters';
   let app: INestApplication;
   const filesServiceClient = {
     uploadFile: vi.fn<FilesServiceClient['uploadFile']>(),
@@ -53,6 +56,9 @@ describe('ApiGateway (e2e)', () => {
     deleteDevice: vi.fn<SessionsServiceClient['deleteDevice']>(),
     deleteOtherDevices: vi.fn<SessionsServiceClient['deleteOtherDevices']>(),
   };
+  const testingServiceClient = {
+    deleteAllData: vi.fn<TestingServiceClient['deleteAllData']>(),
+  };
   const passwordResetServiceClient = {
     requestPasswordReset: vi.fn<PasswordResetServiceClient['requestPasswordReset']>(),
     confirmPasswordReset: vi.fn<PasswordResetServiceClient['confirmPasswordReset']>(),
@@ -71,6 +77,8 @@ describe('ApiGateway (e2e)', () => {
           return registrationServiceClient;
         case SESSIONS_SERVICE_NAME:
           return sessionsServiceClient;
+        case TESTING_SERVICE_NAME:
+          return testingServiceClient;
         case PASSWORD_RESET_SERVICE_NAME:
           return passwordResetServiceClient;
         default:
@@ -92,6 +100,8 @@ describe('ApiGateway (e2e)', () => {
     vi.stubEnv('USER_ACCOUNTS_GRPC_URL', 'localhost:50052');
     vi.stubEnv('JWT_PUBLIC_KEY', 'public-key');
     vi.stubEnv('REFRESH_TOKEN_COOKIE_MAX_AGE_MS', '1200000');
+    vi.stubEnv('ENABLE_TESTING_ENDPOINTS', 'true');
+    vi.stubEnv('TESTING_ENDPOINT_KEY', testingEndpointKey);
     filesServiceClient.uploadFile.mockReturnValue(of({ id: 'file-id' }));
     jwtService.verifyAsync.mockResolvedValue({
       sub: refreshTokenClaims.userId,
@@ -134,6 +144,7 @@ describe('ApiGateway (e2e)', () => {
     sessionsServiceClient.logoutCurrentSession.mockReturnValue(of({}));
     sessionsServiceClient.deleteDevice.mockReturnValue(of({}));
     sessionsServiceClient.deleteOtherDevices.mockReturnValue(of({}));
+    testingServiceClient.deleteAllData.mockReturnValue(of({}));
     passwordResetServiceClient.requestPasswordReset.mockReturnValue(of({ accepted: true }));
     passwordResetServiceClient.confirmPasswordReset.mockReturnValue(of({}));
 
@@ -177,11 +188,21 @@ describe('ApiGateway (e2e)', () => {
         '/auth/sessions/current',
         '/auth/sessions/others',
         '/auth/sessions/{sessionId}',
+        '/testing/all-data',
         '/users',
         '/files',
       ]),
     );
     expect(document.components.schemas.DeviceResponseDto?.properties).toHaveProperty('isCurrent');
+  });
+
+  it('DELETE /testing/all-data clears user-accounts data', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .delete('/testing/all-data')
+      .set('X-Testing-Key', testingEndpointKey)
+      .expect(204);
+
+    expect(testingServiceClient.deleteAllData).toHaveBeenCalledWith({});
   });
 
   it('POST /files', async () => {

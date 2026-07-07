@@ -23,8 +23,18 @@ const swaggerConfig = new DocumentBuilder()
     },
     'accessToken',
   )
+  .addApiKey(
+    {
+      type: 'apiKey',
+      in: 'header',
+      name: 'X-Testing-Key',
+      description: 'Secret key protecting destructive testing endpoints.',
+    },
+    'testingKey',
+  )
   .addTag('Auth', 'Registration, authentication and password reset.')
   .addTag('Sessions', 'Active session management.')
+  .addTag('Testing', 'Development and test utilities.')
   .addTag('Users', 'User queries.')
   .addTag('Files', 'File operations.')
   .build();

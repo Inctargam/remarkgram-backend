@@ -9,6 +9,7 @@ import { userAccountsGrpcClientConfig } from './config/user-accounts-grpc-client
 import { userAccountsHttpConfig } from './config/user-accounts-http.config.js';
 import { AuthHttpController } from './presentation/http/controllers/auth-http.controller.js';
 import { SessionsHttpController } from './presentation/http/controllers/sessions-http.controller.js';
+import { TestingHttpController } from './presentation/http/controllers/testing-http.controller.js';
 import { UsersHttpController } from './presentation/http/controllers/users-http.controller.js';
 import { AccessTokenGuard } from './presentation/http/guards/access-token.guard.js';
 import { OptionalRefreshTokenGuard } from './presentation/http/guards/optional-refresh-token.guard.js';
@@ -43,7 +44,7 @@ const protoPath = join(
       }),
     }),
   ],
-  controllers: [AuthHttpController, SessionsHttpController, UsersHttpController],
+  controllers: [AuthHttpController, SessionsHttpController, TestingHttpController, UsersHttpController],
   providers: [
     OptionalRefreshTokenGuard,
     RefreshTokenGuard,

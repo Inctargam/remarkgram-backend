@@ -38,6 +38,10 @@ import { LogoutCurrentSessionUseCase } from './features/sessions/application/use
 import { PrismaSessionsQueryRepository } from './features/sessions/infrastructure/persistence/prisma-sessions-query.repository.js';
 import { PrismaSessionsRepository } from './features/sessions/infrastructure/persistence/prisma-sessions.repository.js';
 import { SessionsGrpcController } from './features/sessions/presentation/grpc/controllers/sessions-grpc.controller.js';
+import { TestingRepository } from './features/testing/application/ports/testing.repository.js';
+import { DeleteAllDataUseCase } from './features/testing/application/use-cases/delete-all-data.use-case.js';
+import { PrismaTestingRepository } from './features/testing/infrastructure/persistence/prisma-testing.repository.js';
+import { TestingGrpcController } from './features/testing/presentation/grpc/controllers/testing-grpc.controller.js';
 import { UsersRepository } from './features/users/application/ports/users.repository.js';
 import { CreateUserUseCase } from './features/users/application/use-cases/create-user.use-case.js';
 import { ConfirmRegistrationUseCase } from './features/users/application/use-cases/confirm-registration.use-case.js';
@@ -89,6 +93,7 @@ import { RegistrationGrpcController } from './features/users/presentation/grpc/c
     SessionsGrpcController,
     UsersGrpcController,
     PasswordResetGrpcController,
+    TestingGrpcController,
   ],
   providers: [
     {
@@ -114,6 +119,10 @@ import { RegistrationGrpcController } from './features/users/presentation/grpc/c
     {
       provide: PasswordResetUsersRepository,
       useClass: PrismaPasswordResetUsersRepository,
+    },
+    {
+      provide: TestingRepository,
+      useClass: PrismaTestingRepository,
     },
     {
       provide: PasswordHasher,
@@ -143,6 +152,7 @@ import { RegistrationGrpcController } from './features/users/presentation/grpc/c
     ResendRegistrationConfirmationUseCase,
     RequestPasswordResetUseCase,
     ConfirmPasswordResetUseCase,
+    DeleteAllDataUseCase,
   ],
 })
 export class UserAccountsModule {}

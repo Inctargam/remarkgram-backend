@@ -24,6 +24,10 @@ service SessionsService {
   rpc DeleteOtherDevices(DeleteOtherDevicesRequest) returns (DeleteOtherDevicesResponse);
 }
 
+service TestingService {
+  rpc DeleteAllData(DeleteAllDataRequest) returns (DeleteAllDataResponse);
+}
+
 message GetUsersRequest {}
 
 message User {
@@ -115,6 +119,10 @@ message DeleteOtherDevicesRequest {
 }
 
 message DeleteOtherDevicesResponse {}
+
+message DeleteAllDataRequest {}
+
+message DeleteAllDataResponse {}
 
 
 service PasswordResetService {
