@@ -16,6 +16,7 @@ export class PrismaSessionsQueryRepository implements SessionsQueryRepository {
     const sessions = await this.prisma.deviceSession.findMany({
       where: {
         userId: numericUserId,
+        revokedAt: null,
         expiresAt: { gt: new Date() },
       },
     });

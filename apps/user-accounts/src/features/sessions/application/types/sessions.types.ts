@@ -12,6 +12,14 @@ export type SessionIdentity = {
   jti: string;
 };
 
+export type SessionRevokedReason =
+  | 'USER_LOGOUT'
+  | 'LOGOUT_ALL'
+  | 'PASSWORD_CHANGED'
+  | 'USER_LOCKED'
+  | 'ADMIN_ACTION'
+  | 'TOKEN_REUSE_DETECTED';
+
 export type CreateSessionParams = {
   userId: string;
   expectedPasswordHash: string;
@@ -21,6 +29,27 @@ export type CreateSessionParams = {
   jti: string;
   lastActiveAt: Date;
   expiresAt: Date;
+};
+
+export type RevokeSessionParams = {
+  userId: string;
+  sessionId: string;
+  reason: SessionRevokedReason;
+};
+
+export type RevokeCurrentSessionParams = SessionIdentity & {
+  reason: SessionRevokedReason;
+};
+
+export type RevokeOtherSessionsParams = {
+  userId: string;
+  currentSessionId: string;
+  reason: SessionRevokedReason;
+};
+
+export type RevokeAllSessionsParams = {
+  userId: string;
+  reason: SessionRevokedReason;
 };
 
 export type RotateRefreshTokenParams = {

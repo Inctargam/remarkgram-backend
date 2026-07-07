@@ -182,15 +182,17 @@ describe('ApiGateway (e2e)', () => {
         '/auth/registration/resend-confirmation',
         '/auth/login',
         '/auth/refresh-token',
+        '/auth/logout',
         '/auth/password-reset/request',
         '/auth/password-reset/confirm',
-        '/auth/sessions',
-        '/auth/sessions/current',
-        '/auth/sessions/others',
-        '/auth/sessions/{sessionId}',
+        '/security/sessions',
+        '/security/sessions/{sessionId}',
         '/testing/all-data',
       ]),
     );
+    expect(document.paths).not.toHaveProperty('/auth/sessions');
+    expect(document.paths).not.toHaveProperty('/auth/sessions/current');
+    expect(document.paths).not.toHaveProperty('/auth/sessions/others');
     expect(document.paths).not.toHaveProperty('/users');
     expect(document.paths).not.toHaveProperty('/files');
     expect(document.components.schemas.DeviceResponseDto?.properties).toHaveProperty('isCurrent');
@@ -209,7 +211,7 @@ describe('ApiGateway (e2e)', () => {
     const registrationConfirmation = document.paths['/auth/registration/confirmation'] as {
       post: OpenApiOperation;
     };
-    const deleteSession = document.paths['/auth/sessions/{sessionId}'] as {
+    const deleteSession = document.paths['/security/sessions/{sessionId}'] as {
       delete: OpenApiOperation;
     };
 
@@ -411,9 +413,9 @@ describe('ApiGateway (e2e)', () => {
     expect(authServiceClient.refreshToken).not.toHaveBeenCalled();
   });
 
-  it('GET /auth/sessions delegates the refresh token to user-accounts', async () => {
+  it('GET /security/sessions delegates the refresh token to user-accounts', async () => {
     await request(app.getHttpServer() as SupertestApp)
-      .get('/auth/sessions')
+      .get('/security/sessions')
       .set('Cookie', 'refreshToken=current-refresh-token')
       .expect(200)
       .expect([
@@ -431,9 +433,9 @@ describe('ApiGateway (e2e)', () => {
     });
   });
 
-  it('DELETE /auth/sessions/current logs out the current session and clears the cookie', async () => {
+  it('POST /auth/logout logs out the current session and clears the cookie', async () => {
     const response = await request(app.getHttpServer() as SupertestApp)
-      .delete('/auth/sessions/current')
+      .post('/auth/logout')
       .set('Cookie', 'refreshToken=current-refresh-token')
       .expect(204);
 
@@ -443,11 +445,11 @@ describe('ApiGateway (e2e)', () => {
     expect(response.headers['set-cookie']?.[0]).toContain('refreshToken=;');
   });
 
-  it('DELETE /auth/sessions/:sessionId deletes the selected session', async () => {
+  it('DELETE /security/sessions/:sessionId deletes the selected session', async () => {
     const sessionId = '7a63d7e0-9ae7-4e5b-84e4-d770bdb5ef92';
 
     await request(app.getHttpServer() as SupertestApp)
-      .delete(`/auth/sessions/${sessionId}`)
+      .delete(`/security/sessions/${sessionId}`)
       .set('Cookie', 'refreshToken=current-refresh-token')
       .expect(204);
 
@@ -457,9 +459,9 @@ describe('ApiGateway (e2e)', () => {
     });
   });
 
-  it('DELETE /auth/sessions/others deletes all sessions except the current one', async () => {
+  it('DELETE /security/sessions deletes all sessions except the current one', async () => {
     await request(app.getHttpServer() as SupertestApp)
-      .delete('/auth/sessions/others')
+      .delete('/security/sessions')
       .set('Cookie', 'refreshToken=current-refresh-token')
       .expect(204);
 

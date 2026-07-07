@@ -9,7 +9,13 @@
 * 🟢 You can import this file directly.
 */
 
+export const RevokedReason = {
+  USER_LOGOUT: 'USER_LOGOUT',
+  LOGOUT_ALL: 'LOGOUT_ALL',
+  PASSWORD_CHANGED: 'PASSWORD_CHANGED',
+  USER_LOCKED: 'USER_LOCKED',
+  ADMIN_ACTION: 'ADMIN_ACTION',
+  TOKEN_REUSE_DETECTED: 'TOKEN_REUSE_DETECTED'
+} as const
 
-
-// This file is empty because there are no enums in the schema.
-export {}
+export type RevokedReason = (typeof RevokedReason)[keyof typeof RevokedReason]

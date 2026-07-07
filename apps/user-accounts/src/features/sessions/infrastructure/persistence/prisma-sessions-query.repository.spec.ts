@@ -10,7 +10,7 @@ describe('PrismaSessionsQueryRepository', () => {
     vi.clearAllMocks();
   });
 
-  it('returns only unexpired sessions and marks the current session', async () => {
+  it('returns only active sessions and marks the current session', async () => {
     const currentSessionId = 'e3637e61-194b-4f79-9676-e59a20bb7c42';
     findMany.mockResolvedValue([
       {
@@ -52,6 +52,7 @@ describe('PrismaSessionsQueryRepository', () => {
     expect(findMany).toHaveBeenCalledWith({
       where: {
         userId: 1,
+        revokedAt: null,
         expiresAt: { gt: expect.any(Date) as Date },
       },
     });

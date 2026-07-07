@@ -50,7 +50,7 @@ export class SessionsGrpcController {
     };
   }
 
-  /** Выполняет hard delete текущей сессии пользователя. */
+  /** Отзывает текущую сессию пользователя. */
   async logoutCurrentSession(request: LogoutCurrentSessionRequest): Promise<LogoutCurrentSessionResponse> {
     if (!request.auth) {
       throw new RpcException({
@@ -64,7 +64,7 @@ export class SessionsGrpcController {
     return {};
   }
 
-  /** Выполняет hard delete выбранной пользовательской сессии по deviceId. */
+  /** Отзывает выбранную пользовательскую сессию по deviceId. */
   async deleteDevice(request: DeleteDeviceRequest): Promise<DeleteDeviceResponse> {
     if (!request.auth) {
       throw new RpcException({
@@ -83,7 +83,7 @@ export class SessionsGrpcController {
     return {};
   }
 
-  /** Выполняет hard delete всех пользовательских сессий, кроме текущей. */
+  /** Отзывает все пользовательские сессии, кроме текущей. */
   async deleteOtherDevices(request: DeleteOtherDevicesRequest): Promise<DeleteOtherDevicesResponse> {
     if (!request.auth) {
       throw new RpcException({

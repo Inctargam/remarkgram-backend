@@ -35,6 +35,15 @@ model User {
   @@map("users")
 }
 
+enum RevokedReason {
+  USER_LOGOUT
+  LOGOUT_ALL
+  PASSWORD_CHANGED
+  USER_LOCKED
+  ADMIN_ACTION
+  TOKEN_REUSE_DETECTED
+}
+
 model DeviceSession {
   id     String @id @db.Uuid
   userId Int
@@ -46,6 +55,9 @@ model DeviceSession {
   lastActiveAt DateTime @db.Timestamptz
   expiresAt    DateTime @db.Timestamptz
 
+  revokedAt     DateTime?      @db.Timestamptz
+  revokedReason RevokedReason?
+
   user User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([userId])
@@ -53,8 +65,8 @@ model DeviceSession {
 }
 
 model PasswordResetToken {
-  id        String    @id @default(uuid()) @db.Uuid
-  userId    Int
+  id     String @id @default(uuid()) @db.Uuid
+  userId Int
 
   tokenHash String    @unique @db.VarChar
   createdAt DateTime  @default(now()) @db.Timestamptz

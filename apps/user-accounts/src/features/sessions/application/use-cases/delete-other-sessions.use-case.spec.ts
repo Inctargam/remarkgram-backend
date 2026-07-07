@@ -8,29 +8,33 @@ describe('DeleteOtherSessionsUseCase', () => {
     jti: 'jti',
   };
 
-  it('deletes all user sessions except current one when current session is active', async () => {
+  it('revokes all user sessions except current one when current session is active', async () => {
     const sessionsService = {
       checkSession: vi.fn<SessionsService['checkSession']>().mockResolvedValue(true),
-      deleteOtherUserSessions: vi.fn<SessionsService['deleteOtherUserSessions']>().mockResolvedValue(2),
+      revokeOtherUserSessions: vi.fn<SessionsService['revokeOtherUserSessions']>().mockResolvedValue(2),
     };
     const useCase = new DeleteOtherSessionsUseCase(sessionsService as unknown as SessionsService);
 
     await expect(useCase.execute(new DeleteOtherSessionsCommand(auth))).resolves.toBeUndefined();
 
     expect(sessionsService.checkSession).toHaveBeenCalledWith(auth);
-    expect(sessionsService.deleteOtherUserSessions).toHaveBeenCalledWith(auth.userId, auth.sessionId);
+    expect(sessionsService.revokeOtherUserSessions).toHaveBeenCalledWith({
+      userId: auth.userId,
+      currentSessionId: auth.sessionId,
+      reason: 'LOGOUT_ALL',
+    });
   });
 
   it('rejects delete when current session is inactive', async () => {
     const sessionsService = {
       checkSession: vi.fn<SessionsService['checkSession']>().mockResolvedValue(false),
-      deleteOtherUserSessions: vi.fn<SessionsService['deleteOtherUserSessions']>(),
+      revokeOtherUserSessions: vi.fn<SessionsService['revokeOtherUserSessions']>(),
     };
     const useCase = new DeleteOtherSessionsUseCase(sessionsService as unknown as SessionsService);
 
     await expect(useCase.execute(new DeleteOtherSessionsCommand(auth))).rejects.toThrow(
       'No active session found',
     );
-    expect(sessionsService.deleteOtherUserSessions).not.toHaveBeenCalled();
+    expect(sessionsService.revokeOtherUserSessions).not.toHaveBeenCalled();
   });
 });

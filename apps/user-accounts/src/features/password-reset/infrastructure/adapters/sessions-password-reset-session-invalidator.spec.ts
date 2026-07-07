@@ -4,7 +4,7 @@ import { SessionsPasswordResetSessionInvalidator } from './sessions-password-res
 describe('SessionsPasswordResetSessionInvalidator', () => {
   it('invalidates all user sessions through sessions service', async () => {
     const sessionsService = {
-      deleteAllUserSessions: vi.fn<SessionsService['deleteAllUserSessions']>().mockResolvedValue(2),
+      revokeAllUserSessions: vi.fn<SessionsService['revokeAllUserSessions']>().mockResolvedValue(2),
     };
     const invalidator = new SessionsPasswordResetSessionInvalidator(
       sessionsService as unknown as SessionsService,
@@ -12,6 +12,12 @@ describe('SessionsPasswordResetSessionInvalidator', () => {
     const tx = {} as never;
 
     await expect(invalidator.invalidateAllUserSessions(1, tx)).resolves.toBeUndefined();
-    expect(sessionsService.deleteAllUserSessions).toHaveBeenCalledWith('1', tx);
+    expect(sessionsService.revokeAllUserSessions).toHaveBeenCalledWith(
+      {
+        userId: '1',
+        reason: 'PASSWORD_CHANGED',
+      },
+      tx,
+    );
   });
 });

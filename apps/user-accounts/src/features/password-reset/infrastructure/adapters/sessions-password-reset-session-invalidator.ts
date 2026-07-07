@@ -9,8 +9,14 @@ export class SessionsPasswordResetSessionInvalidator extends PasswordResetSessio
     super();
   }
 
-  /** Удаляет все refresh-сессии пользователя после подтверждения сброса пароля. */
+  /** Отзывает все refresh-сессии пользователя после подтверждения сброса пароля. */
   async invalidateAllUserSessions(userId: number, ctx?: TransactionContext): Promise<void> {
-    await this.sessionsService.deleteAllUserSessions(userId.toString(), ctx);
+    await this.sessionsService.revokeAllUserSessions(
+      {
+        userId: userId.toString(),
+        reason: 'PASSWORD_CHANGED',
+      },
+      ctx,
+    );
   }
 }

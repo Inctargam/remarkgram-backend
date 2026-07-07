@@ -47,7 +47,7 @@ import { RefreshTokenGuard } from '../guards/refresh-token.guard.js';
 @ApiServiceUnavailableResponse({ description: 'The user-accounts service is unavailable.' })
 @Public()
 @UseGuards(RefreshTokenGuard)
-@Controller('auth/sessions')
+@Controller('security/sessions')
 export class SessionsHttpController implements OnModuleInit {
   private sessionsClient!: SessionsServiceClient;
 
@@ -82,21 +82,7 @@ export class SessionsHttpController implements OnModuleInit {
       );
   }
 
-  @Delete('current')
-  @HttpCode(204)
-  @ApiOperation({ summary: 'Log out from the current session' })
-  @ApiNoContentResponse({
-    description: 'The current session was revoked and the refresh cookie was cleared.',
-  })
-  async logoutCurrentSession(
-    @Req() request: RequestWithRefreshSession,
-    @Res({ passthrough: true }) response: Response,
-  ): Promise<void> {
-    await firstValueFrom(this.sessionsClient.logoutCurrentSession({ auth: request.refreshTokenClaims }));
-    this.clearRefreshTokenCookie(response);
-  }
-
-  @Delete('others')
+  @Delete()
   @HttpCode(204)
   @ApiOperation({ summary: 'Revoke every session except the current one' })
   @ApiNoContentResponse({ description: 'All other sessions were revoked.' })

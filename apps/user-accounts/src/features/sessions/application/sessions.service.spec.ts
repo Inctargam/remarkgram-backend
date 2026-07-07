@@ -7,10 +7,10 @@ describe('SessionsService', () => {
     rotateRefreshToken: vi.fn<SessionsRepository['rotateRefreshToken']>(),
     isSessionActive: vi.fn<SessionsRepository['isSessionActive']>(),
     getSessionOwner: vi.fn<SessionsRepository['getSessionOwner']>(),
-    deleteCurrentSession: vi.fn<SessionsRepository['deleteCurrentSession']>(),
-    deleteUserSession: vi.fn<SessionsRepository['deleteUserSession']>(),
-    deleteOtherUserSessions: vi.fn<SessionsRepository['deleteOtherUserSessions']>(),
-    deleteAllUserSessions: vi.fn<SessionsRepository['deleteAllUserSessions']>(),
+    revokeCurrentSession: vi.fn<SessionsRepository['revokeCurrentSession']>(),
+    revokeUserSession: vi.fn<SessionsRepository['revokeUserSession']>(),
+    revokeOtherUserSessions: vi.fn<SessionsRepository['revokeOtherUserSessions']>(),
+    revokeAllUserSessions: vi.fn<SessionsRepository['revokeAllUserSessions']>(),
   };
   let service: SessionsService;
 
@@ -71,45 +71,52 @@ describe('SessionsService', () => {
     ).rejects.toThrow('No active session found');
   });
 
-  it('deletes the current session', async () => {
-    const auth = {
+  it('revokes the current session', async () => {
+    const params = {
       userId: '1',
       sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
       jti: 'jti',
+      reason: 'USER_LOGOUT' as const,
     };
-    sessionsRepository.deleteCurrentSession.mockResolvedValue(true);
+    sessionsRepository.revokeCurrentSession.mockResolvedValue(true);
 
-    await expect(service.deleteCurrentSession(auth)).resolves.toBe(true);
-    expect(sessionsRepository.deleteCurrentSession).toHaveBeenCalledWith(auth);
+    await expect(service.revokeCurrentSession(params)).resolves.toBe(true);
+    expect(sessionsRepository.revokeCurrentSession).toHaveBeenCalledWith(params);
   });
 
-  it('deletes a selected user session', async () => {
-    sessionsRepository.deleteUserSession.mockResolvedValue(true);
+  it('revokes a selected user session', async () => {
+    const params = {
+      userId: '1',
+      sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+      reason: 'USER_LOGOUT' as const,
+    };
+    sessionsRepository.revokeUserSession.mockResolvedValue(true);
 
-    await expect(service.deleteUserSession('1', 'e3637e61-194b-4f79-9676-e59a20bb7c42')).resolves.toBe(true);
-    expect(sessionsRepository.deleteUserSession).toHaveBeenCalledWith(
-      '1',
-      'e3637e61-194b-4f79-9676-e59a20bb7c42',
-    );
+    await expect(service.revokeUserSession(params)).resolves.toBe(true);
+    expect(sessionsRepository.revokeUserSession).toHaveBeenCalledWith(params);
   });
 
-  it('deletes other user sessions', async () => {
-    sessionsRepository.deleteOtherUserSessions.mockResolvedValue(2);
+  it('revokes other user sessions', async () => {
+    const params = {
+      userId: '1',
+      currentSessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+      reason: 'LOGOUT_ALL' as const,
+    };
+    sessionsRepository.revokeOtherUserSessions.mockResolvedValue(2);
 
-    await expect(service.deleteOtherUserSessions('1', 'e3637e61-194b-4f79-9676-e59a20bb7c42')).resolves.toBe(
-      2,
-    );
-    expect(sessionsRepository.deleteOtherUserSessions).toHaveBeenCalledWith(
-      '1',
-      'e3637e61-194b-4f79-9676-e59a20bb7c42',
-    );
+    await expect(service.revokeOtherUserSessions(params)).resolves.toBe(2);
+    expect(sessionsRepository.revokeOtherUserSessions).toHaveBeenCalledWith(params);
   });
 
-  it('deletes all user sessions', async () => {
-    sessionsRepository.deleteAllUserSessions.mockResolvedValue(3);
+  it('revokes all user sessions', async () => {
+    const params = {
+      userId: '1',
+      reason: 'PASSWORD_CHANGED' as const,
+    };
+    sessionsRepository.revokeAllUserSessions.mockResolvedValue(3);
 
-    await expect(service.deleteAllUserSessions('1')).resolves.toBe(3);
-    expect(sessionsRepository.deleteAllUserSessions).toHaveBeenCalledWith('1', undefined);
+    await expect(service.revokeAllUserSessions(params)).resolves.toBe(3);
+    expect(sessionsRepository.revokeAllUserSessions).toHaveBeenCalledWith(params, undefined);
   });
 
   it('checks session ownership', async () => {

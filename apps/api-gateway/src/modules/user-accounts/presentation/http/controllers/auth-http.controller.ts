@@ -15,11 +15,13 @@ import { type ConfigType } from '@nestjs/config';
 import {
   AUTH_SERVICE_NAME,
   REGISTRATION_SERVICE_NAME,
-  REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
   type AuthServiceClient,
-  PasswordResetServiceClient,
   PASSWORD_RESET_SERVICE_NAME,
   type RegistrationServiceClient,
+  type PasswordResetServiceClient,
+  REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
+  SESSIONS_SERVICE_NAME,
+  type SessionsServiceClient,
 } from '@app/user-accounts-grpc';
 import type { ClientGrpc } from '@nestjs/microservices';
 import {
@@ -65,6 +67,7 @@ export class AuthHttpController implements OnModuleInit {
   private authClient!: AuthServiceClient;
   private registrationClient!: RegistrationServiceClient;
   private passResetClient!: PasswordResetServiceClient;
+  private sessionsClient!: SessionsServiceClient;
 
   constructor(
     @Inject(REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME)
@@ -79,6 +82,7 @@ export class AuthHttpController implements OnModuleInit {
       this.grpcClient.getService<RegistrationServiceClient>(REGISTRATION_SERVICE_NAME);
     this.passResetClient =
       this.grpcClient.getService<PasswordResetServiceClient>(PASSWORD_RESET_SERVICE_NAME);
+    this.sessionsClient = this.grpcClient.getService<SessionsServiceClient>(SESSIONS_SERVICE_NAME);
   }
 
   @Public()
@@ -410,9 +414,53 @@ export class AuthHttpController implements OnModuleInit {
     return new ConfirmPasswordResetResponseDto();
   }
 
+  @Public()
+  @UseGuards(RefreshTokenGuard)
+  @Post('logout')
+  @HttpCode(204)
+  @ApiCookieAuth('refreshToken')
+  @ApiOperation({ summary: 'Log out from the current session' })
+  @ApiNoContentResponse({
+    description: 'The current session was revoked and the refresh cookie was cleared.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'The refresh token or its session is invalid.',
+    content: {
+      'application/json': {
+        schema: { $ref: getSchemaPath(ApiErrorResponseDto) },
+        examples: {
+          noActiveSession: {
+            summary: 'The refresh token is not linked to an active session',
+            value: {
+              statusCode: 401,
+              code: 'NO_ACTIVE_SESSION',
+              message: 'No active session found',
+            },
+          },
+        },
+      },
+    },
+  })
+  async logout(
+    @Req() request: RequestWithRefreshSession,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await firstValueFrom(this.sessionsClient.logoutCurrentSession({ auth: request.refreshTokenClaims }));
+    this.clearRefreshTokenCookie(response);
+  }
+
   private setRefreshTokenCookie(response: Response, refreshToken: string): void {
     response.cookie('refreshToken', refreshToken, {
       maxAge: this.config.refreshTokenCookieMaxAgeMs,
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+    });
+  }
+
+  private clearRefreshTokenCookie(response: Response): void {
+    response.clearCookie('refreshToken', {
       httpOnly: true,
       secure: true,
       sameSite: 'strict',

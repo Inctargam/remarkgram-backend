@@ -42,6 +42,8 @@ export type DeviceSessionMinAggregateOutputType = {
   jti: string | null
   lastActiveAt: Date | null
   expiresAt: Date | null
+  revokedAt: Date | null
+  revokedReason: $Enums.RevokedReason | null
 }
 
 export type DeviceSessionMaxAggregateOutputType = {
@@ -52,6 +54,8 @@ export type DeviceSessionMaxAggregateOutputType = {
   jti: string | null
   lastActiveAt: Date | null
   expiresAt: Date | null
+  revokedAt: Date | null
+  revokedReason: $Enums.RevokedReason | null
 }
 
 export type DeviceSessionCountAggregateOutputType = {
@@ -62,6 +66,8 @@ export type DeviceSessionCountAggregateOutputType = {
   jti: number
   lastActiveAt: number
   expiresAt: number
+  revokedAt: number
+  revokedReason: number
   _all: number
 }
 
@@ -82,6 +88,8 @@ export type DeviceSessionMinAggregateInputType = {
   jti?: true
   lastActiveAt?: true
   expiresAt?: true
+  revokedAt?: true
+  revokedReason?: true
 }
 
 export type DeviceSessionMaxAggregateInputType = {
@@ -92,6 +100,8 @@ export type DeviceSessionMaxAggregateInputType = {
   jti?: true
   lastActiveAt?: true
   expiresAt?: true
+  revokedAt?: true
+  revokedReason?: true
 }
 
 export type DeviceSessionCountAggregateInputType = {
@@ -102,6 +112,8 @@ export type DeviceSessionCountAggregateInputType = {
   jti?: true
   lastActiveAt?: true
   expiresAt?: true
+  revokedAt?: true
+  revokedReason?: true
   _all?: true
 }
 
@@ -199,6 +211,8 @@ export type DeviceSessionGroupByOutputType = {
   jti: string
   lastActiveAt: Date
   expiresAt: Date
+  revokedAt: Date | null
+  revokedReason: $Enums.RevokedReason | null
   _count: DeviceSessionCountAggregateOutputType | null
   _avg: DeviceSessionAvgAggregateOutputType | null
   _sum: DeviceSessionSumAggregateOutputType | null
@@ -232,6 +246,8 @@ export type DeviceSessionWhereInput = {
   jti?: Prisma.StringFilter<"DeviceSession"> | string
   lastActiveAt?: Prisma.DateTimeFilter<"DeviceSession"> | Date | string
   expiresAt?: Prisma.DateTimeFilter<"DeviceSession"> | Date | string
+  revokedAt?: Prisma.DateTimeNullableFilter<"DeviceSession"> | Date | string | null
+  revokedReason?: Prisma.EnumRevokedReasonNullableFilter<"DeviceSession"> | $Enums.RevokedReason | null
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
 }
 
@@ -243,6 +259,8 @@ export type DeviceSessionOrderByWithRelationInput = {
   jti?: Prisma.SortOrder
   lastActiveAt?: Prisma.SortOrder
   expiresAt?: Prisma.SortOrder
+  revokedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  revokedReason?: Prisma.SortOrderInput | Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
 }
 
@@ -257,6 +275,8 @@ export type DeviceSessionWhereUniqueInput = Prisma.AtLeast<{
   jti?: Prisma.StringFilter<"DeviceSession"> | string
   lastActiveAt?: Prisma.DateTimeFilter<"DeviceSession"> | Date | string
   expiresAt?: Prisma.DateTimeFilter<"DeviceSession"> | Date | string
+  revokedAt?: Prisma.DateTimeNullableFilter<"DeviceSession"> | Date | string | null
+  revokedReason?: Prisma.EnumRevokedReasonNullableFilter<"DeviceSession"> | $Enums.RevokedReason | null
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
 }, "id">
 
@@ -268,6 +288,8 @@ export type DeviceSessionOrderByWithAggregationInput = {
   jti?: Prisma.SortOrder
   lastActiveAt?: Prisma.SortOrder
   expiresAt?: Prisma.SortOrder
+  revokedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  revokedReason?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.DeviceSessionCountOrderByAggregateInput
   _avg?: Prisma.DeviceSessionAvgOrderByAggregateInput
   _max?: Prisma.DeviceSessionMaxOrderByAggregateInput
@@ -286,6 +308,8 @@ export type DeviceSessionScalarWhereWithAggregatesInput = {
   jti?: Prisma.StringWithAggregatesFilter<"DeviceSession"> | string
   lastActiveAt?: Prisma.DateTimeWithAggregatesFilter<"DeviceSession"> | Date | string
   expiresAt?: Prisma.DateTimeWithAggregatesFilter<"DeviceSession"> | Date | string
+  revokedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"DeviceSession"> | Date | string | null
+  revokedReason?: Prisma.EnumRevokedReasonNullableWithAggregatesFilter<"DeviceSession"> | $Enums.RevokedReason | null
 }
 
 export type DeviceSessionCreateInput = {
@@ -295,6 +319,8 @@ export type DeviceSessionCreateInput = {
   jti: string
   lastActiveAt: Date | string
   expiresAt: Date | string
+  revokedAt?: Date | string | null
+  revokedReason?: $Enums.RevokedReason | null
   user: Prisma.UserCreateNestedOneWithoutSessionsInput
 }
 
@@ -306,6 +332,8 @@ export type DeviceSessionUncheckedCreateInput = {
   jti: string
   lastActiveAt: Date | string
   expiresAt: Date | string
+  revokedAt?: Date | string | null
+  revokedReason?: $Enums.RevokedReason | null
 }
 
 export type DeviceSessionUpdateInput = {
@@ -315,6 +343,8 @@ export type DeviceSessionUpdateInput = {
   jti?: Prisma.StringFieldUpdateOperationsInput | string
   lastActiveAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   expiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  revokedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revokedReason?: Prisma.NullableEnumRevokedReasonFieldUpdateOperationsInput | $Enums.RevokedReason | null
   user?: Prisma.UserUpdateOneRequiredWithoutSessionsNestedInput
 }
 
@@ -326,6 +356,8 @@ export type DeviceSessionUncheckedUpdateInput = {
   jti?: Prisma.StringFieldUpdateOperationsInput | string
   lastActiveAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   expiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  revokedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revokedReason?: Prisma.NullableEnumRevokedReasonFieldUpdateOperationsInput | $Enums.RevokedReason | null
 }
 
 export type DeviceSessionCreateManyInput = {
@@ -336,6 +368,8 @@ export type DeviceSessionCreateManyInput = {
   jti: string
   lastActiveAt: Date | string
   expiresAt: Date | string
+  revokedAt?: Date | string | null
+  revokedReason?: $Enums.RevokedReason | null
 }
 
 export type DeviceSessionUpdateManyMutationInput = {
@@ -345,6 +379,8 @@ export type DeviceSessionUpdateManyMutationInput = {
   jti?: Prisma.StringFieldUpdateOperationsInput | string
   lastActiveAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   expiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  revokedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revokedReason?: Prisma.NullableEnumRevokedReasonFieldUpdateOperationsInput | $Enums.RevokedReason | null
 }
 
 export type DeviceSessionUncheckedUpdateManyInput = {
@@ -355,6 +391,8 @@ export type DeviceSessionUncheckedUpdateManyInput = {
   jti?: Prisma.StringFieldUpdateOperationsInput | string
   lastActiveAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   expiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  revokedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revokedReason?: Prisma.NullableEnumRevokedReasonFieldUpdateOperationsInput | $Enums.RevokedReason | null
 }
 
 export type DeviceSessionListRelationFilter = {
@@ -375,6 +413,8 @@ export type DeviceSessionCountOrderByAggregateInput = {
   jti?: Prisma.SortOrder
   lastActiveAt?: Prisma.SortOrder
   expiresAt?: Prisma.SortOrder
+  revokedAt?: Prisma.SortOrder
+  revokedReason?: Prisma.SortOrder
 }
 
 export type DeviceSessionAvgOrderByAggregateInput = {
@@ -389,6 +429,8 @@ export type DeviceSessionMaxOrderByAggregateInput = {
   jti?: Prisma.SortOrder
   lastActiveAt?: Prisma.SortOrder
   expiresAt?: Prisma.SortOrder
+  revokedAt?: Prisma.SortOrder
+  revokedReason?: Prisma.SortOrder
 }
 
 export type DeviceSessionMinOrderByAggregateInput = {
@@ -399,6 +441,8 @@ export type DeviceSessionMinOrderByAggregateInput = {
   jti?: Prisma.SortOrder
   lastActiveAt?: Prisma.SortOrder
   expiresAt?: Prisma.SortOrder
+  revokedAt?: Prisma.SortOrder
+  revokedReason?: Prisma.SortOrder
 }
 
 export type DeviceSessionSumOrderByAggregateInput = {
@@ -447,6 +491,10 @@ export type DeviceSessionUncheckedUpdateManyWithoutUserNestedInput = {
   deleteMany?: Prisma.DeviceSessionScalarWhereInput | Prisma.DeviceSessionScalarWhereInput[]
 }
 
+export type NullableEnumRevokedReasonFieldUpdateOperationsInput = {
+  set?: $Enums.RevokedReason | null
+}
+
 export type DeviceSessionCreateWithoutUserInput = {
   id: string
   deviceName: string
@@ -454,6 +502,8 @@ export type DeviceSessionCreateWithoutUserInput = {
   jti: string
   lastActiveAt: Date | string
   expiresAt: Date | string
+  revokedAt?: Date | string | null
+  revokedReason?: $Enums.RevokedReason | null
 }
 
 export type DeviceSessionUncheckedCreateWithoutUserInput = {
@@ -463,6 +513,8 @@ export type DeviceSessionUncheckedCreateWithoutUserInput = {
   jti: string
   lastActiveAt: Date | string
   expiresAt: Date | string
+  revokedAt?: Date | string | null
+  revokedReason?: $Enums.RevokedReason | null
 }
 
 export type DeviceSessionCreateOrConnectWithoutUserInput = {
@@ -502,6 +554,8 @@ export type DeviceSessionScalarWhereInput = {
   jti?: Prisma.StringFilter<"DeviceSession"> | string
   lastActiveAt?: Prisma.DateTimeFilter<"DeviceSession"> | Date | string
   expiresAt?: Prisma.DateTimeFilter<"DeviceSession"> | Date | string
+  revokedAt?: Prisma.DateTimeNullableFilter<"DeviceSession"> | Date | string | null
+  revokedReason?: Prisma.EnumRevokedReasonNullableFilter<"DeviceSession"> | $Enums.RevokedReason | null
 }
 
 export type DeviceSessionCreateManyUserInput = {
@@ -511,6 +565,8 @@ export type DeviceSessionCreateManyUserInput = {
   jti: string
   lastActiveAt: Date | string
   expiresAt: Date | string
+  revokedAt?: Date | string | null
+  revokedReason?: $Enums.RevokedReason | null
 }
 
 export type DeviceSessionUpdateWithoutUserInput = {
@@ -520,6 +576,8 @@ export type DeviceSessionUpdateWithoutUserInput = {
   jti?: Prisma.StringFieldUpdateOperationsInput | string
   lastActiveAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   expiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  revokedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revokedReason?: Prisma.NullableEnumRevokedReasonFieldUpdateOperationsInput | $Enums.RevokedReason | null
 }
 
 export type DeviceSessionUncheckedUpdateWithoutUserInput = {
@@ -529,6 +587,8 @@ export type DeviceSessionUncheckedUpdateWithoutUserInput = {
   jti?: Prisma.StringFieldUpdateOperationsInput | string
   lastActiveAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   expiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  revokedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revokedReason?: Prisma.NullableEnumRevokedReasonFieldUpdateOperationsInput | $Enums.RevokedReason | null
 }
 
 export type DeviceSessionUncheckedUpdateManyWithoutUserInput = {
@@ -538,6 +598,8 @@ export type DeviceSessionUncheckedUpdateManyWithoutUserInput = {
   jti?: Prisma.StringFieldUpdateOperationsInput | string
   lastActiveAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   expiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  revokedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  revokedReason?: Prisma.NullableEnumRevokedReasonFieldUpdateOperationsInput | $Enums.RevokedReason | null
 }
 
 
@@ -550,6 +612,8 @@ export type DeviceSessionSelect<ExtArgs extends runtime.Types.Extensions.Interna
   jti?: boolean
   lastActiveAt?: boolean
   expiresAt?: boolean
+  revokedAt?: boolean
+  revokedReason?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["deviceSession"]>
 
@@ -561,6 +625,8 @@ export type DeviceSessionSelectCreateManyAndReturn<ExtArgs extends runtime.Types
   jti?: boolean
   lastActiveAt?: boolean
   expiresAt?: boolean
+  revokedAt?: boolean
+  revokedReason?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["deviceSession"]>
 
@@ -572,6 +638,8 @@ export type DeviceSessionSelectUpdateManyAndReturn<ExtArgs extends runtime.Types
   jti?: boolean
   lastActiveAt?: boolean
   expiresAt?: boolean
+  revokedAt?: boolean
+  revokedReason?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["deviceSession"]>
 
@@ -583,9 +651,11 @@ export type DeviceSessionSelectScalar = {
   jti?: boolean
   lastActiveAt?: boolean
   expiresAt?: boolean
+  revokedAt?: boolean
+  revokedReason?: boolean
 }
 
-export type DeviceSessionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "deviceName" | "ip" | "jti" | "lastActiveAt" | "expiresAt", ExtArgs["result"]["deviceSession"]>
+export type DeviceSessionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "deviceName" | "ip" | "jti" | "lastActiveAt" | "expiresAt" | "revokedAt" | "revokedReason", ExtArgs["result"]["deviceSession"]>
 export type DeviceSessionInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }
@@ -609,6 +679,8 @@ export type $DeviceSessionPayload<ExtArgs extends runtime.Types.Extensions.Inter
     jti: string
     lastActiveAt: Date
     expiresAt: Date
+    revokedAt: Date | null
+    revokedReason: $Enums.RevokedReason | null
   }, ExtArgs["result"]["deviceSession"]>
   composites: {}
 }
@@ -1040,6 +1112,8 @@ export interface DeviceSessionFieldRefs {
   readonly jti: Prisma.FieldRef<"DeviceSession", 'String'>
   readonly lastActiveAt: Prisma.FieldRef<"DeviceSession", 'DateTime'>
   readonly expiresAt: Prisma.FieldRef<"DeviceSession", 'DateTime'>
+  readonly revokedAt: Prisma.FieldRef<"DeviceSession", 'DateTime'>
+  readonly revokedReason: Prisma.FieldRef<"DeviceSession", 'RevokedReason'>
 }
     
 
