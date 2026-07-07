@@ -290,7 +290,7 @@ describe('ApiGateway (e2e)', () => {
         email: 'user@example.com',
         password: 'Password1!',
       })
-      .expect(204);
+      .expect(201);
 
     expect(registrationServiceClient.registerUser).toHaveBeenCalledWith({
       username: 'user_123',
@@ -341,7 +341,7 @@ describe('ApiGateway (e2e)', () => {
     await request(app.getHttpServer() as SupertestApp)
       .post('/auth/password-reset/request')
       .send({ email: 'user@example.com' })
-      .expect(200)
+      .expect(202)
       .expect({ message: 'If this email exists, password reset instructions were sent.' });
 
     expect(passwordResetServiceClient.requestPasswordReset).toHaveBeenCalledWith({

@@ -23,10 +23,12 @@ import {
 } from '@app/user-accounts-grpc';
 import type { ClientGrpc } from '@nestjs/microservices';
 import {
+  ApiAcceptedResponse,
   ApiBadGatewayResponse,
   ApiBadRequestResponse,
   ApiConflictResponse,
   ApiCookieAuth,
+  ApiCreatedResponse,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
@@ -78,9 +80,9 @@ export class AuthHttpController implements OnModuleInit {
 
   @Public()
   @Post('registration')
-  @HttpCode(204)
+  @HttpCode(201)
   @ApiOperation({ summary: 'Register a user and send an email confirmation link' })
-  @ApiNoContentResponse({ description: 'The user was registered and the confirmation email was sent.' })
+  @ApiCreatedResponse({ description: 'The user was registered and the confirmation email was sent.' })
   @ApiBadRequestResponse({ description: 'The request body is invalid.', type: ApiErrorResponseDto })
   @ApiConflictResponse({
     description: 'The username or email is already reserved.',
@@ -191,9 +193,9 @@ export class AuthHttpController implements OnModuleInit {
 
   @Public()
   @Post('password-reset/request')
-  @HttpCode(200)
+  @HttpCode(202)
   @ApiOperation({ summary: 'Request a password reset email' })
-  @ApiOkResponse({
+  @ApiAcceptedResponse({
     description: 'The request was accepted without revealing whether the email exists.',
     type: PasswordResetResponse,
   })
