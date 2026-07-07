@@ -1,5 +1,6 @@
-import { status } from '@grpc/grpc-js';
+import { Metadata, status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
+import { USER_ACCOUNTS_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
 import { type UserAccountsError, UserAccountsErrorCode } from '../../errors/user-accounts.error.js';
 
 export const mapUserAccountsErrorToRpcException = (error: UserAccountsError): RpcException => {
@@ -45,5 +46,8 @@ export const mapUserAccountsErrorToRpcException = (error: UserAccountsError): Rp
       message = 'Internal user accounts error';
   }
 
-  return new RpcException({ code: grpcStatus, message });
+  const metadata = new Metadata();
+  metadata.set(USER_ACCOUNTS_ERROR_CODE_METADATA_KEY, error.code);
+
+  return new RpcException({ code: grpcStatus, message, metadata });
 };

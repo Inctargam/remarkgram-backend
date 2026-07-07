@@ -1,7 +1,7 @@
 import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
-import { status } from '@grpc/grpc-js';
+import { Metadata, status } from '@grpc/grpc-js';
 import {
   FILES_SERVICE_NAME,
   REMARKGRAM_FILES_V1_PACKAGE_NAME,
@@ -14,6 +14,7 @@ import {
   REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
   SESSIONS_SERVICE_NAME,
   USERS_SERVICE_NAME,
+  USER_ACCOUNTS_ERROR_CODE_METADATA_KEY,
   type AuthServiceClient,
   type PasswordResetServiceClient,
   type RegistrationServiceClient,
@@ -177,9 +178,31 @@ describe('ApiGateway (e2e)', () => {
     const response = await request(app.getHttpServer() as SupertestApp)
       .get('/users')
       .expect(401);
-    const body = response.body as { message: string };
+    const body = response.body as { code: string; message: string };
 
     expect(body.message).toBe('Authentication failed');
+    expect(body.code).toBe('UNAUTHENTICATED');
+  });
+
+  it('preserves user-accounts error codes while mapping gRPC status to HTTP', async () => {
+    const metadata = new Metadata();
+    metadata.set(USER_ACCOUNTS_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED');
+    usersServiceClient.getUsers.mockReturnValueOnce(
+      throwError(() => ({
+        code: status.FAILED_PRECONDITION,
+        details: 'Email has not been confirmed',
+        metadata,
+      })),
+    );
+
+    await request(app.getHttpServer() as SupertestApp)
+      .get('/users')
+      .expect(409)
+      .expect({
+        statusCode: 409,
+        code: 'EMAIL_NOT_CONFIRMED',
+        message: 'Email has not been confirmed',
+      });
   });
 
   it('POST /auth/login delegates credentials and stores the refresh token in a cookie', async () => {
