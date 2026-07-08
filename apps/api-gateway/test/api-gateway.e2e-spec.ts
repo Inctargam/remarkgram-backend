@@ -51,10 +51,10 @@ describe('ApiGateway (e2e)', () => {
     resendRegistrationConfirmation: vi.fn<RegistrationServiceClient['resendRegistrationConfirmation']>(),
   };
   const sessionsServiceClient = {
-    getDevices: vi.fn<SessionsServiceClient['getDevices']>(),
+    getSessions: vi.fn<SessionsServiceClient['getSessions']>(),
     logoutCurrentSession: vi.fn<SessionsServiceClient['logoutCurrentSession']>(),
-    deleteDevice: vi.fn<SessionsServiceClient['deleteDevice']>(),
-    deleteOtherDevices: vi.fn<SessionsServiceClient['deleteOtherDevices']>(),
+    revokeSession: vi.fn<SessionsServiceClient['revokeSession']>(),
+    revokeOtherSessions: vi.fn<SessionsServiceClient['revokeOtherSessions']>(),
   };
   const testingServiceClient = {
     deleteAllData: vi.fn<TestingServiceClient['deleteAllData']>(),
@@ -128,22 +128,22 @@ describe('ApiGateway (e2e)', () => {
     registrationServiceClient.registerUser.mockReturnValue(of({}));
     registrationServiceClient.confirmRegistration.mockReturnValue(of({}));
     registrationServiceClient.resendRegistrationConfirmation.mockReturnValue(of({}));
-    sessionsServiceClient.getDevices.mockReturnValue(
+    sessionsServiceClient.getSessions.mockReturnValue(
       of({
-        devices: [
+        sessions: [
           {
             ip: '127.0.0.1',
-            title: 'Browser',
-            lastActiveDate: '2026-07-01T12:00:00.000Z',
-            deviceId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+            deviceName: 'Browser',
+            lastActiveAt: '2026-07-01T12:00:00.000Z',
+            sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
             isCurrent: true,
           },
         ],
       }),
     );
     sessionsServiceClient.logoutCurrentSession.mockReturnValue(of({}));
-    sessionsServiceClient.deleteDevice.mockReturnValue(of({}));
-    sessionsServiceClient.deleteOtherDevices.mockReturnValue(of({}));
+    sessionsServiceClient.revokeSession.mockReturnValue(of({}));
+    sessionsServiceClient.revokeOtherSessions.mockReturnValue(of({}));
     testingServiceClient.deleteAllData.mockReturnValue(of({}));
     passwordResetServiceClient.requestPasswordReset.mockReturnValue(of({ accepted: true }));
     passwordResetServiceClient.confirmPasswordReset.mockReturnValue(of({}));
@@ -195,7 +195,16 @@ describe('ApiGateway (e2e)', () => {
     expect(document.paths).not.toHaveProperty('/auth/sessions/others');
     expect(document.paths).not.toHaveProperty('/users');
     expect(document.paths).not.toHaveProperty('/files');
-    expect(document.components.schemas.DeviceResponseDto?.properties).toHaveProperty('isCurrent');
+    expect(document.components.schemas.SessionResponseDto?.properties).toEqual(
+      expect.objectContaining({
+        sessionId: expect.any(Object),
+        deviceName: expect.any(Object),
+        ip: expect.any(Object),
+        lastActiveAt: expect.any(Object),
+        isCurrent: expect.any(Object),
+      }),
+    );
+    expect(document.components.schemas).not.toHaveProperty('DeviceResponseDto');
 
     type OpenApiResponse = {
       content?: {
@@ -421,14 +430,14 @@ describe('ApiGateway (e2e)', () => {
       .expect([
         {
           ip: '127.0.0.1',
-          title: 'Browser',
-          lastActiveDate: '2026-07-01T12:00:00.000Z',
-          deviceId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+          deviceName: 'Browser',
+          lastActiveAt: '2026-07-01T12:00:00.000Z',
+          sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
           isCurrent: true,
         },
       ]);
 
-    expect(sessionsServiceClient.getDevices).toHaveBeenCalledWith({
+    expect(sessionsServiceClient.getSessions).toHaveBeenCalledWith({
       auth: refreshTokenClaims,
     });
   });
@@ -445,7 +454,7 @@ describe('ApiGateway (e2e)', () => {
     expect(response.headers['set-cookie']?.[0]).toContain('refreshToken=;');
   });
 
-  it('DELETE /security/sessions/:sessionId deletes the selected session', async () => {
+  it('DELETE /security/sessions/:sessionId revokes the selected session', async () => {
     const sessionId = '7a63d7e0-9ae7-4e5b-84e4-d770bdb5ef92';
 
     await request(app.getHttpServer() as SupertestApp)
@@ -453,19 +462,19 @@ describe('ApiGateway (e2e)', () => {
       .set('Cookie', 'refreshToken=current-refresh-token')
       .expect(204);
 
-    expect(sessionsServiceClient.deleteDevice).toHaveBeenCalledWith({
+    expect(sessionsServiceClient.revokeSession).toHaveBeenCalledWith({
       auth: refreshTokenClaims,
-      deviceId: sessionId,
+      sessionId,
     });
   });
 
-  it('DELETE /security/sessions deletes all sessions except the current one', async () => {
+  it('DELETE /security/sessions revokes all sessions except the current one', async () => {
     await request(app.getHttpServer() as SupertestApp)
       .delete('/security/sessions')
       .set('Cookie', 'refreshToken=current-refresh-token')
       .expect(204);
 
-    expect(sessionsServiceClient.deleteOtherDevices).toHaveBeenCalledWith({
+    expect(sessionsServiceClient.revokeOtherSessions).toHaveBeenCalledWith({
       auth: refreshTokenClaims,
     });
   });

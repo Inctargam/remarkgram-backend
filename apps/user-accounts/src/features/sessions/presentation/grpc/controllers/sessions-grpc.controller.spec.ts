@@ -24,7 +24,7 @@ describe('SessionsGrpcController', () => {
     );
 
     await expect(
-      controller.getDevices({
+      controller.getSessions({
         auth: {
           userId: '1',
           sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
@@ -32,12 +32,12 @@ describe('SessionsGrpcController', () => {
         },
       }),
     ).resolves.toEqual({
-      devices: [
+      sessions: [
         {
           ip: '127.0.0.1',
-          title: 'Browser',
-          lastActiveDate: '2026-07-01T12:00:00.000Z',
-          deviceId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
+          deviceName: 'Browser',
+          lastActiveAt: '2026-07-01T12:00:00.000Z',
+          sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
           isCurrent: true,
         },
       ],
@@ -61,7 +61,7 @@ describe('SessionsGrpcController', () => {
     expect(commandBus.execute).toHaveBeenCalledWith(new LogoutCurrentSessionCommand(auth));
   });
 
-  it('passes verified refresh-token claims and device id to delete session command', async () => {
+  it('passes verified refresh-token claims and session id to delete session command', async () => {
     const queryBus = { execute: vi.fn() };
     const commandBus = { execute: vi.fn().mockResolvedValue(undefined) };
     const controller = new SessionsGrpcController(
@@ -75,9 +75,9 @@ describe('SessionsGrpcController', () => {
     };
 
     await expect(
-      controller.deleteDevice({
+      controller.revokeSession({
         auth,
-        deviceId: 'f318f7c0-c8cf-4fc2-93a5-a83234fb0f24',
+        sessionId: 'f318f7c0-c8cf-4fc2-93a5-a83234fb0f24',
       }),
     ).resolves.toEqual({});
     expect(commandBus.execute).toHaveBeenCalledWith(
@@ -101,7 +101,7 @@ describe('SessionsGrpcController', () => {
       jti: 'jti',
     };
 
-    await expect(controller.deleteOtherDevices({ auth })).resolves.toEqual({});
+    await expect(controller.revokeOtherSessions({ auth })).resolves.toEqual({});
     expect(commandBus.execute).toHaveBeenCalledWith(new DeleteOtherSessionsCommand(auth));
   });
 });

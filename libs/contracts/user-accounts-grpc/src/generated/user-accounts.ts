@@ -71,20 +71,20 @@ export interface ResendRegistrationConfirmationRequest {
 export interface ResendRegistrationConfirmationResponse {
 }
 
-export interface GetDevicesRequest {
+export interface GetSessionsRequest {
   auth: VerifiedRefreshTokenClaims | undefined;
 }
 
-export interface Device {
+export interface Session {
   ip: string;
-  title: string;
-  lastActiveDate: string;
-  deviceId: string;
+  deviceName: string;
+  lastActiveAt: string;
+  sessionId: string;
   isCurrent: boolean;
 }
 
-export interface GetDevicesResponse {
-  devices: Device[];
+export interface GetSessionsResponse {
+  sessions: Session[];
 }
 
 export interface LogoutCurrentSessionRequest {
@@ -94,19 +94,19 @@ export interface LogoutCurrentSessionRequest {
 export interface LogoutCurrentSessionResponse {
 }
 
-export interface DeleteDeviceRequest {
+export interface RevokeSessionRequest {
   auth: VerifiedRefreshTokenClaims | undefined;
-  deviceId: string;
+  sessionId: string;
 }
 
-export interface DeleteDeviceResponse {
+export interface RevokeSessionResponse {
 }
 
-export interface DeleteOtherDevicesRequest {
+export interface RevokeOtherSessionsRequest {
   auth: VerifiedRefreshTokenClaims | undefined;
 }
 
-export interface DeleteOtherDevicesResponse {
+export interface RevokeOtherSessionsResponse {
 }
 
 export interface DeleteAllDataRequest {
@@ -234,36 +234,36 @@ export function RegistrationServiceControllerMethods() {
 export const REGISTRATION_SERVICE_NAME = "RegistrationService";
 
 export interface SessionsServiceClient {
-  getDevices(request: GetDevicesRequest): Observable<GetDevicesResponse>;
+  getSessions(request: GetSessionsRequest): Observable<GetSessionsResponse>;
 
   logoutCurrentSession(request: LogoutCurrentSessionRequest): Observable<LogoutCurrentSessionResponse>;
 
-  deleteDevice(request: DeleteDeviceRequest): Observable<DeleteDeviceResponse>;
+  revokeSession(request: RevokeSessionRequest): Observable<RevokeSessionResponse>;
 
-  deleteOtherDevices(request: DeleteOtherDevicesRequest): Observable<DeleteOtherDevicesResponse>;
+  revokeOtherSessions(request: RevokeOtherSessionsRequest): Observable<RevokeOtherSessionsResponse>;
 }
 
 export interface SessionsServiceController {
-  getDevices(
-    request: GetDevicesRequest,
-  ): Promise<GetDevicesResponse> | Observable<GetDevicesResponse> | GetDevicesResponse;
+  getSessions(
+    request: GetSessionsRequest,
+  ): Promise<GetSessionsResponse> | Observable<GetSessionsResponse> | GetSessionsResponse;
 
   logoutCurrentSession(
     request: LogoutCurrentSessionRequest,
   ): Promise<LogoutCurrentSessionResponse> | Observable<LogoutCurrentSessionResponse> | LogoutCurrentSessionResponse;
 
-  deleteDevice(
-    request: DeleteDeviceRequest,
-  ): Promise<DeleteDeviceResponse> | Observable<DeleteDeviceResponse> | DeleteDeviceResponse;
+  revokeSession(
+    request: RevokeSessionRequest,
+  ): Promise<RevokeSessionResponse> | Observable<RevokeSessionResponse> | RevokeSessionResponse;
 
-  deleteOtherDevices(
-    request: DeleteOtherDevicesRequest,
-  ): Promise<DeleteOtherDevicesResponse> | Observable<DeleteOtherDevicesResponse> | DeleteOtherDevicesResponse;
+  revokeOtherSessions(
+    request: RevokeOtherSessionsRequest,
+  ): Promise<RevokeOtherSessionsResponse> | Observable<RevokeOtherSessionsResponse> | RevokeOtherSessionsResponse;
 }
 
 export function SessionsServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["getDevices", "logoutCurrentSession", "deleteDevice", "deleteOtherDevices"];
+    const grpcMethods: string[] = ["getSessions", "logoutCurrentSession", "revokeSession", "revokeOtherSessions"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("SessionsService", method)(constructor.prototype[method], method, descriptor);

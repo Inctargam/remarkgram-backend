@@ -36,7 +36,7 @@ import { firstValueFrom, map, type Observable } from 'rxjs';
 import { ApiErrorResponseDto } from '../../../../../common/http/api-error-response.dto.js';
 import { Public } from '../../../../../common/http/decorators/public.decorator.js';
 import type { RequestWithRefreshSession } from '../auth-request.types.js';
-import { DeviceResponseDto } from '../dto/output/device-response.dto.js';
+import { SessionResponseDto } from '../dto/output/session-response.dto.js';
 import { RefreshTokenGuard } from '../guards/refresh-token.guard.js';
 
 @ApiTags('Sessions')
@@ -62,21 +62,24 @@ export class SessionsHttpController implements OnModuleInit {
 
   @Get()
   @ApiOperation({ summary: 'Get the active sessions of the current user' })
-  @ApiOkResponse({ description: 'Active, unexpired sessions.', type: [DeviceResponseDto] })
-  getSessions(@Req() request: RequestWithRefreshSession): Observable<DeviceResponseDto[]> {
+  @ApiOkResponse({
+    description: 'Active, unexpired and non-revoked refresh sessions.',
+    type: [SessionResponseDto],
+  })
+  getSessions(@Req() request: RequestWithRefreshSession): Observable<SessionResponseDto[]> {
     return this.sessionsClient
-      .getDevices({ auth: request.refreshTokenClaims })
+      .getSessions({ auth: request.refreshTokenClaims })
       .pipe(
         map((response) =>
-          response.devices.map(
-            (device) =>
-              new DeviceResponseDto(
-                device.ip,
-                device.title,
-                device.lastActiveDate,
-                device.deviceId,
-                device.isCurrent,
-              ),
+          response.sessions.map(
+            (session) =>
+              new SessionResponseDto({
+                sessionId: session.sessionId,
+                deviceName: session.deviceName,
+                ip: session.ip,
+                lastActiveAt: session.lastActiveAt,
+                isCurrent: session.isCurrent,
+              }),
           ),
         ),
       );
@@ -84,10 +87,10 @@ export class SessionsHttpController implements OnModuleInit {
 
   @Delete()
   @HttpCode(204)
-  @ApiOperation({ summary: 'Revoke every session except the current one' })
+  @ApiOperation({ summary: 'Revoke all sessions except the current one' })
   @ApiNoContentResponse({ description: 'All other sessions were revoked.' })
   async deleteOtherSessions(@Req() request: RequestWithRefreshSession): Promise<void> {
-    await firstValueFrom(this.sessionsClient.deleteOtherDevices({ auth: request.refreshTokenClaims }));
+    await firstValueFrom(this.sessionsClient.revokeOtherSessions({ auth: request.refreshTokenClaims }));
   }
 
   @Delete(':sessionId')
@@ -120,9 +123,9 @@ export class SessionsHttpController implements OnModuleInit {
     @Res({ passthrough: true }) response: Response,
   ): Promise<void> {
     await firstValueFrom(
-      this.sessionsClient.deleteDevice({
+      this.sessionsClient.revokeSession({
         auth: request.refreshTokenClaims,
-        deviceId: sessionId,
+        sessionId,
       }),
     );
 

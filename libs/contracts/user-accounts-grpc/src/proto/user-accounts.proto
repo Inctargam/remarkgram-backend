@@ -18,10 +18,10 @@ service RegistrationService {
 }
 
 service SessionsService {
-  rpc GetDevices(GetDevicesRequest) returns (GetDevicesResponse);
+  rpc GetSessions(GetSessionsRequest) returns (GetSessionsResponse);
   rpc LogoutCurrentSession(LogoutCurrentSessionRequest) returns (LogoutCurrentSessionResponse);
-  rpc DeleteDevice(DeleteDeviceRequest) returns (DeleteDeviceResponse);
-  rpc DeleteOtherDevices(DeleteOtherDevicesRequest) returns (DeleteOtherDevicesResponse);
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+  rpc RevokeOtherSessions(RevokeOtherSessionsRequest) returns (RevokeOtherSessionsResponse);
 }
 
 service TestingService {
@@ -85,20 +85,20 @@ message ResendRegistrationConfirmationRequest {
 
 message ResendRegistrationConfirmationResponse {}
 
-message GetDevicesRequest {
+message GetSessionsRequest {
   VerifiedRefreshTokenClaims auth = 1;
 }
 
-message Device {
+message Session {
   string ip = 1;
-  string title = 2;
-  string last_active_date = 3;
-  string device_id = 4;
+  string device_name = 2;
+  string last_active_at = 3;
+  string session_id = 4;
   bool is_current = 5;
 }
 
-message GetDevicesResponse {
-  repeated Device devices = 1;
+message GetSessionsResponse {
+  repeated Session sessions = 1;
 }
 
 message LogoutCurrentSessionRequest {
@@ -107,18 +107,18 @@ message LogoutCurrentSessionRequest {
 
 message LogoutCurrentSessionResponse {}
 
-message DeleteDeviceRequest {
+message RevokeSessionRequest {
   VerifiedRefreshTokenClaims auth = 1;
-  string device_id = 2;
+  string session_id = 2;
 }
 
-message DeleteDeviceResponse {}
+message RevokeSessionResponse {}
 
-message DeleteOtherDevicesRequest {
+message RevokeOtherSessionsRequest {
   VerifiedRefreshTokenClaims auth = 1;
 }
 
-message DeleteOtherDevicesResponse {}
+message RevokeOtherSessionsResponse {}
 
 message DeleteAllDataRequest {}
 

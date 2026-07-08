@@ -4,14 +4,14 @@ import { status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
 import { SessionsServiceControllerMethods } from '@app/user-accounts-grpc';
 import type {
-  DeleteDeviceRequest,
-  DeleteDeviceResponse,
-  DeleteOtherDevicesRequest,
-  DeleteOtherDevicesResponse,
-  GetDevicesRequest,
-  GetDevicesResponse,
+  GetSessionsRequest,
+  GetSessionsResponse,
   LogoutCurrentSessionRequest,
   LogoutCurrentSessionResponse,
+  RevokeOtherSessionsRequest,
+  RevokeOtherSessionsResponse,
+  RevokeSessionRequest,
+  RevokeSessionResponse,
 } from '@app/user-accounts-grpc';
 import { UserAccountsRpcExceptionFilter } from '../../../../../common/grpc/filters/user-accounts-rpc-exception.filter.js';
 import { DeleteOtherSessionsCommand } from '../../../application/use-cases/delete-other-sessions.use-case.js';
@@ -28,8 +28,8 @@ export class SessionsGrpcController {
     private readonly commandBus: CommandBus,
   ) {}
 
-  /** Возвращает список активных пользовательских устройств для текущей refresh-сессии. */
-  async getDevices(request: GetDevicesRequest): Promise<GetDevicesResponse> {
+  /** Возвращает список активных пользовательских refresh-сессий. */
+  async getSessions(request: GetSessionsRequest): Promise<GetSessionsResponse> {
     if (!request.auth) {
       throw new RpcException({
         code: status.UNAUTHENTICATED,
@@ -40,11 +40,11 @@ export class SessionsGrpcController {
     const sessions = await this.queryBus.execute(new GetSessionsQuery(request.auth));
 
     return {
-      devices: sessions.map((session) => ({
+      sessions: sessions.map((session) => ({
         ip: session.ip,
-        title: session.deviceName,
-        lastActiveDate: session.lastActiveAt.toISOString(),
-        deviceId: session.sessionId,
+        deviceName: session.deviceName,
+        lastActiveAt: session.lastActiveAt.toISOString(),
+        sessionId: session.sessionId,
         isCurrent: session.isCurrent,
       })),
     };
@@ -64,8 +64,8 @@ export class SessionsGrpcController {
     return {};
   }
 
-  /** Отзывает выбранную пользовательскую сессию по deviceId. */
-  async deleteDevice(request: DeleteDeviceRequest): Promise<DeleteDeviceResponse> {
+  /** Отзывает выбранную пользовательскую сессию по sessionId. */
+  async revokeSession(request: RevokeSessionRequest): Promise<RevokeSessionResponse> {
     if (!request.auth) {
       throw new RpcException({
         code: status.UNAUTHENTICATED,
@@ -76,7 +76,7 @@ export class SessionsGrpcController {
     await this.commandBus.execute(
       new DeleteSessionCommand({
         auth: request.auth,
-        sessionId: request.deviceId,
+        sessionId: request.sessionId,
       }),
     );
 
@@ -84,7 +84,9 @@ export class SessionsGrpcController {
   }
 
   /** Отзывает все пользовательские сессии, кроме текущей. */
-  async deleteOtherDevices(request: DeleteOtherDevicesRequest): Promise<DeleteOtherDevicesResponse> {
+  async revokeOtherSessions(
+    request: RevokeOtherSessionsRequest,
+  ): Promise<RevokeOtherSessionsResponse> {
     if (!request.auth) {
       throw new RpcException({
         code: status.UNAUTHENTICATED,
