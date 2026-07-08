@@ -1,6 +1,7 @@
+import type { EventBus } from '@nestjs/cqrs';
 import type { ConfigType } from '@nestjs/config';
 import type { authConfig } from '../../../../config/auth.config.js';
-import type { EmailService } from '../../../notifications/email.service.js';
+import { RegistrationConfirmationEmailEvent } from '../../../notifications/use-cases/registration-confirmation-email.event-use-case.js';
 import { createTestUser } from '../../../../../test/factories/user.factory.js';
 import { PasswordRecoveryInfo } from '../../domain/value-objects/password-recovery-info.js';
 import type { UsersRepository } from '../ports/users.repository.js';
@@ -14,8 +15,8 @@ describe('RegisterUserUseCase', () => {
   const usersService = {
     createUser: vi.fn<UsersService['createUser']>(),
   };
-  const emailService = {
-    sendConfirmationCode: vi.fn<EmailService['sendConfirmationCode']>(),
+  const eventBus = {
+    publish: vi.fn<(event: RegistrationConfirmationEmailEvent) => void>(),
   };
   const auth = { confirmationCodeExpiresIn: 24 } as ConfigType<typeof authConfig>;
   let useCase: RegisterUserUseCase;
@@ -26,11 +27,10 @@ describe('RegisterUserUseCase', () => {
     vi.clearAllMocks();
     usersRepository.releaseExpiredRegistrationCredentials.mockResolvedValue(undefined);
     usersService.createUser.mockResolvedValue(createTestUser());
-    emailService.sendConfirmationCode.mockResolvedValue(undefined);
     useCase = new RegisterUserUseCase(
       usersRepository as unknown as UsersRepository,
       usersService as unknown as UsersService,
-      emailService as unknown as EmailService,
+      eventBus as unknown as EventBus,
       auth,
     );
   });
@@ -39,7 +39,7 @@ describe('RegisterUserUseCase', () => {
     vi.useRealTimers();
   });
 
-  it('creates an unconfirmed user and sends its confirmation code', async () => {
+  it('creates an unconfirmed user and publishes its confirmation email event', async () => {
     await useCase.execute(
       new RegisterUserCommand({
         username: 'user',
@@ -66,32 +66,14 @@ describe('RegisterUserUseCase', () => {
       },
       passwordRecovery: PasswordRecoveryInfo.inactive(),
     });
-    expect(emailService.sendConfirmationCode).toHaveBeenCalledWith(
-      'user@example.com',
-      createParams.confirmation?.code,
+    expect(eventBus.publish).toHaveBeenCalledWith(
+      new RegistrationConfirmationEmailEvent('user@example.com', createParams.confirmation?.code ?? ''),
     );
     expect(usersRepository.releaseExpiredRegistrationCredentials.mock.invocationCallOrder[0]).toBeLessThan(
       usersService.createUser.mock.invocationCallOrder[0],
     );
     expect(usersService.createUser.mock.invocationCallOrder[0]).toBeLessThan(
-      emailService.sendConfirmationCode.mock.invocationCallOrder[0],
+      eventBus.publish.mock.invocationCallOrder[0],
     );
-  });
-
-  it('propagates confirmation email delivery errors', async () => {
-    const error = new Error('SMTP unavailable');
-    emailService.sendConfirmationCode.mockRejectedValue(error);
-
-    await expect(
-      useCase.execute(
-        new RegisterUserCommand({
-          username: 'user',
-          email: 'user@example.com',
-          password: 'password',
-        }),
-      ),
-    ).rejects.toBe(error);
-
-    expect(usersService.createUser).toHaveBeenCalledOnce();
   });
 });

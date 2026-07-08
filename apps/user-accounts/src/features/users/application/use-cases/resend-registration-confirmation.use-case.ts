@@ -1,8 +1,8 @@
 import { Inject } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
+import { Command, CommandHandler, EventBus, type ICommandHandler } from '@nestjs/cqrs';
 import { authConfig } from '../../../../config/auth.config.js';
-import { EmailService } from '../../../notifications/email.service.js';
+import { RegistrationConfirmationEmailEvent } from '../../../notifications/use-cases/registration-confirmation-email.event-use-case.js';
 import { EmailAlreadyConfirmedError, IncorrectEmailError } from '../errors/users.errors.js';
 import { UsersRepository } from '../ports/users.repository.js';
 
@@ -16,7 +16,7 @@ export class ResendRegistrationConfirmationCommand extends Command<void> {
 export class ResendRegistrationConfirmationUseCase implements ICommandHandler<ResendRegistrationConfirmationCommand> {
   constructor(
     private readonly usersRepository: UsersRepository,
-    private readonly emailService: EmailService,
+    private readonly eventBus: EventBus,
     @Inject(authConfig.KEY) private readonly auth: ConfigType<typeof authConfig>,
   ) {}
 
@@ -54,6 +54,6 @@ export class ResendRegistrationConfirmationUseCase implements ICommandHandler<Re
       return;
     }
 
-    await this.emailService.sendConfirmationCode(command.email, code);
+    this.eventBus.publish(new RegistrationConfirmationEmailEvent(command.email, code));
   }
 }

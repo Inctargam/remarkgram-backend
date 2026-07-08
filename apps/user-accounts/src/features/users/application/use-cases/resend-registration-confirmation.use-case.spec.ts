@@ -1,6 +1,7 @@
+import type { EventBus } from '@nestjs/cqrs';
 import type { ConfigType } from '@nestjs/config';
 import type { authConfig } from '../../../../config/auth.config.js';
-import type { EmailService } from '../../../notifications/email.service.js';
+import { RegistrationConfirmationEmailEvent } from '../../../notifications/use-cases/registration-confirmation-email.event-use-case.js';
 import { createTestUser } from '../../../../../test/factories/user.factory.js';
 import { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
 import type { UsersRepository } from '../ports/users.repository.js';
@@ -14,8 +15,8 @@ describe('ResendRegistrationConfirmationUseCase', () => {
     findByEmail: vi.fn<UsersRepository['findByEmail']>(),
     updateConfirmationCode: vi.fn<UsersRepository['updateConfirmationCode']>(),
   };
-  const emailService = {
-    sendConfirmationCode: vi.fn<EmailService['sendConfirmationCode']>(),
+  const eventBus = {
+    publish: vi.fn<(event: RegistrationConfirmationEmailEvent) => void>(),
   };
   const auth = { confirmationCodeExpiresIn: 24 } as ConfigType<typeof authConfig>;
   let useCase: ResendRegistrationConfirmationUseCase;
@@ -25,10 +26,9 @@ describe('ResendRegistrationConfirmationUseCase', () => {
     vi.setSystemTime(new Date('2026-07-01T12:00:00.000Z'));
     vi.clearAllMocks();
     usersRepository.updateConfirmationCode.mockResolvedValue(true);
-    emailService.sendConfirmationCode.mockResolvedValue(undefined);
     useCase = new ResendRegistrationConfirmationUseCase(
       usersRepository as unknown as UsersRepository,
-      emailService as unknown as EmailService,
+      eventBus as unknown as EventBus,
       auth,
     );
   });
@@ -46,7 +46,9 @@ describe('ResendRegistrationConfirmationUseCase', () => {
 
     await useCase.execute(new ResendRegistrationConfirmationCommand('user@example.com'));
 
-    const code = emailService.sendConfirmationCode.mock.calls[0][1];
+    const event = eventBus.publish.mock.calls[0][0];
+    const code = event.code;
+    expect(event).toEqual(new RegistrationConfirmationEmailEvent('user@example.com', code));
     expect(usersRepository.updateConfirmationCode).toHaveBeenCalledWith({
       userId: 1,
       expectedCode: 'old-code',
@@ -54,7 +56,7 @@ describe('ResendRegistrationConfirmationUseCase', () => {
       expiration: new Date('2026-07-02T12:00:00.000Z'),
     });
     expect(usersRepository.updateConfirmationCode.mock.invocationCallOrder[0]).toBeLessThan(
-      emailService.sendConfirmationCode.mock.invocationCallOrder[0],
+      eventBus.publish.mock.invocationCallOrder[0],
     );
   });
 
@@ -89,6 +91,6 @@ describe('ResendRegistrationConfirmationUseCase', () => {
     await expect(
       useCase.execute(new ResendRegistrationConfirmationCommand('user@example.com')),
     ).resolves.toBeUndefined();
-    expect(emailService.sendConfirmationCode).not.toHaveBeenCalled();
+    expect(eventBus.publish).not.toHaveBeenCalled();
   });
 });
