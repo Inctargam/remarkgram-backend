@@ -25,6 +25,20 @@ export class PrismaPasswordResetUsersRepository extends PasswordResetUsersReposi
   ): Promise<PasswordResetUser | null> {
     const client = this.getClient(ctx);
 
+    if (!ctx) {
+      return client.user.findFirst({
+        select: {
+          id: true,
+          email: true,
+        },
+        where: {
+          email,
+          isConfirmed: true,
+          deletedAt: null,
+        },
+      });
+    }
+
     const users = await client.$queryRaw<Array<{ id: number; email: string }>>`
         SELECT id, email
         FROM "users"
@@ -33,18 +47,6 @@ export class PrismaPasswordResetUsersRepository extends PasswordResetUsersReposi
           AND "deletedAt" IS NULL
             FOR UPDATE
     `;
-
-    // const user = await client.user.findFirst({
-    //   select: {
-    //     id: true,
-    //     email: true,
-    //   },
-    //   where: {
-    //     email,
-    //     isConfirmed: true,
-    //     deletedAt: null,
-    //   },
-    // });
 
     return users.length > 0 ? users[0] : null;
   }

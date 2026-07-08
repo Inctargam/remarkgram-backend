@@ -4,7 +4,11 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsPassword } from '../../../../../../common/http/decorators/is-password.decorator.js';
 
 export class ConfirmPasswordResetDto {
-  @ApiProperty({ example: 'password-reset-token' })
+  @ApiProperty({
+    example: 'password-reset-token',
+    description:
+      'Token from the password reset email. Invalid, expired, revoked or already used tokens return INVALID_PASSWORD_RESET_TOKEN.',
+  })
   @Trim()
   @IsNotEmpty()
   declare token: string;

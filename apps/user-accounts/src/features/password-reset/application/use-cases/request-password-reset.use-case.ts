@@ -10,7 +10,7 @@ import { passwordResetConfig } from '../../../../config/password-reset.config.js
 import type { ConfigType } from '@nestjs/config';
 import { PasswordResetTokenEmailEvent } from '../../../notifications/use-cases/password-reset-token-email.event-use-case.js';
 import { PasswordResetTokenService } from '../ports/password-reset-token.service.js';
-import { UnitOfWork } from '../../../../common/application/unit-of-work.js';
+import { UnitOfWork } from '../../../../common/application/unit-of-work.ts';
 
 export class RequestPasswordResetCommand extends Command<RequestPasswordResetResult> {
   constructor(public readonly params: RequestPasswordResetParams) {
@@ -29,6 +29,7 @@ export class RequestPasswordResetUseCase implements ICommandHandler<RequestPassw
     private readonly eventBus: EventBus,
     private readonly tokenService: PasswordResetTokenService,
     private readonly unitOfWork: UnitOfWork,
+    // private readonly prisma: PrismaService,
   ) {}
 
   async execute(command: RequestPasswordResetCommand): Promise<RequestPasswordResetResult> {

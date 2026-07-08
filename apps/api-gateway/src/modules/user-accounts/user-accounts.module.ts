@@ -16,6 +16,7 @@ import { UsersHttpController } from './presentation/http/controllers/users-http.
 import { AccessTokenGuard } from './presentation/http/guards/access-token.guard.js';
 import { OptionalRefreshTokenGuard } from './presentation/http/guards/optional-refresh-token.guard.js';
 import { RefreshTokenGuard } from './presentation/http/guards/refresh-token.guard.js';
+import { RecaptchaVerifiersService } from './presentation/captcha/recaptcha-verifiers.service.ts';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { RefreshTokenGuard } from './presentation/http/guards/refresh-token.guar
   providers: [
     OptionalRefreshTokenGuard,
     RefreshTokenGuard,
+    RecaptchaVerifiersService,
     {
       provide: APP_GUARD,
       useClass: AccessTokenGuard,

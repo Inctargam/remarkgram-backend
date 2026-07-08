@@ -1,6 +1,10 @@
 export type TransactionContext = unknown;
 
+export type TransactionOptions = {
+  maxWait?: number;
+  timeout?: number;
+};
+
 export abstract class UnitOfWork {
-  /** Выполняет набор операций в одной транзакции и передаёт общий контекст всем участникам. */
-  abstract run<T>(handler: (ctx: TransactionContext) => Promise<T>): Promise<T>;
+  abstract run<T>(handler: (ctx: TransactionContext) => Promise<T>, options?: TransactionOptions): Promise<T>;
 }

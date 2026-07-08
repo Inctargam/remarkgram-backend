@@ -4,9 +4,9 @@ import {
   Get,
   HttpCode,
   Inject,
+  type OnModuleInit,
   Param,
   ParseUUIDPipe,
-  type OnModuleInit,
   Req,
   Res,
   UseGuards,
@@ -67,22 +67,20 @@ export class SessionsHttpController implements OnModuleInit {
     type: [SessionResponseDto],
   })
   getSessions(@Req() request: RequestWithRefreshSession): Observable<SessionResponseDto[]> {
-    return this.sessionsClient
-      .getSessions({ auth: request.refreshTokenClaims })
-      .pipe(
-        map((response) =>
-          response.sessions.map(
-            (session) =>
-              new SessionResponseDto({
-                sessionId: session.sessionId,
-                deviceName: session.deviceName,
-                ip: session.ip,
-                lastActiveAt: session.lastActiveAt,
-                isCurrent: session.isCurrent,
-              }),
-          ),
+    return this.sessionsClient.getSessions({ auth: request.refreshTokenClaims }).pipe(
+      map((response) =>
+        response.sessions.map(
+          (session) =>
+            new SessionResponseDto({
+              sessionId: session.sessionId,
+              deviceName: session.deviceName,
+              ip: session.ip,
+              lastActiveAt: session.lastActiveAt,
+              isCurrent: session.isCurrent,
+            }),
         ),
-      );
+      ),
+    );
   }
 
   @Delete()

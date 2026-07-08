@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { UnitOfWork, type TransactionContext } from '../common/application/unit-of-work.js';
+import {
+  UnitOfWork,
+  type TransactionContext,
+  type TransactionOptions,
+} from '../common/application/unit-of-work.js';
 import { PrismaService } from './prisma.service.js';
 
 @Injectable()
@@ -9,7 +13,7 @@ export class PrismaUnitOfWork extends UnitOfWork {
   }
 
   /** Запускает callback внутри интерактивной Prisma-транзакции. */
-  run<T>(handler: (ctx: TransactionContext) => Promise<T>): Promise<T> {
-    return this.prisma.$transaction((tx) => handler(tx));
+  run<T>(handler: (ctx: TransactionContext) => Promise<T>, options?: TransactionOptions): Promise<T> {
+    return this.prisma.$transaction((tx) => handler(tx), options);
   }
 }

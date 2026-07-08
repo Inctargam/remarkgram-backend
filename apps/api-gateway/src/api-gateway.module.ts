@@ -8,6 +8,7 @@ import { FilesModule } from './modules/files/files.module.js';
 import { userAccountsGrpcClientConfig } from './modules/user-accounts/config/user-accounts-grpc-client.config.js';
 import { userAccountsHttpConfig } from './modules/user-accounts/config/user-accounts-http.config.js';
 import { UserAccountsModule } from './modules/user-accounts/user-accounts.module.js';
+import { recaptchaSecretConfig } from './modules/user-accounts/config/recaptcha-secret.config.ts';
 
 @Module({
   imports: [
@@ -23,7 +24,13 @@ import { UserAccountsModule } from './modules/user-accounts/user-accounts.module
         `.env.production`,
         '.env',
       ],
-      load: [apiGatewayConfig, filesGrpcClientConfig, userAccountsGrpcClientConfig, userAccountsHttpConfig],
+      load: [
+        apiGatewayConfig,
+        filesGrpcClientConfig,
+        userAccountsGrpcClientConfig,
+        userAccountsHttpConfig,
+        recaptchaSecretConfig,
+      ],
     }),
     FilesModule,
     UserAccountsModule,
