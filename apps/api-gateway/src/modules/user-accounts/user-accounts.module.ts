@@ -3,8 +3,10 @@ import type { ConfigType } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME } from '@app/user-accounts-grpc';
-import { join } from 'node:path';
+import {
+  REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
+  USER_ACCOUNTS_GRPC_PROTO_PATH,
+} from '@app/user-accounts-grpc';
 import { userAccountsGrpcClientConfig } from './config/user-accounts-grpc-client.config.js';
 import { userAccountsHttpConfig } from './config/user-accounts-http.config.js';
 import { AuthHttpController } from './presentation/http/controllers/auth-http.controller.js';
@@ -14,11 +16,6 @@ import { UsersHttpController } from './presentation/http/controllers/users-http.
 import { AccessTokenGuard } from './presentation/http/guards/access-token.guard.js';
 import { OptionalRefreshTokenGuard } from './presentation/http/guards/optional-refresh-token.guard.js';
 import { RefreshTokenGuard } from './presentation/http/guards/refresh-token.guard.js';
-
-const protoPath = join(
-  import.meta.dirname,
-  '../../../../../libs/contracts/user-accounts-grpc/src/proto/user-accounts.proto',
-);
 
 @Module({
   imports: [
@@ -30,7 +27,7 @@ const protoPath = join(
           transport: Transport.GRPC,
           options: {
             package: REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
-            protoPath,
+            protoPath: USER_ACCOUNTS_GRPC_PROTO_PATH,
             url: config.url,
           },
         }),

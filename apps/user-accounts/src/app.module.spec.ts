@@ -21,7 +21,10 @@ describe('UserAccountsModule', () => {
     vi.stubEnv('DATABASE_URL', 'postgresql://user:password@localhost:5432/database');
     vi.stubEnv('EMAIL_LOGIN', 'user@example.com');
     vi.stubEnv('EMAIL_PASSWORD', 'password');
-    vi.stubEnv('SMTP_URL', 'smtp.example.com');
+    vi.stubEnv('EMAIL_FROM', 'Remarkgram <no-reply@example.com>');
+    vi.stubEnv('SMTP_HOST', 'smtp.example.com');
+    vi.stubEnv('SMTP_PORT', '465');
+    vi.stubEnv('SMTP_SECURE', 'true');
     vi.stubEnv('USER_ACCOUNTS_GRPC_URL', 'localhost:50052');
 
     const module = await Test.createTestingModule({ imports: [UserAccountsModule] }).compile();

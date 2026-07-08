@@ -5,5 +5,4 @@ allowBuilds:
   prisma: true
   grpc-tools: true
   protobufjs: true
-ignoredBuiltDependencies:
-  - '@scarf/scarf'
+  '@scarf/scarf': true

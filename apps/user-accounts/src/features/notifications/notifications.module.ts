@@ -12,16 +12,16 @@ import { RegistrationConfirmationEmailHandler } from './use-cases/registration-c
       useFactory: (email: ConfigType<typeof emailConfig>) => {
         return {
           transport: {
-            host: email.smtpUrl,
+            host: email.smtpHost,
+            port: email.smtpPort,
+            secure: email.smtpSecure,
             auth: {
               user: email.emailCredentials.user,
               pass: email.emailCredentials.password,
             },
-            port: 465,
-            secure: true,
           },
           defaults: {
-            from: email.emailCredentials.user,
+            from: email.emailFrom,
           },
         };
       },
