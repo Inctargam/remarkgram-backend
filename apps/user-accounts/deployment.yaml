@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: DEPLOYMENT_NAME
+  namespace: NAMESPACE
+  labels:
+    app: PROJECT
+spec:
+  selector:
+    matchLabels:
+      project: PROJECT
+  template:
+    metadata:
+      namespace: NAMESPACE
+      labels:
+        project: PROJECT
+    spec:
+      containers:
+         - name: PROJECT
+           image: REGISTRY_HOSTNAME/PROJECT:TAG_VERSION
+           securityContext:
+             allowPrivilegeEscalation: false
+             runAsNonRoot: true      # опционально, но хорошая практика
+             runAsUser: 1000         # опционально
+           ports:
+             - containerPort: PORT_CONTAINER
+           env:
+             - name: USER_ACCOUNTS_GRPC_URL
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: USER_ACCOUNTS_GRPC_URL
+             - name: JWT_PRIVATE_KEY
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: JWT_PRIVATE_KEY
+             - name: ACCESS_TOKEN_EXPIRES_IN
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: ACCESS_TOKEN_EXPIRES_IN
+             - name: REFRESH_TOKEN_EXPIRES_IN
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: REFRESH_TOKEN_EXPIRES_IN
+             - name: CONFIRMATION_CODE_EXPIRES_IN
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: CONFIRMATION_CODE_EXPIRES_IN
+             - name: RECOVERY_CODE_EXPIRES_IN
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: RECOVERY_CODE_EXPIRES_IN
+             - name: PASSWORD_RESET_TOKEN_TTL_MINUTES
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: PASSWORD_RESET_TOKEN_TTL_MINUTES
+             - name: PASSWORD_RESET_TOKEN_SECRET
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: PASSWORD_RESET_TOKEN_SECRET
+             - name: PASSWORD_RESET_EMAIL_COOLDOWN_MINUTES
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: PASSWORD_RESET_EMAIL_COOLDOWN_MINUTES
+             - name: FRONTEND_URL
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: FRONTEND_URL
+             - name: SMTP_HOST
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: SMTP_HOST
+             - name: SMTP_PORT
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: SMTP_PORT
+             - name: SMTP_SECURE
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: SMTP_SECURE
+             - name: EMAIL_LOGIN
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: EMAIL_LOGIN
+             - name: EMAIL_PASSWORD
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: EMAIL_PASSWORD
+             - name: EMAIL_FROM
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: EMAIL_FROM
+             - name: DATABASE_URL
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: DATABASE_URL

@@ -16,17 +16,52 @@ spec:
         project: PROJECT
     spec:
       containers:
-        - name: PROJECT
-          image: REGISTRY_HOSTNAME/PROJECT:TAG_VERSION
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true # опционально, но хорошая практика
-            runAsUser: 1000 # опционально
-          ports:
-            - containerPort: PORT_CONTAINER
-          env:
-            - name: PORT
-              valueFrom:
-                secretKeyRef:
-                  name: api-gateway-production-config-secret
-                  key: PORT
+         - name: PROJECT
+           image: REGISTRY_HOSTNAME/PROJECT:TAG_VERSION
+           securityContext:
+             allowPrivilegeEscalation: false
+             runAsNonRoot: true      # опционально, но хорошая практика
+             runAsUser: 1000         # опционально
+           ports:
+             - containerPort: PORT_CONTAINER
+           env:
+             - name: USER_ACCOUNTS_GRPC_URL
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: USER_ACCOUNTS_GRPC_URL
+             - name: JWT_PUBLIC_KEY
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: JWT_PUBLIC_KEY
+             - name: ENABLE_TESTING_ENDPOINTS
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: ENABLE_TESTING_ENDPOINTS
+             - name: TESTING_ENDPOINT_KEY
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: TESTING_ENDPOINT_KEY
+             - name: GOOGLE_RECAPTCHA_SECRET_KEY
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: GOOGLE_RECAPTCHA_SECRET_KEY
+             - name: FILES_GRPC_URL
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: FILES_GRPC_URL
+             - name: REFRESH_TOKEN_COOKIE_MAX_AGE_MS
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: REFRESH_TOKEN_COOKIE_MAX_AGE_MS
+             - name: GATEWAY_PORT
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: GATEWAY_PORT
