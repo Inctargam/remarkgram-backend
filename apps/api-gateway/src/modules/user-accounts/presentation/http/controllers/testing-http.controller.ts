@@ -11,16 +11,6 @@ import {
 import type { ConfigType } from '@nestjs/config';
 import type { ClientGrpc } from '@nestjs/microservices';
 import {
-  ApiBadGatewayResponse,
-  ApiForbiddenResponse,
-  ApiNoContentResponse,
-  ApiNotFoundResponse,
-  ApiOperation,
-  ApiSecurity,
-  ApiServiceUnavailableResponse,
-  ApiTags,
-} from '@nestjs/swagger';
-import {
   REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
   TESTING_SERVICE_NAME,
   type TestingServiceClient,
@@ -29,9 +19,10 @@ import { timingSafeEqual } from 'node:crypto';
 import { firstValueFrom } from 'rxjs';
 import { Public } from '../../../../../common/http/decorators/public.decorator.js';
 import { apiGatewayConfig } from '../../../../../config/api-gateway.config.js';
+import { ApiDeleteAllData } from '../swagger/testing/delete/delete-all-data.swagger.js';
+import { ApiTestingController } from '../swagger/testing/testing-controller.swagger.js';
 
-@ApiTags('Testing')
-@ApiSecurity('testingKey')
+@ApiTestingController()
 @Controller('testing')
 export class TestingHttpController implements OnModuleInit {
   private testingClient!: TestingServiceClient;
@@ -50,12 +41,7 @@ export class TestingHttpController implements OnModuleInit {
   @Public()
   @Delete('all-data')
   @HttpCode(204)
-  @ApiOperation({ summary: 'Delete all data from the user-accounts database' })
-  @ApiNoContentResponse({ description: 'All user-accounts data was deleted.' })
-  @ApiNotFoundResponse({ description: 'The testing endpoint is disabled.' })
-  @ApiForbiddenResponse({ description: 'The testing endpoint key is invalid.' })
-  @ApiBadGatewayResponse({ description: 'The upstream service returned an unexpected error.' })
-  @ApiServiceUnavailableResponse({ description: 'The user-accounts service is unavailable.' })
+  @ApiDeleteAllData()
   async deleteAllData(@Headers('X-Testing-Key') testingKey: string | undefined): Promise<void> {
     if (!this.config.testingEndpointsEnabled) {
       throw new NotFoundException();

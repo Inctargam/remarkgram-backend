@@ -25,17 +25,9 @@ import {
   type SessionsServiceClient,
 } from '@app/user-accounts-grpc';
 import type { ClientGrpc } from '@nestjs/microservices';
-import {
-  ApiBadGatewayResponse,
-  ApiExtraModels,
-  ApiServiceUnavailableResponse,
-  ApiTags,
-} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { firstValueFrom } from 'rxjs';
-import { ApiErrorResponseDto } from '../../../../../common/http/api-error-response.dto.js';
 import { Public } from '../../../../../common/http/decorators/public.decorator.js';
-import { ValidationErrorResponseDto } from '../../../../../common/http/validation-error-response.dto.js';
 import { userAccountsHttpConfig } from '../../../config/user-accounts-http.config.js';
 import type { RequestWithOptionalRefreshSession, RequestWithRefreshSession } from '../auth-request.types.js';
 import { LoginDto } from '../dto/input/login.dto.js';
@@ -50,6 +42,7 @@ import { ConfirmRegistrationDto } from '../dto/input/confirm-registration.dto.js
 import { ResendRegistrationConfirmationDto } from '../dto/input/resend-registration-confirmation.dto.js';
 import { ConfirmPasswordResetResponseDto } from '../dto/output/confirm-password-reset-response.dto.js';
 import { RecaptchaVerifiersService } from '../../captcha/recaptcha-verifiers.service.ts';
+import { ApiAuthController } from '../swagger/auth/auth-controller.swagger.js';
 import { ApiLogin } from '../swagger/auth/post/login.swagger.js';
 import { ApiLogout } from '../swagger/auth/post/logout.swagger.js';
 import { ApiRefreshToken } from '../swagger/auth/post/refresh-token.swagger.js';
@@ -59,10 +52,7 @@ import { ApiConfirmRegistration } from '../swagger/registration/post/confirm-reg
 import { ApiRegister } from '../swagger/registration/post/register.swagger.js';
 import { ApiResendRegistrationConfirmation } from '../swagger/registration/post/resend-registration-confirmation.swagger.js';
 
-@ApiTags('Auth')
-@ApiExtraModels(ApiErrorResponseDto, ValidationErrorResponseDto)
-@ApiBadGatewayResponse({ description: 'The upstream service returned an unexpected error.' })
-@ApiServiceUnavailableResponse({ description: 'The user-accounts service is unavailable.' })
+@ApiAuthController()
 @Controller('auth')
 export class AuthHttpController implements OnModuleInit {
   private authClient!: AuthServiceClient;
