@@ -21,7 +21,6 @@ export class RefreshTokenGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<RequestWithOptionalRefreshSession>();
     const refreshToken = request.cookies.refreshToken;
-
     if (!refreshToken) {
       throw new UnauthorizedException('Invalid authorization method');
     }

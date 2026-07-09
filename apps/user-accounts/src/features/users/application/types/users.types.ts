@@ -25,7 +25,8 @@ export type ReleaseExpiredRegistrationCredentialsParams = Pick<RegisterUserParam
 };
 
 export type UpdateConfirmationCodeParams = {
-  email: string;
-  code: string;
+  userId: number;
+  expectedCode: string;
+  newCode: string;
   expiration: Date;
 };

@@ -8,7 +8,12 @@ import { PrismaClient } from './generated/client.js';
 export class PrismaService extends PrismaClient implements OnModuleDestroy {
   constructor(@Inject(databaseConfig.KEY) config: ConfigType<typeof databaseConfig>) {
     super({
-      adapter: new PrismaPg({ connectionString: config.url }),
+      adapter: new PrismaPg({
+        connectionString: config.url,
+        // query_timeout — настройка node-postgres (отсутствует в доке Prisma). Она ограничивает время выполнения query,
+        // чтобы зависший запрос завершался диагностируемой ошибкой, а не висел в Postman.
+        query_timeout: 10_000,
+      }),
     });
   }
 

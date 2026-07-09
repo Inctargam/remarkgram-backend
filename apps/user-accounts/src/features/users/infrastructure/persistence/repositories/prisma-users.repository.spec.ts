@@ -12,7 +12,8 @@ import { PrismaUsersRepository } from './prisma-users.repository.js';
 describe('PrismaUsersRepository', () => {
   const create = vi.fn();
   const updateMany = vi.fn();
-  const prisma = { user: { create, updateMany } };
+  const executeRaw = vi.fn();
+  const prisma = { user: { create, updateMany }, $executeRaw: executeRaw };
   const repository = new PrismaUsersRepository(prisma as unknown as PrismaService);
   const params: CreateUserRepositoryParams = {
     username: 'user_123',
@@ -49,17 +50,56 @@ describe('PrismaUsersRepository', () => {
   });
 
   it('clears confirmation code and expiration when confirming a user', async () => {
-    updateMany.mockResolvedValue({ count: 1 });
+    executeRaw.mockResolvedValue(1);
 
     await expect(repository.confirmUser('confirmation-code')).resolves.toBe(true);
+    expect(executeRaw).toHaveBeenCalledOnce();
+    expect(executeRaw.mock.calls[0][1]).toBe('confirmation-code');
+  });
+
+  it('reports that the user was not confirmed when no row was updated', async () => {
+    executeRaw.mockResolvedValue(0);
+
+    await expect(repository.confirmUser('confirmation-code')).resolves.toBe(false);
+  });
+
+  it('updates a confirmation code only for an unconfirmed user', async () => {
+    const expiration = new Date('2026-07-06T13:00:00.000Z');
+    updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(
+      repository.updateConfirmationCode({
+        userId: 1,
+        expectedCode: 'old-confirmation-code',
+        newCode: 'new-confirmation-code',
+        expiration,
+      }),
+    ).resolves.toBe(true);
     expect(updateMany).toHaveBeenCalledWith({
       data: {
-        isConfirmed: true,
-        confirmationCode: null,
-        confirmationExpiration: null,
+        confirmationCode: 'new-confirmation-code',
+        confirmationExpiration: expiration,
       },
-      where: { confirmationCode: 'confirmation-code', deletedAt: null },
+      where: {
+        id: 1,
+        confirmationCode: 'old-confirmation-code',
+        isConfirmed: false,
+        deletedAt: null,
+      },
     });
+  });
+
+  it('reports that confirmation-code update lost a race when no unconfirmed row was updated', async () => {
+    updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      repository.updateConfirmationCode({
+        userId: 1,
+        expectedCode: 'old-confirmation-code',
+        newCode: 'new-confirmation-code',
+        expiration: new Date('2026-07-06T13:00:00.000Z'),
+      }),
+    ).resolves.toBe(false);
   });
 
   it.each([

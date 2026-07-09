@@ -7,14 +7,18 @@ import type { SessionView } from '../../application/types/sessions.types.js';
 export class PrismaSessionsQueryRepository implements SessionsQueryRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getActiveSessions(userId: string): Promise<SessionView[]> {
+  async getActiveSessions(userId: string, currentSessionId: string): Promise<SessionView[]> {
     const numericUserId = Number(userId);
     if (!Number.isSafeInteger(numericUserId) || numericUserId <= 0) {
       return [];
     }
 
     const sessions = await this.prisma.deviceSession.findMany({
-      where: { userId: numericUserId },
+      where: {
+        userId: numericUserId,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
     });
 
     return sessions.map((session) => ({
@@ -22,6 +26,7 @@ export class PrismaSessionsQueryRepository implements SessionsQueryRepository {
       deviceName: session.deviceName,
       lastActiveAt: session.lastActiveAt,
       sessionId: session.id,
+      isCurrent: session.id === currentSessionId,
     }));
   }
 }

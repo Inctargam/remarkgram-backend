@@ -14,10 +14,17 @@ describe('UserAccountsModule', () => {
     vi.stubEnv('REFRESH_TOKEN_EXPIRES_IN', '20m');
     vi.stubEnv('CONFIRMATION_CODE_EXPIRES_IN', '24');
     vi.stubEnv('RECOVERY_CODE_EXPIRES_IN', '1');
+    vi.stubEnv('PASSWORD_RESET_TOKEN_TTL_MINUTES', '30');
+    vi.stubEnv('PASSWORD_RESET_TOKEN_SECRET', 'private');
+    vi.stubEnv('PASSWORD_RESET_EMAIL_COOLDOWN_MINUTES', '2');
+    vi.stubEnv('FRONTEND_URL', '');
     vi.stubEnv('DATABASE_URL', 'postgresql://user:password@localhost:5432/database');
-    vi.stubEnv('EMAIL_LOGIN_GOOGLE', 'user@example.com');
-    vi.stubEnv('EMAIL_PASSWORD_GOOGLE', 'password');
-    vi.stubEnv('SMTP_URL', 'smtp.example.com');
+    vi.stubEnv('EMAIL_LOGIN', 'user@example.com');
+    vi.stubEnv('EMAIL_PASSWORD', 'password');
+    vi.stubEnv('EMAIL_FROM', 'Remarkgram <no-reply@example.com>');
+    vi.stubEnv('SMTP_HOST', 'smtp.example.com');
+    vi.stubEnv('SMTP_PORT', '465');
+    vi.stubEnv('SMTP_SECURE', 'true');
     vi.stubEnv('USER_ACCOUNTS_GRPC_URL', 'localhost:50052');
 
     const module = await Test.createTestingModule({ imports: [UserAccountsModule] }).compile();

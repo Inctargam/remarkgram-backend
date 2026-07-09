@@ -48,19 +48,87 @@ export interface TokenPairResponse {
   refreshToken: string;
 }
 
-export interface GetDevicesRequest {
+export interface RegisterUserRequest {
+  username: string;
+  email: string;
+  password: string;
+}
+
+export interface RegisterUserResponse {
+}
+
+export interface ConfirmRegistrationRequest {
+  code: string;
+}
+
+export interface ConfirmRegistrationResponse {
+}
+
+export interface ResendRegistrationConfirmationRequest {
+  email: string;
+}
+
+export interface ResendRegistrationConfirmationResponse {
+}
+
+export interface GetSessionsRequest {
   auth: VerifiedRefreshTokenClaims | undefined;
 }
 
-export interface Device {
+export interface Session {
   ip: string;
-  title: string;
-  lastActiveDate: string;
-  deviceId: string;
+  deviceName: string;
+  lastActiveAt: string;
+  sessionId: string;
+  isCurrent: boolean;
 }
 
-export interface GetDevicesResponse {
-  devices: Device[];
+export interface GetSessionsResponse {
+  sessions: Session[];
+}
+
+export interface LogoutCurrentSessionRequest {
+  auth: VerifiedRefreshTokenClaims | undefined;
+}
+
+export interface LogoutCurrentSessionResponse {
+}
+
+export interface RevokeSessionRequest {
+  auth: VerifiedRefreshTokenClaims | undefined;
+  sessionId: string;
+}
+
+export interface RevokeSessionResponse {
+}
+
+export interface RevokeOtherSessionsRequest {
+  auth: VerifiedRefreshTokenClaims | undefined;
+}
+
+export interface RevokeOtherSessionsResponse {
+}
+
+export interface DeleteAllDataRequest {
+}
+
+export interface DeleteAllDataResponse {
+}
+
+export interface RequestPasswordResetRequest {
+  email: string;
+}
+
+export interface RequestPasswordResetResponse {
+  accepted: boolean;
+}
+
+export interface ConfirmPasswordResetRequest {
+  token: string;
+  newPassword: string;
+}
+
+export interface ConfirmPasswordResetResponse {
 }
 
 export const REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME = "remarkgram.user_accounts.v1";
@@ -121,19 +189,81 @@ export function AuthServiceControllerMethods() {
 
 export const AUTH_SERVICE_NAME = "AuthService";
 
+export interface RegistrationServiceClient {
+  registerUser(request: RegisterUserRequest): Observable<RegisterUserResponse>;
+
+  confirmRegistration(request: ConfirmRegistrationRequest): Observable<ConfirmRegistrationResponse>;
+
+  resendRegistrationConfirmation(
+    request: ResendRegistrationConfirmationRequest,
+  ): Observable<ResendRegistrationConfirmationResponse>;
+}
+
+export interface RegistrationServiceController {
+  registerUser(
+    request: RegisterUserRequest,
+  ): Promise<RegisterUserResponse> | Observable<RegisterUserResponse> | RegisterUserResponse;
+
+  confirmRegistration(
+    request: ConfirmRegistrationRequest,
+  ): Promise<ConfirmRegistrationResponse> | Observable<ConfirmRegistrationResponse> | ConfirmRegistrationResponse;
+
+  resendRegistrationConfirmation(
+    request: ResendRegistrationConfirmationRequest,
+  ):
+    | Promise<ResendRegistrationConfirmationResponse>
+    | Observable<ResendRegistrationConfirmationResponse>
+    | ResendRegistrationConfirmationResponse;
+}
+
+export function RegistrationServiceControllerMethods() {
+  return function (constructor: Function) {
+    const grpcMethods: string[] = ["registerUser", "confirmRegistration", "resendRegistrationConfirmation"];
+    for (const method of grpcMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcMethod("RegistrationService", method)(constructor.prototype[method], method, descriptor);
+    }
+    const grpcStreamMethods: string[] = [];
+    for (const method of grpcStreamMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcStreamMethod("RegistrationService", method)(constructor.prototype[method], method, descriptor);
+    }
+  };
+}
+
+export const REGISTRATION_SERVICE_NAME = "RegistrationService";
+
 export interface SessionsServiceClient {
-  getDevices(request: GetDevicesRequest): Observable<GetDevicesResponse>;
+  getSessions(request: GetSessionsRequest): Observable<GetSessionsResponse>;
+
+  logoutCurrentSession(request: LogoutCurrentSessionRequest): Observable<LogoutCurrentSessionResponse>;
+
+  revokeSession(request: RevokeSessionRequest): Observable<RevokeSessionResponse>;
+
+  revokeOtherSessions(request: RevokeOtherSessionsRequest): Observable<RevokeOtherSessionsResponse>;
 }
 
 export interface SessionsServiceController {
-  getDevices(
-    request: GetDevicesRequest,
-  ): Promise<GetDevicesResponse> | Observable<GetDevicesResponse> | GetDevicesResponse;
+  getSessions(
+    request: GetSessionsRequest,
+  ): Promise<GetSessionsResponse> | Observable<GetSessionsResponse> | GetSessionsResponse;
+
+  logoutCurrentSession(
+    request: LogoutCurrentSessionRequest,
+  ): Promise<LogoutCurrentSessionResponse> | Observable<LogoutCurrentSessionResponse> | LogoutCurrentSessionResponse;
+
+  revokeSession(
+    request: RevokeSessionRequest,
+  ): Promise<RevokeSessionResponse> | Observable<RevokeSessionResponse> | RevokeSessionResponse;
+
+  revokeOtherSessions(
+    request: RevokeOtherSessionsRequest,
+  ): Promise<RevokeOtherSessionsResponse> | Observable<RevokeOtherSessionsResponse> | RevokeOtherSessionsResponse;
 }
 
 export function SessionsServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["getDevices"];
+    const grpcMethods: string[] = ["getSessions", "logoutCurrentSession", "revokeSession", "revokeOtherSessions"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("SessionsService", method)(constructor.prototype[method], method, descriptor);
@@ -147,3 +277,63 @@ export function SessionsServiceControllerMethods() {
 }
 
 export const SESSIONS_SERVICE_NAME = "SessionsService";
+
+export interface TestingServiceClient {
+  deleteAllData(request: DeleteAllDataRequest): Observable<DeleteAllDataResponse>;
+}
+
+export interface TestingServiceController {
+  deleteAllData(
+    request: DeleteAllDataRequest,
+  ): Promise<DeleteAllDataResponse> | Observable<DeleteAllDataResponse> | DeleteAllDataResponse;
+}
+
+export function TestingServiceControllerMethods() {
+  return function (constructor: Function) {
+    const grpcMethods: string[] = ["deleteAllData"];
+    for (const method of grpcMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcMethod("TestingService", method)(constructor.prototype[method], method, descriptor);
+    }
+    const grpcStreamMethods: string[] = [];
+    for (const method of grpcStreamMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcStreamMethod("TestingService", method)(constructor.prototype[method], method, descriptor);
+    }
+  };
+}
+
+export const TESTING_SERVICE_NAME = "TestingService";
+
+export interface PasswordResetServiceClient {
+  requestPasswordReset(request: RequestPasswordResetRequest): Observable<RequestPasswordResetResponse>;
+
+  confirmPasswordReset(request: ConfirmPasswordResetRequest): Observable<ConfirmPasswordResetResponse>;
+}
+
+export interface PasswordResetServiceController {
+  requestPasswordReset(
+    request: RequestPasswordResetRequest,
+  ): Promise<RequestPasswordResetResponse> | Observable<RequestPasswordResetResponse> | RequestPasswordResetResponse;
+
+  confirmPasswordReset(
+    request: ConfirmPasswordResetRequest,
+  ): Promise<ConfirmPasswordResetResponse> | Observable<ConfirmPasswordResetResponse> | ConfirmPasswordResetResponse;
+}
+
+export function PasswordResetServiceControllerMethods() {
+  return function (constructor: Function) {
+    const grpcMethods: string[] = ["requestPasswordReset", "confirmPasswordReset"];
+    for (const method of grpcMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcMethod("PasswordResetService", method)(constructor.prototype[method], method, descriptor);
+    }
+    const grpcStreamMethods: string[] = [];
+    for (const method of grpcStreamMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcStreamMethod("PasswordResetService", method)(constructor.prototype[method], method, descriptor);
+    }
+  };
+}
+
+export const PASSWORD_RESET_SERVICE_NAME = "PasswordResetService";

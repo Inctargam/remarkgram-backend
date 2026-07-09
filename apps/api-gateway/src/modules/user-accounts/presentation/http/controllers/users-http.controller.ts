@@ -5,10 +5,12 @@ import {
   type UsersServiceClient,
 } from '@app/user-accounts-grpc';
 import type { ClientGrpc } from '@nestjs/microservices';
+import { ApiExcludeController } from '@nestjs/swagger';
 import { map, type Observable } from 'rxjs';
 import { Public } from '../../../../../common/http/decorators/public.decorator.js';
 import { UserResponseDto } from '../dto/output/user-response.dto.js';
 
+@ApiExcludeController()
 @Controller('users')
 export class UsersHttpController implements OnModuleInit {
   private usersClient!: UsersServiceClient;

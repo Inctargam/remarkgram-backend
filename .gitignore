@@ -53,6 +53,10 @@ lerna-debug.log*
 .env.production.local
 .env.local
 
+# Local JWT key pair
+/jwt-private.pem
+/jwt-public.pem
+
 # temp directory
 .temp
 .tmp
@@ -65,6 +69,5 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
-
 
 

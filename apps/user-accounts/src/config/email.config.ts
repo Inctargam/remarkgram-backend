@@ -1,6 +1,6 @@
 import { registerAs } from '@nestjs/config';
 import { plainToInstance, Type } from 'class-transformer';
-import { IsDefined, IsNotEmpty, IsString, ValidateNested } from 'class-validator';
+import { IsBoolean, IsDefined, IsInt, IsNotEmpty, IsString, Max, Min, ValidateNested } from 'class-validator';
 import { configValidationUtility } from '@app/config';
 
 class EmailCredentials {
@@ -21,16 +21,38 @@ class EmailConfig {
 
   @IsString()
   @IsNotEmpty()
-  declare readonly smtpUrl: string;
+  declare readonly smtpHost: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(65535)
+  @Type(() => Number)
+  declare readonly smtpPort: number;
+
+  @IsBoolean()
+  declare readonly smtpSecure: boolean;
+
+  @IsString()
+  @IsNotEmpty()
+  declare readonly emailFrom: string;
 }
 
 export const emailConfig = registerAs('email', () => {
+  const emailLogin = process.env.EMAIL_LOGIN;
+  const emailFrom = process.env.EMAIL_FROM?.trim() || emailLogin;
+
   const config = plainToInstance(EmailConfig, {
     emailCredentials: {
-      user: process.env.EMAIL_LOGIN_GOOGLE,
-      password: process.env.EMAIL_PASSWORD_GOOGLE,
+      user: emailLogin,
+      password: process.env.EMAIL_PASSWORD,
     },
-    smtpUrl: process.env.SMTP_URL,
+    smtpHost: process.env.SMTP_HOST,
+    smtpPort: process.env.SMTP_PORT,
+    smtpSecure:
+      process.env.SMTP_SECURE === undefined
+        ? undefined
+        : configValidationUtility.convertToBoolean(process.env.SMTP_SECURE),
+    emailFrom,
   });
 
   configValidationUtility.validateConfig(config);

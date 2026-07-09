@@ -1,8 +1,8 @@
 import { Inject } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
+import { Command, CommandHandler, EventBus, type ICommandHandler } from '@nestjs/cqrs';
 import { authConfig } from '../../../../config/auth.config.js';
-import { EmailService } from '../../../notifications/email.service.js';
+import { RegistrationConfirmationEmailEvent } from '../../../notifications/use-cases/registration-confirmation-email.event-use-case.js';
 import { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
 import { PasswordRecoveryInfo } from '../../domain/value-objects/password-recovery-info.js';
 import { UsersRepository } from '../ports/users.repository.js';
@@ -20,7 +20,7 @@ export class RegisterUserUseCase implements ICommandHandler<RegisterUserCommand>
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly usersService: UsersService,
-    private readonly emailService: EmailService,
+    private readonly eventBus: EventBus,
     @Inject(authConfig.KEY) private readonly auth: ConfigType<typeof authConfig>,
   ) {}
 
@@ -45,6 +45,6 @@ export class RegisterUserUseCase implements ICommandHandler<RegisterUserCommand>
       passwordRecovery: PasswordRecoveryInfo.inactive(),
     });
 
-    await this.emailService.sendConfirmationCode(command.params.email, code);
+    this.eventBus.publish(new RegistrationConfirmationEmailEvent(command.params.email, code));
   }
 }

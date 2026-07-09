@@ -19,6 +19,7 @@
       "sourceRoot": "apps/api-gateway/src",
       "compilerOptions": {
         "tsConfigPath": "apps/api-gateway/tsconfig.app.json",
+        "watchAssets": true,
         "assets": [
           {
             "include": "../../../libs/contracts/files-grpc/src/proto/*.proto",
@@ -47,6 +48,7 @@
       "sourceRoot": "apps/files/src",
       "compilerOptions": {
         "tsConfigPath": "apps/files/tsconfig.app.json",
+        "watchAssets": true,
         "assets": [
           {
             "include": "../../../libs/contracts/files-grpc/src/proto/*.proto",
@@ -98,6 +100,7 @@
       "sourceRoot": "apps/user-accounts/src",
       "compilerOptions": {
         "tsConfigPath": "apps/user-accounts/tsconfig.app.json",
+        "watchAssets": true,
         "assets": [
           {
             "include": "../../../libs/contracts/user-accounts-grpc/src/proto/*.proto",

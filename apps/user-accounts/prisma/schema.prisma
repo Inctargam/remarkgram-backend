@@ -19,8 +19,12 @@ model User {
   confirmationCode       String?   @db.VarChar
   confirmationExpiration DateTime? @db.Timestamptz
 
+  /// @deprecated Use `passwordResetTokens` instead.
   passwordRecoveryCode       String?   @db.VarChar
   passwordRecoveryExpiration DateTime? @db.Timestamptz
+
+  passwordResetTokens PasswordResetToken[]
+  passwordChangedAt   DateTime?            @db.Timestamptz
 
   deletedAt DateTime? @db.Timestamptz
 
@@ -29,6 +33,15 @@ model User {
   @@unique([username], where: { deletedAt: null })
   @@unique([email], where: { deletedAt: null })
   @@map("users")
+}
+
+enum RevokedReason {
+  USER_LOGOUT
+  LOGOUT_ALL
+  PASSWORD_CHANGED
+  USER_LOCKED
+  ADMIN_ACTION
+  TOKEN_REUSE_DETECTED
 }
 
 model DeviceSession {
@@ -42,8 +55,27 @@ model DeviceSession {
   lastActiveAt DateTime @db.Timestamptz
   expiresAt    DateTime @db.Timestamptz
 
+  revokedAt     DateTime?      @db.Timestamptz
+  revokedReason RevokedReason?
+
   user User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([userId])
   @@map("device_sessions")
+}
+
+model PasswordResetToken {
+  id     String @id @default(uuid()) @db.Uuid
+  userId Int
+
+  tokenHash String    @unique @db.VarChar
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  expiresAt DateTime  @db.Timestamptz
+  usedAt    DateTime? @db.Timestamptz
+  revokedAt DateTime? @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
