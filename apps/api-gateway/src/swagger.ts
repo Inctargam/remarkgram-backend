@@ -1,5 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SWAGGER_PATH } from './http-api.constants.js';
 
 const swaggerConfig = new DocumentBuilder()
   .setTitle('Remarkgram API')
@@ -43,7 +44,7 @@ export const createSwaggerDocument = (app: INestApplication) =>
   });
 
 export const setupSwagger = (app: INestApplication): void => {
-  SwaggerModule.setup('api/docs', app, () => createSwaggerDocument(app), {
+  SwaggerModule.setup(SWAGGER_PATH, app, () => createSwaggerDocument(app), {
     customSiteTitle: 'Remarkgram API',
     swaggerOptions: { persistAuthorization: true },
   });

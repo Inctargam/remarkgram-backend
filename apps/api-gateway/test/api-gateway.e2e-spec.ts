@@ -32,9 +32,11 @@ import {
   RecaptchaVerificationReason,
   RecaptchaVerifiersService,
 } from './../src/modules/user-accounts/presentation/captcha/recaptcha-verifiers.service.js';
+import { API_PREFIX, SWAGGER_PATH } from './../src/http-api.constants.js';
 import { setupSwagger } from './../src/swagger.js';
 
 type SupertestApp = Parameters<typeof request>[0];
+const apiPath = (path: `/${string}`): string => `/${API_PREFIX}${path}`;
 
 describe('ApiGateway (e2e)', () => {
   const testingEndpointKey = 'testing-key-with-at-least-32-characters';
@@ -176,13 +178,14 @@ describe('ApiGateway (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
+    app.setGlobalPrefix(API_PREFIX);
     setupSwagger(app);
     await app.init();
   });
 
-  it('GET /api/docs-json exposes the implemented HTTP API', async () => {
+  it('GET /api/v1/docs-json exposes the implemented HTTP API', async () => {
     const response = await request(app.getHttpServer() as SupertestApp)
-      .get('/api/docs-json')
+      .get(`/${SWAGGER_PATH}-json`)
       .expect(200);
     const document = response.body as {
       paths: Record<string, unknown>;
@@ -202,13 +205,13 @@ describe('ApiGateway (e2e)', () => {
         '/security/sessions',
         '/security/sessions/{sessionId}',
         '/testing/all-data',
-      ]),
+      ].map(apiPath)),
     );
-    expect(document.paths).not.toHaveProperty('/auth/sessions');
-    expect(document.paths).not.toHaveProperty('/auth/sessions/current');
-    expect(document.paths).not.toHaveProperty('/auth/sessions/others');
-    expect(document.paths).not.toHaveProperty('/users');
-    expect(document.paths).not.toHaveProperty('/files');
+    expect(document.paths).not.toHaveProperty(apiPath('/auth/sessions'));
+    expect(document.paths).not.toHaveProperty(apiPath('/auth/sessions/current'));
+    expect(document.paths).not.toHaveProperty(apiPath('/auth/sessions/others'));
+    expect(document.paths).not.toHaveProperty(apiPath('/users'));
+    expect(document.paths).not.toHaveProperty(apiPath('/files'));
     expect(document.components.schemas.SessionResponseDto?.properties).toEqual(
       expect.objectContaining({
         sessionId: expect.any(Object),
@@ -228,13 +231,13 @@ describe('ApiGateway (e2e)', () => {
       };
     };
     type OpenApiOperation = { responses: Record<string, OpenApiResponse> };
-    const passwordResetConfirmation = document.paths['/auth/password-reset/confirm'] as {
+    const passwordResetConfirmation = document.paths[apiPath('/auth/password-reset/confirm')] as {
       post: OpenApiOperation;
     };
-    const registrationConfirmation = document.paths['/auth/registration/confirmation'] as {
+    const registrationConfirmation = document.paths[apiPath('/auth/registration/confirmation')] as {
       post: OpenApiOperation;
     };
-    const deleteSession = document.paths['/security/sessions/{sessionId}'] as {
+    const deleteSession = document.paths[apiPath('/security/sessions/{sessionId}')] as {
       delete: OpenApiOperation;
     };
 
@@ -255,7 +258,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('DELETE /testing/all-data clears user-accounts data', async () => {
     await request(app.getHttpServer() as SupertestApp)
-      .delete('/testing/all-data')
+      .delete(apiPath('/testing/all-data'))
       .set('X-Testing-Key', testingEndpointKey)
       .expect(204);
 
@@ -264,7 +267,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('POST /files', async () => {
     await request(app.getHttpServer() as SupertestApp)
-      .post('/files')
+      .post(apiPath('/files'))
       .expect(201)
       .expect({ id: 'file-id' });
 
@@ -276,7 +279,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('GET /users delegates to user-accounts over gRPC', async () => {
     await request(app.getHttpServer() as SupertestApp)
-      .get('/users')
+      .get(apiPath('/users'))
       .expect(200)
       .expect([{ id: 1, username: 'user', email: 'user@example.com' }]);
 
@@ -292,7 +295,7 @@ describe('ApiGateway (e2e)', () => {
     );
 
     const response = await request(app.getHttpServer() as SupertestApp)
-      .get('/users')
+      .get(apiPath('/users'))
       .expect(401);
     const body = response.body as { code: string; message: string };
 
@@ -312,7 +315,7 @@ describe('ApiGateway (e2e)', () => {
     );
 
     await request(app.getHttpServer() as SupertestApp)
-      .get('/users')
+      .get(apiPath('/users'))
       .expect(409)
       .expect({
         statusCode: 409,
@@ -323,7 +326,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('POST /auth/login delegates credentials and stores the refresh token in a cookie', async () => {
     const response = await request(app.getHttpServer() as SupertestApp)
-      .post('/auth/login')
+      .post(apiPath('/auth/login'))
       .set('User-Agent', 'Browser')
       .send({ email: 'user@example.com', password: 'password' })
       .expect(200)
@@ -341,7 +344,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('POST /auth/registration delegates validated registration data', async () => {
     await request(app.getHttpServer() as SupertestApp)
-      .post('/auth/registration')
+      .post(apiPath('/auth/registration'))
       .send({
         username: 'user_123',
         email: 'user@example.com',
@@ -358,7 +361,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('POST /auth/registration/confirmation delegates a confirmation code', async () => {
     await request(app.getHttpServer() as SupertestApp)
-      .post('/auth/registration/confirmation')
+      .post(apiPath('/auth/registration/confirmation'))
       .send({ code: 'confirmation-code' })
       .expect(204);
 
@@ -369,7 +372,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('POST /auth/registration/resend-confirmation delegates an email', async () => {
     await request(app.getHttpServer() as SupertestApp)
-      .post('/auth/registration/resend-confirmation')
+      .post(apiPath('/auth/registration/resend-confirmation'))
       .send({ email: 'user@example.com' })
       .expect(204);
 
@@ -380,7 +383,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('POST /auth/refresh-token delegates the cookie to user-accounts', async () => {
     await request(app.getHttpServer() as SupertestApp)
-      .post('/auth/refresh-token')
+      .post(apiPath('/auth/refresh-token'))
       .set('Cookie', 'refreshToken=current-refresh-token')
       .set('User-Agent', 'Browser')
       .expect(200)
@@ -396,7 +399,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('POST /auth/password-reset/request delegates email to user-accounts', async () => {
     await request(app.getHttpServer() as SupertestApp)
-      .post('/auth/password-reset/request')
+      .post(apiPath('/auth/password-reset/request'))
       .send({ email: 'user@example.com', recaptchaToken: 'recaptcha-reset-token' })
       .expect(202)
       .expect({ message: 'If this email exists, password reset instructions were sent.' });
@@ -409,7 +412,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('POST /auth/password-reset/confirm delegates token and new password to user-accounts', async () => {
     await request(app.getHttpServer() as SupertestApp)
-      .post('/auth/password-reset/confirm')
+      .post(apiPath('/auth/password-reset/confirm'))
       .send({ token: 'raw-reset-token', newPassword: 'Newpass1' })
       .expect(200)
       .expect({ message: 'Password has been changed successfully.' });
@@ -422,7 +425,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('rejects refresh without a cookie as an HTTP authentication error', async () => {
     await request(app.getHttpServer() as SupertestApp)
-      .post('/auth/refresh-token')
+      .post(apiPath('/auth/refresh-token'))
       .expect(401);
   });
 
@@ -430,7 +433,7 @@ describe('ApiGateway (e2e)', () => {
     jwtService.verifyAsync.mockRejectedValueOnce(new Error('invalid signature'));
 
     await request(app.getHttpServer() as SupertestApp)
-      .post('/auth/refresh-token')
+      .post(apiPath('/auth/refresh-token'))
       .set('Cookie', 'refreshToken=invalid-refresh-token')
       .expect(401);
 
@@ -439,7 +442,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('GET /security/sessions delegates the refresh token to user-accounts', async () => {
     await request(app.getHttpServer() as SupertestApp)
-      .get('/security/sessions')
+      .get(apiPath('/security/sessions'))
       .set('Cookie', 'refreshToken=current-refresh-token')
       .expect(200)
       .expect([
@@ -459,7 +462,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('POST /auth/logout logs out the current session and clears the cookie', async () => {
     const response = await request(app.getHttpServer() as SupertestApp)
-      .post('/auth/logout')
+      .post(apiPath('/auth/logout'))
       .set('Cookie', 'refreshToken=current-refresh-token')
       .expect(204);
 
@@ -473,7 +476,7 @@ describe('ApiGateway (e2e)', () => {
     const sessionId = '7a63d7e0-9ae7-4e5b-84e4-d770bdb5ef92';
 
     await request(app.getHttpServer() as SupertestApp)
-      .delete(`/security/sessions/${sessionId}`)
+      .delete(apiPath(`/security/sessions/${sessionId}`))
       .set('Cookie', 'refreshToken=current-refresh-token')
       .expect(204);
 
@@ -485,7 +488,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('DELETE /security/sessions revokes all sessions except the current one', async () => {
     await request(app.getHttpServer() as SupertestApp)
-      .delete('/security/sessions')
+      .delete(apiPath('/security/sessions'))
       .set('Cookie', 'refreshToken=current-refresh-token')
       .expect(204);
 
