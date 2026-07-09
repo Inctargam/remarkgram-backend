@@ -1,53 +1,33 @@
 import { Metadata, status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
-import { USER_ACCOUNTS_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
+import { USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
 import { type UserAccountsError, UserAccountsErrorCode } from '../../errors/user-accounts.error.js';
 
+const GRPC_STATUS_BY_APP_ERROR_CODE = {
+  [UserAccountsErrorCode.INCORRECT_CREDENTIALS]: status.UNAUTHENTICATED,
+  [UserAccountsErrorCode.INVALID_REFRESH_TOKEN]: status.UNAUTHENTICATED,
+  [UserAccountsErrorCode.NO_ACTIVE_SESSION]: status.UNAUTHENTICATED,
+  [UserAccountsErrorCode.INVALID_USER_ID]: status.UNAUTHENTICATED,
+  [UserAccountsErrorCode.EMAIL_NOT_CONFIRMED]: status.FAILED_PRECONDITION,
+  [UserAccountsErrorCode.USER_ALREADY_LOGGED_IN]: status.FAILED_PRECONDITION,
+  [UserAccountsErrorCode.EMAIL_ALREADY_CONFIRMED]: status.FAILED_PRECONDITION,
+  [UserAccountsErrorCode.CONFIRMATION_CODE_EXPIRED]: status.FAILED_PRECONDITION,
+  [UserAccountsErrorCode.USERNAME_ALREADY_EXISTS]: status.ALREADY_EXISTS,
+  [UserAccountsErrorCode.EMAIL_ALREADY_EXISTS]: status.ALREADY_EXISTS,
+  [UserAccountsErrorCode.SESSION_NOT_FOUND]: status.NOT_FOUND,
+  [UserAccountsErrorCode.SESSION_ACCESS_DENIED]: status.PERMISSION_DENIED,
+  [UserAccountsErrorCode.INVALID_PASSWORD_RESET_TOKEN]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.INVALID_CONFIRMATION_CODE]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.INCORRECT_EMAIL]: status.INVALID_ARGUMENT,
+} satisfies Record<UserAccountsErrorCode, status>;
+
 export const mapUserAccountsErrorToRpcException = (error: UserAccountsError): RpcException => {
-  let grpcStatus: status;
-  let message = error.message;
-
-  switch (error.code) {
-    case UserAccountsErrorCode.INCORRECT_CREDENTIALS:
-    case UserAccountsErrorCode.INVALID_REFRESH_TOKEN:
-    case UserAccountsErrorCode.NO_ACTIVE_SESSION:
-    case UserAccountsErrorCode.INVALID_USER_ID:
-      grpcStatus = status.UNAUTHENTICATED;
-      break;
-
-    case UserAccountsErrorCode.EMAIL_NOT_CONFIRMED:
-    case UserAccountsErrorCode.USER_ALREADY_LOGGED_IN:
-    case UserAccountsErrorCode.EMAIL_ALREADY_CONFIRMED:
-    case UserAccountsErrorCode.CONFIRMATION_CODE_EXPIRED:
-      grpcStatus = status.FAILED_PRECONDITION;
-      break;
-
-    case UserAccountsErrorCode.USERNAME_ALREADY_EXISTS:
-    case UserAccountsErrorCode.EMAIL_ALREADY_EXISTS:
-      grpcStatus = status.ALREADY_EXISTS;
-      break;
-
-    case UserAccountsErrorCode.SESSION_NOT_FOUND:
-      grpcStatus = status.NOT_FOUND;
-      break;
-
-    case UserAccountsErrorCode.SESSION_ACCESS_DENIED:
-      grpcStatus = status.PERMISSION_DENIED;
-      break;
-
-    case UserAccountsErrorCode.INVALID_PASSWORD_RESET_TOKEN:
-    case UserAccountsErrorCode.INVALID_CONFIRMATION_CODE:
-    case UserAccountsErrorCode.INCORRECT_EMAIL:
-      grpcStatus = status.INVALID_ARGUMENT;
-      break;
-
-    default:
-      grpcStatus = status.INTERNAL;
-      message = 'Internal user accounts error';
-  }
+  const appErrorCode = error.code;
+  const grpcStatus = GRPC_STATUS_BY_APP_ERROR_CODE[appErrorCode];
 
   const metadata = new Metadata();
-  metadata.set(USER_ACCOUNTS_ERROR_CODE_METADATA_KEY, error.code);
+  metadata.set(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY, appErrorCode);
 
-  return new RpcException({ code: grpcStatus, message, metadata });
+  // Формат gRPC требует поле code, но в него записывается именно статус gRPC.
+  return new RpcException({ code: grpcStatus, message: error.message, metadata });
 };

@@ -1,6 +1,6 @@
 import { Metadata, status } from '@grpc/grpc-js';
 import { HttpStatus } from '@nestjs/common';
-import { USER_ACCOUNTS_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
+import { USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
 import { mapGrpcErrorToHttpException } from './grpc-to-http-exception.filter.js';
 
 describe('mapGrpcErrorToHttpException', () => {
@@ -14,7 +14,7 @@ describe('mapGrpcErrorToHttpException', () => {
     [status.RESOURCE_EXHAUSTED, HttpStatus.TOO_MANY_REQUESTS, 'RESOURCE_EXHAUSTED'],
     [status.UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE, 'UNAVAILABLE'],
     [status.DEADLINE_EXCEEDED, HttpStatus.GATEWAY_TIMEOUT, 'DEADLINE_EXCEEDED'],
-  ])('maps gRPC status %s to HTTP status %s', (grpcStatus, httpStatus, errorCode) => {
+  ])('maps gRPC status %s to HTTP status %s', (grpcStatus, httpStatus, appErrorCode) => {
     const exception = mapGrpcErrorToHttpException({
       code: grpcStatus,
       details: 'Request failed',
@@ -23,14 +23,14 @@ describe('mapGrpcErrorToHttpException', () => {
     expect(exception.getStatus()).toBe(httpStatus);
     expect(exception.getResponse()).toEqual({
       statusCode: httpStatus,
-      code: errorCode,
+      code: appErrorCode,
       message: 'Request failed',
     });
   });
 
   it('preserves the application error code from gRPC metadata', () => {
     const metadata = new Metadata();
-    metadata.set(USER_ACCOUNTS_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED');
+    metadata.set(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED');
 
     const exception = mapGrpcErrorToHttpException({
       code: status.FAILED_PRECONDITION,

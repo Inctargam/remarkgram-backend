@@ -15,7 +15,7 @@ import {
   SESSIONS_SERVICE_NAME,
   TESTING_SERVICE_NAME,
   USERS_SERVICE_NAME,
-  USER_ACCOUNTS_ERROR_CODE_METADATA_KEY,
+  USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY,
   type AuthServiceClient,
   type PasswordResetServiceClient,
   type RegistrationServiceClient,
@@ -305,7 +305,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('preserves user-accounts error codes while mapping gRPC status to HTTP', async () => {
     const metadata = new Metadata();
-    metadata.set(USER_ACCOUNTS_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED');
+    metadata.set(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED');
     usersServiceClient.getUsers.mockReturnValueOnce(
       throwError(() => ({
         code: status.FAILED_PRECONDITION,
