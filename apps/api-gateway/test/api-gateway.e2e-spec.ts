@@ -28,6 +28,10 @@ import cookieParser from 'cookie-parser';
 import { of, throwError } from 'rxjs';
 import request from 'supertest';
 import { ApiGatewayModule } from './../src/api-gateway.module.js';
+import {
+  RecaptchaVerificationReason,
+  RecaptchaVerifiersService,
+} from './../src/modules/user-accounts/presentation/captcha/recaptcha-verifiers.service.js';
 import { setupSwagger } from './../src/swagger.js';
 
 type SupertestApp = Parameters<typeof request>[0];
@@ -62,6 +66,9 @@ describe('ApiGateway (e2e)', () => {
   const passwordResetServiceClient = {
     requestPasswordReset: vi.fn<PasswordResetServiceClient['requestPasswordReset']>(),
     confirmPasswordReset: vi.fn<PasswordResetServiceClient['confirmPasswordReset']>(),
+  };
+  const recaptchaVerifiersService = {
+    verify: vi.fn<RecaptchaVerifiersService['verify']>(),
   };
   const filesGrpcClient = {
     getService: vi.fn(() => filesServiceClient),
@@ -102,6 +109,7 @@ describe('ApiGateway (e2e)', () => {
     vi.stubEnv('REFRESH_TOKEN_COOKIE_MAX_AGE_MS', '1200000');
     vi.stubEnv('ENABLE_TESTING_ENDPOINTS', 'true');
     vi.stubEnv('TESTING_ENDPOINT_KEY', testingEndpointKey);
+    vi.stubEnv('GOOGLE_RECAPTCHA_SECRET_KEY', 'test-recaptcha-secret-key');
     filesServiceClient.uploadFile.mockReturnValue(of({ id: 'file-id' }));
     jwtService.verifyAsync.mockResolvedValue({
       sub: refreshTokenClaims.userId,
@@ -147,6 +155,10 @@ describe('ApiGateway (e2e)', () => {
     testingServiceClient.deleteAllData.mockReturnValue(of({}));
     passwordResetServiceClient.requestPasswordReset.mockReturnValue(of({ accepted: true }));
     passwordResetServiceClient.confirmPasswordReset.mockReturnValue(of({}));
+    recaptchaVerifiersService.verify.mockResolvedValue({
+      success: true,
+      reason: RecaptchaVerificationReason.ValidToken,
+    });
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [ApiGatewayModule],
@@ -157,6 +169,8 @@ describe('ApiGateway (e2e)', () => {
       .useValue(userAccountsGrpcClient)
       .overrideProvider(JwtService)
       .useValue(jwtService)
+      .overrideProvider(RecaptchaVerifiersService)
+      .useValue(recaptchaVerifiersService)
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -383,10 +397,11 @@ describe('ApiGateway (e2e)', () => {
   it('POST /auth/password-reset/request delegates email to user-accounts', async () => {
     await request(app.getHttpServer() as SupertestApp)
       .post('/auth/password-reset/request')
-      .send({ email: 'user@example.com' })
+      .send({ email: 'user@example.com', recaptchaToken: 'recaptcha-reset-token' })
       .expect(202)
       .expect({ message: 'If this email exists, password reset instructions were sent.' });
 
+    expect(recaptchaVerifiersService.verify).toHaveBeenCalledWith('recaptcha-reset-token');
     expect(passwordResetServiceClient.requestPasswordReset).toHaveBeenCalledWith({
       email: 'user@example.com',
     });
@@ -480,7 +495,7 @@ describe('ApiGateway (e2e)', () => {
   });
 
   afterEach(async () => {
-    await app.close();
+    await app?.close();
     vi.unstubAllEnvs();
     vi.clearAllMocks();
   });

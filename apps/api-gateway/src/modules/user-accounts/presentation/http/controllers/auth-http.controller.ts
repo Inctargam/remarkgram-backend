@@ -162,7 +162,6 @@ export class AuthHttpController implements OnModuleInit {
   @ApiRequestPasswordReset()
   async passwordReset(@Body() inputDto: PasswordResetDto): Promise<PasswordResetResponse> {
     const result = await this.recaptchaVerifiersService.verify(inputDto.recaptchaToken);
-    console.log('result', result);
     if (!result.success) {
       throw new BadRequestException('reCAPTCHA validation failed');
     }
