@@ -50,56 +50,54 @@ export class AuthService {
     return { accessToken, refreshToken, refreshTokenPayload };
   }
 
+  /** Выпускает короткоживущий access-токен с аудиторией API. */
+  private generateAccessToken(userId: string): Promise<string> {
+    return this.jwtService.signAsync(
+      { sub: userId },
+      {
+        audience: 'api',
+        expiresIn: this.auth.accessTokenExpiresIn,
+      },
+    );
+  }
+
+  /** Выпускает refresh-токен с аудиторией auth, связанный с конкретной сессией и уникальным jti. */
+  private generateRefreshToken(userId: string, sessionId: string): Promise<string> {
+    return this.jwtService.signAsync(
+      { sub: userId, sessionId, jti: crypto.randomUUID() },
+      {
+        audience: 'auth',
+        expiresIn: this.auth.refreshTokenExpiresIn,
+      },
+    );
+  }
+
   /**
    * Проверяет подпись refresh-токена и существование соответствующей активной сессии.
    * Не используется в рабочем потоке: API Gateway проверяет подпись refresh-токена и передаёт проверенные
    * claims. Метод оставлен до окончательного решения о месте проверки подписи.
    */
   async validateRefreshToken(refreshToken: string): Promise<JwtRefreshPayload> {
-    const payload = await this.decodeRefreshToken(refreshToken);
-    if (!payload) {
+    let payload: JwtRefreshPayload;
+
+    try {
+      payload = await this.jwtService.verifyAsync<JwtRefreshPayload>(refreshToken, {
+        audience: 'auth',
+      });
+    } catch {
       throw new InvalidRefreshTokenError();
     }
 
-    if (
-      !(await this.sessionsService.checkSession({
-        userId: payload.sub,
-        sessionId: payload.sessionId,
-        jti: payload.jti,
-      }))
-    ) {
+    const isSessionActive = await this.sessionsService.checkSession({
+      userId: payload.sub,
+      sessionId: payload.sessionId,
+      jti: payload.jti,
+    });
+
+    if (!isSessionActive) {
       throw new NoActiveSessionError();
     }
 
     return payload;
-  }
-
-  /** Выпускает короткоживущий access-токен для аутентифицированного пользователя. */
-  private generateAccessToken(userId: string): Promise<string> {
-    return this.jwtService.signAsync(
-      { sub: userId },
-      {
-        expiresIn: this.auth.accessTokenExpiresIn,
-      },
-    );
-  }
-
-  /** Выпускает refresh-токен, связанный с конкретной сессией и уникальным jti. */
-  private generateRefreshToken(userId: string, sessionId: string): Promise<string> {
-    return this.jwtService.signAsync(
-      { sub: userId, sessionId, jti: crypto.randomUUID() },
-      {
-        expiresIn: this.auth.refreshTokenExpiresIn,
-      },
-    );
-  }
-
-  /** Проверяет JWT и возвращает payload либо null, если токен невалиден или просрочен. */
-  private async decodeRefreshToken(refreshToken: string): Promise<JwtRefreshPayload | null> {
-    try {
-      return await this.jwtService.verifyAsync<JwtRefreshPayload>(refreshToken);
-    } catch {
-      return null;
-    }
   }
 }

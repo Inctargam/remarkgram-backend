@@ -1,5 +1,6 @@
 export type JwtRefreshPayload = {
   sub: string;
+  aud: string;
   sessionId: string;
   jti: string;
   iat: number;

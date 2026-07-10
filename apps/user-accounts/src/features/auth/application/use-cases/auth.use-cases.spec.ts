@@ -21,6 +21,7 @@ describe('auth use cases', () => {
     refreshToken: 'refresh-token',
     refreshTokenPayload: {
       sub: '1',
+      aud: 'auth',
       sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
       jti: 'new-jti',
       iat: 100,
