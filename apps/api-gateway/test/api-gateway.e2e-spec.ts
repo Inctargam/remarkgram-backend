@@ -1,6 +1,7 @@
 import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
 import { Metadata, status } from '@grpc/grpc-js';
 import {
   FILES_SERVICE_NAME,
@@ -15,7 +16,7 @@ import {
   SESSIONS_SERVICE_NAME,
   TESTING_SERVICE_NAME,
   USERS_SERVICE_NAME,
-  USER_ACCOUNTS_ERROR_CODE_METADATA_KEY,
+  USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY,
   type AuthServiceClient,
   type PasswordResetServiceClient,
   type RegistrationServiceClient,
@@ -34,6 +35,7 @@ import {
 } from './../src/modules/user-accounts/presentation/captcha/recaptcha-verifiers.service.js';
 import { API_PREFIX, SWAGGER_PATH } from './../src/http-api.constants.js';
 import { setupSwagger } from './../src/swagger.js';
+import { apiGatewayConfig } from './../src/config/api-gateway.config.js';
 
 type SupertestApp = Parameters<typeof request>[0];
 const apiPath = (path: `/${string}`): string => `/${API_PREFIX}${path}`;
@@ -105,6 +107,10 @@ describe('ApiGateway (e2e)', () => {
   beforeEach(async () => {
     vi.stubEnv('NODE_ENV', 'testing');
     vi.stubEnv('GATEWAY_PORT', '0');
+    vi.stubEnv(
+      'CORS_ALLOWED_ORIGINS',
+      'https://dev.remark-gram.com,https://dev.remark-gram.com:3000',
+    );
     vi.stubEnv('FILES_GRPC_URL', 'localhost:50051');
     vi.stubEnv('USER_ACCOUNTS_GRPC_URL', 'localhost:50052');
     vi.stubEnv('JWT_PUBLIC_KEY', 'public-key');
@@ -176,12 +182,27 @@ describe('ApiGateway (e2e)', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
+    const config = app.get<ConfigType<typeof apiGatewayConfig>>(apiGatewayConfig.KEY);
+    app.enableCors({ origin: config.corsAllowedOrigins, credentials: true });
     app.use(cookieParser());
     app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
     app.setGlobalPrefix(API_PREFIX);
     setupSwagger(app);
     await app.init();
   });
+
+  it.each(['https://dev.remark-gram.com', 'https://dev.remark-gram.com:3000'])(
+    'allows CORS requests from %s',
+    async (origin) => {
+      await request(app.getHttpServer() as SupertestApp)
+        .options(apiPath('/auth/registration'))
+        .set('Origin', origin)
+        .set('Access-Control-Request-Method', 'POST')
+        .expect(204)
+        .expect('Access-Control-Allow-Origin', origin)
+        .expect('Access-Control-Allow-Credentials', 'true');
+    },
+  );
 
   it('GET /api/v1/docs-json exposes the implemented HTTP API', async () => {
     const response = await request(app.getHttpServer() as SupertestApp)
@@ -305,7 +326,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('preserves user-accounts error codes while mapping gRPC status to HTTP', async () => {
     const metadata = new Metadata();
-    metadata.set(USER_ACCOUNTS_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED');
+    metadata.set(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED');
     usersServiceClient.getUsers.mockReturnValueOnce(
       throwError(() => ({
         code: status.FAILED_PRECONDITION,

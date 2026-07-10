@@ -65,3 +65,8 @@ spec:
                  secretKeyRef:
                    name: api-gateway-production-config-secret
                    key: GATEWAY_PORT
+             - name: CORS_ALLOWED_ORIGINS
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: CORS_ALLOWED_ORIGINS

@@ -1,10 +1,11 @@
 import { Catch, HttpException, HttpStatus, type ArgumentsHost } from '@nestjs/common';
 import { type Metadata, status } from '@grpc/grpc-js';
 import { BaseExceptionFilter, HttpAdapterHost } from '@nestjs/core';
-import { USER_ACCOUNTS_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
+import { USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
 import { ApiErrorResponseDto } from '../api-error-response.dto.js';
 
-export type GrpcError = {
+type GrpcServiceError = {
+  // grpc-js называет это поле code, хотя его значение является статусом gRPC.
   code: status;
   details?: string;
   message?: string;
@@ -24,13 +25,16 @@ const HTTP_STATUS_BY_GRPC_STATUS: Partial<Record<status, HttpStatus>> = {
   [status.DEADLINE_EXCEEDED]: HttpStatus.GATEWAY_TIMEOUT,
 };
 
-export const mapGrpcErrorToHttpException = (error: GrpcError): HttpException => {
-  const httpStatus = HTTP_STATUS_BY_GRPC_STATUS[error.code] ?? HttpStatus.BAD_GATEWAY;
-  const metadataCode = error.metadata?.get(USER_ACCOUNTS_ERROR_CODE_METADATA_KEY)[0]?.toString();
-  const errorCode = metadataCode || status[error.code] || 'UPSTREAM_ERROR';
+export const mapGrpcErrorToHttpException = (error: GrpcServiceError): HttpException => {
+  const grpcStatus = error.code;
+  const httpStatus = HTTP_STATUS_BY_GRPC_STATUS[grpcStatus] ?? HttpStatus.BAD_GATEWAY;
+  const appErrorCode =
+    error.metadata?.get(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY)[0]?.toString() ||
+    status[grpcStatus] ||
+    'UPSTREAM_ERROR';
   const message = error.details || error.message || 'Upstream gRPC service is unavailable';
 
-  return new HttpException(new ApiErrorResponseDto(httpStatus, errorCode, message), httpStatus);
+  return new HttpException(new ApiErrorResponseDto(httpStatus, appErrorCode, message), httpStatus);
 };
 
 /** Преобразует ошибки исходящих gRPC-вызовов в HTTP-ответы API Gateway. */
@@ -45,18 +49,13 @@ export class GrpcToHttpExceptionFilter extends BaseExceptionFilter {
     super.catch(this.isGrpcError(error) ? mapGrpcErrorToHttpException(error) : error, host);
   }
 
-  /** Проверяет наличие числового status-кода из допустимого диапазона gRPC. */
-  private isGrpcError(error: unknown): error is GrpcError {
+  /** Проверяет, что исключение содержит числовой статус из enum gRPC. */
+  private isGrpcError(error: unknown): error is GrpcServiceError {
     if (typeof error !== 'object' || error === null || !('code' in error)) {
       return false;
     }
 
-    const code = error.code;
-    return (
-      typeof code === 'number' &&
-      Number.isInteger(code) &&
-      code >= Number(status.OK) &&
-      code <= Number(status.UNAUTHENTICATED)
-    );
+    const grpcStatus = error.code;
+    return typeof grpcStatus === 'number' && Number.isInteger(grpcStatus) && status[grpcStatus] !== undefined;
   }
 }

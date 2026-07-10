@@ -11,6 +11,10 @@ async function bootstrap() {
   const app = await NestFactory.create(ApiGatewayModule);
   const config = app.get<ConfigType<typeof apiGatewayConfig>>(apiGatewayConfig.KEY);
 
+  app.enableCors({
+    origin: config.corsAllowedOrigins,
+    credentials: true,
+  });
   app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
   app.setGlobalPrefix(API_PREFIX);
