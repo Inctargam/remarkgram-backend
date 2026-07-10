@@ -43,8 +43,6 @@ export type UserMinAggregateOutputType = {
   isConfirmed: boolean | null
   confirmationCode: string | null
   confirmationExpiration: Date | null
-  passwordRecoveryCode: string | null
-  passwordRecoveryExpiration: Date | null
   passwordChangedAt: Date | null
   deletedAt: Date | null
 }
@@ -58,8 +56,6 @@ export type UserMaxAggregateOutputType = {
   isConfirmed: boolean | null
   confirmationCode: string | null
   confirmationExpiration: Date | null
-  passwordRecoveryCode: string | null
-  passwordRecoveryExpiration: Date | null
   passwordChangedAt: Date | null
   deletedAt: Date | null
 }
@@ -73,8 +69,6 @@ export type UserCountAggregateOutputType = {
   isConfirmed: number
   confirmationCode: number
   confirmationExpiration: number
-  passwordRecoveryCode: number
-  passwordRecoveryExpiration: number
   passwordChangedAt: number
   deletedAt: number
   _all: number
@@ -98,8 +92,6 @@ export type UserMinAggregateInputType = {
   isConfirmed?: true
   confirmationCode?: true
   confirmationExpiration?: true
-  passwordRecoveryCode?: true
-  passwordRecoveryExpiration?: true
   passwordChangedAt?: true
   deletedAt?: true
 }
@@ -113,8 +105,6 @@ export type UserMaxAggregateInputType = {
   isConfirmed?: true
   confirmationCode?: true
   confirmationExpiration?: true
-  passwordRecoveryCode?: true
-  passwordRecoveryExpiration?: true
   passwordChangedAt?: true
   deletedAt?: true
 }
@@ -128,8 +118,6 @@ export type UserCountAggregateInputType = {
   isConfirmed?: true
   confirmationCode?: true
   confirmationExpiration?: true
-  passwordRecoveryCode?: true
-  passwordRecoveryExpiration?: true
   passwordChangedAt?: true
   deletedAt?: true
   _all?: true
@@ -230,8 +218,6 @@ export type UserGroupByOutputType = {
   isConfirmed: boolean
   confirmationCode: string | null
   confirmationExpiration: Date | null
-  passwordRecoveryCode: string | null
-  passwordRecoveryExpiration: Date | null
   passwordChangedAt: Date | null
   deletedAt: Date | null
   _count: UserCountAggregateOutputType | null
@@ -268,8 +254,6 @@ export type UserWhereInput = {
   isConfirmed?: Prisma.BoolFilter<"User"> | boolean
   confirmationCode?: Prisma.StringNullableFilter<"User"> | string | null
   confirmationExpiration?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
-  passwordRecoveryCode?: Prisma.StringNullableFilter<"User"> | string | null
-  passwordRecoveryExpiration?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   passwordChangedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   deletedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenListRelationFilter
@@ -285,8 +269,6 @@ export type UserOrderByWithRelationInput = {
   isConfirmed?: Prisma.SortOrder
   confirmationCode?: Prisma.SortOrderInput | Prisma.SortOrder
   confirmationExpiration?: Prisma.SortOrderInput | Prisma.SortOrder
-  passwordRecoveryCode?: Prisma.SortOrderInput | Prisma.SortOrder
-  passwordRecoveryExpiration?: Prisma.SortOrderInput | Prisma.SortOrder
   passwordChangedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   deletedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   passwordResetTokens?: Prisma.PasswordResetTokenOrderByRelationAggregateInput
@@ -305,8 +287,6 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   isConfirmed?: Prisma.BoolFilter<"User"> | boolean
   confirmationCode?: Prisma.StringNullableFilter<"User"> | string | null
   confirmationExpiration?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
-  passwordRecoveryCode?: Prisma.StringNullableFilter<"User"> | string | null
-  passwordRecoveryExpiration?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   passwordChangedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   deletedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenListRelationFilter
@@ -322,8 +302,6 @@ export type UserOrderByWithAggregationInput = {
   isConfirmed?: Prisma.SortOrder
   confirmationCode?: Prisma.SortOrderInput | Prisma.SortOrder
   confirmationExpiration?: Prisma.SortOrderInput | Prisma.SortOrder
-  passwordRecoveryCode?: Prisma.SortOrderInput | Prisma.SortOrder
-  passwordRecoveryExpiration?: Prisma.SortOrderInput | Prisma.SortOrder
   passwordChangedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   deletedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.UserCountOrderByAggregateInput
@@ -345,8 +323,6 @@ export type UserScalarWhereWithAggregatesInput = {
   isConfirmed?: Prisma.BoolWithAggregatesFilter<"User"> | boolean
   confirmationCode?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
   confirmationExpiration?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
-  passwordRecoveryCode?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
-  passwordRecoveryExpiration?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
   passwordChangedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
   deletedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
 }
@@ -359,8 +335,6 @@ export type UserCreateInput = {
   isConfirmed: boolean
   confirmationCode?: string | null
   confirmationExpiration?: Date | string | null
-  passwordRecoveryCode?: string | null
-  passwordRecoveryExpiration?: Date | string | null
   passwordChangedAt?: Date | string | null
   deletedAt?: Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenCreateNestedManyWithoutUserInput
@@ -376,8 +350,6 @@ export type UserUncheckedCreateInput = {
   isConfirmed: boolean
   confirmationCode?: string | null
   confirmationExpiration?: Date | string | null
-  passwordRecoveryCode?: string | null
-  passwordRecoveryExpiration?: Date | string | null
   passwordChangedAt?: Date | string | null
   deletedAt?: Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenUncheckedCreateNestedManyWithoutUserInput
@@ -392,8 +364,6 @@ export type UserUpdateInput = {
   isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  passwordRecoveryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  passwordRecoveryExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenUpdateManyWithoutUserNestedInput
@@ -409,8 +379,6 @@ export type UserUncheckedUpdateInput = {
   isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  passwordRecoveryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  passwordRecoveryExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenUncheckedUpdateManyWithoutUserNestedInput
@@ -426,8 +394,6 @@ export type UserCreateManyInput = {
   isConfirmed: boolean
   confirmationCode?: string | null
   confirmationExpiration?: Date | string | null
-  passwordRecoveryCode?: string | null
-  passwordRecoveryExpiration?: Date | string | null
   passwordChangedAt?: Date | string | null
   deletedAt?: Date | string | null
 }
@@ -440,8 +406,6 @@ export type UserUpdateManyMutationInput = {
   isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  passwordRecoveryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  passwordRecoveryExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
@@ -455,8 +419,6 @@ export type UserUncheckedUpdateManyInput = {
   isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  passwordRecoveryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  passwordRecoveryExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
@@ -470,8 +432,6 @@ export type UserCountOrderByAggregateInput = {
   isConfirmed?: Prisma.SortOrder
   confirmationCode?: Prisma.SortOrder
   confirmationExpiration?: Prisma.SortOrder
-  passwordRecoveryCode?: Prisma.SortOrder
-  passwordRecoveryExpiration?: Prisma.SortOrder
   passwordChangedAt?: Prisma.SortOrder
   deletedAt?: Prisma.SortOrder
 }
@@ -489,8 +449,6 @@ export type UserMaxOrderByAggregateInput = {
   isConfirmed?: Prisma.SortOrder
   confirmationCode?: Prisma.SortOrder
   confirmationExpiration?: Prisma.SortOrder
-  passwordRecoveryCode?: Prisma.SortOrder
-  passwordRecoveryExpiration?: Prisma.SortOrder
   passwordChangedAt?: Prisma.SortOrder
   deletedAt?: Prisma.SortOrder
 }
@@ -504,8 +462,6 @@ export type UserMinOrderByAggregateInput = {
   isConfirmed?: Prisma.SortOrder
   confirmationCode?: Prisma.SortOrder
   confirmationExpiration?: Prisma.SortOrder
-  passwordRecoveryCode?: Prisma.SortOrder
-  passwordRecoveryExpiration?: Prisma.SortOrder
   passwordChangedAt?: Prisma.SortOrder
   deletedAt?: Prisma.SortOrder
 }
@@ -583,8 +539,6 @@ export type UserCreateWithoutSessionsInput = {
   isConfirmed: boolean
   confirmationCode?: string | null
   confirmationExpiration?: Date | string | null
-  passwordRecoveryCode?: string | null
-  passwordRecoveryExpiration?: Date | string | null
   passwordChangedAt?: Date | string | null
   deletedAt?: Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenCreateNestedManyWithoutUserInput
@@ -599,8 +553,6 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   isConfirmed: boolean
   confirmationCode?: string | null
   confirmationExpiration?: Date | string | null
-  passwordRecoveryCode?: string | null
-  passwordRecoveryExpiration?: Date | string | null
   passwordChangedAt?: Date | string | null
   deletedAt?: Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenUncheckedCreateNestedManyWithoutUserInput
@@ -630,8 +582,6 @@ export type UserUpdateWithoutSessionsInput = {
   isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  passwordRecoveryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  passwordRecoveryExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenUpdateManyWithoutUserNestedInput
@@ -646,8 +596,6 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  passwordRecoveryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  passwordRecoveryExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenUncheckedUpdateManyWithoutUserNestedInput
@@ -661,8 +609,6 @@ export type UserCreateWithoutPasswordResetTokensInput = {
   isConfirmed: boolean
   confirmationCode?: string | null
   confirmationExpiration?: Date | string | null
-  passwordRecoveryCode?: string | null
-  passwordRecoveryExpiration?: Date | string | null
   passwordChangedAt?: Date | string | null
   deletedAt?: Date | string | null
   sessions?: Prisma.DeviceSessionCreateNestedManyWithoutUserInput
@@ -677,8 +623,6 @@ export type UserUncheckedCreateWithoutPasswordResetTokensInput = {
   isConfirmed: boolean
   confirmationCode?: string | null
   confirmationExpiration?: Date | string | null
-  passwordRecoveryCode?: string | null
-  passwordRecoveryExpiration?: Date | string | null
   passwordChangedAt?: Date | string | null
   deletedAt?: Date | string | null
   sessions?: Prisma.DeviceSessionUncheckedCreateNestedManyWithoutUserInput
@@ -708,8 +652,6 @@ export type UserUpdateWithoutPasswordResetTokensInput = {
   isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  passwordRecoveryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  passwordRecoveryExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   sessions?: Prisma.DeviceSessionUpdateManyWithoutUserNestedInput
@@ -724,8 +666,6 @@ export type UserUncheckedUpdateWithoutPasswordResetTokensInput = {
   isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  passwordRecoveryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  passwordRecoveryExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   sessions?: Prisma.DeviceSessionUncheckedUpdateManyWithoutUserNestedInput
@@ -780,8 +720,6 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   isConfirmed?: boolean
   confirmationCode?: boolean
   confirmationExpiration?: boolean
-  passwordRecoveryCode?: boolean
-  passwordRecoveryExpiration?: boolean
   passwordChangedAt?: boolean
   deletedAt?: boolean
   passwordResetTokens?: boolean | Prisma.User$passwordResetTokensArgs<ExtArgs>
@@ -798,8 +736,6 @@ export type UserSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   isConfirmed?: boolean
   confirmationCode?: boolean
   confirmationExpiration?: boolean
-  passwordRecoveryCode?: boolean
-  passwordRecoveryExpiration?: boolean
   passwordChangedAt?: boolean
   deletedAt?: boolean
 }, ExtArgs["result"]["user"]>
@@ -813,8 +749,6 @@ export type UserSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   isConfirmed?: boolean
   confirmationCode?: boolean
   confirmationExpiration?: boolean
-  passwordRecoveryCode?: boolean
-  passwordRecoveryExpiration?: boolean
   passwordChangedAt?: boolean
   deletedAt?: boolean
 }, ExtArgs["result"]["user"]>
@@ -828,13 +762,11 @@ export type UserSelectScalar = {
   isConfirmed?: boolean
   confirmationCode?: boolean
   confirmationExpiration?: boolean
-  passwordRecoveryCode?: boolean
-  passwordRecoveryExpiration?: boolean
   passwordChangedAt?: boolean
   deletedAt?: boolean
 }
 
-export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "username" | "email" | "hash" | "createdAt" | "isConfirmed" | "confirmationCode" | "confirmationExpiration" | "passwordRecoveryCode" | "passwordRecoveryExpiration" | "passwordChangedAt" | "deletedAt", ExtArgs["result"]["user"]>
+export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "username" | "email" | "hash" | "createdAt" | "isConfirmed" | "confirmationCode" | "confirmationExpiration" | "passwordChangedAt" | "deletedAt", ExtArgs["result"]["user"]>
 export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   passwordResetTokens?: boolean | Prisma.User$passwordResetTokensArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
@@ -858,11 +790,6 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     isConfirmed: boolean
     confirmationCode: string | null
     confirmationExpiration: Date | null
-    /**
-     * @deprecated Use `passwordResetTokens` instead.
-     */
-    passwordRecoveryCode: string | null
-    passwordRecoveryExpiration: Date | null
     passwordChangedAt: Date | null
     deletedAt: Date | null
   }, ExtArgs["result"]["user"]>
@@ -1298,8 +1225,6 @@ export interface UserFieldRefs {
   readonly isConfirmed: Prisma.FieldRef<"User", 'Boolean'>
   readonly confirmationCode: Prisma.FieldRef<"User", 'String'>
   readonly confirmationExpiration: Prisma.FieldRef<"User", 'DateTime'>
-  readonly passwordRecoveryCode: Prisma.FieldRef<"User", 'String'>
-  readonly passwordRecoveryExpiration: Prisma.FieldRef<"User", 'DateTime'>
   readonly passwordChangedAt: Prisma.FieldRef<"User", 'DateTime'>
   readonly deletedAt: Prisma.FieldRef<"User", 'DateTime'>
 }

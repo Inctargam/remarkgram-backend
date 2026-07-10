@@ -1,5 +1,4 @@
 import type { ConfirmationInfo } from '../value-objects/confirmation-info.js';
-import type { PasswordRecoveryInfo } from '../value-objects/password-recovery-info.js';
 
 export type UserProps = {
   id: number;
@@ -8,7 +7,6 @@ export type UserProps = {
   hash: string;
   createdAt: Date;
   confirmation: ConfirmationInfo;
-  passwordRecovery: PasswordRecoveryInfo;
   deletedAt: Date | null;
 };
 
@@ -19,7 +17,6 @@ export class User {
   readonly hash: string;
   readonly createdAt: Date;
   readonly confirmation: ConfirmationInfo;
-  readonly passwordRecovery: PasswordRecoveryInfo;
   readonly deletedAt: Date | null;
 
   private constructor(props: UserProps) {
@@ -29,7 +26,6 @@ export class User {
     this.hash = props.hash;
     this.createdAt = props.createdAt;
     this.confirmation = props.confirmation;
-    this.passwordRecovery = props.passwordRecovery;
     this.deletedAt = props.deletedAt;
   }
 

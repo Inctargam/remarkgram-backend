@@ -19,10 +19,6 @@ model User {
   confirmationCode       String?   @db.VarChar
   confirmationExpiration DateTime? @db.Timestamptz
 
-  /// @deprecated Use `passwordResetTokens` instead.
-  passwordRecoveryCode       String?   @db.VarChar
-  passwordRecoveryExpiration DateTime? @db.Timestamptz
-
   passwordResetTokens PasswordResetToken[]
   passwordChangedAt   DateTime?            @db.Timestamptz
 

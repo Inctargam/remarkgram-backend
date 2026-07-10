@@ -1,6 +1,5 @@
 import { User, type UserProps } from '../../src/features/users/domain/entities/user.entity.js';
 import { ConfirmationInfo } from '../../src/features/users/domain/value-objects/confirmation-info.js';
-import { PasswordRecoveryInfo } from '../../src/features/users/domain/value-objects/password-recovery-info.js';
 
 export const createTestUser = (overrides: Partial<UserProps> = {}): User =>
   User.restore({
@@ -10,7 +9,6 @@ export const createTestUser = (overrides: Partial<UserProps> = {}): User =>
     hash: 'hash',
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     confirmation: ConfirmationInfo.confirmed(),
-    passwordRecovery: PasswordRecoveryInfo.inactive(),
     deletedAt: null,
     ...overrides,
   });

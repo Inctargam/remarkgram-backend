@@ -676,8 +676,6 @@ export const UserScalarFieldEnum = {
   isConfirmed: 'isConfirmed',
   confirmationCode: 'confirmationCode',
   confirmationExpiration: 'confirmationExpiration',
-  passwordRecoveryCode: 'passwordRecoveryCode',
-  passwordRecoveryExpiration: 'passwordRecoveryExpiration',
   passwordChangedAt: 'passwordChangedAt',
   deletedAt: 'deletedAt'
 } as const

@@ -66,7 +66,7 @@ export class PrismaUsersRepository implements UsersRepository {
   }
 
   async create(params: CreateUserRepositoryParams): Promise<User> {
-    const { username, email, hash, createdAt, confirmation, passwordRecovery } = params;
+    const { username, email, hash, createdAt, confirmation } = params;
 
     try {
       const user = await this.prisma.user.create({
@@ -78,8 +78,6 @@ export class PrismaUsersRepository implements UsersRepository {
           isConfirmed: confirmation.isConfirmed,
           confirmationCode: confirmation.code,
           confirmationExpiration: confirmation.expiration,
-          passwordRecoveryCode: passwordRecovery.code,
-          passwordRecoveryExpiration: passwordRecovery.expiration,
         },
       });
 
