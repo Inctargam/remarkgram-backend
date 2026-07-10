@@ -1,0 +1,22 @@
+#  services — это список контейнеров, которые compose должен запустить. Один сервис = обычно один контейнер.
+services:
+  postgres:
+    image: postgres:16  #image говорит Docker: “возьми готовый образ PostgreSQL версии 16”.
+    container_name: remarkgram-user-accounts-pg  #Имя контейнера. Но в больших проектах часто container_name не указывают, чтобы Compose сам называл контейнеры и не было конфликтов между разными проектами.
+    environment: #Переменные окружения. Это настройки, которые образ postgres читает при первом создании базы.
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: user_accounts
+    ports:
+      - "5432:5432"
+    volumes: #Без volume данные базы исчезнут при пересоздании контейнера. Volume говорит: “храни данные PostgreSQL отдельно от контейнера”.
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes: #Это объявление named volume внизу файла.
+  postgres_data:
+
+
+#volumes: Мы указываем именно этот путь, потому что так устроен официальный образ postgres. Если подключить volume в другое место, данные PostgreSQL не будут сохраняться как надо.
+#   postgres_data - это имя Docker volume.
+#   /var/lib/postgresql/data - это путь внутри Linux-контейнера, где официальный образ PostgreSQL хранит свои данные: таблицы, индексы, служебные файлы, настройки кластера БД.
