@@ -107,10 +107,7 @@ describe('ApiGateway (e2e)', () => {
   beforeEach(async () => {
     vi.stubEnv('NODE_ENV', 'testing');
     vi.stubEnv('GATEWAY_PORT', '0');
-    vi.stubEnv(
-      'CORS_ALLOWED_ORIGINS',
-      'https://dev.remark-gram.com,https://dev.remark-gram.com:3000',
-    );
+    vi.stubEnv('CORS_ALLOWED_ORIGINS', 'https://dev.remark-gram.com,https://dev.remark-gram.com:3000');
     vi.stubEnv('FILES_GRPC_URL', 'localhost:50051');
     vi.stubEnv('USER_ACCOUNTS_GRPC_URL', 'localhost:50052');
     vi.stubEnv('JWT_PUBLIC_KEY', 'public-key');
@@ -213,34 +210,28 @@ describe('ApiGateway (e2e)', () => {
       components: { schemas: Record<string, { properties?: Record<string, unknown> }> };
     };
 
-    expect(Object.keys(document.paths)).toEqual(
-      expect.arrayContaining([
-        '/auth/registration',
-        '/auth/registration/confirmation',
-        '/auth/registration/resend-confirmation',
-        '/auth/login',
-        '/auth/refresh-token',
-        '/auth/logout',
-        '/auth/password-reset/request',
-        '/auth/password-reset/confirm',
-        '/security/sessions',
-        '/security/sessions/{sessionId}',
-        '/testing/all-data',
-      ].map(apiPath)),
-    );
+    const documentedPaths = [
+      '/auth/registration',
+      '/auth/registration/confirmation',
+      '/auth/registration/resend-confirmation',
+      '/auth/login',
+      '/auth/refresh-token',
+      '/auth/logout',
+      '/auth/password-reset/request',
+      '/auth/password-reset/confirm',
+      '/security/sessions',
+      '/security/sessions/{sessionId}',
+      '/testing/all-data',
+    ] satisfies `/${string}`[];
+
+    expect(Object.keys(document.paths)).toEqual(expect.arrayContaining(documentedPaths.map(apiPath)));
     expect(document.paths).not.toHaveProperty(apiPath('/auth/sessions'));
     expect(document.paths).not.toHaveProperty(apiPath('/auth/sessions/current'));
     expect(document.paths).not.toHaveProperty(apiPath('/auth/sessions/others'));
     expect(document.paths).not.toHaveProperty(apiPath('/users'));
     expect(document.paths).not.toHaveProperty(apiPath('/files'));
-    expect(document.components.schemas.SessionResponseDto?.properties).toEqual(
-      expect.objectContaining({
-        sessionId: expect.any(Object),
-        deviceName: expect.any(Object),
-        ip: expect.any(Object),
-        lastActiveAt: expect.any(Object),
-        isCurrent: expect.any(Object),
-      }),
+    expect(Object.keys(document.components.schemas.SessionResponseDto?.properties ?? {})).toEqual(
+      expect.arrayContaining(['sessionId', 'deviceName', 'ip', 'lastActiveAt', 'isCurrent']),
     );
     expect(document.components.schemas).not.toHaveProperty('DeviceResponseDto');
 

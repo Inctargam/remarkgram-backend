@@ -19,6 +19,14 @@ const GRPC_STATUS_BY_APP_ERROR_CODE = {
   [UserAccountsErrorCode.INVALID_PASSWORD_RESET_TOKEN]: status.INVALID_ARGUMENT,
   [UserAccountsErrorCode.INVALID_CONFIRMATION_CODE]: status.INVALID_ARGUMENT,
   [UserAccountsErrorCode.INCORRECT_EMAIL]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.OAUTH_EMAIL_REQUIRED]: status.FAILED_PRECONDITION,
+  [UserAccountsErrorCode.OAUTH_EMAIL_NOT_VERIFIED]: status.FAILED_PRECONDITION,
+  [UserAccountsErrorCode.OAUTH_EMAIL_CONFIRMATION_REQUIRED]: status.FAILED_PRECONDITION,
+  [UserAccountsErrorCode.OAUTH_IDENTITY_OWNER_NOT_FOUND]: status.NOT_FOUND,
+  [UserAccountsErrorCode.OAUTH_SESSION_CREATION_FAILED]: status.FAILED_PRECONDITION,
+  [UserAccountsErrorCode.OAUTH_IDENTITY_LINKED_TO_ANOTHER_USER]: status.ALREADY_EXISTS,
+  [UserAccountsErrorCode.OAUTH_PROVIDER_ALREADY_LINKED]: status.ALREADY_EXISTS,
+  [UserAccountsErrorCode.OAUTH_IDENTITY_CONFLICT]: status.ABORTED,
 } satisfies Record<UserAccountsErrorCode, status>;
 
 export const mapUserAccountsErrorToRpcException = (error: UserAccountsError): RpcException => {

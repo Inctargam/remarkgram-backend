@@ -4,7 +4,7 @@ export type UserProps = {
   id: number;
   username: string;
   email: string;
-  hash: string;
+  hash: string | null;
   createdAt: Date;
   confirmation: ConfirmationInfo;
   deletedAt: Date | null;
@@ -14,7 +14,7 @@ export class User {
   readonly id: number;
   readonly username: string;
   readonly email: string;
-  readonly hash: string;
+  readonly hash: string | null;
   readonly createdAt: Date;
   readonly confirmation: ConfirmationInfo;
   readonly deletedAt: Date | null;

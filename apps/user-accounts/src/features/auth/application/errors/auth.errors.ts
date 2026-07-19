@@ -31,3 +31,10 @@ export class EmailNotConfirmedError extends UserAccountsError {
     super('Email has not been confirmed');
   }
 }
+
+export class OAuthSessionCreationFailedError extends UserAccountsError {
+  readonly code = UserAccountsErrorCode.OAUTH_SESSION_CREATION_FAILED;
+  constructor() {
+    super('OAuth session could not be created');
+  }
+}

@@ -29,7 +29,7 @@ export class AuthService {
   async validateCredentials(email: string, password: string): Promise<User> {
     const user = await this.usersRepository.findByEmail(email);
 
-    if (!user || !(await bcrypt.compare(password, user.hash))) {
+    if (!user?.hash || !(await bcrypt.compare(password, user.hash))) {
       throw new IncorrectCredentialsError();
     }
 

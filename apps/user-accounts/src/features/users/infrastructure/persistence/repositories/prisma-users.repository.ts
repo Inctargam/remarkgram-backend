@@ -8,11 +8,15 @@ import {
 import { UsersRepository } from '../../../application/ports/users.repository.js';
 import type {
   CreateUserRepositoryParams,
+  CreateOAuthRepositoryParams,
   ReleaseExpiredRegistrationCredentialsParams,
   UpdateConfirmationCodeParams,
 } from '../../../application/types/users.types.js';
 import { User } from '../../../domain/entities/user.entity.js';
 import { UserPrismaMapper } from '../mappers/user-prisma.mapper.js';
+import type { TransactionContext } from '../../../../../common/application/unit-of-work.js';
+
+type PrismaClient = PrismaService | Prisma.TransactionClient;
 
 type UniqueConstraintMeta = {
   driverAdapterError?: {
@@ -27,6 +31,54 @@ type UniqueConstraintMeta = {
 @Injectable()
 export class PrismaUsersRepository implements UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  private getClient(ctx?: TransactionContext): PrismaClient {
+    return (ctx as Prisma.TransactionClient | undefined) ?? this.prisma;
+  }
+
+  async findById(id: number, ctx?: TransactionContext): Promise<User | null> {
+    const user = await this.getClient(ctx).user.findFirst({
+      where: { id, deletedAt: null },
+    });
+
+    return user ? UserPrismaMapper.toDomain(user) : null;
+  }
+
+  async createOAuth(params: CreateOAuthRepositoryParams, ctx?: TransactionContext): Promise<User> {
+    const client = this.getClient(ctx);
+    const rows = await client.$queryRaw<Array<{ username: string }>>`
+      SELECT 'client' || nextval('"oauth_client_username_seq"')::text AS "username"
+    `;
+    const generatedUsername = rows[0]?.username;
+    if (!generatedUsername) throw new Error('Failed to generate OAuth username');
+
+    const user = await client.user.create({
+      data: {
+        username: generatedUsername,
+        email: params.email,
+        hash: null,
+        createdAt: params.createdAt,
+        isConfirmed: params.confirmation.isConfirmed,
+        confirmationCode: params.confirmation.code,
+        confirmationExpiration: params.confirmation.expiration,
+      },
+    });
+
+    return UserPrismaMapper.toDomain(user);
+  }
+
+  async confirmForOAuth(userId: number, ctx?: TransactionContext): Promise<User | null> {
+    const user = await this.getClient(ctx).user.update({
+      where: { id: userId, deletedAt: null },
+      data: {
+        isConfirmed: true,
+        confirmationCode: null,
+        confirmationExpiration: null,
+      },
+    });
+
+    return UserPrismaMapper.toDomain(user);
+  }
 
   async findMany(): Promise<User[]> {
     const users = await this.prisma.user.findMany({

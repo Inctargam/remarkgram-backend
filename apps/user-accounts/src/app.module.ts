@@ -14,6 +14,7 @@ import { PrismaUnitOfWork } from './database/prisma-unit-of-work.js';
 import { AuthService } from './features/auth/application/auth.service.js';
 import { LoginUseCase } from './features/auth/application/use-cases/login.use-case.js';
 import { RefreshTokenUseCase } from './features/auth/application/use-cases/refresh-token.use-case.js';
+import { AuthenticateOAuthUseCase } from './features/auth/application/use-cases/authenticate-oauth.use-case.js';
 import { AuthGrpcController } from './features/auth/presentation/grpc/controllers/auth-grpc.controller.js';
 import { NotificationsModule } from './features/notifications/notifications.module.js';
 import { PasswordHasher } from './features/password-reset/application/ports/password-hasher.js';
@@ -52,6 +53,9 @@ import { UsersService } from './features/users/application/users.service.js';
 import { PrismaUsersRepository } from './features/users/infrastructure/persistence/repositories/prisma-users.repository.js';
 import { UsersGrpcController } from './features/users/presentation/grpc/controllers/users-grpc.controller.js';
 import { RegistrationGrpcController } from './features/users/presentation/grpc/controllers/registration-grpc.controller.js';
+import { AuthIdentitiesRepository } from './features/auth-identities/application/ports/auth-identities-repository.ts';
+import { PrismaAuthIdentitiesRepository } from './features/auth-identities/infrastucture/persistence/prisma-auth-identities.repository.ts';
+import { AuthIdentityService } from './features/auth-identities/application/auth-identity.service.js';
 
 @Module({
   imports: [
@@ -136,10 +140,16 @@ import { RegistrationGrpcController } from './features/users/presentation/grpc/c
       provide: PasswordResetSessionInvalidator,
       useClass: SessionsPasswordResetSessionInvalidator,
     },
+    {
+      provide: AuthIdentitiesRepository,
+      useClass: PrismaAuthIdentitiesRepository,
+    },
     AuthService,
+    AuthIdentityService,
     UsersService,
     SessionsService,
     LoginUseCase,
+    AuthenticateOAuthUseCase,
     RefreshTokenUseCase,
     GetSessionsUseCase,
     LogoutCurrentSessionUseCase,

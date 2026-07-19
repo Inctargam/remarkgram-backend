@@ -6,9 +6,37 @@ service UsersService {
   rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
 }
 
+enum OAuthProvider {
+  OAUTH_PROVIDER_UNSPECIFIED = 0;
+  OAUTH_PROVIDER_GITHUB = 1;
+  OAUTH_PROVIDER_GOOGLE = 2;
+}
+
+message OAuthEmail {
+  string email = 1;
+  bool verified = 2;
+  bool primary = 3;
+}
+
+message OAuthIdentityClaims {
+  OAuthProvider provider = 1;
+  string subject = 2;
+  string username = 3;
+  string avatar_url = 4;
+  repeated OAuthEmail emails = 5;
+}
+
+message AuthenticateOAuthRequest {
+    OAuthIdentityClaims identity = 1;
+    string ip = 2;
+    string device_name = 3;
+    VerifiedRefreshTokenClaims current_session = 4;
+}
+
 service AuthService {
   rpc Login(LoginRequest) returns (TokenPairResponse);
   rpc RefreshToken(RefreshTokenRequest) returns (TokenPairResponse);
+  rpc AuthenticateOAuth(AuthenticateOAuthRequest) returns (TokenPairResponse);
 }
 
 service RegistrationService {

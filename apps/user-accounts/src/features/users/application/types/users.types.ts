@@ -16,6 +16,11 @@ export type CreateUserRepositoryParams = {
   createdAt: Date;
   confirmation: ConfirmationInfo;
 };
+export type CreateOAuthRepositoryParams = {
+  email: string;
+  createdAt: Date;
+  confirmation: ConfirmationInfo;
+};
 
 export type ReleaseExpiredRegistrationCredentialsParams = Pick<RegisterUserParams, 'username' | 'email'> & {
   now: Date;

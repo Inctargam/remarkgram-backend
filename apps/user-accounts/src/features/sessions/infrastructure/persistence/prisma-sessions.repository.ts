@@ -6,6 +6,7 @@ import { InvalidUserIdError } from '../../application/errors/sessions.errors.js'
 import { SessionsRepository } from '../../application/ports/sessions.repository.js';
 import type {
   CreateSessionParams,
+  CreateAuthenticatedSessionParams,
   RevokeAllSessionsParams,
   RevokeCurrentSessionParams,
   RevokeOtherSessionsParams,
@@ -101,6 +102,29 @@ export class PrismaSessionsRepository implements SessionsRepository {
       FROM "users" AS u
       WHERE u."id" = ${userId}
         AND u."hash" = ${params.expectedPasswordHash}
+        AND u."deletedAt" IS NULL
+      FOR NO KEY UPDATE
+    `;
+
+    return insertedCount === 1;
+  }
+
+  async createAuthenticatedSession(params: CreateAuthenticatedSessionParams): Promise<boolean> {
+    const userId = this.parseUserId(params.userId);
+    const insertedCount = await this.prisma.$executeRaw`
+      INSERT INTO "device_sessions" (
+        "id", "userId", "deviceName", "ip", "jti", "lastActiveAt", "expiresAt"
+      )
+      SELECT
+        ${params.sessionId}::uuid,
+        u."id",
+        ${params.deviceName},
+        ${params.ip},
+        ${params.jti},
+        ${params.lastActiveAt},
+        ${params.expiresAt}
+      FROM "users" AS u
+      WHERE u."id" = ${userId}
         AND u."deletedAt" IS NULL
       FOR NO KEY UPDATE
     `;

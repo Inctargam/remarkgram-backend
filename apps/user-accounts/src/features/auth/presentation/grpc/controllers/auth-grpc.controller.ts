@@ -2,11 +2,13 @@ import { Controller, UseFilters } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
 import { status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
-import { AuthServiceControllerMethods } from '@app/user-accounts-grpc';
+import { AuthenticateOAuthRequest, AuthServiceControllerMethods } from '@app/user-accounts-grpc';
 import type { LoginRequest, RefreshTokenRequest, TokenPairResponse } from '@app/user-accounts-grpc';
 import { UserAccountsRpcExceptionFilter } from '../../../../../common/grpc/filters/user-accounts-rpc-exception.filter.js';
 import { LoginCommand } from '../../../application/use-cases/login.use-case.js';
 import { RefreshTokenCommand } from '../../../application/use-cases/refresh-token.use-case.js';
+import { AuthenticateOAuthCommand } from '../../../application/use-cases/authenticate-oauth.use-case.ts';
+import { mapOAuthProvider } from '../mappers/oauth-provider.mapper.js';
 
 @Controller()
 @AuthServiceControllerMethods()
@@ -40,6 +42,29 @@ export class AuthGrpcController {
         ip: request.ip,
         deviceName: request.deviceName,
       }),
+    );
+  }
+
+  async authenticateOAuth(request: AuthenticateOAuthRequest): Promise<TokenPairResponse> {
+    if (!request.identity) {
+      throw new RpcException({
+        status: status.INVALID_ARGUMENT,
+        message: 'Invalid identity payload',
+      });
+    }
+    return this.commandBus.execute(
+      new AuthenticateOAuthCommand(
+        {
+          ip: request.ip,
+          deviceName: request.deviceName,
+          currentSession: request?.currentSession,
+        },
+        {
+          providerSubject: request.identity.subject,
+          provider: mapOAuthProvider(request.identity.provider),
+          emails: request.identity.emails,
+        },
+      ),
     );
   }
 }
