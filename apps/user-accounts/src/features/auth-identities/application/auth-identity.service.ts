@@ -23,6 +23,7 @@ import {
 } from './types/auth-identities.types.js';
 import { authConfig } from '../../../config/auth.config.ts';
 import type { ConfigType } from '@nestjs/config';
+import { normalizeEmail } from '../../users/domain/email-normalization.js';
 
 type OAuthIdentityContext = {
   email: string;
@@ -57,7 +58,11 @@ export class AuthIdentityService {
   async authenticateOAuth(params: AuthenticateOAuthServiceParams): Promise<AuthenticateOAuthServiceResult> {
     const identity = await this.identityRepository.findAuthIdentity(params.providerSubject, params.provider);
 
-    const primaryEmail = this.getPrimaryEmail(params.emails);
+    const normalizedEmails = params.emails.map((email) => ({
+      ...email,
+      email: normalizeEmail(email.email),
+    }));
+    const primaryEmail = this.getPrimaryEmail(normalizedEmails);
     const oauthIdentity: OAuthIdentityContext = {
       provider: params.provider,
       subject: params.providerSubject,
@@ -66,7 +71,7 @@ export class AuthIdentityService {
     };
 
     if (identity) {
-      return this.signInByExistingIdentity(identity, oauthIdentity, params.emails);
+      return this.signInByExistingIdentity(identity, oauthIdentity, normalizedEmails);
     }
 
     if (!primaryEmail?.email.trim()) {
@@ -84,6 +89,10 @@ export class AuthIdentityService {
         : //пользователь найден + email unverified → не объединяем аккаунты;
           this.throwOAuthEmailNotVerified();
     }
+
+    // TODO: Обработать конкурентное создание OAuth-пользователя. Между findByEmail и INSERT другой запрос
+    // может создать пользователя с тем же email. Нужно определить единый доменный сценарий обработки
+    // конфликта уникальности и не возвращать наружу инфраструктурную ошибку Prisma.
     return this.registerOAuthUser(oauthIdentity);
 
     // return user
@@ -260,8 +269,7 @@ export class AuthIdentityService {
    * если системный email пользователя ещё не подтверждён.
    */
   private containsVerifiedEmail(emails: OAuthEmail[], emailSystem: string): boolean {
-    return emails.some(
-      (i) => i.email.trim().toLocaleUpperCase() === emailSystem.trim().toLocaleUpperCase() && i.verified,
-    );
+    const normalizedSystemEmail = normalizeEmail(emailSystem);
+    return emails.some((item) => normalizeEmail(item.email) === normalizedSystemEmail && item.verified);
   }
 }

@@ -61,6 +61,8 @@ import { GithubAuthGuard } from '../guards/github/github-auth.guard.js';
 import { OauthRedirectExceptionFilter } from '../../../../../common/http/filters/oauth-redirect-exception.filter.ts';
 import { ApiGithubAuth } from '../swagger/auth/get/github-auth.swagger.js';
 import { ApiGithubAuthCallback } from '../swagger/auth/get/github-auth-callback.swagger.js';
+import { frontendConfig } from '../../../../../config/frontend.config.js';
+import { normalizeGithubIdentityClaims } from '../mappers/oauth-identity-claims.mapper.js';
 
 @ApiAuthController()
 @Controller('auth')
@@ -75,6 +77,8 @@ export class AuthHttpController implements OnModuleInit {
     private readonly grpcClient: ClientGrpc,
     @Inject(userAccountsHttpConfig.KEY)
     private readonly config: ConfigType<typeof userAccountsHttpConfig>,
+    @Inject(frontendConfig.KEY)
+    private readonly frontend: ConfigType<typeof frontendConfig>,
     private readonly recaptchaVerifiersService: RecaptchaVerifiersService,
   ) {}
 
@@ -226,17 +230,15 @@ export class AuthHttpController implements OnModuleInit {
     @Headers('User-Agent') userAgent: string | undefined,
     @Ip() ip: string,
   ): Promise<void> {
-    // if (!request.user || request.user.provider !== OAuthProvider.OAUTH_PROVIDER_GITHUB) {
-    //   return;
-    // }
+    const identity = normalizeGithubIdentityClaims(request.user);
     const tokens = await firstValueFrom(
       this.authClient.authenticateOAuth({
         identity: {
-          provider: request.user.provider,
-          subject: request.user.subject,
-          emails: request.user.emails,
-          username: request.user.username,
-          avatarUrl: request.user.avatarUrl,
+          provider: identity.provider,
+          subject: identity.subject,
+          emails: identity.emails,
+          username: identity.username,
+          avatarUrl: identity.avatarUrl,
         },
         ip: ip,
         deviceName: userAgent ?? 'unknown',
@@ -244,7 +246,7 @@ export class AuthHttpController implements OnModuleInit {
       }),
     );
     this.setRefreshTokenCookie(response, tokens.refreshToken);
-    response.redirect(302, 'https://remark-gram.com');
+    response.redirect(302, new URL('/', this.frontend.baseUrl).toString());
   }
 
   private setRefreshTokenCookie(response: Response, refreshToken: string): void {

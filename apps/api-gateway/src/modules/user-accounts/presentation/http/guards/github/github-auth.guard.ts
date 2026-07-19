@@ -1,30 +1,25 @@
-import { ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import type { OAuthIdentityClaims } from '@app/user-accounts-grpc';
 
 @Injectable()
 export class GithubAuthGuard extends AuthGuard('github') {
-  handleRequest<OAuthIdentityClaims>(
-    err: any,
-    user: OAuthIdentityClaims,
-    info: any,
-    context: ExecutionContext,
-    status: any,
-  ) {
-    // 1. Обработка ошибки от GitHub или вашей стратегии (например, отказано в доступе)
-    if (err || !user) {
-      // Логируйте ошибку для отладки
-      console.error('GitHub Auth Error:', err || info);
+  handleRequest<TUser = OAuthIdentityClaims>(err: unknown, user: TUser | false | null, info: unknown): TUser {
+    if (err instanceof Error) throw err;
+    if (err) throw new UnauthorizedException('GitHub OAuth authentication failed');
 
-      return null;
-      // 2. Возврат кастомной ошибки или редирект (в зависимости от ваших нужд)
-      // throw new UnauthorizedException('Не удалось авторизоваться через GitHub');
-      //
-      // // Для перенаправления на фронтенд при веб-ошибке:
-      // const res = context.switchToHttp().getResponse();
-      // return res.redirect('http://localhost:3000/login/failure');
+    if (!user) {
+      throw new UnauthorizedException(this.getAuthenticationErrorMessage(info));
     }
 
-    // 3. Если всё успешно, возвращаем пользователя
     return user;
+  }
+
+  private getAuthenticationErrorMessage(info: unknown): string {
+    if (typeof info === 'object' && info !== null && 'message' in info && typeof info.message === 'string') {
+      return info.message;
+    }
+
+    return 'GitHub OAuth authentication failed';
   }
 }

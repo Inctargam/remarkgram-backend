@@ -8,7 +8,7 @@ import { UserAccountsRpcExceptionFilter } from '../../../../../common/grpc/filte
 import { LoginCommand } from '../../../application/use-cases/login.use-case.js';
 import { RefreshTokenCommand } from '../../../application/use-cases/refresh-token.use-case.js';
 import { AuthenticateOAuthCommand } from '../../../application/use-cases/authenticate-oauth.use-case.ts';
-import { mapOAuthProvider } from '../mappers/oauth-provider.mapper.js';
+import { mapOAuthIdentity } from '../mappers/oauth-identity.mapper.js';
 
 @Controller()
 @AuthServiceControllerMethods()
@@ -59,11 +59,7 @@ export class AuthGrpcController {
           deviceName: request.deviceName,
           currentSession: request?.currentSession,
         },
-        {
-          providerSubject: request.identity.subject,
-          provider: mapOAuthProvider(request.identity.provider),
-          emails: request.identity.emails,
-        },
+        mapOAuthIdentity(request.identity),
       ),
     );
   }

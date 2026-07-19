@@ -4,13 +4,7 @@ import { Profile, Strategy } from 'passport-github2';
 import type { ConfigType } from '@nestjs/config';
 import { githubOauthConfig } from '../../../../config/github-oauth.config.ts';
 import { OAuthProvider, type OAuthIdentityClaims } from '@app/user-accounts-grpc';
-
-interface GitHubEmail {
-  email: string;
-  primary: boolean;
-  verified: boolean;
-  visibility: string;
-}
+import { validateOAuthEmails } from '../../mappers/oauth-identity-claims.mapper.js';
 
 @Injectable()
 export class GithubStrategy extends PassportStrategy(Strategy, 'github') {
@@ -24,7 +18,6 @@ export class GithubStrategy extends PassportStrategy(Strategy, 'github') {
       scope: ['read:user', 'user:email'],
     });
   }
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   async validate(accessToken: string, refreshToken: string, profile: Profile): Promise<OAuthIdentityClaims> {
     const response = await fetch('https://api.github.com/user/emails', {
       headers: {
@@ -41,11 +34,11 @@ export class GithubStrategy extends PassportStrategy(Strategy, 'github') {
       throw new UnauthorizedException(`GitHub emails request failed: ${response.status} ${body}`);
     }
 
-    const emails = (await response.json()) as GitHubEmail[];
+    const emails = validateOAuthEmails(await response.json());
 
     return {
       provider: OAuthProvider.OAUTH_PROVIDER_GITHUB,
-      emails: emails.map(({ email, verified, primary }) => ({ email, verified, primary })),
+      emails,
       subject: profile.id.toString(),
       avatarUrl: profile.photos?.find((p) => !!p.value)?.value ?? '',
       username: profile.username ?? profile.displayName ?? '',

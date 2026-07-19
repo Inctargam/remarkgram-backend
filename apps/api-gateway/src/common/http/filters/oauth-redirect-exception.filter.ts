@@ -1,9 +1,10 @@
-import { ArgumentsHost, Catch, ExceptionFilter } from '@nestjs/common';
-import type { Response } from 'express';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Inject, Logger } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
 import { status } from '@grpc/grpc-js';
+import type { Response } from 'express';
 import { USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
+import { frontendConfig } from '../../../config/frontend.config.js';
 
-/** минимальный интерфейс ошибки */
 type GrpcServiceError = {
   code: status;
   metadata?: {
@@ -15,68 +16,69 @@ export enum OAuthRedirectErrorCode {
   Unknown = 'UNKNOWN_ERROR',
   EmailRequired = 'EMAIL_REQUIRED',
   EmailNotVerified = 'EMAIL_NOT_VERIFIED',
-  EmailNotConfirmed = 'EMAIL_NOT_CONFIRMED',
+  EmailConfirmationRequired = 'EMAIL_CONFIRMATION_REQUIRED',
+  IdentityOwnerNotFound = 'IDENTITY_OWNER_NOT_FOUND',
+  IdentityLinkedToAnotherUser = 'IDENTITY_LINKED_TO_ANOTHER_USER',
+  ProviderAlreadyLinked = 'PROVIDER_ALREADY_LINKED',
   IdentityConflict = 'IDENTITY_CONFLICT',
   AccessDenied = 'ACCESS_DENIED',
   ServiceUnavailable = 'SERVICE_UNAVAILABLE',
 }
+
 const OAUTH_REDIRECT_CODE_BY_APP_ERROR: Readonly<Partial<Record<string, OAuthRedirectErrorCode>>> = {
-  OAUTH_PROVIDER_EMAIL_REQUIRED: OAuthRedirectErrorCode.EmailRequired,
-  OAUTH_PROVIDER_EMAIL_NOT_VERIFIED: OAuthRedirectErrorCode.EmailNotVerified,
-  EMAIL_NOT_CONFIRMED: OAuthRedirectErrorCode.EmailNotConfirmed,
-
-  OAUTH_IDENTITY_LINKED_TO_ANOTHER_USER: OAuthRedirectErrorCode.IdentityConflict,
-
-  OAUTH_PROVIDER_ALREADY_LINKED: OAuthRedirectErrorCode.IdentityConflict,
-
+  OAUTH_EMAIL_REQUIRED: OAuthRedirectErrorCode.EmailRequired,
+  OAUTH_EMAIL_NOT_VERIFIED: OAuthRedirectErrorCode.EmailNotVerified,
+  OAUTH_EMAIL_CONFIRMATION_REQUIRED: OAuthRedirectErrorCode.EmailConfirmationRequired,
+  OAUTH_IDENTITY_OWNER_NOT_FOUND: OAuthRedirectErrorCode.IdentityOwnerNotFound,
+  OAUTH_IDENTITY_LINKED_TO_ANOTHER_USER: OAuthRedirectErrorCode.IdentityLinkedToAnotherUser,
+  OAUTH_PROVIDER_ALREADY_LINKED: OAuthRedirectErrorCode.ProviderAlreadyLinked,
   OAUTH_IDENTITY_CONFLICT: OAuthRedirectErrorCode.IdentityConflict,
-
   OAUTH_SESSION_CREATION_FAILED: OAuthRedirectErrorCode.ServiceUnavailable,
 };
 
 @Catch()
 export class OauthRedirectExceptionFilter implements ExceptionFilter {
-  catch(_exception: unknown, host: ArgumentsHost) {
-    const response = host.switchToHttp().getResponse<Response>();
-    const code = this.getRedirectErrorCode(_exception);
+  private readonly logger = new Logger(OauthRedirectExceptionFilter.name);
 
-    const redirectUrl = new URL('https://remark-gram.com/login');
+  constructor(@Inject(frontendConfig.KEY) private readonly frontend: ConfigType<typeof frontendConfig>) {}
+
+  catch(exception: unknown, host: ArgumentsHost): void {
+    const response = host.switchToHttp().getResponse<Response>();
+    const code = this.getRedirectErrorCode(exception);
+
+    if (code === OAuthRedirectErrorCode.Unknown) {
+      // Неизвестная ошибка скрывается от браузера, но сохраняется в серверных логах для диагностики.
+      this.logger.error('Unknown GitHub OAuth callback error', exception);
+    }
+
+    const redirectUrl = new URL('/login', this.frontend.baseUrl);
     redirectUrl.searchParams.set('oauth', 'failed');
     redirectUrl.searchParams.set('code', code);
 
     response.redirect(302, redirectUrl.toString());
   }
+
   private getRedirectErrorCode(exception: unknown): OAuthRedirectErrorCode {
+    if (exception instanceof HttpException && exception.getStatus() === 401) {
+      return OAuthRedirectErrorCode.AccessDenied;
+    }
+
     const applicationErrorCode = this.getApplicationErrorCode(exception);
-
-    if (!applicationErrorCode) {
-      return OAuthRedirectErrorCode.Unknown;
-    }
-
-    return OAUTH_REDIRECT_CODE_BY_APP_ERROR[applicationErrorCode] ?? OAuthRedirectErrorCode.Unknown;
+    return applicationErrorCode
+      ? (OAUTH_REDIRECT_CODE_BY_APP_ERROR[applicationErrorCode] ?? OAuthRedirectErrorCode.Unknown)
+      : OAuthRedirectErrorCode.Unknown;
   }
+
   private getApplicationErrorCode(exception: unknown): string | undefined {
-    if (!this.isGrpcServiceError(exception)) {
-      return undefined;
-    }
+    if (!this.isGrpcServiceError(exception)) return undefined;
 
-    const value = exception.metadata?.get(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY).at(0);
-
-    return value?.toString();
+    return exception.metadata?.get(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY).at(0)?.toString();
   }
 
-  /**  класс type guard. Type guard имеет специальный возвращаемый тип:  exception is GrpcServiceError */
   private isGrpcServiceError(exception: unknown): exception is GrpcServiceError {
-    if (typeof exception !== 'object' || exception === null) {
-      return false;
-    }
-
-    if (!('code' in exception)) {
-      return false;
-    }
+    if (typeof exception !== 'object' || exception === null || !('code' in exception)) return false;
 
     const grpcStatus = exception.code;
-
     return typeof grpcStatus === 'number' && Number.isInteger(grpcStatus) && status[grpcStatus] !== undefined;
   }
 }
