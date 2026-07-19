@@ -109,6 +109,10 @@ export class PrismaSessionsRepository implements SessionsRepository {
     return insertedCount === 1;
   }
 
+  /**
+   * Создаёт сессию только для существующего неудалённого пользователя.
+   * Возвращает false, если пользователь не найден или был удалён.
+   */
   async createAuthenticatedSession(params: CreateAuthenticatedSessionParams): Promise<boolean> {
     const userId = this.parseUserId(params.userId);
     const insertedCount = await this.prisma.$executeRaw`
