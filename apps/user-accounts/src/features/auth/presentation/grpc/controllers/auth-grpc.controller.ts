@@ -57,7 +57,6 @@ export class AuthGrpcController {
         {
           ip: request.ip,
           deviceName: request.deviceName,
-          currentSession: request?.currentSession,
         },
         mapOAuthIdentity(request.identity),
       ),

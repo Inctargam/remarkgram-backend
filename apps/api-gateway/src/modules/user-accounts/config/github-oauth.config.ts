@@ -32,6 +32,16 @@ class GithubOauthConfig {
     },
   )
   declare readonly callbackURL: string;
+
+  @Trim()
+  @IsString()
+  @IsNotEmpty()
+  declare readonly apiVersion: string;
+
+  @Trim()
+  @IsString()
+  @IsNotEmpty()
+  declare readonly userAgent: string;
 }
 
 export const githubOauthConfig = registerAs('githubOauthConfig', () => {
@@ -39,6 +49,8 @@ export const githubOauthConfig = registerAs('githubOauthConfig', () => {
     clientID: process.env.GITHUB_CLIENT_ID,
     clientSecret: process.env.GITHUB_CLIENT_SECRET,
     callbackURL: process.env.GITHUB_CALLBACK_URL,
+    apiVersion: process.env.GITHUB_API_VERSION ?? '2026-03-10',
+    userAgent: process.env.GITHUB_USER_AGENT,
   });
   configValidationUtility.validateConfig(config);
 

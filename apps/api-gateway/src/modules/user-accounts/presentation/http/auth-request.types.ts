@@ -21,5 +21,5 @@ export type RequestWithOptionalUserId = Request & {
 
 export type RequestWithOAuthIdentityClaims = Request & {
   user: OAuthIdentityClaims | null;
-  refreshTokenClaims?: VerifiedRefreshTokenClaims;
+  // refreshTokenClaims?: VerifiedRefreshTokenClaims;
 };

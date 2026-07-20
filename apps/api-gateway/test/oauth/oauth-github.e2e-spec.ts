@@ -124,6 +124,8 @@ function createGithubIdentityClaims(overrides: GithubIdentityOverrides = {}): OA
     const githubIdentity: OAuthIdentityClaims = createGithubIdentityClaims({
       email: 'user1@gmail.com',
       emailVerified: true,
+      username: 'github-user-1',
+      avatarUrl: 'https://avatars.example.com/github-user-1.png',
     });
 
     canActivateMock.mockImplementation((context: ExecutionContext) => {
@@ -153,6 +155,8 @@ function createGithubIdentityClaims(overrides: GithubIdentityOverrides = {}): OA
       providerSubject: githubIdentity.subject,
       providerEmail: githubIdentity.emails.find((email) => email.primary)?.email,
       providerEmailVerified: true,
+      username: githubIdentity.username,
+      avatarUrl: githubIdentity.avatarUrl,
     });
 
     const user = await prisma.user.findFirst({
@@ -359,8 +363,12 @@ function createGithubIdentityClaims(overrides: GithubIdentityOverrides = {}): OA
 
     // //  Повторяем вход, но почта уже другая. Проверяем, что почта в auth identity обновилась
     const newEmail = 'github-new-email@gmail.com';
+    const newUsername = 'updated-github-user';
+    const newAvatarUrl = 'https://avatars.example.com/updated-github-user.png';
     mockGithubIdentity({
       ...githubIdentity,
+      username: newUsername,
+      avatarUrl: newAvatarUrl,
       emails: [{ email: newEmail, verified: false, primary: true }],
     });
 
@@ -377,6 +385,8 @@ function createGithubIdentityClaims(overrides: GithubIdentityOverrides = {}): OA
     expect(identityUpdated).toMatchObject({
       providerEmail: newEmail,
       providerEmailVerified: false,
+      username: newUsername,
+      avatarUrl: newAvatarUrl,
     });
   });
 

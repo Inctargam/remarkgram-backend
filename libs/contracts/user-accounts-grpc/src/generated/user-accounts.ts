@@ -35,7 +35,6 @@ export interface AuthenticateOAuthRequest {
   identity: OAuthIdentityClaims | undefined;
   ip: string;
   deviceName: string;
-  currentSession: VerifiedRefreshTokenClaims | undefined;
 }
 
 export interface GetUsersRequest {

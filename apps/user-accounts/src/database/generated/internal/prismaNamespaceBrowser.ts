@@ -125,7 +125,9 @@ export const AuthIdentityScalarFieldEnum = {
   providerEmail: 'providerEmail',
   providerEmailVerified: 'providerEmailVerified',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  username: 'username',
+  avatarUrl: 'avatarUrl'
 } as const
 
 export type AuthIdentityScalarFieldEnum = (typeof AuthIdentityScalarFieldEnum)[keyof typeof AuthIdentityScalarFieldEnum]

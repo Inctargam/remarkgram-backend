@@ -7,6 +7,8 @@ export function mapOAuthIdentity(identity: OAuthIdentityClaims): AuthenticateOAu
   return {
     provider: mapOAuthProvider(identity.provider),
     providerSubject: identity.subject.trim(),
+    username: identity.username,
+    avatarUrl: identity.avatarUrl,
     emails: identity.emails.map((email) => ({
       email: email.email,
       verified: email.verified,

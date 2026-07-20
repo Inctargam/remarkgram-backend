@@ -30,7 +30,6 @@ message AuthenticateOAuthRequest {
     OAuthIdentityClaims identity = 1;
     string ip = 2;
     string device_name = 3;
-    VerifiedRefreshTokenClaims current_session = 4;
 }
 
 service AuthService {

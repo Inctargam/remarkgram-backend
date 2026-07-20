@@ -60,6 +60,8 @@ describe('AuthenticateOAuthUseCase', () => {
   const oauthProvider: AuthenticateOAuthServiceParams = {
     provider: 'github',
     providerSubject: 'github-123',
+    username: 'github-user',
+    avatarUrl: 'https://avatars.example.com/github-user.png',
     emails: [{ email: 'test@email.com', verified: true, primary: true }],
   };
   const user = createTestUser({

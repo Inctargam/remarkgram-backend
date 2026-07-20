@@ -7,12 +7,16 @@ export type AuthIdentityCreateRepositoryParams = {
   provider: AuthIdentityProvider;
   providerEmail: string | null;
   providerEmailVerified: boolean;
+  username: string | null;
+  avatarUrl: string | null;
 };
 
 export type UpdateAuthIdentityProviderProfileParams = {
   identityId: string;
   providerEmail: string | null;
   providerEmailVerified: boolean;
+  username: string | null;
+  avatarUrl: string | null;
 };
 
 export type OAuthEmail = {
@@ -25,6 +29,8 @@ export type AuthenticateOAuthServiceParams = {
   providerSubject: string;
   provider: AuthIdentityProvider;
   emails: OAuthEmail[];
+  username: string | null;
+  avatarUrl: string | null;
 };
 
 /** Успешные бизнес-результаты OAuth-аутентификации. Ошибочные сценарии представлены исключениями. */

@@ -96,6 +96,9 @@ model AuthIdentity {
   createdAt DateTime @default(now()) @db.Timestamptz
   updatedAt DateTime @updatedAt @db.Timestamptz
 
+  username  String? @db.VarChar
+  avatarUrl String? @db.VarChar
+
   user User @relation(fields: [userId], references: [id])
 
   @@unique([provider, providerSubject])

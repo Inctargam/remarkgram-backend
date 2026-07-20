@@ -33,13 +33,6 @@ export class AuthenticateOAuthUseCase implements ICommandHandler<AuthenticateOAu
   async execute(command: AuthenticateOAuthCommand): Promise<JwtPair> {
     const { oauth, sessionContext } = command;
 
-    // if (
-    //   sessionContext.currentSession &&
-    //   (await this.sessionsService.checkSession(sessionContext.currentSession))
-    // ) {
-    //   throw new UserAlreadyLoggedInError();
-    // }
-
     const result = await this.authIdentityService.authenticateOAuth(oauth);
 
     switch (result.status) {

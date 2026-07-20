@@ -23,8 +23,8 @@ export class GithubStrategy extends PassportStrategy(Strategy, 'github') {
       headers: {
         Accept: 'application/vnd.github+json',
         Authorization: `Bearer ${accessToken}`,
-        'X-GitHub-Api-Version': '2026-03-10',
-        'User-Agent': 'your-application-name',
+        'X-GitHub-Api-Version': this.config.apiVersion,
+        'User-Agent': this.config.userAgent,
       },
     });
 

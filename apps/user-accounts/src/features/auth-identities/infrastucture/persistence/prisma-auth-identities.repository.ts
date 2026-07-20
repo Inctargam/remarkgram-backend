@@ -33,6 +33,8 @@ export class PrismaAuthIdentitiesRepository implements AuthIdentitiesRepository 
         "providerSubject",
         "providerEmail",
         "providerEmailVerified",
+        "username",
+        "avatarUrl",
         "createdAt",
         "updatedAt"
       )
@@ -43,6 +45,8 @@ export class PrismaAuthIdentitiesRepository implements AuthIdentitiesRepository 
         ${params.providerSubject},
         ${params.providerEmail},
         ${params.providerEmailVerified},
+        ${params.username},
+        ${params.avatarUrl},
         NOW(),
         NOW()
       )
@@ -97,6 +101,8 @@ export class PrismaAuthIdentitiesRepository implements AuthIdentitiesRepository 
       data: {
         providerEmail: params.providerEmail,
         providerEmailVerified: params.providerEmailVerified,
+        username: params.username,
+        avatarUrl: params.avatarUrl,
       },
     });
 

@@ -19,6 +19,8 @@ import {
 const params: AuthenticateOAuthServiceParams = {
   provider: 'github',
   providerSubject: 'github-42',
+  username: 'octocat',
+  avatarUrl: 'https://avatars.example.com/octocat.png',
   emails: [{ email: 'octocat@example.com', verified: true, primary: true }],
 };
 const primaryEmail = params.emails[0];
@@ -74,6 +76,8 @@ describe('AuthIdentityService', () => {
         providerSubject: params.providerSubject,
         providerEmail: primaryEmail.email,
         providerEmailVerified: true,
+        username: params.username,
+        avatarUrl: params.avatarUrl,
         createdAt: new Date(),
         updatedAt: new Date(),
       }),
@@ -97,6 +101,8 @@ describe('AuthIdentityService', () => {
       providerSubject: params.providerSubject,
       providerEmail: 'old@example.com',
       providerEmailVerified: false,
+      username: 'old-octocat',
+      avatarUrl: 'https://avatars.example.com/old-octocat.png',
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -112,6 +118,8 @@ describe('AuthIdentityService', () => {
         identityId: identity.id,
         providerEmail: primaryEmail.email,
         providerEmailVerified: primaryEmail.verified,
+        username: params.username,
+        avatarUrl: params.avatarUrl,
       },
       'transaction-context',
     );
@@ -128,6 +136,8 @@ describe('AuthIdentityService', () => {
         providerSubject: params.providerSubject,
         providerEmail: primaryEmail.email,
         providerEmailVerified: true,
+        username: params.username,
+        avatarUrl: params.avatarUrl,
         createdAt: new Date(),
         updatedAt: new Date(),
       }),
@@ -139,7 +149,12 @@ describe('AuthIdentityService', () => {
       user,
     });
     expect(identityRepository.createIfAbsent).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: user.id, providerSubject: params.providerSubject }),
+      expect.objectContaining({
+        userId: user.id,
+        providerSubject: params.providerSubject,
+        username: params.username,
+        avatarUrl: params.avatarUrl,
+      }),
       'transaction-context',
     );
   });
@@ -157,6 +172,8 @@ describe('AuthIdentityService', () => {
         providerSubject: params.providerSubject,
         providerEmail: primaryEmail.email,
         providerEmailVerified: true,
+        username: params.username,
+        avatarUrl: params.avatarUrl,
         createdAt: new Date(),
         updatedAt: new Date(),
       }),
@@ -172,7 +189,12 @@ describe('AuthIdentityService', () => {
       'transaction-context',
     );
     expect(identityRepository.createIfAbsent).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: user.id, providerSubject: params.providerSubject }),
+      expect.objectContaining({
+        userId: user.id,
+        providerSubject: params.providerSubject,
+        username: params.username,
+        avatarUrl: params.avatarUrl,
+      }),
       'transaction-context',
     );
   });
@@ -222,6 +244,8 @@ describe('AuthIdentityService', () => {
         providerSubject: params.providerSubject,
         providerEmail: primaryEmail.email,
         providerEmailVerified: false,
+        username: params.username,
+        avatarUrl: params.avatarUrl,
         createdAt: new Date(),
         updatedAt: new Date(),
       }),
@@ -250,6 +274,8 @@ describe('AuthIdentityService', () => {
         providerSubject: params.providerSubject,
         providerEmail: primaryEmail.email,
         providerEmailVerified: true,
+        username: params.username,
+        avatarUrl: params.avatarUrl,
         createdAt: new Date(),
         updatedAt: new Date(),
       }),
@@ -273,6 +299,8 @@ describe('AuthIdentityService', () => {
         providerSubject: params.providerSubject,
         providerEmail: primaryEmail.email,
         providerEmailVerified: false,
+        username: params.username,
+        avatarUrl: params.avatarUrl,
         createdAt: new Date(),
         updatedAt: new Date(),
       }),

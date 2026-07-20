@@ -242,7 +242,6 @@ export class AuthHttpController implements OnModuleInit {
         },
         ip: ip,
         deviceName: userAgent ?? 'unknown',
-        currentSession: request.refreshTokenClaims,
       }),
     );
     this.setRefreshTokenCookie(response, tokens.refreshToken);

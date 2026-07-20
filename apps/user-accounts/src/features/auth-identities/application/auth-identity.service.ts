@@ -30,6 +30,8 @@ type OAuthIdentityContext = {
   verified: boolean;
   subject: string;
   provider: AuthIdentityProvider;
+  username: string | null;
+  avatarUrl: string | null;
 };
 
 @Injectable()
@@ -68,6 +70,8 @@ export class AuthIdentityService {
       subject: params.providerSubject,
       email: primaryEmail?.email ?? '',
       verified: primaryEmail?.verified ?? false,
+      username: params.username ?? null,
+      avatarUrl: params.avatarUrl ?? null,
     };
 
     if (identity) {
@@ -213,8 +217,10 @@ export class AuthIdentityService {
     }
 
     const profileChanged =
-      identity.providerEmail !== params.email || identity.providerEmailVerified !== params.verified;
-
+      identity.providerEmail !== params.email ||
+      identity.providerEmailVerified !== params.verified ||
+      identity.username !== params.username ||
+      identity.avatarUrl !== params.avatarUrl;
     if (!profileChanged) return;
 
     await this.identityRepository.updateProviderProfile(
@@ -222,6 +228,8 @@ export class AuthIdentityService {
         identityId: identity.id,
         providerEmail: params.email,
         providerEmailVerified: params.verified,
+        username: params.username,
+        avatarUrl: params.avatarUrl,
       },
       ctx,
     );
@@ -259,6 +267,8 @@ export class AuthIdentityService {
       providerSubject: params.subject,
       providerEmail: params.email,
       providerEmailVerified: params.verified,
+      username: params.username,
+      avatarUrl: params.avatarUrl,
     };
   }
   /**
