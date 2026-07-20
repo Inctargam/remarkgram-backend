@@ -11,4 +11,5 @@
 export type * from './models/User.ts'
 export type * from './models/DeviceSession.ts'
 export type * from './models/PasswordResetToken.ts'
+export type * from './models/AuthIdentity.ts'
 export type * from './commonInputTypes.ts'

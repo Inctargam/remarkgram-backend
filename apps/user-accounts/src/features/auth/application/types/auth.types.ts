@@ -35,3 +35,9 @@ export type RefreshTokenParams = {
   deviceName: string;
 };
 import type { SessionIdentity } from '../../../sessions/application/types/sessions.types.js';
+
+export type SessionRequestContext = {
+  ip: string;
+  deviceName: string;
+  currentSession?: SessionIdentity;
+};

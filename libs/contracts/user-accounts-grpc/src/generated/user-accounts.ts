@@ -10,6 +10,33 @@ import { Observable } from "rxjs";
 
 export const protobufPackage = "remarkgram.user_accounts.v1";
 
+export enum OAuthProvider {
+  OAUTH_PROVIDER_UNSPECIFIED = 0,
+  OAUTH_PROVIDER_GITHUB = 1,
+  OAUTH_PROVIDER_GOOGLE = 2,
+  UNRECOGNIZED = -1,
+}
+
+export interface OAuthEmail {
+  email: string;
+  verified: boolean;
+  primary: boolean;
+}
+
+export interface OAuthIdentityClaims {
+  provider: OAuthProvider;
+  subject: string;
+  username: string;
+  avatarUrl: string;
+  emails: OAuthEmail[];
+}
+
+export interface AuthenticateOAuthRequest {
+  identity: OAuthIdentityClaims | undefined;
+  ip: string;
+  deviceName: string;
+}
+
 export interface GetUsersRequest {
 }
 
@@ -162,6 +189,8 @@ export interface AuthServiceClient {
   login(request: LoginRequest): Observable<TokenPairResponse>;
 
   refreshToken(request: RefreshTokenRequest): Observable<TokenPairResponse>;
+
+  authenticateOAuth(request: AuthenticateOAuthRequest): Observable<TokenPairResponse>;
 }
 
 export interface AuthServiceController {
@@ -170,11 +199,15 @@ export interface AuthServiceController {
   refreshToken(
     request: RefreshTokenRequest,
   ): Promise<TokenPairResponse> | Observable<TokenPairResponse> | TokenPairResponse;
+
+  authenticateOAuth(
+    request: AuthenticateOAuthRequest,
+  ): Promise<TokenPairResponse> | Observable<TokenPairResponse> | TokenPairResponse;
 }
 
 export function AuthServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["login", "refreshToken"];
+    const grpcMethods: string[] = ["login", "refreshToken", "authenticateOAuth"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("AuthService", method)(constructor.prototype[method], method, descriptor);

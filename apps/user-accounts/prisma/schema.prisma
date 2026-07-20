@@ -12,7 +12,7 @@ model User {
   id        Int      @id @default(autoincrement())
   username  String   @db.VarChar
   email     String   @db.VarChar
-  hash      String   @db.VarChar
+  hash      String?  @db.VarChar
   createdAt DateTime @db.Timestamptz
 
   isConfirmed            Boolean
@@ -26,8 +26,11 @@ model User {
 
   sessions DeviceSession[]
 
-  @@unique([username], where: { deletedAt: null })
-  @@unique([email], where: { deletedAt: null })
+  providers AuthIdentity[]
+
+  @@unique([username], where: {deletedAt: null})
+  @@unique([email], where: {deletedAt: null})
+
   @@map("users")
 }
 
@@ -74,4 +77,32 @@ model PasswordResetToken {
 
   @@index([userId])
   @@map("password_reset_tokens")
+}
+
+enum AuthProvider {
+  github
+  google
+}
+
+model AuthIdentity {
+  id     String @id @default(uuid()) @db.Uuid
+  userId Int // relation scalar field (foreign key)
+
+  provider              AuthProvider
+  providerSubject       String       @db.VarChar
+  providerEmail         String?      @db.VarChar
+  providerEmailVerified Boolean      @db.Boolean
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  username  String? @db.VarChar
+  avatarUrl String? @db.VarChar
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([provider, providerSubject])
+  @@unique([userId, provider])
+  @@index([userId])
+  @@map("auth_identities")
 }

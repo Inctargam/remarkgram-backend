@@ -32,6 +32,11 @@ export class LoginUseCase implements ICommandHandler<LoginCommand> {
       throw new EmailNotConfirmedError();
     }
 
+    // validateCredentials only returns a password user, so the hash is present here.
+    if (!user.hash) {
+      throw new IncorrectCredentialsError();
+    }
+
     const sessionId = crypto.randomUUID();
     const userId = user.id.toString();
     const { accessToken, refreshToken, refreshTokenPayload } = await this.authService.generateTokenPair({

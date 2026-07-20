@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Headers,
   HttpCode,
   Inject,
@@ -10,6 +11,7 @@ import {
   Post,
   Req,
   Res,
+  UseFilters,
   UseGuards,
 } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
@@ -29,7 +31,11 @@ import type { Response } from 'express';
 import { firstValueFrom } from 'rxjs';
 import { Public } from '../../../../../common/http/decorators/public.decorator.js';
 import { userAccountsHttpConfig } from '../../../config/user-accounts-http.config.js';
-import type { RequestWithOptionalRefreshSession, RequestWithRefreshSession } from '../auth-request.types.js';
+import type {
+  RequestWithOAuthIdentityClaims,
+  RequestWithOptionalRefreshSession,
+  RequestWithRefreshSession,
+} from '../auth-request.types.js';
 import { LoginDto } from '../dto/input/login.dto.js';
 import { AccessTokenResponseDto } from '../dto/output/access-token-response.dto.js';
 import { OptionalRefreshTokenGuard } from '../guards/optional-refresh-token.guard.js';
@@ -51,6 +57,12 @@ import { ApiRequestPasswordReset } from '../swagger/password-reset/post/request-
 import { ApiConfirmRegistration } from '../swagger/registration/post/confirm-registration.swagger.js';
 import { ApiRegister } from '../swagger/registration/post/register.swagger.js';
 import { ApiResendRegistrationConfirmation } from '../swagger/registration/post/resend-registration-confirmation.swagger.js';
+import { GithubAuthGuard } from '../guards/github/github-auth.guard.js';
+import { OauthRedirectExceptionFilter } from '../../../../../common/http/filters/oauth-redirect-exception.filter.ts';
+import { ApiGithubAuth } from '../swagger/auth/get/github-auth.swagger.js';
+import { ApiGithubAuthCallback } from '../swagger/auth/get/github-auth-callback.swagger.js';
+import { frontendConfig } from '../../../../../config/frontend.config.js';
+import { normalizeGithubIdentityClaims } from '../mappers/oauth-identity-claims.mapper.js';
 
 @ApiAuthController()
 @Controller('auth')
@@ -65,6 +77,8 @@ export class AuthHttpController implements OnModuleInit {
     private readonly grpcClient: ClientGrpc,
     @Inject(userAccountsHttpConfig.KEY)
     private readonly config: ConfigType<typeof userAccountsHttpConfig>,
+    @Inject(frontendConfig.KEY)
+    private readonly frontend: ConfigType<typeof frontendConfig>,
     private readonly recaptchaVerifiersService: RecaptchaVerifiersService,
   ) {}
 
@@ -191,6 +205,47 @@ export class AuthHttpController implements OnModuleInit {
   ): Promise<void> {
     await firstValueFrom(this.sessionsClient.logoutCurrentSession({ auth: request.refreshTokenClaims }));
     this.clearRefreshTokenCookie(response);
+  }
+
+  // Navigating here redirects the user to GitHub
+  @Public()
+  @Get('github')
+  @UseGuards(GithubAuthGuard)
+  @ApiGithubAuth()
+  async githubAuth() {
+    // With `@UseGuards(GithubOauthGuard)` we are using an AuthGuard that @nestjs/passport
+    // automatically provisioned for us when we extended the passport-github strategy.
+    // The Guard initiates the passport-github flow.
+  }
+
+  // GitHub redirects back here after authentication
+  @Public()
+  @Get('github/callback')
+  @UseGuards(GithubAuthGuard)
+  @UseFilters(OauthRedirectExceptionFilter)
+  @ApiGithubAuthCallback()
+  async githubAuthRedirect(
+    @Req() request: RequestWithOAuthIdentityClaims,
+    @Res() response: Response,
+    @Headers('User-Agent') userAgent: string | undefined,
+    @Ip() ip: string,
+  ): Promise<void> {
+    const identity = normalizeGithubIdentityClaims(request.user);
+    const tokens = await firstValueFrom(
+      this.authClient.authenticateOAuth({
+        identity: {
+          provider: identity.provider,
+          subject: identity.subject,
+          emails: identity.emails,
+          username: identity.username,
+          avatarUrl: identity.avatarUrl,
+        },
+        ip: ip,
+        deviceName: userAgent ?? 'unknown',
+      }),
+    );
+    this.setRefreshTokenCookie(response, tokens.refreshToken);
+    response.redirect(302, new URL('/', this.frontend.baseUrl).toString());
   }
 
   private setRefreshTokenCookie(response: Response, refreshToken: string): void {

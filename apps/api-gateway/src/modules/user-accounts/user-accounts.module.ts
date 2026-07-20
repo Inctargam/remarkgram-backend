@@ -17,6 +17,8 @@ import { AccessTokenGuard } from './presentation/http/guards/access-token.guard.
 import { OptionalRefreshTokenGuard } from './presentation/http/guards/optional-refresh-token.guard.js';
 import { RefreshTokenGuard } from './presentation/http/guards/refresh-token.guard.js';
 import { RecaptchaVerifiersService } from './presentation/captcha/recaptcha-verifiers.service.ts';
+import { PassportModule } from '@nestjs/passport';
+import { GithubStrategy } from './presentation/http/guards/github/github.strategy.ts';
 
 @Module({
   imports: [
@@ -41,12 +43,14 @@ import { RecaptchaVerifiersService } from './presentation/captcha/recaptcha-veri
         verifyOptions: { algorithms: ['RS256'] },
       }),
     }),
+    PassportModule.register({ defaultStrategy: 'github' }),
   ],
   controllers: [AuthHttpController, SessionsHttpController, TestingHttpController, UsersHttpController],
   providers: [
     OptionalRefreshTokenGuard,
     RefreshTokenGuard,
     RecaptchaVerifiersService,
+    GithubStrategy,
     {
       provide: APP_GUARD,
       useClass: AccessTokenGuard,
