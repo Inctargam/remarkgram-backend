@@ -1,6 +1,8 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { type OAuthEmail, type OAuthIdentityClaims, OAuthProvider } from '@app/user-accounts-grpc';
 
+// TODO: Если Google mapper будет формировать OAuthEmail[] напрямую, переименовать функцию
+// в validateGithubEmails: фактически она проверяет сырой ответ GitHub GET /user/emails.
 export function validateOAuthEmails(value: unknown): OAuthEmail[] {
   if (!Array.isArray(value)) {
     throw new UnauthorizedException('OAuth provider returned an invalid email list');
@@ -42,6 +44,30 @@ export function normalizeGithubIdentityClaims(identity: OAuthIdentityClaims | nu
     emails: validateOAuthEmails(identity.emails),
     username: typeof identity.username === 'string' ? identity.username.trim() : '',
     avatarUrl: typeof identity.avatarUrl === 'string' ? identity.avatarUrl : '',
+  };
+}
+
+export function normalizeGoogleIdentityClaims(claims: unknown): OAuthIdentityClaims {
+  if (
+    typeof claims !== 'object' ||
+    claims === null ||
+    !('sub' in claims) ||
+    typeof claims.sub !== 'string' ||
+    !claims.sub.trim() ||
+    !('email' in claims) ||
+    typeof claims.email !== 'string' ||
+    !('email_verified' in claims) ||
+    typeof claims.email_verified !== 'boolean'
+  ) {
+    throw new UnauthorizedException('Invalid Google OIDC identity');
+  }
+
+  return {
+    provider: OAuthProvider.OAUTH_PROVIDER_GOOGLE,
+    subject: claims.sub.trim(),
+    emails: validateOAuthEmails([{ email: claims.email, verified: claims.email_verified, primary: true }]),
+    username: 'name' in claims && typeof claims.name === 'string' ? claims.name.trim() : '',
+    avatarUrl: 'picture' in claims && typeof claims.picture === 'string' ? claims.picture : '',
   };
 }
 

@@ -19,6 +19,7 @@ import { RefreshTokenGuard } from './presentation/http/guards/refresh-token.guar
 import { RecaptchaVerifiersService } from './presentation/captcha/recaptcha-verifiers.service.ts';
 import { PassportModule } from '@nestjs/passport';
 import { GithubStrategy } from './presentation/http/guards/github/github.strategy.ts';
+import { googleOidcConfigurationProvider } from './config/google-oidc-configuration.provider.js';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { GithubStrategy } from './presentation/http/guards/github/github.strateg
     RefreshTokenGuard,
     RecaptchaVerifiersService,
     GithubStrategy,
+    googleOidcConfigurationProvider,
     {
       provide: APP_GUARD,
       useClass: AccessTokenGuard,

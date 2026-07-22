@@ -1,6 +1,10 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { OAuthProvider } from '@app/user-accounts-grpc';
-import { normalizeGithubIdentityClaims, validateOAuthEmails } from './oauth-identity-claims.mapper.js';
+import {
+  normalizeGithubIdentityClaims,
+  normalizeGoogleIdentityClaims,
+  validateOAuthEmails,
+} from './oauth-identity-claims.mapper.js';
 
 describe('OAuth identity claims mapper', () => {
   it('validates provider emails without changing their representation', () => {
@@ -26,6 +30,33 @@ describe('OAuth identity claims mapper', () => {
         emails: [],
         username: '',
         avatarUrl: '',
+      }),
+    ).toThrow(UnauthorizedException);
+  });
+
+  it('maps validated Google ID token claims to an OAuth identity', () => {
+    expect(
+      normalizeGoogleIdentityClaims({
+        sub: ' google-subject ',
+        email: 'user@example.com',
+        email_verified: true,
+        name: ' User ',
+        picture: 'https://example.com/avatar.png',
+      }),
+    ).toEqual({
+      provider: OAuthProvider.OAUTH_PROVIDER_GOOGLE,
+      subject: 'google-subject',
+      emails: [{ email: 'user@example.com', verified: true, primary: true }],
+      username: 'User',
+      avatarUrl: 'https://example.com/avatar.png',
+    });
+  });
+
+  it('rejects Google claims without a verified-status field', () => {
+    expect(() =>
+      normalizeGoogleIdentityClaims({
+        sub: 'google-subject',
+        email: 'user@example.com',
       }),
     ).toThrow(UnauthorizedException);
   });

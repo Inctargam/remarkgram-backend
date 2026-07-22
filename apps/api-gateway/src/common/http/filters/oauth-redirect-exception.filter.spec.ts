@@ -1,6 +1,7 @@
 import type { ArgumentsHost } from '@nestjs/common';
 import { Metadata, status } from '@grpc/grpc-js';
 import type { Response } from 'express';
+import { AuthorizationResponseError } from 'openid-client';
 import { USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
 import { OauthRedirectExceptionFilter } from './oauth-redirect-exception.filter.js';
 
@@ -15,6 +16,25 @@ function createHost(response: Partial<Response>): ArgumentsHost {
 }
 
 describe('OauthRedirectExceptionFilter', () => {
+  it.each([
+    ['access_denied', 'ACCESS_DENIED'],
+    ['server_error', 'SERVICE_UNAVAILABLE'],
+    ['temporarily_unavailable', 'SERVICE_UNAVAILABLE'],
+  ])('maps Google authorization error %s to %s', (error, redirectCode) => {
+    const response = { redirect: vi.fn() };
+    const filter = new OauthRedirectExceptionFilter({ baseUrl: 'https://frontend.example.com' });
+    const exception = new AuthorizationResponseError('Authorization failed', {
+      cause: new URLSearchParams({ error }),
+    });
+
+    filter.catch(exception, createHost(response));
+
+    expect(response.redirect).toHaveBeenCalledWith(
+      302,
+      `https://frontend.example.com/login?oauth=failed&code=${redirectCode}`,
+    );
+  });
+
   it.each([
     ['OAUTH_EMAIL_REQUIRED', 'EMAIL_REQUIRED'],
     ['OAUTH_EMAIL_NOT_VERIFIED', 'EMAIL_NOT_VERIFIED'],

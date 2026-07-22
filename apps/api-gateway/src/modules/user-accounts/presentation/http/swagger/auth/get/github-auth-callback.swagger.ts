@@ -20,12 +20,6 @@ export const ApiGithubAuthCallback = () =>
       description: 'Temporary authorization code returned by GitHub.',
     }),
     ApiQuery({
-      name: 'state',
-      required: false,
-      type: String,
-      description: 'OAuth state value used to correlate and protect the authorization request.',
-    }),
-    ApiQuery({
       name: 'error',
       required: false,
       type: String,
@@ -43,8 +37,7 @@ export const ApiGithubAuthCallback = () =>
         'OAuth processing finished and the browser is redirected to the frontend.',
         '',
         'Success: the response includes the refreshToken cookie.',
-        'Action required: EMAIL_REQUIRED, EMAIL_NOT_VERIFIED or EMAIL_CONFIRMATION_REQUIRED.',
-        'Error: IDENTITY_CONFLICT, ACCESS_DENIED, SERVICE_UNAVAILABLE or UNKNOWN_ERROR.',
+        'Public error codes: EMAIL_REQUIRED, EMAIL_NOT_VERIFIED, EMAIL_CONFIRMATION_REQUIRED, IDENTITY_OWNER_NOT_FOUND, IDENTITY_LINKED_TO_ANOTHER_USER, PROVIDER_ALREADY_LINKED, IDENTITY_CONFLICT, ACCESS_DENIED, SERVICE_UNAVAILABLE or UNKNOWN_ERROR.',
       ].join('\n'),
       headers: {
         Location: {

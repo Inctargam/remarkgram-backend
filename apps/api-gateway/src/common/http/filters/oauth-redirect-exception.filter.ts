@@ -2,6 +2,7 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Inject, Logger } 
 import type { ConfigType } from '@nestjs/config';
 import { status } from '@grpc/grpc-js';
 import type { Response } from 'express';
+import { AuthorizationResponseError } from 'openid-client';
 import { USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
 import { frontendConfig } from '../../../config/frontend.config.js';
 
@@ -48,7 +49,7 @@ export class OauthRedirectExceptionFilter implements ExceptionFilter {
 
     if (code === OAuthRedirectErrorCode.Unknown) {
       // Неизвестная ошибка скрывается от браузера, но сохраняется в серверных логах для диагностики.
-      this.logger.error('Unknown GitHub OAuth callback error', exception);
+      this.logger.error('Unknown OAuth callback error', exception);
     }
 
     const redirectUrl = new URL('/login', this.frontend.baseUrl);
@@ -61,6 +62,14 @@ export class OauthRedirectExceptionFilter implements ExceptionFilter {
   private getRedirectErrorCode(exception: unknown): OAuthRedirectErrorCode {
     if (exception instanceof HttpException && exception.getStatus() === 401) {
       return OAuthRedirectErrorCode.AccessDenied;
+    }
+
+    if (exception instanceof AuthorizationResponseError) {
+      if (exception.error === 'access_denied') return OAuthRedirectErrorCode.AccessDenied;
+
+      if (exception.error === 'server_error' || exception.error === 'temporarily_unavailable') {
+        return OAuthRedirectErrorCode.ServiceUnavailable;
+      }
     }
 
     const applicationErrorCode = this.getApplicationErrorCode(exception);
