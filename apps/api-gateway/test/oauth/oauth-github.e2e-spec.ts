@@ -11,7 +11,7 @@ import { TestingApiHelper } from '../helpers/testing-api.helper.ts';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { ConfirmationInfo } from '../../../user-accounts/src/features/users/domain/value-objects/confirmation-info.ts';
 
-const shouldSkip = process.env.SKIP_E2E === 'true' || process.env.NODE_ENV === 'production';
+const shouldSkip = process.env.SKIP_E2E !== 'false' || process.env.NODE_ENV === 'production';
 
 type GithubIdentityOverrides = Partial<OAuthIdentityClaims> & {
   email?: string;
