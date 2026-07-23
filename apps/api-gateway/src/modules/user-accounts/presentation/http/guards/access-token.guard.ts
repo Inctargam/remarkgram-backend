@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Public } from '../../../../../common/http/decorators/public.decorator.js';
 import type { RequestWithOptionalUserId } from '../auth-request.types.js';
+import type { UnvalidatedJwtAccessPayload } from '../jwt-payload.types.js';
 
 /**
  * Защищает HTTP-эндпоинты, требующие access-токен, и добавляет идентификатор пользователя в request.
@@ -15,7 +16,7 @@ export class AccessTokenGuard implements CanActivate {
     private readonly reflector: Reflector,
   ) {}
 
-  /** Проверяет Bearer access-токен и сохраняет claim sub как userId текущего запроса. */
+  /** Проверяет Bearer access-токен с аудиторией api и сохраняет claim sub как userId запроса. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<RequestWithOptionalUserId>();
     const isPublic = this.reflector.getAllAndOverride(Public, [context.getHandler(), context.getClass()]);
@@ -39,17 +40,28 @@ export class AccessTokenGuard implements CanActivate {
     }
 
     try {
-      const payload = await this.jwtService.verifyAsync<{ sub?: string }>(token);
-      if (!payload.sub) {
-        throw new UnauthorizedException('Missing sub JWT claim');
+      // Проверяет подпись, алгоритм RS256, exp и aud. Generic задаёт тип, но не валидирует payload.
+      const payload = await this.jwtService.verifyAsync<UnvalidatedJwtAccessPayload>(token, {
+        audience: 'api',
+      });
+
+      // Claim sub связывает токен с текущим пользователем и передаётся дальше через request.
+      if (typeof payload.sub !== 'string' || !payload.sub) {
+        throw new UnauthorizedException('Missing or invalid sub JWT claim');
       }
+
       request.userId = payload.sub;
     } catch (error) {
+      // verifyAsync() выбрасывает ошибки jsonwebtoken, а UnauthorizedException выше создаёт сам guard.
+      // Публичный эндпоинт при любой из этих ошибок продолжает работу как анонимный.
       if (isPublic) {
         request.userId = null;
       } else if (error instanceof UnauthorizedException) {
+        // Сохраняем конкретную ошибку об отсутствующем или некорректном sub.
         throw error;
       } else {
+        // Формат, подпись, алгоритм, exp, nbf и aud клиенту различать не нужно: токен в любом случае
+        // непригоден, поэтому возвращаем единый 401 для запуска refresh-flow или повторного входа.
         throw new UnauthorizedException('Invalid access token');
       }
     }

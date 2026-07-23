@@ -9,6 +9,9 @@ import { userAccountsGrpcClientConfig } from './modules/user-accounts/config/use
 import { userAccountsHttpConfig } from './modules/user-accounts/config/user-accounts-http.config.js';
 import { UserAccountsModule } from './modules/user-accounts/user-accounts.module.js';
 import { recaptchaSecretConfig } from './modules/user-accounts/config/recaptcha-secret.config.ts';
+import { githubOauthConfig } from './modules/user-accounts/config/github-oauth.config.ts';
+import { frontendConfig } from './config/frontend.config.js';
+import { googleOidcConfig } from './modules/user-accounts/config/google-oidc.config.ts';
 
 @Module({
   imports: [
@@ -30,6 +33,9 @@ import { recaptchaSecretConfig } from './modules/user-accounts/config/recaptcha-
         userAccountsGrpcClientConfig,
         userAccountsHttpConfig,
         recaptchaSecretConfig,
+        githubOauthConfig,
+        googleOidcConfig,
+        frontendConfig,
       ],
     }),
     FilesModule,

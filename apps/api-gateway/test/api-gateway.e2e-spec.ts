@@ -36,6 +36,7 @@ import {
 import { API_PREFIX, SWAGGER_PATH } from './../src/http-api.constants.js';
 import { setupSwagger } from './../src/swagger.js';
 import { apiGatewayConfig } from './../src/config/api-gateway.config.js';
+import { GOOGLE_OIDC_CONFIGURATION } from './../src/modules/user-accounts/config/google-oidc-configuration.provider.js';
 
 type SupertestApp = Parameters<typeof request>[0];
 const apiPath = (path: `/${string}`): string => `/${API_PREFIX}${path}`;
@@ -107,10 +108,7 @@ describe('ApiGateway (e2e)', () => {
   beforeEach(async () => {
     vi.stubEnv('NODE_ENV', 'testing');
     vi.stubEnv('GATEWAY_PORT', '0');
-    vi.stubEnv(
-      'CORS_ALLOWED_ORIGINS',
-      'https://dev.remark-gram.com,https://dev.remark-gram.com:3000',
-    );
+    vi.stubEnv('CORS_ALLOWED_ORIGINS', 'https://dev.remark-gram.com,https://dev.remark-gram.com:3000');
     vi.stubEnv('FILES_GRPC_URL', 'localhost:50051');
     vi.stubEnv('USER_ACCOUNTS_GRPC_URL', 'localhost:50052');
     vi.stubEnv('JWT_PUBLIC_KEY', 'public-key');
@@ -118,6 +116,14 @@ describe('ApiGateway (e2e)', () => {
     vi.stubEnv('ENABLE_TESTING_ENDPOINTS', 'true');
     vi.stubEnv('TESTING_ENDPOINT_KEY', testingEndpointKey);
     vi.stubEnv('GOOGLE_RECAPTCHA_SECRET_KEY', 'test-recaptcha-secret-key');
+    vi.stubEnv('GOOGLE_OAUTH_CLIENT_ID', 'google-client-id');
+    vi.stubEnv('GOOGLE_OAUTH_CLIENT_SECRET', 'google-client-secret');
+    vi.stubEnv('GOOGLE_OAUTH_CALLBACK_URL', 'https://api.example.com/api/v1/auth/google/callback');
+    vi.stubEnv('GITHUB_CLIENT_ID', 'github-client-id');
+    vi.stubEnv('GITHUB_CLIENT_SECRET', 'github-client-secret');
+    vi.stubEnv('GITHUB_CALLBACK_URL', 'https://api.example.com/api/v1/auth/github/callback');
+    vi.stubEnv('GITHUB_API_VERSION', '2026-03-10');
+    vi.stubEnv('GITHUB_USER_AGENT', 'remark-gram-tests');
     filesServiceClient.uploadFile.mockReturnValue(of({ id: 'file-id' }));
     jwtService.verifyAsync.mockResolvedValue({
       sub: refreshTokenClaims.userId,
@@ -179,6 +185,8 @@ describe('ApiGateway (e2e)', () => {
       .useValue(jwtService)
       .overrideProvider(RecaptchaVerifiersService)
       .useValue(recaptchaVerifiersService)
+      .overrideProvider(GOOGLE_OIDC_CONFIGURATION)
+      .useValue({})
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -213,45 +221,48 @@ describe('ApiGateway (e2e)', () => {
       components: { schemas: Record<string, { properties?: Record<string, unknown> }> };
     };
 
-    expect(Object.keys(document.paths)).toEqual(
-      expect.arrayContaining([
-        '/auth/registration',
-        '/auth/registration/confirmation',
-        '/auth/registration/resend-confirmation',
-        '/auth/login',
-        '/auth/refresh-token',
-        '/auth/logout',
-        '/auth/password-reset/request',
-        '/auth/password-reset/confirm',
-        '/security/sessions',
-        '/security/sessions/{sessionId}',
-        '/testing/all-data',
-      ].map(apiPath)),
-    );
+    const documentedPaths = [
+      '/auth/registration',
+      '/auth/registration/confirmation',
+      '/auth/registration/resend-confirmation',
+      '/auth/login',
+      '/auth/refresh-token',
+      '/auth/logout',
+      '/auth/google',
+      '/auth/google/callback',
+      '/auth/github',
+      '/auth/github/callback',
+      '/auth/password-reset/request',
+      '/auth/password-reset/confirm',
+      '/security/sessions',
+      '/security/sessions/{sessionId}',
+      '/testing/all-data',
+    ] satisfies `/${string}`[];
+
+    expect(Object.keys(document.paths)).toEqual(expect.arrayContaining(documentedPaths.map(apiPath)));
     expect(document.paths).not.toHaveProperty(apiPath('/auth/sessions'));
     expect(document.paths).not.toHaveProperty(apiPath('/auth/sessions/current'));
     expect(document.paths).not.toHaveProperty(apiPath('/auth/sessions/others'));
     expect(document.paths).not.toHaveProperty(apiPath('/users'));
     expect(document.paths).not.toHaveProperty(apiPath('/files'));
-    expect(document.components.schemas.SessionResponseDto?.properties).toEqual(
-      expect.objectContaining({
-        sessionId: expect.any(Object),
-        deviceName: expect.any(Object),
-        ip: expect.any(Object),
-        lastActiveAt: expect.any(Object),
-        isCurrent: expect.any(Object),
-      }),
+    expect(Object.keys(document.components.schemas.SessionResponseDto?.properties ?? {})).toEqual(
+      expect.arrayContaining(['sessionId', 'deviceName', 'ip', 'lastActiveAt', 'isCurrent']),
     );
     expect(document.components.schemas).not.toHaveProperty('DeviceResponseDto');
 
     type OpenApiResponse = {
+      headers?: Record<string, unknown>;
       content?: {
         'application/json'?: {
           examples?: Record<string, { value: Record<string, unknown> }>;
         };
       };
     };
-    type OpenApiOperation = { responses: Record<string, OpenApiResponse> };
+    type OpenApiOperation = {
+      summary?: string;
+      parameters?: { name: string; in: string }[];
+      responses: Record<string, OpenApiResponse>;
+    };
     const passwordResetConfirmation = document.paths[apiPath('/auth/password-reset/confirm')] as {
       post: OpenApiOperation;
     };
@@ -261,6 +272,20 @@ describe('ApiGateway (e2e)', () => {
     const deleteSession = document.paths[apiPath('/security/sessions/{sessionId}')] as {
       delete: OpenApiOperation;
     };
+    const googleAuth = document.paths[apiPath('/auth/google')] as { get: OpenApiOperation };
+    const googleAuthCallback = document.paths[apiPath('/auth/google/callback')] as {
+      get: OpenApiOperation;
+    };
+
+    expect(googleAuth.get.summary).toBe('Start Google OIDC authentication');
+    expect(googleAuth.get.responses['302']?.headers).toHaveProperty('Location');
+    expect(googleAuth.get.responses['302']?.headers).toHaveProperty('Set-Cookie');
+    expect(googleAuthCallback.get.summary).toBe('Complete Google OIDC authentication');
+    expect(googleAuthCallback.get.parameters?.map(({ name }) => name)).toEqual(
+      expect.arrayContaining(['code', 'state', 'error', 'error_description']),
+    );
+    expect(googleAuthCallback.get.responses['302']?.headers).toHaveProperty('Location');
+    expect(googleAuthCallback.get.responses['302']?.headers).toHaveProperty('Set-Cookie');
 
     expect(
       passwordResetConfirmation.post.responses['400'].content?.['application/json']?.examples
@@ -412,7 +437,7 @@ describe('ApiGateway (e2e)', () => {
 
     expect(authServiceClient.refreshToken).toHaveBeenCalledWith(
       expect.objectContaining({
-        auth: refreshTokenClaims,
+        refreshTokenClaims,
         deviceName: 'Browser',
       }),
     );

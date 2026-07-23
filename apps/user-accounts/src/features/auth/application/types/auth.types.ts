@@ -1,5 +1,6 @@
 export type JwtRefreshPayload = {
   sub: string;
+  aud: string;
   sessionId: string;
   jti: string;
   iat: number;
@@ -29,8 +30,14 @@ export type LoginParams = {
 };
 
 export type RefreshTokenParams = {
-  auth: SessionIdentity;
+  refreshTokenClaims: SessionIdentity;
   ip: string;
   deviceName: string;
 };
 import type { SessionIdentity } from '../../../sessions/application/types/sessions.types.js';
+
+export type SessionRequestContext = {
+  ip: string;
+  deviceName: string;
+  currentSession?: SessionIdentity;
+};

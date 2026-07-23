@@ -2,12 +2,7 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import type { VerifiedRefreshTokenClaims } from '@app/user-accounts-grpc';
 import type { RequestWithOptionalRefreshSession } from '../auth-request.types.js';
-
-type JwtRefreshPayload = {
-  sub?: unknown;
-  sessionId?: unknown;
-  jti?: unknown;
-};
+import type { UnvalidatedJwtRefreshPayload } from '../jwt-payload.types.js';
 
 /**
  * Обрабатывает необязательный refresh-токен при входе в систему.
@@ -18,7 +13,7 @@ type JwtRefreshPayload = {
 export class OptionalRefreshTokenGuard implements CanActivate {
   constructor(private readonly jwtService: JwtService) {}
 
-  /** Проверяет необязательный refresh-токен и добавляет claims только при успешной проверке подписи. */
+  /** Проверяет подпись и аудиторию auth необязательного refresh-токена и добавляет его claims. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<RequestWithOptionalRefreshSession>();
     const refreshToken = request.cookies.refreshToken;
@@ -28,7 +23,9 @@ export class OptionalRefreshTokenGuard implements CanActivate {
     }
 
     try {
-      const payload = await this.jwtService.verifyAsync<JwtRefreshPayload>(refreshToken);
+      const payload = await this.jwtService.verifyAsync<UnvalidatedJwtRefreshPayload>(refreshToken, {
+        audience: 'auth',
+      });
       request.refreshTokenClaims = this.toVerifiedClaims(payload);
     } catch {
       return true;
@@ -38,7 +35,7 @@ export class OptionalRefreshTokenGuard implements CanActivate {
   }
 
   /** Проверяет обязательные claims и преобразует JWT payload в транспортный объект для gRPC. */
-  private toVerifiedClaims(payload: JwtRefreshPayload): VerifiedRefreshTokenClaims {
+  private toVerifiedClaims(payload: UnvalidatedJwtRefreshPayload): VerifiedRefreshTokenClaims {
     if (
       typeof payload.sub !== 'string' ||
       !payload.sub ||

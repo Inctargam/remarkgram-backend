@@ -31,6 +31,8 @@ export type CreateSessionParams = {
   expiresAt: Date;
 };
 
+export type CreateAuthenticatedSessionParams = Omit<CreateSessionParams, 'expectedPasswordHash'>;
+
 export type RevokeSessionParams = {
   userId: string;
   sessionId: string;

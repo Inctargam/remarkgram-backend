@@ -36,6 +36,7 @@ describe('OptionalRefreshTokenGuard', () => {
       sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
       jti: 'jti',
     });
+    expect(jwtService.verifyAsync).toHaveBeenCalledWith('refresh-token', { audience: 'auth' });
   });
 
   it('allows login with an invalid refresh token without attaching claims', async () => {

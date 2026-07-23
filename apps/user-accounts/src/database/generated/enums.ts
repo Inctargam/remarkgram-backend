@@ -19,3 +19,11 @@ export const RevokedReason = {
 } as const
 
 export type RevokedReason = (typeof RevokedReason)[keyof typeof RevokedReason]
+
+
+export const AuthProvider = {
+  github: 'github',
+  google: 'google'
+} as const
+
+export type AuthProvider = (typeof AuthProvider)[keyof typeof AuthProvider]

@@ -43,8 +43,6 @@ export type UserMinAggregateOutputType = {
   isConfirmed: boolean | null
   confirmationCode: string | null
   confirmationExpiration: Date | null
-  passwordRecoveryCode: string | null
-  passwordRecoveryExpiration: Date | null
   passwordChangedAt: Date | null
   deletedAt: Date | null
 }
@@ -58,8 +56,6 @@ export type UserMaxAggregateOutputType = {
   isConfirmed: boolean | null
   confirmationCode: string | null
   confirmationExpiration: Date | null
-  passwordRecoveryCode: string | null
-  passwordRecoveryExpiration: Date | null
   passwordChangedAt: Date | null
   deletedAt: Date | null
 }
@@ -73,8 +69,6 @@ export type UserCountAggregateOutputType = {
   isConfirmed: number
   confirmationCode: number
   confirmationExpiration: number
-  passwordRecoveryCode: number
-  passwordRecoveryExpiration: number
   passwordChangedAt: number
   deletedAt: number
   _all: number
@@ -98,8 +92,6 @@ export type UserMinAggregateInputType = {
   isConfirmed?: true
   confirmationCode?: true
   confirmationExpiration?: true
-  passwordRecoveryCode?: true
-  passwordRecoveryExpiration?: true
   passwordChangedAt?: true
   deletedAt?: true
 }
@@ -113,8 +105,6 @@ export type UserMaxAggregateInputType = {
   isConfirmed?: true
   confirmationCode?: true
   confirmationExpiration?: true
-  passwordRecoveryCode?: true
-  passwordRecoveryExpiration?: true
   passwordChangedAt?: true
   deletedAt?: true
 }
@@ -128,8 +118,6 @@ export type UserCountAggregateInputType = {
   isConfirmed?: true
   confirmationCode?: true
   confirmationExpiration?: true
-  passwordRecoveryCode?: true
-  passwordRecoveryExpiration?: true
   passwordChangedAt?: true
   deletedAt?: true
   _all?: true
@@ -225,13 +213,11 @@ export type UserGroupByOutputType = {
   id: number
   username: string
   email: string
-  hash: string
+  hash: string | null
   createdAt: Date
   isConfirmed: boolean
   confirmationCode: string | null
   confirmationExpiration: Date | null
-  passwordRecoveryCode: string | null
-  passwordRecoveryExpiration: Date | null
   passwordChangedAt: Date | null
   deletedAt: Date | null
   _count: UserCountAggregateOutputType | null
@@ -263,34 +249,32 @@ export type UserWhereInput = {
   id?: Prisma.IntFilter<"User"> | number
   username?: Prisma.StringFilter<"User"> | string
   email?: Prisma.StringFilter<"User"> | string
-  hash?: Prisma.StringFilter<"User"> | string
+  hash?: Prisma.StringNullableFilter<"User"> | string | null
   createdAt?: Prisma.DateTimeFilter<"User"> | Date | string
   isConfirmed?: Prisma.BoolFilter<"User"> | boolean
   confirmationCode?: Prisma.StringNullableFilter<"User"> | string | null
   confirmationExpiration?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
-  passwordRecoveryCode?: Prisma.StringNullableFilter<"User"> | string | null
-  passwordRecoveryExpiration?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   passwordChangedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   deletedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenListRelationFilter
   sessions?: Prisma.DeviceSessionListRelationFilter
+  providers?: Prisma.AuthIdentityListRelationFilter
 }
 
 export type UserOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   username?: Prisma.SortOrder
   email?: Prisma.SortOrder
-  hash?: Prisma.SortOrder
+  hash?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   isConfirmed?: Prisma.SortOrder
   confirmationCode?: Prisma.SortOrderInput | Prisma.SortOrder
   confirmationExpiration?: Prisma.SortOrderInput | Prisma.SortOrder
-  passwordRecoveryCode?: Prisma.SortOrderInput | Prisma.SortOrder
-  passwordRecoveryExpiration?: Prisma.SortOrderInput | Prisma.SortOrder
   passwordChangedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   deletedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   passwordResetTokens?: Prisma.PasswordResetTokenOrderByRelationAggregateInput
   sessions?: Prisma.DeviceSessionOrderByRelationAggregateInput
+  providers?: Prisma.AuthIdentityOrderByRelationAggregateInput
 }
 
 export type UserWhereUniqueInput = Prisma.AtLeast<{
@@ -300,30 +284,27 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   AND?: Prisma.UserWhereInput | Prisma.UserWhereInput[]
   OR?: Prisma.UserWhereInput[]
   NOT?: Prisma.UserWhereInput | Prisma.UserWhereInput[]
-  hash?: Prisma.StringFilter<"User"> | string
+  hash?: Prisma.StringNullableFilter<"User"> | string | null
   createdAt?: Prisma.DateTimeFilter<"User"> | Date | string
   isConfirmed?: Prisma.BoolFilter<"User"> | boolean
   confirmationCode?: Prisma.StringNullableFilter<"User"> | string | null
   confirmationExpiration?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
-  passwordRecoveryCode?: Prisma.StringNullableFilter<"User"> | string | null
-  passwordRecoveryExpiration?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   passwordChangedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   deletedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenListRelationFilter
   sessions?: Prisma.DeviceSessionListRelationFilter
+  providers?: Prisma.AuthIdentityListRelationFilter
 }, "id" | "username" | "email">
 
 export type UserOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   username?: Prisma.SortOrder
   email?: Prisma.SortOrder
-  hash?: Prisma.SortOrder
+  hash?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   isConfirmed?: Prisma.SortOrder
   confirmationCode?: Prisma.SortOrderInput | Prisma.SortOrder
   confirmationExpiration?: Prisma.SortOrderInput | Prisma.SortOrder
-  passwordRecoveryCode?: Prisma.SortOrderInput | Prisma.SortOrder
-  passwordRecoveryExpiration?: Prisma.SortOrderInput | Prisma.SortOrder
   passwordChangedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   deletedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.UserCountOrderByAggregateInput
@@ -340,13 +321,11 @@ export type UserScalarWhereWithAggregatesInput = {
   id?: Prisma.IntWithAggregatesFilter<"User"> | number
   username?: Prisma.StringWithAggregatesFilter<"User"> | string
   email?: Prisma.StringWithAggregatesFilter<"User"> | string
-  hash?: Prisma.StringWithAggregatesFilter<"User"> | string
+  hash?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"User"> | Date | string
   isConfirmed?: Prisma.BoolWithAggregatesFilter<"User"> | boolean
   confirmationCode?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
   confirmationExpiration?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
-  passwordRecoveryCode?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
-  passwordRecoveryExpiration?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
   passwordChangedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
   deletedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
 }
@@ -354,80 +333,74 @@ export type UserScalarWhereWithAggregatesInput = {
 export type UserCreateInput = {
   username: string
   email: string
-  hash: string
+  hash?: string | null
   createdAt: Date | string
   isConfirmed: boolean
   confirmationCode?: string | null
   confirmationExpiration?: Date | string | null
-  passwordRecoveryCode?: string | null
-  passwordRecoveryExpiration?: Date | string | null
   passwordChangedAt?: Date | string | null
   deletedAt?: Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenCreateNestedManyWithoutUserInput
   sessions?: Prisma.DeviceSessionCreateNestedManyWithoutUserInput
+  providers?: Prisma.AuthIdentityCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateInput = {
   id?: number
   username: string
   email: string
-  hash: string
+  hash?: string | null
   createdAt: Date | string
   isConfirmed: boolean
   confirmationCode?: string | null
   confirmationExpiration?: Date | string | null
-  passwordRecoveryCode?: string | null
-  passwordRecoveryExpiration?: Date | string | null
   passwordChangedAt?: Date | string | null
   deletedAt?: Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.DeviceSessionUncheckedCreateNestedManyWithoutUserInput
+  providers?: Prisma.AuthIdentityUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserUpdateInput = {
   username?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
-  hash?: Prisma.StringFieldUpdateOperationsInput | string
+  hash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  passwordRecoveryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  passwordRecoveryExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenUpdateManyWithoutUserNestedInput
   sessions?: Prisma.DeviceSessionUpdateManyWithoutUserNestedInput
+  providers?: Prisma.AuthIdentityUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   username?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
-  hash?: Prisma.StringFieldUpdateOperationsInput | string
+  hash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  passwordRecoveryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  passwordRecoveryExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.DeviceSessionUncheckedUpdateManyWithoutUserNestedInput
+  providers?: Prisma.AuthIdentityUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateManyInput = {
   id?: number
   username: string
   email: string
-  hash: string
+  hash?: string | null
   createdAt: Date | string
   isConfirmed: boolean
   confirmationCode?: string | null
   confirmationExpiration?: Date | string | null
-  passwordRecoveryCode?: string | null
-  passwordRecoveryExpiration?: Date | string | null
   passwordChangedAt?: Date | string | null
   deletedAt?: Date | string | null
 }
@@ -435,13 +408,11 @@ export type UserCreateManyInput = {
 export type UserUpdateManyMutationInput = {
   username?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
-  hash?: Prisma.StringFieldUpdateOperationsInput | string
+  hash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  passwordRecoveryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  passwordRecoveryExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
@@ -450,13 +421,11 @@ export type UserUncheckedUpdateManyInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   username?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
-  hash?: Prisma.StringFieldUpdateOperationsInput | string
+  hash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  passwordRecoveryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  passwordRecoveryExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
@@ -470,8 +439,6 @@ export type UserCountOrderByAggregateInput = {
   isConfirmed?: Prisma.SortOrder
   confirmationCode?: Prisma.SortOrder
   confirmationExpiration?: Prisma.SortOrder
-  passwordRecoveryCode?: Prisma.SortOrder
-  passwordRecoveryExpiration?: Prisma.SortOrder
   passwordChangedAt?: Prisma.SortOrder
   deletedAt?: Prisma.SortOrder
 }
@@ -489,8 +456,6 @@ export type UserMaxOrderByAggregateInput = {
   isConfirmed?: Prisma.SortOrder
   confirmationCode?: Prisma.SortOrder
   confirmationExpiration?: Prisma.SortOrder
-  passwordRecoveryCode?: Prisma.SortOrder
-  passwordRecoveryExpiration?: Prisma.SortOrder
   passwordChangedAt?: Prisma.SortOrder
   deletedAt?: Prisma.SortOrder
 }
@@ -504,8 +469,6 @@ export type UserMinOrderByAggregateInput = {
   isConfirmed?: Prisma.SortOrder
   confirmationCode?: Prisma.SortOrder
   confirmationExpiration?: Prisma.SortOrder
-  passwordRecoveryCode?: Prisma.SortOrder
-  passwordRecoveryExpiration?: Prisma.SortOrder
   passwordChangedAt?: Prisma.SortOrder
   deletedAt?: Prisma.SortOrder
 }
@@ -523,16 +486,16 @@ export type StringFieldUpdateOperationsInput = {
   set?: string
 }
 
+export type NullableStringFieldUpdateOperationsInput = {
+  set?: string | null
+}
+
 export type DateTimeFieldUpdateOperationsInput = {
   set?: Date | string
 }
 
 export type BoolFieldUpdateOperationsInput = {
   set?: boolean
-}
-
-export type NullableStringFieldUpdateOperationsInput = {
-  set?: string | null
 }
 
 export type NullableDateTimeFieldUpdateOperationsInput = {
@@ -575,35 +538,47 @@ export type UserUpdateOneRequiredWithoutPasswordResetTokensNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutPasswordResetTokensInput, Prisma.UserUpdateWithoutPasswordResetTokensInput>, Prisma.UserUncheckedUpdateWithoutPasswordResetTokensInput>
 }
 
+export type UserCreateNestedOneWithoutProvidersInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutProvidersInput, Prisma.UserUncheckedCreateWithoutProvidersInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutProvidersInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutProvidersNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutProvidersInput, Prisma.UserUncheckedCreateWithoutProvidersInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutProvidersInput
+  upsert?: Prisma.UserUpsertWithoutProvidersInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutProvidersInput, Prisma.UserUpdateWithoutProvidersInput>, Prisma.UserUncheckedUpdateWithoutProvidersInput>
+}
+
 export type UserCreateWithoutSessionsInput = {
   username: string
   email: string
-  hash: string
+  hash?: string | null
   createdAt: Date | string
   isConfirmed: boolean
   confirmationCode?: string | null
   confirmationExpiration?: Date | string | null
-  passwordRecoveryCode?: string | null
-  passwordRecoveryExpiration?: Date | string | null
   passwordChangedAt?: Date | string | null
   deletedAt?: Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenCreateNestedManyWithoutUserInput
+  providers?: Prisma.AuthIdentityCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutSessionsInput = {
   id?: number
   username: string
   email: string
-  hash: string
+  hash?: string | null
   createdAt: Date | string
   isConfirmed: boolean
   confirmationCode?: string | null
   confirmationExpiration?: Date | string | null
-  passwordRecoveryCode?: string | null
-  passwordRecoveryExpiration?: Date | string | null
   passwordChangedAt?: Date | string | null
   deletedAt?: Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenUncheckedCreateNestedManyWithoutUserInput
+  providers?: Prisma.AuthIdentityUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutSessionsInput = {
@@ -625,63 +600,59 @@ export type UserUpdateToOneWithWhereWithoutSessionsInput = {
 export type UserUpdateWithoutSessionsInput = {
   username?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
-  hash?: Prisma.StringFieldUpdateOperationsInput | string
+  hash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  passwordRecoveryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  passwordRecoveryExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenUpdateManyWithoutUserNestedInput
+  providers?: Prisma.AuthIdentityUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSessionsInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   username?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
-  hash?: Prisma.StringFieldUpdateOperationsInput | string
+  hash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  passwordRecoveryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  passwordRecoveryExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordResetTokens?: Prisma.PasswordResetTokenUncheckedUpdateManyWithoutUserNestedInput
+  providers?: Prisma.AuthIdentityUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutPasswordResetTokensInput = {
   username: string
   email: string
-  hash: string
+  hash?: string | null
   createdAt: Date | string
   isConfirmed: boolean
   confirmationCode?: string | null
   confirmationExpiration?: Date | string | null
-  passwordRecoveryCode?: string | null
-  passwordRecoveryExpiration?: Date | string | null
   passwordChangedAt?: Date | string | null
   deletedAt?: Date | string | null
   sessions?: Prisma.DeviceSessionCreateNestedManyWithoutUserInput
+  providers?: Prisma.AuthIdentityCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutPasswordResetTokensInput = {
   id?: number
   username: string
   email: string
-  hash: string
+  hash?: string | null
   createdAt: Date | string
   isConfirmed: boolean
   confirmationCode?: string | null
   confirmationExpiration?: Date | string | null
-  passwordRecoveryCode?: string | null
-  passwordRecoveryExpiration?: Date | string | null
   passwordChangedAt?: Date | string | null
   deletedAt?: Date | string | null
   sessions?: Prisma.DeviceSessionUncheckedCreateNestedManyWithoutUserInput
+  providers?: Prisma.AuthIdentityUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutPasswordResetTokensInput = {
@@ -703,31 +674,103 @@ export type UserUpdateToOneWithWhereWithoutPasswordResetTokensInput = {
 export type UserUpdateWithoutPasswordResetTokensInput = {
   username?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
-  hash?: Prisma.StringFieldUpdateOperationsInput | string
+  hash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  passwordRecoveryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  passwordRecoveryExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   sessions?: Prisma.DeviceSessionUpdateManyWithoutUserNestedInput
+  providers?: Prisma.AuthIdentityUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPasswordResetTokensInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   username?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
-  hash?: Prisma.StringFieldUpdateOperationsInput | string
+  hash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
   confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
-  passwordRecoveryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
-  passwordRecoveryExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  sessions?: Prisma.DeviceSessionUncheckedUpdateManyWithoutUserNestedInput
+  providers?: Prisma.AuthIdentityUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutProvidersInput = {
+  username: string
+  email: string
+  hash?: string | null
+  createdAt: Date | string
+  isConfirmed: boolean
+  confirmationCode?: string | null
+  confirmationExpiration?: Date | string | null
+  passwordChangedAt?: Date | string | null
+  deletedAt?: Date | string | null
+  passwordResetTokens?: Prisma.PasswordResetTokenCreateNestedManyWithoutUserInput
+  sessions?: Prisma.DeviceSessionCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutProvidersInput = {
+  id?: number
+  username: string
+  email: string
+  hash?: string | null
+  createdAt: Date | string
+  isConfirmed: boolean
+  confirmationCode?: string | null
+  confirmationExpiration?: Date | string | null
+  passwordChangedAt?: Date | string | null
+  deletedAt?: Date | string | null
+  passwordResetTokens?: Prisma.PasswordResetTokenUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.DeviceSessionUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutProvidersInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutProvidersInput, Prisma.UserUncheckedCreateWithoutProvidersInput>
+}
+
+export type UserUpsertWithoutProvidersInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutProvidersInput, Prisma.UserUncheckedUpdateWithoutProvidersInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutProvidersInput, Prisma.UserUncheckedCreateWithoutProvidersInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutProvidersInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutProvidersInput, Prisma.UserUncheckedUpdateWithoutProvidersInput>
+}
+
+export type UserUpdateWithoutProvidersInput = {
+  username?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  hash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  passwordResetTokens?: Prisma.PasswordResetTokenUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.DeviceSessionUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutProvidersInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  username?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  hash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  isConfirmed?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  confirmationCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  confirmationExpiration?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  passwordChangedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  passwordResetTokens?: Prisma.PasswordResetTokenUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.DeviceSessionUncheckedUpdateManyWithoutUserNestedInput
 }
 
@@ -739,11 +782,13 @@ export type UserUncheckedUpdateWithoutPasswordResetTokensInput = {
 export type UserCountOutputType = {
   passwordResetTokens: number
   sessions: number
+  providers: number
 }
 
 export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   passwordResetTokens?: boolean | UserCountOutputTypeCountPasswordResetTokensArgs
   sessions?: boolean | UserCountOutputTypeCountSessionsArgs
+  providers?: boolean | UserCountOutputTypeCountProvidersArgs
 }
 
 /**
@@ -770,6 +815,13 @@ export type UserCountOutputTypeCountSessionsArgs<ExtArgs extends runtime.Types.E
   where?: Prisma.DeviceSessionWhereInput
 }
 
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountProvidersArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.AuthIdentityWhereInput
+}
+
 
 export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -780,12 +832,11 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   isConfirmed?: boolean
   confirmationCode?: boolean
   confirmationExpiration?: boolean
-  passwordRecoveryCode?: boolean
-  passwordRecoveryExpiration?: boolean
   passwordChangedAt?: boolean
   deletedAt?: boolean
   passwordResetTokens?: boolean | Prisma.User$passwordResetTokensArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
+  providers?: boolean | Prisma.User$providersArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
 
@@ -798,8 +849,6 @@ export type UserSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   isConfirmed?: boolean
   confirmationCode?: boolean
   confirmationExpiration?: boolean
-  passwordRecoveryCode?: boolean
-  passwordRecoveryExpiration?: boolean
   passwordChangedAt?: boolean
   deletedAt?: boolean
 }, ExtArgs["result"]["user"]>
@@ -813,8 +862,6 @@ export type UserSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   isConfirmed?: boolean
   confirmationCode?: boolean
   confirmationExpiration?: boolean
-  passwordRecoveryCode?: boolean
-  passwordRecoveryExpiration?: boolean
   passwordChangedAt?: boolean
   deletedAt?: boolean
 }, ExtArgs["result"]["user"]>
@@ -828,16 +875,15 @@ export type UserSelectScalar = {
   isConfirmed?: boolean
   confirmationCode?: boolean
   confirmationExpiration?: boolean
-  passwordRecoveryCode?: boolean
-  passwordRecoveryExpiration?: boolean
   passwordChangedAt?: boolean
   deletedAt?: boolean
 }
 
-export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "username" | "email" | "hash" | "createdAt" | "isConfirmed" | "confirmationCode" | "confirmationExpiration" | "passwordRecoveryCode" | "passwordRecoveryExpiration" | "passwordChangedAt" | "deletedAt", ExtArgs["result"]["user"]>
+export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "username" | "email" | "hash" | "createdAt" | "isConfirmed" | "confirmationCode" | "confirmationExpiration" | "passwordChangedAt" | "deletedAt", ExtArgs["result"]["user"]>
 export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   passwordResetTokens?: boolean | Prisma.User$passwordResetTokensArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
+  providers?: boolean | Prisma.User$providersArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type UserIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -848,21 +894,17 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
   objects: {
     passwordResetTokens: Prisma.$PasswordResetTokenPayload<ExtArgs>[]
     sessions: Prisma.$DeviceSessionPayload<ExtArgs>[]
+    providers: Prisma.$AuthIdentityPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
     username: string
     email: string
-    hash: string
+    hash: string | null
     createdAt: Date
     isConfirmed: boolean
     confirmationCode: string | null
     confirmationExpiration: Date | null
-    /**
-     * @deprecated Use `passwordResetTokens` instead.
-     */
-    passwordRecoveryCode: string | null
-    passwordRecoveryExpiration: Date | null
     passwordChangedAt: Date | null
     deletedAt: Date | null
   }, ExtArgs["result"]["user"]>
@@ -1261,6 +1303,7 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   readonly [Symbol.toStringTag]: "PrismaPromise"
   passwordResetTokens<T extends Prisma.User$passwordResetTokensArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$passwordResetTokensArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PasswordResetTokenPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   sessions<T extends Prisma.User$sessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$sessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$DeviceSessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  providers<T extends Prisma.User$providersArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$providersArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AuthIdentityPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1298,8 +1341,6 @@ export interface UserFieldRefs {
   readonly isConfirmed: Prisma.FieldRef<"User", 'Boolean'>
   readonly confirmationCode: Prisma.FieldRef<"User", 'String'>
   readonly confirmationExpiration: Prisma.FieldRef<"User", 'DateTime'>
-  readonly passwordRecoveryCode: Prisma.FieldRef<"User", 'String'>
-  readonly passwordRecoveryExpiration: Prisma.FieldRef<"User", 'DateTime'>
   readonly passwordChangedAt: Prisma.FieldRef<"User", 'DateTime'>
   readonly deletedAt: Prisma.FieldRef<"User", 'DateTime'>
 }
@@ -1740,6 +1781,30 @@ export type User$sessionsArgs<ExtArgs extends runtime.Types.Extensions.InternalA
   take?: number
   skip?: number
   distinct?: Prisma.DeviceSessionScalarFieldEnum | Prisma.DeviceSessionScalarFieldEnum[]
+}
+
+/**
+ * User.providers
+ */
+export type User$providersArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the AuthIdentity
+   */
+  select?: Prisma.AuthIdentitySelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the AuthIdentity
+   */
+  omit?: Prisma.AuthIdentityOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AuthIdentityInclude<ExtArgs> | null
+  where?: Prisma.AuthIdentityWhereInput
+  orderBy?: Prisma.AuthIdentityOrderByWithRelationInput | Prisma.AuthIdentityOrderByWithRelationInput[]
+  cursor?: Prisma.AuthIdentityWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.AuthIdentityScalarFieldEnum | Prisma.AuthIdentityScalarFieldEnum[]
 }
 
 /**

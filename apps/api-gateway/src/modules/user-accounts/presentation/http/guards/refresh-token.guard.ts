@@ -2,12 +2,7 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { JwtService } from '@nestjs/jwt';
 import type { VerifiedRefreshTokenClaims } from '@app/user-accounts-grpc';
 import type { RequestWithOptionalRefreshSession } from '../auth-request.types.js';
-
-type JwtRefreshPayload = {
-  sub?: unknown;
-  sessionId?: unknown;
-  jti?: unknown;
-};
+import type { UnvalidatedJwtRefreshPayload } from '../jwt-payload.types.js';
 
 /**
  * Защищает эндпоинты, для которых refresh-токен является обязательным способом аутентификации.
@@ -17,7 +12,7 @@ type JwtRefreshPayload = {
 export class RefreshTokenGuard implements CanActivate {
   constructor(private readonly jwtService: JwtService) {}
 
-  /** Проверяет наличие и подпись refresh-токена, затем сохраняет его claims в request. */
+  /** Проверяет наличие, подпись и аудиторию auth refresh-токена, затем сохраняет его claims в request. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<RequestWithOptionalRefreshSession>();
     const refreshToken = request.cookies.refreshToken;
@@ -26,7 +21,9 @@ export class RefreshTokenGuard implements CanActivate {
     }
 
     try {
-      const payload = await this.jwtService.verifyAsync<JwtRefreshPayload>(refreshToken);
+      const payload = await this.jwtService.verifyAsync<UnvalidatedJwtRefreshPayload>(refreshToken, {
+        audience: 'auth',
+      });
       request.refreshTokenClaims = this.toVerifiedClaims(payload);
       return true;
     } catch {
@@ -35,7 +32,7 @@ export class RefreshTokenGuard implements CanActivate {
   }
 
   /** Проверяет обязательные claims и преобразует JWT payload в транспортный объект для gRPC. */
-  private toVerifiedClaims(payload: JwtRefreshPayload): VerifiedRefreshTokenClaims {
+  private toVerifiedClaims(payload: UnvalidatedJwtRefreshPayload): VerifiedRefreshTokenClaims {
     if (
       typeof payload.sub !== 'string' ||
       !payload.sub ||
