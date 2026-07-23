@@ -29,7 +29,7 @@ export class AuthGrpcController {
   }
 
   async refreshToken(request: RefreshTokenRequest): Promise<TokenPairResponse> {
-    if (!request.auth) {
+    if (!request.refreshTokenClaims) {
       throw new RpcException({
         code: status.UNAUTHENTICATED,
         message: 'Invalid authorization method',
@@ -38,7 +38,7 @@ export class AuthGrpcController {
 
     return this.commandBus.execute(
       new RefreshTokenCommand({
-        auth: request.auth,
+        refreshTokenClaims: request.refreshTokenClaims,
         ip: request.ip,
         deviceName: request.deviceName,
       }),

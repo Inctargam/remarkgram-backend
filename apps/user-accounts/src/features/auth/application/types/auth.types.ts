@@ -30,7 +30,7 @@ export type LoginParams = {
 };
 
 export type RefreshTokenParams = {
-  auth: SessionIdentity;
+  refreshTokenClaims: SessionIdentity;
   ip: string;
   deviceName: string;
 };

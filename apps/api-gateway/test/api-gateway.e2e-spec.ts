@@ -437,7 +437,7 @@ describe('ApiGateway (e2e)', () => {
 
     expect(authServiceClient.refreshToken).toHaveBeenCalledWith(
       expect.objectContaining({
-        auth: refreshTokenClaims,
+        refreshTokenClaims,
         deviceName: 'Browser',
       }),
     );

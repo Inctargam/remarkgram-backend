@@ -27,12 +27,12 @@ export class LoginUseCase implements ICommandHandler<LoginCommand> {
       throw new UserAlreadyLoggedInError();
     }
 
-    const user = await this.authService.validateCredentials(email, password);
+    const user = await this.authService.verifyCredentials(email, password);
     if (!user.confirmation.isConfirmed) {
       throw new EmailNotConfirmedError();
     }
 
-    // validateCredentials only returns a password user, so the hash is present here.
+    // verifyCredentials only returns a password user, so the hash is present here.
     if (!user.hash) {
       throw new IncorrectCredentialsError();
     }

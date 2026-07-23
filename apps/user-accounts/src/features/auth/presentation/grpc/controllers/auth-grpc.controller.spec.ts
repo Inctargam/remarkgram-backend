@@ -47,7 +47,7 @@ describe('AuthGrpcController', () => {
     });
 
     await controller.refreshToken({
-      auth: {
+      refreshTokenClaims: {
         userId: '1',
         sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
         jti: 'current-jti',
@@ -58,7 +58,7 @@ describe('AuthGrpcController', () => {
 
     const command = commandBus.execute.mock.calls[0][0] as RefreshTokenCommand;
     expect(command).toBeInstanceOf(RefreshTokenCommand);
-    expect(command.params.auth).toEqual({
+    expect(command.params.refreshTokenClaims).toEqual({
       userId: '1',
       sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
       jti: 'current-jti',

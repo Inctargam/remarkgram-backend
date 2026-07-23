@@ -2,8 +2,32 @@ syntax = "proto3";
 
 package remarkgram.user_accounts.v1;
 
-service UsersService {
-  rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
+// Shared messages
+message VerifiedRefreshTokenClaims {
+  string user_id = 1;
+  string session_id = 2;
+  string jti = 3;
+}
+
+// Authentication
+service AuthService {
+  rpc Login(LoginRequest) returns (TokenPairResponse);
+  rpc RefreshToken(RefreshTokenRequest) returns (TokenPairResponse);
+  rpc AuthenticateOAuth(AuthenticateOAuthRequest) returns (TokenPairResponse);
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+  string ip = 3;
+  string device_name = 4;
+  VerifiedRefreshTokenClaims current_session = 5;
+}
+
+message RefreshTokenRequest {
+  VerifiedRefreshTokenClaims refresh_token_claims = 1;
+  string ip = 2;
+  string device_name = 3;
 }
 
 enum OAuthProvider {
@@ -27,69 +51,21 @@ message OAuthIdentityClaims {
 }
 
 message AuthenticateOAuthRequest {
-    OAuthIdentityClaims identity = 1;
-    string ip = 2;
-    string device_name = 3;
-}
-
-service AuthService {
-  rpc Login(LoginRequest) returns (TokenPairResponse);
-  rpc RefreshToken(RefreshTokenRequest) returns (TokenPairResponse);
-  rpc AuthenticateOAuth(AuthenticateOAuthRequest) returns (TokenPairResponse);
-}
-
-service RegistrationService {
-  rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
-  rpc ConfirmRegistration(ConfirmRegistrationRequest) returns (ConfirmRegistrationResponse);
-  rpc ResendRegistrationConfirmation(ResendRegistrationConfirmationRequest) returns (ResendRegistrationConfirmationResponse);
-}
-
-service SessionsService {
-  rpc GetSessions(GetSessionsRequest) returns (GetSessionsResponse);
-  rpc LogoutCurrentSession(LogoutCurrentSessionRequest) returns (LogoutCurrentSessionResponse);
-  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
-  rpc RevokeOtherSessions(RevokeOtherSessionsRequest) returns (RevokeOtherSessionsResponse);
-}
-
-service TestingService {
-  rpc DeleteAllData(DeleteAllDataRequest) returns (DeleteAllDataResponse);
-}
-
-message GetUsersRequest {}
-
-message User {
-  int32 id = 1;
-  string username = 2;
-  string email = 3;
-}
-
-message GetUsersResponse {
-  repeated User users = 1;
-}
-
-message LoginRequest {
-  string email = 1;
-  string password = 2;
-  string ip = 3;
-  string device_name = 4;
-  VerifiedRefreshTokenClaims current_session = 5;
-}
-
-message RefreshTokenRequest {
-  VerifiedRefreshTokenClaims auth = 1;
+  OAuthIdentityClaims identity = 1;
   string ip = 2;
   string device_name = 3;
-}
-
-message VerifiedRefreshTokenClaims {
-  string user_id = 1;
-  string session_id = 2;
-  string jti = 3;
 }
 
 message TokenPairResponse {
   string access_token = 1;
   string refresh_token = 2;
+}
+
+// Registration
+service RegistrationService {
+  rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
+  rpc ConfirmRegistration(ConfirmRegistrationRequest) returns (ConfirmRegistrationResponse);
+  rpc ResendRegistrationConfirmation(ResendRegistrationConfirmationRequest) returns (ResendRegistrationConfirmationResponse);
 }
 
 message RegisterUserRequest {
@@ -111,6 +87,31 @@ message ResendRegistrationConfirmationRequest {
 }
 
 message ResendRegistrationConfirmationResponse {}
+
+// Users
+service UsersService {
+  rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
+}
+
+message GetUsersRequest {}
+
+message User {
+  int32 id = 1;
+  string username = 2;
+  string email = 3;
+}
+
+message GetUsersResponse {
+  repeated User users = 1;
+}
+
+// Sessions
+service SessionsService {
+  rpc GetSessions(GetSessionsRequest) returns (GetSessionsResponse);
+  rpc LogoutCurrentSession(LogoutCurrentSessionRequest) returns (LogoutCurrentSessionResponse);
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+  rpc RevokeOtherSessions(RevokeOtherSessionsRequest) returns (RevokeOtherSessionsResponse);
+}
 
 message GetSessionsRequest {
   VerifiedRefreshTokenClaims auth = 1;
@@ -147,11 +148,7 @@ message RevokeOtherSessionsRequest {
 
 message RevokeOtherSessionsResponse {}
 
-message DeleteAllDataRequest {}
-
-message DeleteAllDataResponse {}
-
-
+// Password reset
 service PasswordResetService {
   rpc RequestPasswordReset(RequestPasswordResetRequest) returns (RequestPasswordResetResponse);
   rpc ConfirmPasswordReset(ConfirmPasswordResetRequest) returns (ConfirmPasswordResetResponse);
@@ -171,3 +168,12 @@ message ConfirmPasswordResetRequest {
 }
 
 message ConfirmPasswordResetResponse {}
+
+// Testing
+service TestingService {
+  rpc DeleteAllData(DeleteAllDataRequest) returns (DeleteAllDataResponse);
+}
+
+message DeleteAllDataRequest {}
+
+message DeleteAllDataResponse {}

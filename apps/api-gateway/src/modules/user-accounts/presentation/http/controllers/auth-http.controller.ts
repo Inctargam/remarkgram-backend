@@ -186,7 +186,7 @@ export class AuthHttpController implements OnModuleInit {
   ): Promise<AccessTokenResponseDto> {
     const tokens = await firstValueFrom(
       this.authClient.refreshToken({
-        auth: request.refreshTokenClaims,
+        refreshTokenClaims: request.refreshTokenClaims,
         ip,
         deviceName: userAgent ?? 'unknown',
       }),

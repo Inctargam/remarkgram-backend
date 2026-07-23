@@ -42,13 +42,13 @@ describe('AuthService', () => {
     vi.restoreAllMocks();
   });
 
-  it('validates username and password', async () => {
+  it('verifies email and password', async () => {
     const hash = await bcrypt.hash('password', 4);
     const user = createTestUser({ hash });
     usersRepository.findByEmail.mockResolvedValue(user);
 
-    await expect(service.validateCredentials('user@example.com', 'password')).resolves.toBe(user);
-    await expect(service.validateCredentials('user@example.com', 'wrong-password')).rejects.toThrow(
+    await expect(service.verifyCredentials('user@example.com', 'password')).resolves.toBe(user);
+    await expect(service.verifyCredentials('user@example.com', 'wrong-password')).rejects.toThrow(
       'Incorrect email/password',
     );
   });
@@ -56,7 +56,7 @@ describe('AuthService', () => {
   it('rejects an unknown user', async () => {
     usersRepository.findByEmail.mockResolvedValue(null);
 
-    await expect(service.validateCredentials('unknown@example.com', 'password')).rejects.toThrow(
+    await expect(service.verifyCredentials('unknown@example.com', 'password')).rejects.toThrow(
       'Incorrect email/password',
     );
   });

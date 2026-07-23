@@ -32,7 +32,7 @@ describe('auth use cases', () => {
   it('LoginUseCase creates tokens and a new session', async () => {
     const authService = {
       generateTokenPair: vi.fn<AuthService['generateTokenPair']>().mockResolvedValue(tokenPair),
-      validateCredentials: vi.fn<AuthService['validateCredentials']>().mockResolvedValue(user),
+      verifyCredentials: vi.fn<AuthService['verifyCredentials']>().mockResolvedValue(user),
     };
     const sessionsService = {
       createSession: vi.fn<SessionsService['createSession']>().mockResolvedValue(true),
@@ -68,7 +68,7 @@ describe('auth use cases', () => {
   it('LoginUseCase rejects credentials when the password changes before session creation', async () => {
     const authService = {
       generateTokenPair: vi.fn<AuthService['generateTokenPair']>().mockResolvedValue(tokenPair),
-      validateCredentials: vi.fn<AuthService['validateCredentials']>().mockResolvedValue(user),
+      verifyCredentials: vi.fn<AuthService['verifyCredentials']>().mockResolvedValue(user),
     };
     const sessionsService = {
       createSession: vi.fn<SessionsService['createSession']>().mockResolvedValue(false),
@@ -99,7 +99,7 @@ describe('auth use cases', () => {
       sessionsService as unknown as SessionsService,
     );
     const refreshParams = {
-      auth: currentSession,
+      refreshTokenClaims: currentSession,
       ip: params.ip,
       deviceName: params.deviceName,
     };

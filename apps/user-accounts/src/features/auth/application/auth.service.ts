@@ -25,8 +25,8 @@ export class AuthService {
     return bcrypt.hash(password, 10);
   }
 
-  /** Проверяет логин или email и сравнивает переданный пароль с сохранённым хешем. */
-  async validateCredentials(email: string, password: string): Promise<User> {
+  /** Проверяет email и сравнивает переданный пароль с сохранённым хешем. */
+  async verifyCredentials(email: string, password: string): Promise<User> {
     const user = await this.usersRepository.findByEmail(email);
 
     if (!user?.hash || !(await bcrypt.compare(password, user.hash))) {
