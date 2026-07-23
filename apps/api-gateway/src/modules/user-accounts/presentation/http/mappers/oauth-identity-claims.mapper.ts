@@ -1,8 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { type OAuthEmail, type OAuthIdentityClaims, OAuthProvider } from '@app/user-accounts-grpc';
 
-// TODO: Если Google mapper будет формировать OAuthEmail[] напрямую, переименовать функцию
-// в validateGithubEmails: фактически она проверяет сырой ответ GitHub GET /user/emails.
 export function validateOAuthEmails(value: unknown): OAuthEmail[] {
   if (!Array.isArray(value)) {
     throw new UnauthorizedException('OAuth provider returned an invalid email list');
@@ -56,6 +54,7 @@ export function normalizeGoogleIdentityClaims(claims: unknown): OAuthIdentityCla
     !claims.sub.trim() ||
     !('email' in claims) ||
     typeof claims.email !== 'string' ||
+    !claims.email.trim() ||
     !('email_verified' in claims) ||
     typeof claims.email_verified !== 'boolean'
   ) {
@@ -65,7 +64,7 @@ export function normalizeGoogleIdentityClaims(claims: unknown): OAuthIdentityCla
   return {
     provider: OAuthProvider.OAUTH_PROVIDER_GOOGLE,
     subject: claims.sub.trim(),
-    emails: validateOAuthEmails([{ email: claims.email, verified: claims.email_verified, primary: true }]),
+    emails: [{ email: claims.email, verified: claims.email_verified, primary: true }],
     username: 'name' in claims && typeof claims.name === 'string' ? claims.name.trim() : '',
     avatarUrl: 'picture' in claims && typeof claims.picture === 'string' ? claims.picture : '',
   };
