@@ -10,6 +10,7 @@ import type {
   CreateUserRepositoryParams,
   CreateOAuthRepositoryParams,
   ReleaseExpiredRegistrationCredentialsParams,
+  ReleaseExpiredRegistrationByEmailParams,
   UpdateConfirmationCodeParams,
 } from '../../../application/types/users.types.js';
 import { User } from '../../../domain/entities/user.entity.js';
@@ -91,8 +92,8 @@ export class PrismaUsersRepository implements UsersRepository {
     return users.map((user) => UserPrismaMapper.toDomain(user));
   }
 
-  async findByEmail(email: string): Promise<User | null> {
-    const user = await this.prisma.user.findFirst({
+  async findByEmail(email: string, ctx?: TransactionContext): Promise<User | null> {
+    const user = await this.getClient(ctx).user.findFirst({
       where: { email, deletedAt: null },
     });
 
@@ -168,6 +169,24 @@ export class PrismaUsersRepository implements UsersRepository {
         isConfirmed: false,
         confirmationExpiration: { lte: params.now },
         OR: [{ username: params.username }, { email: params.email }],
+      },
+      data: { deletedAt: params.now },
+    });
+  }
+
+  async releaseExpiredRegistrationByEmail(
+    params: ReleaseExpiredRegistrationByEmailParams,
+    ctx?: TransactionContext,
+  ): Promise<void> {
+    await this.getClient(ctx).user.updateMany({
+      where: {
+        email: params.email,
+        deletedAt: null,
+        isConfirmed: false,
+        confirmationExpiration: { lte: params.now },
+        // Регистрация с уже привязанным провайдером больше не является временной
+        // заготовкой и не должна удаляться как просроченная password-регистрация.
+        providers: { none: {} },
       },
       data: { deletedAt: params.now },
     });

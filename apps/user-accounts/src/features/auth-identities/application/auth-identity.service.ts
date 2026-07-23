@@ -83,25 +83,35 @@ export class AuthIdentityService {
       throw new OAuthEmailRequiredError();
     }
 
-    //  Неподтверждённый email нельзя использовать ни для поиска, ни для автоматической привязки аккаунта.
-    const user = await this.userRepository.findByEmail(primaryEmail.email);
+    return this.unitOfWork.run(async (ctx) => {
+      const now = new Date();
 
-    if (user) {
-      return primaryEmail.verified
-        ? //пользователь найден + email verified → привязываем identity;
-          this.linkIdentityToExistingUser(user, oauthIdentity)
-        : //пользователь найден + email unverified → не объединяем аккаунты;
-          this.throwOAuthEmailNotVerified();
-    }
+      // Просроченная неподтверждённая password-регистрация не должна удерживать email.
+      // Удаление, повторный поиск и создание OAuth-пользователя выполняются атомарно.
+      await this.userRepository.releaseExpiredRegistrationByEmail(
+        {
+          email: primaryEmail.email,
+          now,
+        },
+        ctx,
+      );
 
-    // TODO: Обработать конкурентное создание OAuth-пользователя. Между findByEmail и INSERT другой запрос
-    // может создать пользователя с тем же email. Нужно определить единый доменный сценарий обработки
-    // конфликта уникальности и не возвращать наружу инфраструктурную ошибку Prisma.
-    return this.registerOAuthUser(oauthIdentity);
+      // Неподтверждённый email нельзя использовать для автоматической привязки аккаунта.
+      const user = await this.userRepository.findByEmail(primaryEmail.email, ctx);
 
-    // return user
-    //   ? this.linkIdentityToExistingUser(user, oauthIdentity)
-    //   : this.registerOAuthUser(oauthIdentity);
+      if (user) {
+        return primaryEmail.verified
+          ? // пользователь найден + email verified → привязываем identity;
+            this.linkIdentityToExistingUser(user, oauthIdentity, ctx)
+          : // пользователь найден + email unverified → не объединяем аккаунты;
+            this.throwOAuthEmailNotVerified();
+      }
+
+      // TODO: Обработать конкурентное создание OAuth-пользователя. Между findByEmail и INSERT другой запрос
+      // может создать пользователя с тем же email. Нужно определить единый доменный сценарий обработки
+      // конфликта уникальности и не возвращать наружу инфраструктурную ошибку Prisma.
+      return this.registerOAuthUser(oauthIdentity, now, ctx);
+    });
   }
 
   /** Выполняет вход по identity, которая уже принадлежит локальному пользователю. */
@@ -144,65 +154,64 @@ export class AuthIdentityService {
   private async linkIdentityToExistingUser(
     user: User,
     params: OAuthIdentityContext,
+    ctx: TransactionContext,
   ): Promise<AuthenticateOAuthServiceResult> {
-    return this.unitOfWork.run(async (ctx) => {
-      const linkedUser = user.confirmation.isConfirmed
-        ? user
-        : await this.userRepository.confirmForOAuth(user.id, ctx);
+    const linkedUser = user.confirmation.isConfirmed
+      ? user
+      : await this.userRepository.confirmForOAuth(user.id, ctx);
 
-      if (!linkedUser) {
-        throw new OAuthIdentityOwnerNotFoundError();
-      }
+    if (!linkedUser) {
+      throw new OAuthIdentityOwnerNotFoundError();
+    }
 
-      const identity = await this.identityRepository.createIfAbsent(
-        this.toCreateIdentityParams(linkedUser.id, params),
-        ctx,
-      );
+    const identity = await this.identityRepository.createIfAbsent(
+      this.toCreateIdentityParams(linkedUser.id, params),
+      ctx,
+    );
 
-      if (!identity) {
-        // Пустой RETURNING означает конфликт одного из уникальных ограничений identity.
-        await this.ensureIdentityConflictIsIdempotent(linkedUser.id, params, ctx);
-      }
+    if (!identity) {
+      // Пустой RETURNING означает конфликт одного из уникальных ограничений identity.
+      await this.ensureIdentityConflictIsIdempotent(linkedUser.id, params, ctx);
+    }
 
-      return { status: AuthenticateOAuthStatus.IDENTITY_LINKED, user: linkedUser };
-    });
+    return { status: AuthenticateOAuthStatus.IDENTITY_LINKED, user: linkedUser };
   }
 
   /** Создаёт локального пользователя и его первую OAuth identity в одной транзакции. */
-  private async registerOAuthUser(params: OAuthIdentityContext): Promise<AuthenticateOAuthServiceResult> {
-    return this.unitOfWork.run(async (ctx) => {
-      const code = crypto.randomUUID();
-      const expiration = new Date();
-      expiration.setHours(expiration.getHours() + this.auth.confirmationCodeExpiresIn);
+  private async registerOAuthUser(
+    params: OAuthIdentityContext,
+    now: Date,
+    ctx: TransactionContext,
+  ): Promise<AuthenticateOAuthServiceResult> {
+    const code = crypto.randomUUID();
+    const expiration = new Date(now);
+    expiration.setHours(expiration.getHours() + this.auth.confirmationCodeExpiresIn);
 
-      const isVerified = params.verified;
-      const createdUser = await this.userRepository.createOAuth(
-        {
-          email: params.email,
-          createdAt: new Date(),
-          // Определяем верефецировать ли системного юзера.
-          confirmation: isVerified
-            ? ConfirmationInfo.confirmed()
-            : ConfirmationInfo.pending(code, expiration),
-        },
-        ctx,
-      );
+    const isVerified = params.verified;
+    const createdUser = await this.userRepository.createOAuth(
+      {
+        email: params.email,
+        createdAt: now,
+        // Определяем верефецировать ли системного юзера.
+        confirmation: isVerified ? ConfirmationInfo.confirmed() : ConfirmationInfo.pending(code, expiration),
+      },
+      ctx,
+    );
 
-      const identity = await this.identityRepository.createIfAbsent(
-        this.toCreateIdentityParams(createdUser.id, params),
-        ctx,
-      );
+    const identity = await this.identityRepository.createIfAbsent(
+      this.toCreateIdentityParams(createdUser.id, params),
+      ctx,
+    );
 
-      if (!identity) {
-        // Доменная ошибка откатит создание пользователя вместе со всей транзакцией.
-        await this.ensureIdentityConflictIsIdempotent(createdUser.id, params, ctx);
-      }
+    if (!identity) {
+      // Доменная ошибка откатит создание пользователя вместе со всей транзакцией.
+      await this.ensureIdentityConflictIsIdempotent(createdUser.id, params, ctx);
+    }
 
-      if (isVerified) {
-        return { status: AuthenticateOAuthStatus.REGISTERED, user: createdUser };
-      }
-      return { status: AuthenticateOAuthStatus.REGISTERED_EMAIL_CONFIRMATION_REQUIRED, user: createdUser };
-    });
+    if (isVerified) {
+      return { status: AuthenticateOAuthStatus.REGISTERED, user: createdUser };
+    }
+    return { status: AuthenticateOAuthStatus.REGISTERED_EMAIL_CONFIRMATION_REQUIRED, user: createdUser };
   }
 
   /** Обновляет изменяемые данные профиля провайдера, не меняя владельца identity. */

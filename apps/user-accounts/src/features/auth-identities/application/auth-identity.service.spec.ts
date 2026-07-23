@@ -47,6 +47,7 @@ function createService() {
     findByEmail: vi.fn(),
     createOAuth: vi.fn<UsersRepository['createOAuth']>(),
     confirmForOAuth: vi.fn(),
+    releaseExpiredRegistrationByEmail: vi.fn<UsersRepository['releaseExpiredRegistrationByEmail']>(),
   };
   const unitOfWork = {
     run: vi.fn<UnitOfWork['run']>((handler) => handler('transaction-context')),
@@ -89,6 +90,7 @@ describe('AuthIdentityService', () => {
       user,
     });
     expect(userRepository.findByEmail).not.toHaveBeenCalled();
+    expect(userRepository.releaseExpiredRegistrationByEmail).not.toHaveBeenCalled();
     expect(identityRepository.updateProviderProfile).not.toHaveBeenCalled();
   });
 
@@ -156,6 +158,47 @@ describe('AuthIdentityService', () => {
         avatarUrl: params.avatarUrl,
       }),
       'transaction-context',
+    );
+  });
+
+  it('releases an expired password registration before creating an OAuth user', async () => {
+    const { service, identityRepository, userRepository } = createService();
+    identityRepository.findAuthIdentity.mockResolvedValue(null);
+    userRepository.findByEmail.mockResolvedValue(null);
+    userRepository.createOAuth.mockResolvedValue(user);
+    identityRepository.createIfAbsent.mockResolvedValue(
+      AuthIdentity.restore({
+        id: crypto.randomUUID(),
+        userId: user.id,
+        provider: params.provider,
+        providerSubject: params.providerSubject,
+        providerEmail: primaryEmail.email,
+        providerEmailVerified: true,
+        username: params.username,
+        avatarUrl: params.avatarUrl,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+    );
+
+    await service.authenticateOAuth(params);
+
+    expect(userRepository.releaseExpiredRegistrationByEmail).toHaveBeenCalledWith(
+      {
+        email: primaryEmail.email,
+        now: expect.any(Date),
+      },
+      'transaction-context',
+    );
+    expect(userRepository.findByEmail).toHaveBeenCalledWith(primaryEmail.email, 'transaction-context');
+    expect(userRepository.releaseExpiredRegistrationByEmail.mock.invocationCallOrder[0]).toBeLessThan(
+      userRepository.findByEmail.mock.invocationCallOrder[0],
+    );
+    expect(userRepository.findByEmail.mock.invocationCallOrder[0]).toBeLessThan(
+      userRepository.createOAuth.mock.invocationCallOrder[0],
+    );
+    expect(userRepository.createOAuth.mock.calls[0]?.[0].createdAt).toBe(
+      userRepository.releaseExpiredRegistrationByEmail.mock.calls[0]?.[0].now,
     );
   });
 
