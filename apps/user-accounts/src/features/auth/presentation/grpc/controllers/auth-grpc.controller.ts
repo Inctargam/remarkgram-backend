@@ -48,7 +48,7 @@ export class AuthGrpcController {
   async authenticateOAuth(request: AuthenticateOAuthRequest): Promise<TokenPairResponse> {
     if (!request.identity) {
       throw new RpcException({
-        status: status.INVALID_ARGUMENT,
+        code: status.INVALID_ARGUMENT,
         message: 'Invalid identity payload',
       });
     }

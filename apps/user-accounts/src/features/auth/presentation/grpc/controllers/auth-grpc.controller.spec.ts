@@ -1,4 +1,6 @@
 import type { CommandBus } from '@nestjs/cqrs';
+import { status } from '@grpc/grpc-js';
+import { RpcException } from '@nestjs/microservices';
 import { LoginCommand } from '../../../application/use-cases/login.use-case.js';
 import { RefreshTokenCommand } from '../../../application/use-cases/refresh-token.use-case.js';
 import { AuthenticateOAuthCommand } from '../../../application/use-cases/authenticate-oauth.use-case.js';
@@ -96,5 +98,26 @@ describe('AuthGrpcController', () => {
       avatarUrl: 'https://avatars.example.com/octocat.png',
       emails: [{ email: 'octocat@example.com', verified: true, primary: true }],
     });
+  });
+
+  it('returns INVALID_ARGUMENT when the OAuth identity payload is missing', async () => {
+    let thrownError: unknown;
+
+    try {
+      await controller.authenticateOAuth({
+        identity: undefined,
+        ip: '127.0.0.1',
+        deviceName: 'Browser',
+      });
+    } catch (error) {
+      thrownError = error;
+    }
+
+    expect(thrownError).toBeInstanceOf(RpcException);
+    expect((thrownError as RpcException).getError()).toEqual({
+      code: status.INVALID_ARGUMENT,
+      message: 'Invalid identity payload',
+    });
+    expect(commandBus.execute).not.toHaveBeenCalled();
   });
 });
