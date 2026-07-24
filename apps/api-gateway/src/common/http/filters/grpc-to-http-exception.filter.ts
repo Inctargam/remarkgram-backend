@@ -1,16 +1,13 @@
 import { Catch, HttpException, HttpStatus, type ArgumentsHost } from '@nestjs/common';
-import { type Metadata, status } from '@grpc/grpc-js';
+import { status } from '@grpc/grpc-js';
 import { BaseExceptionFilter, HttpAdapterHost } from '@nestjs/core';
 import { USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
+import {
+  getGrpcMetadataValue,
+  type GrpcServiceError,
+  isGrpcServiceError,
+} from '../../grpc/grpc-service-error.js';
 import { ApiErrorResponseDto } from '../api-error-response.dto.js';
-
-type GrpcServiceError = {
-  // grpc-js называет это поле code, хотя его значение является статусом gRPC.
-  code: status;
-  details?: string;
-  message?: string;
-  metadata?: Metadata;
-};
 
 const HTTP_STATUS_BY_GRPC_STATUS: Partial<Record<status, HttpStatus>> = {
   [status.INVALID_ARGUMENT]: HttpStatus.BAD_REQUEST,
@@ -26,10 +23,12 @@ const HTTP_STATUS_BY_GRPC_STATUS: Partial<Record<status, HttpStatus>> = {
 };
 
 export const mapGrpcErrorToHttpException = (error: GrpcServiceError): HttpException => {
+  // grpc-js восстанавливает ServiceError на клиенте: code приходит из grpc-status,
+  // details — из grpc-message, а точный application error code лежит в custom trailing metadata.
   const grpcStatus = error.code;
   const httpStatus = HTTP_STATUS_BY_GRPC_STATUS[grpcStatus] ?? HttpStatus.BAD_GATEWAY;
   const appErrorCode =
-    error.metadata?.get(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY)[0]?.toString() ||
+    getGrpcMetadataValue(error, USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY) ||
     status[grpcStatus] ||
     'UPSTREAM_ERROR';
   const message = error.details || error.message || 'Upstream gRPC service is unavailable';
@@ -46,16 +45,8 @@ export class GrpcToHttpExceptionFilter extends BaseExceptionFilter {
 
   /** Обрабатывает gRPC-ошибку, а остальные исключения передаёт стандартному фильтру Nest. */
   override catch(error: unknown, host: ArgumentsHost): void {
-    super.catch(this.isGrpcError(error) ? mapGrpcErrorToHttpException(error) : error, host);
-  }
-
-  /** Проверяет, что исключение содержит числовой статус из enum gRPC. */
-  private isGrpcError(error: unknown): error is GrpcServiceError {
-    if (typeof error !== 'object' || error === null || !('code' in error)) {
-      return false;
-    }
-
-    const grpcStatus = error.code;
-    return typeof grpcStatus === 'number' && Number.isInteger(grpcStatus) && status[grpcStatus] !== undefined;
+    // Исходящий Nest gRPC client возвращает Observable; при неуспешном status firstValueFrom
+    // выбрасывает клиентский ServiceError, который здесь преобразуется в HttpException с JSON body.
+    super.catch(isGrpcServiceError(error) ? mapGrpcErrorToHttpException(error) : error, host);
   }
 }

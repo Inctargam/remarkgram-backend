@@ -1,17 +1,10 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Inject, Logger } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-import { status } from '@grpc/grpc-js';
 import type { Response } from 'express';
 import { AuthorizationResponseError } from 'openid-client';
 import { USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
 import { frontendConfig } from '../../../config/frontend.config.js';
-
-type GrpcServiceError = {
-  code: status;
-  metadata?: {
-    get(key: string): unknown[];
-  };
-};
+import { getGrpcMetadataValue } from '../../grpc/grpc-service-error.js';
 
 export enum OAuthRedirectErrorCode {
   Unknown = 'UNKNOWN_ERROR',
@@ -72,22 +65,11 @@ export class OauthRedirectExceptionFilter implements ExceptionFilter {
       }
     }
 
-    const applicationErrorCode = this.getApplicationErrorCode(exception);
+    // Для callback не возвращаем HTTP JSON: из клиентского ServiceError берём только разрешённый
+    // application error code из trailing metadata и преобразуем его в публичный redirect code.
+    const applicationErrorCode = getGrpcMetadataValue(exception, USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY);
     return applicationErrorCode
       ? (OAUTH_REDIRECT_CODE_BY_APP_ERROR[applicationErrorCode] ?? OAuthRedirectErrorCode.Unknown)
       : OAuthRedirectErrorCode.Unknown;
-  }
-
-  private getApplicationErrorCode(exception: unknown): string | undefined {
-    if (!this.isGrpcServiceError(exception)) return undefined;
-
-    return exception.metadata?.get(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY).at(0)?.toString();
-  }
-
-  private isGrpcServiceError(exception: unknown): exception is GrpcServiceError {
-    if (typeof exception !== 'object' || exception === null || !('code' in exception)) return false;
-
-    const grpcStatus = exception.code;
-    return typeof grpcStatus === 'number' && Number.isInteger(grpcStatus) && status[grpcStatus] !== undefined;
   }
 }

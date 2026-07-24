@@ -36,6 +36,7 @@ export const mapUserAccountsErrorToRpcException = (error: UserAccountsError): Rp
   const metadata = new Metadata();
   metadata.set(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY, appErrorCode);
 
-  // Формат gRPC требует поле code, но в него записывается именно статус gRPC.
+  // grpc-js ожидает в серверном error payload поле code и отправляет его значение как grpc-status.
+  // message станет grpc-message, а metadata сохраняет точную бизнес-причину рядом с общим gRPC status code.
   return new RpcException({ code: grpcStatus, message: error.message, metadata });
 };
