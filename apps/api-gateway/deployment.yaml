@@ -60,11 +60,6 @@ spec:
                  secretKeyRef:
                    name: api-gateway-production-config-secret
                    key: REFRESH_TOKEN_COOKIE_MAX_AGE_MS
-             - name: GATEWAY_PORT
-               valueFrom:
-                 secretKeyRef:
-                   name: api-gateway-production-config-secret
-                   key: GATEWAY_PORT
              - name: CORS_ALLOWED_ORIGINS
                valueFrom:
                  secretKeyRef:
@@ -110,3 +105,8 @@ spec:
                  secretKeyRef:
                    name: api-gateway-production-config-secret
                    key: GITHUB_USER_AGENT
+             - name: GATEWAY_PORT
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: GATEWAY_PORT
