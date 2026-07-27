@@ -53,7 +53,9 @@ describe(AuthHttpController.name, () => {
       {} as ConfigType<typeof userAccountsHttpConfig>,
       {} as ConfigType<typeof frontendConfig>,
       { callbackUrl } as ConfigType<typeof googleOidcConfig>,
-      oidc,
+      {
+        getConfiguration: vi.fn().mockResolvedValue(oidc),
+      },
       {} as RecaptchaVerifiersService,
     );
     const cookie = vi.fn<(name: string, value: string, options: CookieOptions) => void>();
@@ -118,7 +120,9 @@ describe(AuthHttpController.name, () => {
       { refreshTokenCookieMaxAgeMs: 60_000 } as ConfigType<typeof userAccountsHttpConfig>,
       { baseUrl: 'https://frontend.example.com' },
       { callbackUrl } as ConfigType<typeof googleOidcConfig>,
-      {} as Configuration,
+      {
+        getConfiguration: vi.fn().mockResolvedValue({}),
+      },
       {} as RecaptchaVerifiersService,
     );
     controller.onModuleInit();
@@ -185,7 +189,9 @@ describe(AuthHttpController.name, () => {
       {} as ConfigType<typeof userAccountsHttpConfig>,
       {} as ConfigType<typeof frontendConfig>,
       { callbackUrl } as ConfigType<typeof googleOidcConfig>,
-      {} as Configuration,
+      {
+        getConfiguration: vi.fn().mockResolvedValue({}),
+      },
       {} as RecaptchaVerifiersService,
     );
     authorizationCodeGrantMock.mockRejectedValue(new Error('invalid authorization response'));

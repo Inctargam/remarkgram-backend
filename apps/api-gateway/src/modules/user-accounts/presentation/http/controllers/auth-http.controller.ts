@@ -36,7 +36,6 @@ import {
   randomNonce,
   randomPKCECodeVerifier,
   randomState,
-  type Configuration,
 } from 'openid-client';
 import { firstValueFrom } from 'rxjs';
 import { Public } from '../../../../../common/http/decorators/public.decorator.js';
@@ -79,7 +78,10 @@ import {
   normalizeGoogleIdentityClaims,
 } from '../mappers/oauth-identity-claims.mapper.js';
 import { googleOidcConfig } from '../../../config/google-oidc.config.js';
-import { GOOGLE_OIDC_DISCOVERED_CONFIGURATION } from '../../../config/google-oidc-configuration.provider.js';
+import {
+  GOOGLE_OIDC_CONFIGURATION_LOADER,
+  type GoogleOidcConfigurationLoader,
+} from '../../../config/google-oidc-configuration.provider.js';
 
 const GOOGLE_OIDC_TRANSACTION_COOKIE_MAX_AGE_MS = 5 * 60 * 1000;
 const GOOGLE_OIDC_STATE_COOKIE = 'googleOidcState';
@@ -103,8 +105,8 @@ export class AuthHttpController implements OnModuleInit {
     private readonly frontend: ConfigType<typeof frontendConfig>,
     @Inject(googleOidcConfig.KEY)
     private readonly googleConfig: ConfigType<typeof googleOidcConfig>,
-    @Inject(GOOGLE_OIDC_DISCOVERED_CONFIGURATION)
-    private readonly googleOidcDiscoveredConfiguration: Configuration,
+    @Inject(GOOGLE_OIDC_CONFIGURATION_LOADER)
+    private readonly googleOidcConfigurationLoader: GoogleOidcConfigurationLoader,
     private readonly recaptchaVerifiersService: RecaptchaVerifiersService,
   ) {}
 
@@ -237,6 +239,8 @@ export class AuthHttpController implements OnModuleInit {
   @Get('google')
   @ApiGoogleAuth()
   async googleAuth(@Res() response: Response): Promise<void> {
+    const googleOidcConfiguration = await this.googleOidcConfigurationLoader.getConfiguration();
+
     // state связывает начало входа с callback и защищает от OAuth CSRF (login CSRF),
     // при котором злоумышленник пытается завершить в браузере жертвы свою OAuth-транзакцию.
     const state = randomState();
@@ -256,7 +260,7 @@ export class AuthHttpController implements OnModuleInit {
 
     // authorization endpoint берётся из discovery metadata. openid-client также неявно добавляет
     // client_id из Configuration и response_type=code, если эти параметры не переданы явно.
-    const authorizationUrl = buildAuthorizationUrl(this.googleOidcDiscoveredConfiguration, {
+    const authorizationUrl = buildAuthorizationUrl(googleOidcConfiguration, {
       redirect_uri: callbackUrl.href,
       scope: 'openid email profile',
       state,
@@ -326,7 +330,8 @@ export class AuthHttpController implements OnModuleInit {
 
       // openid-client обменивает authorization code и связывает callback с начатой транзакцией:
       // сверяет state, передаёт Google PKCE verifier и проверяет nonce в полученном ID token.
-      const googleTokens = await authorizationCodeGrant(this.googleOidcDiscoveredConfiguration, callbackUrl, {
+      const googleOidcConfiguration = await this.googleOidcConfigurationLoader.getConfiguration();
+      const googleTokens = await authorizationCodeGrant(googleOidcConfiguration, callbackUrl, {
         expectedState: state,
         expectedNonce: nonce,
         pkceCodeVerifier: codeVerifier,
