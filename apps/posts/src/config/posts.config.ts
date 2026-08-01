@@ -13,11 +13,7 @@ export class PostsConfig {
   @IsString({ message: 'Set env variable POSTS_DATABASE_URL' })
   readonly databaseUrl: string;
 
-  @IsEnum(Environments, {
-    message:
-      'Set correct NODE_ENV value, available values: ' +
-      configValidationUtility.getEnumValues(Environments).join(', '),
-  })
+  @IsEnum(Environments)
   readonly env: Environments;
 
   constructor(configService: ConfigService) {
