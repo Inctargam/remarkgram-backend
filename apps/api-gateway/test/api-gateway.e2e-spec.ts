@@ -5,6 +5,7 @@ import type { ConfigType } from '@nestjs/config';
 import { Metadata, status } from '@grpc/grpc-js';
 import {
   FILES_SERVICE_NAME,
+  MAX_IMAGE_SIZE_BYTES,
   REMARKGRAM_FILES_V1_PACKAGE_NAME,
   type FilesServiceClient,
 } from '@app/files-grpc';
@@ -45,7 +46,7 @@ describe('ApiGateway (e2e)', () => {
   const testingEndpointKey = 'testing-key-with-at-least-32-characters';
   let app: INestApplication;
   const filesServiceClient = {
-    uploadFile: vi.fn<FilesServiceClient['uploadFile']>(),
+    createImageUploads: vi.fn<FilesServiceClient['createImageUploads']>(),
   };
   const usersServiceClient = {
     getUsers: vi.fn<UsersServiceClient['getUsers']>(),
@@ -124,7 +125,7 @@ describe('ApiGateway (e2e)', () => {
     vi.stubEnv('GITHUB_CALLBACK_URL', 'https://api.example.com/api/v1/auth/github/callback');
     vi.stubEnv('GITHUB_API_VERSION', '2026-03-10');
     vi.stubEnv('GITHUB_USER_AGENT', 'remark-gram-tests');
-    filesServiceClient.uploadFile.mockReturnValue(of({ id: 'file-id' }));
+    filesServiceClient.createImageUploads.mockReturnValue(of({ uploads: [{ id: 'image-upload-id' }] }));
     jwtService.verifyAsync.mockResolvedValue({
       sub: refreshTokenClaims.userId,
       sessionId: refreshTokenClaims.sessionId,
@@ -234,6 +235,7 @@ describe('ApiGateway (e2e)', () => {
       '/auth/github/callback',
       '/auth/password-reset/request',
       '/auth/password-reset/confirm',
+      '/files/image-uploads',
       '/security/sessions',
       '/security/sessions/{sessionId}',
       '/testing/all-data',
@@ -311,16 +313,62 @@ describe('ApiGateway (e2e)', () => {
     expect(testingServiceClient.deleteAllData).toHaveBeenCalledWith({});
   });
 
-  it('POST /files', async () => {
-    await request(app.getHttpServer() as SupertestApp)
-      .post(apiPath('/files'))
-      .expect(201)
-      .expect({ id: 'file-id' });
+  it('POST /files/image-uploads requests authenticated image upload sessions', async () => {
+    const images = [
+      {
+        originalFilename: 'photo.jpg',
+        contentType: 'image/jpeg',
+        size: 1_048_576,
+      },
+    ];
 
-    expect(filesServiceClient.uploadFile).toHaveBeenCalledWith({
-      originalFilename: 'supper-name-files.png',
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/files/image-uploads'))
+      .set('Authorization', 'Bearer access-token')
+      .send({ images })
+      .expect(201)
+      .expect({ uploads: [{ id: 'image-upload-id' }] });
+
+    expect(filesServiceClient.createImageUploads).toHaveBeenCalledWith({
+      userId: refreshTokenClaims.userId,
+      images,
     });
     expect(filesGrpcClient.getService).toHaveBeenCalledWith(FILES_SERVICE_NAME);
+  });
+
+  it('POST /files/image-uploads rejects unsupported image metadata', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/files/image-uploads'))
+      .set('Authorization', 'Bearer access-token')
+      .send({
+        images: [
+          {
+            originalFilename: 'photo.webp',
+            contentType: 'image/webp',
+            size: MAX_IMAGE_SIZE_BYTES + 1,
+          },
+        ],
+      })
+      .expect(400);
+
+    expect(filesServiceClient.createImageUploads).not.toHaveBeenCalled();
+  });
+
+  it('POST /files/image-uploads requires an authenticated user', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/files/image-uploads'))
+      .send({
+        images: [
+          {
+            originalFilename: 'photo.jpg',
+            contentType: 'image/jpeg',
+            size: 1_024,
+          },
+        ],
+      })
+      .expect(401);
+
+    expect(filesServiceClient.createImageUploads).not.toHaveBeenCalled();
   });
 
   it('GET /users delegates to user-accounts over gRPC', async () => {
