@@ -1,20 +1,26 @@
-import { Controller, Logger } from '@nestjs/common';
+import { Controller, Logger, UseFilters } from '@nestjs/common';
 import { FilesServiceControllerMethods } from '@app/files-grpc';
-import type { UploadFileRequest, UploadFileResponse } from '@app/files-grpc';
-import { randomUUID } from 'node:crypto';
+import type { CreateImageUploadsRequest, CreateImageUploadsResponse } from '@app/files-grpc';
+import { CommandBus } from '@nestjs/cqrs';
+import { CreateImageUploadSessionsCommand } from '../../application/use-cases/create-image-upload-sessions/create-image-upload-sessions.use-case.js';
+import { FilesRpcExceptionFilter } from './filters/files-rpc-exception.filter.js';
 
 @Controller()
 @FilesServiceControllerMethods()
+@UseFilters(FilesRpcExceptionFilter)
 export class FilesGrpcController {
-  logger: Logger;
-  constructor() {
-    this.logger = new Logger(FilesGrpcController.name);
-  }
+  private readonly logger = new Logger(FilesGrpcController.name);
 
-  async uploadFile(request: UploadFileRequest): Promise<UploadFileResponse> {
-    this.logger.log('UploadFile:request ->', request);
-    return Promise.resolve({
-      id: randomUUID(),
-    });
+  constructor(private readonly commandBus: CommandBus) {}
+
+  createImageUploads(request: CreateImageUploadsRequest): Promise<CreateImageUploadsResponse> {
+    this.logger.log({ userId: request.userId, imageCount: request.images.length });
+
+    return this.commandBus.execute(
+      new CreateImageUploadSessionsCommand({
+        userId: request.userId,
+        images: request.images,
+      }),
+    );
   }
 }
