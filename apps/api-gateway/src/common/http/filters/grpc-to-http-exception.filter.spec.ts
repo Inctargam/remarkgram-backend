@@ -1,7 +1,14 @@
-import { Metadata, status } from '@grpc/grpc-js';
+import { Metadata, type ServiceError, status } from '@grpc/grpc-js';
 import { HttpStatus } from '@nestjs/common';
+import { FILES_APP_ERROR_CODE_METADATA_KEY } from '@app/files-grpc';
 import { USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
 import { mapGrpcErrorToHttpException } from './grpc-to-http-exception.filter.js';
+
+const createServiceError = (
+  code: status,
+  details = 'Request failed',
+  metadata = new Metadata(),
+): ServiceError => Object.assign(new Error(details), { code, details, metadata });
 
 describe('mapGrpcErrorToHttpException', () => {
   it.each([
@@ -15,10 +22,7 @@ describe('mapGrpcErrorToHttpException', () => {
     [status.UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE, 'UNAVAILABLE'],
     [status.DEADLINE_EXCEEDED, HttpStatus.GATEWAY_TIMEOUT, 'DEADLINE_EXCEEDED'],
   ])('maps gRPC status %s to HTTP status %s', (grpcStatus, httpStatus, appErrorCode) => {
-    const exception = mapGrpcErrorToHttpException({
-      code: grpcStatus,
-      details: 'Request failed',
-    });
+    const exception = mapGrpcErrorToHttpException(createServiceError(grpcStatus));
 
     expect(exception.getStatus()).toBe(httpStatus);
     expect(exception.getResponse()).toEqual({
@@ -28,20 +32,21 @@ describe('mapGrpcErrorToHttpException', () => {
     });
   });
 
-  it('preserves the application error code from gRPC metadata', () => {
+  it.each([
+    [USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED'],
+    [FILES_APP_ERROR_CODE_METADATA_KEY, 'INVALID_IMAGE_SIZE'],
+  ])('preserves the application error code from %s gRPC metadata', (metadataKey, errorCode) => {
     const metadata = new Metadata();
-    metadata.set(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED');
+    metadata.set(metadataKey, errorCode);
 
-    const exception = mapGrpcErrorToHttpException({
-      code: status.FAILED_PRECONDITION,
-      details: 'Email has not been confirmed',
-      metadata,
-    });
+    const exception = mapGrpcErrorToHttpException(
+      createServiceError(status.FAILED_PRECONDITION, 'Request failed', metadata),
+    );
 
     expect(exception.getResponse()).toEqual({
       statusCode: HttpStatus.CONFLICT,
-      code: 'EMAIL_NOT_CONFIRMED',
-      message: 'Email has not been confirmed',
+      code: errorCode,
+      message: 'Request failed',
     });
   });
 });

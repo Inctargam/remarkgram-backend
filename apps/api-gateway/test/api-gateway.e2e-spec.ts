@@ -2,7 +2,7 @@ import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-import { Metadata, status } from '@grpc/grpc-js';
+import { Metadata, type ServiceError, status } from '@grpc/grpc-js';
 import {
   FILES_SERVICE_NAME,
   MAX_IMAGE_SIZE_BYTES,
@@ -41,6 +41,8 @@ import { GOOGLE_OIDC_CONFIGURATION } from './../src/modules/user-accounts/config
 
 type SupertestApp = Parameters<typeof request>[0];
 const apiPath = (path: `/${string}`): string => `/${API_PREFIX}${path}`;
+const createServiceError = (code: status, details: string, metadata = new Metadata()): ServiceError =>
+  Object.assign(new Error(details), { code, details, metadata });
 
 describe('ApiGateway (e2e)', () => {
   const testingEndpointKey = 'testing-key-with-at-least-32-characters';
@@ -382,10 +384,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('maps user-accounts gRPC errors to HTTP errors', async () => {
     usersServiceClient.getUsers.mockReturnValueOnce(
-      throwError(() => ({
-        code: status.UNAUTHENTICATED,
-        details: 'Authentication failed',
-      })),
+      throwError(() => createServiceError(status.UNAUTHENTICATED, 'Authentication failed')),
     );
 
     const response = await request(app.getHttpServer() as SupertestApp)
@@ -401,11 +400,9 @@ describe('ApiGateway (e2e)', () => {
     const metadata = new Metadata();
     metadata.set(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED');
     usersServiceClient.getUsers.mockReturnValueOnce(
-      throwError(() => ({
-        code: status.FAILED_PRECONDITION,
-        details: 'Email has not been confirmed',
-        metadata,
-      })),
+      throwError(() =>
+        createServiceError(status.FAILED_PRECONDITION, 'Email has not been confirmed', metadata),
+      ),
     );
 
     await request(app.getHttpServer() as SupertestApp)
