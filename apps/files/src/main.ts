@@ -1,13 +1,14 @@
 import { NestFactory } from '@nestjs/core';
+import type { ConfigType } from '@nestjs/config';
 import type { MicroserviceOptions } from '@nestjs/microservices';
 import { Transport } from '@nestjs/microservices';
-import { FilesConfig } from './config/files.config.js';
+import { filesConfig } from './config/files.config.js';
 import { FilesModule } from './files.module.js';
 import { FILES_GRPC_PROTO_PATH, REMARKGRAM_FILES_V1_PACKAGE_NAME } from '@app/files-grpc';
 
 async function bootstrap() {
   const app = await NestFactory.create(FilesModule);
-  const config = app.get(FilesConfig);
+  const config = app.get<ConfigType<typeof filesConfig>>(filesConfig.KEY);
 
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.GRPC,

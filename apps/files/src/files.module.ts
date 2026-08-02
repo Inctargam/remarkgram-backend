@@ -1,6 +1,8 @@
+import { S3Client } from '@aws-sdk/client-s3';
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { FilesConfig } from './config/files.config.js';
+import { ConfigModule, type ConfigType } from '@nestjs/config';
+import { filesConfig } from './config/files.config.js';
+import { S3_CLIENT } from './infrastructure/s3/s3.constants.js';
 import { FilesGrpcController } from './presentation/grpc/files-grpc.controller.js';
 
 @Module({
@@ -18,10 +20,24 @@ import { FilesGrpcController } from './presentation/grpc/files-grpc.controller.j
         '.env.production',
         '.env',
       ],
+      load: [filesConfig],
     }),
   ],
   controllers: [FilesGrpcController],
-  providers: [FilesConfig],
-  exports: [FilesConfig],
+  providers: [
+    {
+      provide: S3_CLIENT,
+      inject: [filesConfig.KEY],
+      useFactory: (config: ConfigType<typeof filesConfig>) =>
+        new S3Client({
+          endpoint: config.s3.endpoint,
+          region: config.s3.region,
+          credentials: {
+            accessKeyId: config.s3.accessKeyId,
+            secretAccessKey: config.s3.secretAccessKey,
+          },
+        }),
+    },
+  ],
 })
 export class FilesModule {}
