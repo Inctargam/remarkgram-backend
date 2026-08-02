@@ -10,29 +10,40 @@ import { Observable } from "rxjs";
 
 export const protobufPackage = "remarkgram.files.v1";
 
-export interface UploadFileRequest {
-  originalFilename: string;
+export interface CreateImageUploadsRequest {
+  userId: string;
+  images: ImageUploadMetadata[];
 }
 
-export interface UploadFileResponse {
+export interface ImageUploadMetadata {
+  originalFilename: string;
+  contentType: string;
+  size: number;
+}
+
+export interface CreateImageUploadsResponse {
+  uploads: ImageUploadSession[];
+}
+
+export interface ImageUploadSession {
   id: string;
 }
 
 export const REMARKGRAM_FILES_V1_PACKAGE_NAME = "remarkgram.files.v1";
 
 export interface FilesServiceClient {
-  uploadFile(request: UploadFileRequest): Observable<UploadFileResponse>;
+  createImageUploads(request: CreateImageUploadsRequest): Observable<CreateImageUploadsResponse>;
 }
 
 export interface FilesServiceController {
-  uploadFile(
-    request: UploadFileRequest,
-  ): Promise<UploadFileResponse> | Observable<UploadFileResponse> | UploadFileResponse;
+  createImageUploads(
+    request: CreateImageUploadsRequest,
+  ): Promise<CreateImageUploadsResponse> | Observable<CreateImageUploadsResponse> | CreateImageUploadsResponse;
 }
 
 export function FilesServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["uploadFile"];
+    const grpcMethods: string[] = ["createImageUploads"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("FilesService", method)(constructor.prototype[method], method, descriptor);

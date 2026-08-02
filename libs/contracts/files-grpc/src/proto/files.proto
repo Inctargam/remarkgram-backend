@@ -3,13 +3,24 @@ syntax = "proto3";
 package remarkgram.files.v1;
 
 service FilesService {
-  rpc UploadFile(UploadFileRequest) returns (UploadFileResponse);
+  rpc CreateImageUploads(CreateImageUploadsRequest) returns (CreateImageUploadsResponse);
 }
 
-message UploadFileRequest {
+message CreateImageUploadsRequest {
+  string user_id = 1;
+  repeated ImageUploadMetadata images = 2;
+}
+
+message ImageUploadMetadata {
   string original_filename = 1;
+  string content_type = 2;
+  int64 size = 3;
 }
 
-message UploadFileResponse {
+message CreateImageUploadsResponse {
+  repeated ImageUploadSession uploads = 1;
+}
+
+message ImageUploadSession {
   string id = 1;
 }
