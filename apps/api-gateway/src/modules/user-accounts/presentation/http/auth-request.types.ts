@@ -15,10 +15,6 @@ export type RequestWithRefreshSession = RequestWithRefreshTokenCookie & {
   refreshTokenClaims: VerifiedRefreshTokenClaims;
 };
 
-export type RequestWithOptionalUserId = Request & {
-  userId: string | null;
-};
-
 export type RequestWithOAuthIdentityClaims = Request & {
   user: OAuthIdentityClaims | null;
   // refreshTokenClaims?: VerifiedRefreshTokenClaims;

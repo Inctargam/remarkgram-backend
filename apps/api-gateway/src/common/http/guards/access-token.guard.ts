@@ -1,9 +1,19 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { Public } from '../../../../../common/http/decorators/public.decorator.js';
-import type { RequestWithOptionalUserId } from '../auth-request.types.js';
-import type { UnvalidatedJwtAccessPayload } from '../jwt-payload.types.js';
+import type { Request } from 'express';
+import { Public } from '../decorators/public.decorator.js';
+
+type RequestWithOptionalUserId = Request & {
+  userId: string | null;
+};
+
+type UnvalidatedJwtAccessPayload = {
+  sub?: unknown;
+  aud?: unknown;
+  iat?: unknown;
+  exp?: unknown;
+};
 
 /**
  * Защищает HTTP-эндпоинты, требующие access-токен, и добавляет идентификатор пользователя в request.

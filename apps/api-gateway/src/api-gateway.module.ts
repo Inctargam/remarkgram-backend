@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { APP_FILTER } from '@nestjs/core';
+import { ConfigModule, type ConfigType } from '@nestjs/config';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { JwtModule } from '@nestjs/jwt';
+import { AccessTokenGuard } from './common/http/guards/access-token.guard.js';
 import { GrpcToHttpExceptionFilter } from './common/http/filters/grpc-to-http-exception.filter.js';
 import { apiGatewayConfig } from './config/api-gateway.config.js';
 import { filesGrpcClientConfig } from './modules/files/config/files-grpc-client.config.js';
@@ -38,6 +40,14 @@ import { googleOidcConfig } from './modules/user-accounts/config/google-oidc.con
         frontendConfig,
       ],
     }),
+    JwtModule.registerAsync({
+      global: true,
+      inject: [userAccountsHttpConfig.KEY],
+      useFactory: (config: ConfigType<typeof userAccountsHttpConfig>) => ({
+        publicKey: config.jwtPublicKey,
+        verifyOptions: { algorithms: ['RS256'] },
+      }),
+    }),
     FilesModule,
     UserAccountsModule,
   ],
@@ -45,6 +55,10 @@ import { googleOidcConfig } from './modules/user-accounts/config/google-oidc.con
     {
       provide: APP_FILTER,
       useClass: GrpcToHttpExceptionFilter,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: AccessTokenGuard,
     },
   ],
 })
