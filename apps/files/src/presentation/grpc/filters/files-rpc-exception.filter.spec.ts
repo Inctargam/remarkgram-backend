@@ -4,7 +4,7 @@ import type { ArgumentsHost } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 import {
   InvalidImageSizeError,
-  InvalidImageUploadCountError,
+  InvalidImageCountError,
   UnsupportedImageContentTypeError,
 } from '../../../application/errors/image-upload.errors.js';
 import { FilesRpcExceptionFilter } from './files-rpc-exception.filter.js';
@@ -14,7 +14,7 @@ describe('FilesRpcExceptionFilter', () => {
   const host = {} as ArgumentsHost;
 
   it.each([
-    new InvalidImageUploadCountError(),
+    new InvalidImageCountError(),
     new InvalidImageSizeError(),
     new UnsupportedImageContentTypeError('image/gif'),
   ])('maps $code to INVALID_ARGUMENT with an application error code', async (error) => {

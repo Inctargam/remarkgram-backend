@@ -6,12 +6,12 @@ import {
 } from '@app/files-grpc';
 import { FilesError, FilesErrorCode } from '../../common/errors/files.error.js';
 
-export class InvalidImageUploadCountError extends FilesError {
-  readonly code = FilesErrorCode.INVALID_IMAGE_UPLOAD_COUNT;
+export class InvalidImageCountError extends FilesError {
+  readonly code = FilesErrorCode.INVALID_IMAGE_COUNT;
 
   constructor() {
     super(
-      `Images count must be between ${MIN_IMAGES_PER_UPLOAD_REQUEST} and ${MAX_IMAGES_PER_UPLOAD_REQUEST}`,
+      `Image count must be between ${MIN_IMAGES_PER_UPLOAD_REQUEST} and ${MAX_IMAGES_PER_UPLOAD_REQUEST}`,
     );
   }
 }

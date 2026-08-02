@@ -9,7 +9,7 @@ import {
 } from '@app/files-grpc';
 import {
   InvalidImageSizeError,
-  InvalidImageUploadCountError,
+  InvalidImageCountError,
   UnsupportedImageContentTypeError,
 } from '../../errors/image-upload.errors.js';
 
@@ -42,7 +42,7 @@ export class InitiateImageUploadsUseCase implements ICommandHandler<InitiateImag
     const { images } = command.params;
 
     if (images.length < MIN_IMAGES_PER_UPLOAD_REQUEST || images.length > MAX_IMAGES_PER_UPLOAD_REQUEST) {
-      throw new InvalidImageUploadCountError();
+      throw new InvalidImageCountError();
     }
 
     for (const image of images) {

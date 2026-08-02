@@ -1,7 +1,7 @@
 import { ImageContentType, MAX_IMAGE_SIZE_BYTES } from '@app/files-grpc';
 import {
   InvalidImageSizeError,
-  InvalidImageUploadCountError,
+  InvalidImageCountError,
   UnsupportedImageContentTypeError,
 } from '../../errors/image-upload.errors.js';
 import {
@@ -33,7 +33,7 @@ describe('InitiateImageUploadsUseCase', () => {
   it.each([
     {
       images: [],
-      error: new InvalidImageUploadCountError(),
+      error: new InvalidImageCountError(),
     },
     {
       images: [
