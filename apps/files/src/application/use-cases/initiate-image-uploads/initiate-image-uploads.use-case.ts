@@ -21,24 +21,24 @@ export type ImageUploadMetadataInput = {
   size: number;
 };
 
-export type CreateImageUploadSessionsParams = {
+export type InitiateImageUploadsParams = {
   userId: string;
   images: readonly ImageUploadMetadataInput[];
 };
 
-export type CreateImageUploadSessionsResult = {
-  uploads: { id: string }[];
+export type InitiateImageUploadsResult = {
+  sessions: { id: string }[];
 };
 
-export class CreateImageUploadSessionsCommand extends Command<CreateImageUploadSessionsResult> {
-  constructor(public readonly params: CreateImageUploadSessionsParams) {
+export class InitiateImageUploadsCommand extends Command<InitiateImageUploadsResult> {
+  constructor(public readonly params: InitiateImageUploadsParams) {
     super();
   }
 }
 
-@CommandHandler(CreateImageUploadSessionsCommand)
-export class CreateImageUploadSessionsUseCase implements ICommandHandler<CreateImageUploadSessionsCommand> {
-  execute(command: CreateImageUploadSessionsCommand): Promise<CreateImageUploadSessionsResult> {
+@CommandHandler(InitiateImageUploadsCommand)
+export class InitiateImageUploadsUseCase implements ICommandHandler<InitiateImageUploadsCommand> {
+  execute(command: InitiateImageUploadsCommand) {
     const { images } = command.params;
 
     if (images.length < MIN_IMAGES_PER_UPLOAD_REQUEST || images.length > MAX_IMAGES_PER_UPLOAD_REQUEST) {
@@ -56,7 +56,7 @@ export class CreateImageUploadSessionsUseCase implements ICommandHandler<CreateI
     }
 
     return Promise.resolve({
-      uploads: images.map(() => ({ id: randomUUID() })),
+      sessions: images.map(() => ({ id: randomUUID() })),
     });
   }
 }

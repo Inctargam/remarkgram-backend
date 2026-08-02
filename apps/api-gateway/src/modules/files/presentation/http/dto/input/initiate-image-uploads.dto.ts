@@ -40,7 +40,7 @@ export class ImageUploadMetadataDto {
   declare readonly size: number;
 }
 
-export class CreateImageUploadsDto {
+export class InitiateImageUploadsDto {
   @ApiProperty({
     type: () => [ImageUploadMetadataDto],
     minItems: MIN_IMAGES_PER_UPLOAD_REQUEST,

@@ -1,7 +1,7 @@
 import { FilesGrpcController } from './files-grpc.controller.js';
 import { ImageContentType } from '@app/files-grpc';
 import type { CommandBus } from '@nestjs/cqrs';
-import { CreateImageUploadSessionsCommand } from '../../application/use-cases/create-image-upload-sessions/create-image-upload-sessions.use-case.js';
+import { InitiateImageUploadsCommand } from '../../application/use-cases/initiate-image-uploads/initiate-image-uploads.use-case.js';
 
 describe('FilesGrpcController', () => {
   const commandBus = { execute: vi.fn() };
@@ -10,7 +10,7 @@ describe('FilesGrpcController', () => {
     commandBus.execute.mockReset();
   });
 
-  it('delegates creation of upload sessions to the use case', async () => {
+  it('delegates image upload initiation to the use case', async () => {
     const controller = new FilesGrpcController(commandBus as unknown as CommandBus);
     const request = {
       userId: 'user-id',
@@ -20,12 +20,12 @@ describe('FilesGrpcController', () => {
       ],
     };
     const expectedResponse = {
-      uploads: [{ id: 'first-upload-id' }, { id: 'second-upload-id' }],
+      sessions: [{ id: 'first-upload-id' }, { id: 'second-upload-id' }],
     };
     commandBus.execute.mockResolvedValue(expectedResponse);
 
-    await expect(controller.createImageUploads(request)).resolves.toEqual(expectedResponse);
+    await expect(controller.initiateImageUploads(request)).resolves.toEqual(expectedResponse);
 
-    expect(commandBus.execute).toHaveBeenCalledWith(new CreateImageUploadSessionsCommand(request));
+    expect(commandBus.execute).toHaveBeenCalledWith(new InitiateImageUploadsCommand(request));
   });
 });

@@ -48,7 +48,7 @@ describe('ApiGateway (e2e)', () => {
   const testingEndpointKey = 'testing-key-with-at-least-32-characters';
   let app: INestApplication;
   const filesServiceClient = {
-    createImageUploads: vi.fn<FilesServiceClient['createImageUploads']>(),
+    initiateImageUploads: vi.fn<FilesServiceClient['initiateImageUploads']>(),
   };
   const usersServiceClient = {
     getUsers: vi.fn<UsersServiceClient['getUsers']>(),
@@ -127,7 +127,7 @@ describe('ApiGateway (e2e)', () => {
     vi.stubEnv('GITHUB_CALLBACK_URL', 'https://api.example.com/api/v1/auth/github/callback');
     vi.stubEnv('GITHUB_API_VERSION', '2026-03-10');
     vi.stubEnv('GITHUB_USER_AGENT', 'remark-gram-tests');
-    filesServiceClient.createImageUploads.mockReturnValue(of({ uploads: [{ id: 'image-upload-id' }] }));
+    filesServiceClient.initiateImageUploads.mockReturnValue(of({ sessions: [{ id: 'image-upload-id' }] }));
     jwtService.verifyAsync.mockResolvedValue({
       sub: refreshTokenClaims.userId,
       sessionId: refreshTokenClaims.sessionId,
@@ -315,7 +315,7 @@ describe('ApiGateway (e2e)', () => {
     expect(testingServiceClient.deleteAllData).toHaveBeenCalledWith({});
   });
 
-  it('POST /files/image-uploads requests authenticated image upload sessions', async () => {
+  it('POST /files/image-uploads initiates authenticated image uploads', async () => {
     const images = [
       {
         originalFilename: 'photo.jpg',
@@ -329,9 +329,9 @@ describe('ApiGateway (e2e)', () => {
       .set('Authorization', 'Bearer access-token')
       .send({ images })
       .expect(201)
-      .expect({ uploads: [{ id: 'image-upload-id' }] });
+      .expect({ sessions: [{ id: 'image-upload-id' }] });
 
-    expect(filesServiceClient.createImageUploads).toHaveBeenCalledWith({
+    expect(filesServiceClient.initiateImageUploads).toHaveBeenCalledWith({
       userId: refreshTokenClaims.userId,
       images,
     });
@@ -353,7 +353,7 @@ describe('ApiGateway (e2e)', () => {
       })
       .expect(400);
 
-    expect(filesServiceClient.createImageUploads).not.toHaveBeenCalled();
+    expect(filesServiceClient.initiateImageUploads).not.toHaveBeenCalled();
   });
 
   it('POST /files/image-uploads requires an authenticated user', async () => {
@@ -370,7 +370,7 @@ describe('ApiGateway (e2e)', () => {
       })
       .expect(401);
 
-    expect(filesServiceClient.createImageUploads).not.toHaveBeenCalled();
+    expect(filesServiceClient.initiateImageUploads).not.toHaveBeenCalled();
   });
 
   it('GET /users delegates to user-accounts over gRPC', async () => {

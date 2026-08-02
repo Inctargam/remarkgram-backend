@@ -10,7 +10,7 @@ import { Observable } from "rxjs";
 
 export const protobufPackage = "remarkgram.files.v1";
 
-export interface CreateImageUploadsRequest {
+export interface InitiateImageUploadsRequest {
   userId: string;
   images: ImageUploadMetadata[];
 }
@@ -21,8 +21,8 @@ export interface ImageUploadMetadata {
   size: number;
 }
 
-export interface CreateImageUploadsResponse {
-  uploads: ImageUploadSession[];
+export interface InitiateImageUploadsResponse {
+  sessions: ImageUploadSession[];
 }
 
 export interface ImageUploadSession {
@@ -32,18 +32,18 @@ export interface ImageUploadSession {
 export const REMARKGRAM_FILES_V1_PACKAGE_NAME = "remarkgram.files.v1";
 
 export interface FilesServiceClient {
-  createImageUploads(request: CreateImageUploadsRequest): Observable<CreateImageUploadsResponse>;
+  initiateImageUploads(request: InitiateImageUploadsRequest): Observable<InitiateImageUploadsResponse>;
 }
 
 export interface FilesServiceController {
-  createImageUploads(
-    request: CreateImageUploadsRequest,
-  ): Promise<CreateImageUploadsResponse> | Observable<CreateImageUploadsResponse> | CreateImageUploadsResponse;
+  initiateImageUploads(
+    request: InitiateImageUploadsRequest,
+  ): Promise<InitiateImageUploadsResponse> | Observable<InitiateImageUploadsResponse> | InitiateImageUploadsResponse;
 }
 
 export function FilesServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["createImageUploads"];
+    const grpcMethods: string[] = ["initiateImageUploads"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("FilesService", method)(constructor.prototype[method], method, descriptor);

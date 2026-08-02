@@ -2,7 +2,7 @@ import { Body, Controller, HttpCode, HttpStatus, Inject, type OnModuleInit, Post
 import {
   FILES_SERVICE_NAME,
   REMARKGRAM_FILES_V1_PACKAGE_NAME,
-  type CreateImageUploadsResponse,
+  type InitiateImageUploadsResponse,
   type FilesServiceClient,
 } from '@app/files-grpc';
 import type { ClientGrpc } from '@nestjs/microservices';
@@ -16,8 +16,8 @@ import {
 } from '@nestjs/swagger';
 import type { Request } from 'express';
 import type { Observable } from 'rxjs';
-import { CreateImageUploadsDto } from '../dto/input/create-image-uploads.dto.js';
-import { CreateImageUploadsResponseDto } from '../dto/output/create-image-uploads-response.dto.js';
+import { InitiateImageUploadsDto } from '../dto/input/initiate-image-uploads.dto.js';
+import { InitiateImageUploadsResponseDto } from '../dto/output/initiate-image-uploads-response.dto.js';
 
 type AuthenticatedRequest = Request & { userId: string };
 
@@ -38,16 +38,16 @@ export class FilesHttpController implements OnModuleInit {
 
   @Post('image-uploads')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Request image upload sessions' })
-  @ApiCreatedResponse({ type: CreateImageUploadsResponseDto })
+  @ApiOperation({ summary: 'Initiate image uploads' })
+  @ApiCreatedResponse({ type: InitiateImageUploadsResponseDto })
   @ApiBadGatewayResponse({ description: 'The upstream service returned an unexpected error.' })
   @ApiServiceUnavailableResponse({ description: 'The files service is unavailable.' })
-  createImageUploads(
-    @Body() input: CreateImageUploadsDto,
+  initiateImageUploads(
+    @Body() input: InitiateImageUploadsDto,
     @Req() request: AuthenticatedRequest,
-  ): Observable<CreateImageUploadsResponse> {
+  ): Observable<InitiateImageUploadsResponse> {
     // NestJS сам подписывается на возвращаемый Observable; firstValueFrom для прямого proxy-вызова не нужен.
-    return this.filesClient.createImageUploads({
+    return this.filesClient.initiateImageUploads({
       userId: request.userId,
       images: input.images,
     });

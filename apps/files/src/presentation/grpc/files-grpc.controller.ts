@@ -1,8 +1,8 @@
 import { Controller, Logger, UseFilters } from '@nestjs/common';
 import { FilesServiceControllerMethods } from '@app/files-grpc';
-import type { CreateImageUploadsRequest, CreateImageUploadsResponse } from '@app/files-grpc';
+import type { InitiateImageUploadsRequest, InitiateImageUploadsResponse } from '@app/files-grpc';
 import { CommandBus } from '@nestjs/cqrs';
-import { CreateImageUploadSessionsCommand } from '../../application/use-cases/create-image-upload-sessions/create-image-upload-sessions.use-case.js';
+import { InitiateImageUploadsCommand } from '../../application/use-cases/initiate-image-uploads/initiate-image-uploads.use-case.js';
 import { FilesRpcExceptionFilter } from './filters/files-rpc-exception.filter.js';
 
 @Controller()
@@ -13,11 +13,11 @@ export class FilesGrpcController {
 
   constructor(private readonly commandBus: CommandBus) {}
 
-  createImageUploads(request: CreateImageUploadsRequest): Promise<CreateImageUploadsResponse> {
+  initiateImageUploads(request: InitiateImageUploadsRequest): Promise<InitiateImageUploadsResponse> {
     this.logger.log({ userId: request.userId, imageCount: request.images.length });
 
     return this.commandBus.execute(
-      new CreateImageUploadSessionsCommand({
+      new InitiateImageUploadsCommand({
         userId: request.userId,
         images: request.images,
       }),

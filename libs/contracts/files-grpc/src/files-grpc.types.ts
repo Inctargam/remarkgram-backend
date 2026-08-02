@@ -7,7 +7,7 @@ export interface ImageUploadMetadata {
   size: number;
 }
 
-export interface CreateImageUploadsRequest {
+export interface InitiateImageUploadsRequest {
   userId: string;
   images: ImageUploadMetadata[];
 }
@@ -16,10 +16,10 @@ export interface ImageUploadSession {
   id: string;
 }
 
-export interface CreateImageUploadsResponse {
-  uploads: ImageUploadSession[];
+export interface InitiateImageUploadsResponse {
+  sessions: ImageUploadSession[];
 }
 
 export interface FilesServiceClient {
-  createImageUploads(request: CreateImageUploadsRequest): Observable<CreateImageUploadsResponse>;
+  initiateImageUploads(request: InitiateImageUploadsRequest): Observable<InitiateImageUploadsResponse>;
 }

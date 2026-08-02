@@ -5,7 +5,7 @@ export class ImageUploadSessionDto {
   declare readonly id: string;
 }
 
-export class CreateImageUploadsResponseDto {
+export class InitiateImageUploadsResponseDto {
   @ApiProperty({ type: () => [ImageUploadSessionDto] })
-  declare readonly uploads: ImageUploadSessionDto[];
+  declare readonly sessions: ImageUploadSessionDto[];
 }

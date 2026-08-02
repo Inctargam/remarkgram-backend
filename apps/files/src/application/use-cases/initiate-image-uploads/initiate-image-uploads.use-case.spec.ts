@@ -5,16 +5,16 @@ import {
   UnsupportedImageContentTypeError,
 } from '../../errors/image-upload.errors.js';
 import {
-  CreateImageUploadSessionsCommand,
-  CreateImageUploadSessionsUseCase,
-} from './create-image-upload-sessions.use-case.js';
+  InitiateImageUploadsCommand,
+  InitiateImageUploadsUseCase,
+} from './initiate-image-uploads.use-case.js';
 
-describe('CreateImageUploadSessionsUseCase', () => {
-  it('creates one upload session for each image', async () => {
-    const useCase = new CreateImageUploadSessionsUseCase();
+describe('InitiateImageUploadsUseCase', () => {
+  it('initiates one upload for each image', async () => {
+    const useCase = new InitiateImageUploadsUseCase();
 
     const result = await useCase.execute(
-      new CreateImageUploadSessionsCommand({
+      new InitiateImageUploadsCommand({
         userId: 'user-id',
         images: [
           { originalFilename: 'first.jpg', contentType: ImageContentType.JPEG, size: 1_024 },
@@ -23,8 +23,8 @@ describe('CreateImageUploadSessionsUseCase', () => {
       }),
     );
 
-    expect(result.uploads).toHaveLength(2);
-    expect(result.uploads.map(({ id }) => id)).toEqual([
+    expect(result.sessions).toHaveLength(2);
+    expect(result.sessions.map(({ id }) => id)).toEqual([
       expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
       expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
     ]);
@@ -46,12 +46,12 @@ describe('CreateImageUploadSessionsUseCase', () => {
       error: new UnsupportedImageContentTypeError('image/gif'),
     },
   ])('rejects invalid image metadata with $error.code', ({ images, error }) => {
-    const useCase = new CreateImageUploadSessionsUseCase();
+    const useCase = new InitiateImageUploadsUseCase();
     let thrownError: unknown;
 
     try {
       void useCase.execute(
-        new CreateImageUploadSessionsCommand({
+        new InitiateImageUploadsCommand({
           userId: 'user-id',
           images,
         }),
