@@ -127,7 +127,18 @@ describe('ApiGateway (e2e)', () => {
     vi.stubEnv('GITHUB_CALLBACK_URL', 'https://api.example.com/api/v1/auth/github/callback');
     vi.stubEnv('GITHUB_API_VERSION', '2026-03-10');
     vi.stubEnv('GITHUB_USER_AGENT', 'remark-gram-tests');
-    filesServiceClient.initiateImageUploads.mockReturnValue(of({ sessions: [{ id: 'image-upload-id' }] }));
+    filesServiceClient.initiateImageUploads.mockReturnValue(
+      of({
+        sessions: [
+          {
+            id: 'image-upload-id',
+            clientFileId: '11111111-1111-4111-8111-111111111111',
+            url: 'https://storage.example.com',
+            fields: { key: 'object-key' },
+          },
+        ],
+      }),
+    );
     jwtService.verifyAsync.mockResolvedValue({
       sub: refreshTokenClaims.userId,
       sessionId: refreshTokenClaims.sessionId,
@@ -318,6 +329,7 @@ describe('ApiGateway (e2e)', () => {
   it('POST /files/image-uploads initiates authenticated image uploads', async () => {
     const images = [
       {
+        clientFileId: '11111111-1111-4111-8111-111111111111',
         originalFilename: 'photo.jpg',
         contentType: 'image/jpeg',
         size: 1_048_576,
@@ -329,7 +341,16 @@ describe('ApiGateway (e2e)', () => {
       .set('Authorization', 'Bearer access-token')
       .send({ images })
       .expect(201)
-      .expect({ sessions: [{ id: 'image-upload-id' }] });
+      .expect({
+        sessions: [
+          {
+            id: 'image-upload-id',
+            clientFileId: '11111111-1111-4111-8111-111111111111',
+            url: 'https://storage.example.com',
+            fields: { key: 'object-key' },
+          },
+        ],
+      });
 
     expect(filesServiceClient.initiateImageUploads).toHaveBeenCalledWith({
       userId: refreshTokenClaims.userId,
@@ -345,6 +366,7 @@ describe('ApiGateway (e2e)', () => {
       .send({
         images: [
           {
+            clientFileId: '11111111-1111-4111-8111-111111111111',
             originalFilename: 'photo.webp',
             contentType: 'image/webp',
             size: MAX_IMAGE_SIZE_BYTES + 1,
@@ -362,6 +384,7 @@ describe('ApiGateway (e2e)', () => {
       .send({
         images: [
           {
+            clientFileId: '11111111-1111-4111-8111-111111111111',
             originalFilename: 'photo.jpg',
             contentType: 'image/jpeg',
             size: 1_024,
