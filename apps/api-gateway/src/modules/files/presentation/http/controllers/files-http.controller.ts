@@ -2,6 +2,7 @@ import { Body, Controller, HttpCode, HttpStatus, Inject, type OnModuleInit, Post
 import {
   FILES_SERVICE_NAME,
   REMARKGRAM_FILES_V1_PACKAGE_NAME,
+  type CompleteImageUploadsResponse,
   type InitiateImageUploadsResponse,
   type FilesServiceClient,
 } from '@app/files-grpc';
@@ -10,12 +11,14 @@ import {
   ApiBadGatewayResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiOperation,
   ApiServiceUnavailableResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
 import type { Observable } from 'rxjs';
+import { CompleteImageUploadsDto } from '../dto/input/complete-image-uploads.dto.js';
 import { InitiateImageUploadsDto } from '../dto/input/initiate-image-uploads.dto.js';
 import { InitiateImageUploadsResponseDto } from '../dto/output/initiate-image-uploads-response.dto.js';
 
@@ -50,6 +53,22 @@ export class FilesHttpController implements OnModuleInit {
     return this.filesClient.initiateImageUploads({
       userId: request.userId,
       images: input.images,
+    });
+  }
+
+  @Post('image-uploads/complete')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Complete image uploads' })
+  @ApiNoContentResponse({ description: 'The image uploads were completed.' })
+  @ApiBadGatewayResponse({ description: 'The upstream service returned an unexpected error.' })
+  @ApiServiceUnavailableResponse({ description: 'The files service is unavailable.' })
+  completeImageUploads(
+    @Body() input: CompleteImageUploadsDto,
+    @Req() request: AuthenticatedRequest,
+  ): Observable<CompleteImageUploadsResponse> {
+    return this.filesClient.completeImageUploads({
+      userId: request.userId,
+      uploadIds: input.uploadIds,
     });
   }
 }
