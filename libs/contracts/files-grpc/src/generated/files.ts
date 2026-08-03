@@ -38,21 +38,35 @@ export interface ImageUploadSession_FieldsEntry {
   value: string;
 }
 
+export interface CompleteImageUploadsRequest {
+  userId: string;
+  uploadIds: string[];
+}
+
+export interface CompleteImageUploadsResponse {
+}
+
 export const REMARKGRAM_FILES_V1_PACKAGE_NAME = "remarkgram.files.v1";
 
 export interface FilesServiceClient {
   initiateImageUploads(request: InitiateImageUploadsRequest): Observable<InitiateImageUploadsResponse>;
+
+  completeImageUploads(request: CompleteImageUploadsRequest): Observable<CompleteImageUploadsResponse>;
 }
 
 export interface FilesServiceController {
   initiateImageUploads(
     request: InitiateImageUploadsRequest,
   ): Promise<InitiateImageUploadsResponse> | Observable<InitiateImageUploadsResponse> | InitiateImageUploadsResponse;
+
+  completeImageUploads(
+    request: CompleteImageUploadsRequest,
+  ): Promise<CompleteImageUploadsResponse> | Observable<CompleteImageUploadsResponse> | CompleteImageUploadsResponse;
 }
 
 export function FilesServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["initiateImageUploads"];
+    const grpcMethods: string[] = ["initiateImageUploads", "completeImageUploads"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("FilesService", method)(constructor.prototype[method], method, descriptor);

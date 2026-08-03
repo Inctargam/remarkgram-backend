@@ -24,6 +24,14 @@ export interface InitiateImageUploadsResponse {
   sessions: ImageUploadSession[];
 }
 
+export interface CompleteImageUploadsRequest {
+  userId: string;
+  uploadIds: string[];
+}
+
+export type CompleteImageUploadsResponse = Record<string, never>;
+
 export interface FilesServiceClient {
   initiateImageUploads(request: InitiateImageUploadsRequest): Observable<InitiateImageUploadsResponse>;
+  completeImageUploads(request: CompleteImageUploadsRequest): Observable<CompleteImageUploadsResponse>;
 }

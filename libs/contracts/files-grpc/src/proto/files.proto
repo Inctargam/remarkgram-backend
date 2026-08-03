@@ -4,6 +4,7 @@ package remarkgram.files.v1;
 
 service FilesService {
   rpc InitiateImageUploads(InitiateImageUploadsRequest) returns (InitiateImageUploadsResponse);
+  rpc CompleteImageUploads(CompleteImageUploadsRequest) returns (CompleteImageUploadsResponse);
 }
 
 message InitiateImageUploadsRequest {
@@ -28,3 +29,10 @@ message ImageUploadSession {
   string url = 3;
   map<string, string> fields = 4;
 }
+
+message CompleteImageUploadsRequest {
+  string user_id = 1;
+  repeated string upload_ids = 2;
+}
+
+message CompleteImageUploadsResponse {}
