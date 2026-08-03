@@ -14,7 +14,8 @@ message InitiateImageUploadsRequest {
 message ImageUploadMetadata {
   string original_filename = 1;
   string content_type = 2;
-  int64 size = 3;
+  int32 size = 3;
+  string client_file_id = 4;
 }
 
 message InitiateImageUploadsResponse {
@@ -23,4 +24,7 @@ message InitiateImageUploadsResponse {
 
 message ImageUploadSession {
   string id = 1;
+  string client_file_id = 2;
+  string url = 3;
+  map<string, string> fields = 4;
 }

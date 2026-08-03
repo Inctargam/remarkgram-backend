@@ -19,6 +19,7 @@ export interface ImageUploadMetadata {
   originalFilename: string;
   contentType: string;
   size: number;
+  clientFileId: string;
 }
 
 export interface InitiateImageUploadsResponse {
@@ -27,6 +28,14 @@ export interface InitiateImageUploadsResponse {
 
 export interface ImageUploadSession {
   id: string;
+  clientFileId: string;
+  url: string;
+  fields: { [key: string]: string };
+}
+
+export interface ImageUploadSession_FieldsEntry {
+  key: string;
+  value: string;
 }
 
 export const REMARKGRAM_FILES_V1_PACKAGE_NAME = "remarkgram.files.v1";

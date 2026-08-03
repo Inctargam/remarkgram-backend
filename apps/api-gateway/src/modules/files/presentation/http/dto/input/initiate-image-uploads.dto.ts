@@ -1,17 +1,5 @@
 import { Type } from 'class-transformer';
-import {
-  ArrayMaxSize,
-  ArrayMinSize,
-  IsArray,
-  IsEnum,
-  IsInt,
-  IsNotEmpty,
-  IsString,
-  Max,
-  MaxLength,
-  Min,
-  ValidateNested,
-} from 'class-validator';
+import { IsArray, IsInt, IsNotEmpty, IsString, IsUUID, Max, Min, ValidateNested } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import {
   ImageContentType,
@@ -21,22 +9,30 @@ import {
   MIN_IMAGE_SIZE_BYTES,
 } from '@app/files-grpc';
 
+const MIN_INT32_VALUE = -2_147_483_648;
+const MAX_INT32_VALUE = 2_147_483_647;
+
 export class ImageUploadMetadataDto {
-  @ApiProperty({ example: 'photo.jpg', maxLength: 255 })
+  @ApiProperty({ example: '83d26252-a350-4e39-a78e-0bdf54d2341d' })
+  @IsUUID()
+  declare readonly clientFileId: string;
+
+  @ApiProperty({ example: 'photo.jpg' })
   @IsString()
   @IsNotEmpty()
-  @MaxLength(255)
   declare readonly originalFilename: string;
 
   @ApiProperty({ example: ImageContentType.JPEG, enum: ImageContentType })
-  @IsEnum(ImageContentType)
-  declare readonly contentType: ImageContentType;
+  @IsString()
+  @IsNotEmpty()
+  declare readonly contentType: string;
 
   @ApiProperty({ example: 1_048_576, minimum: MIN_IMAGE_SIZE_BYTES, maximum: MAX_IMAGE_SIZE_BYTES })
-  @Type(() => Number)
+  // Проверяем только безопасную сериализацию в protobuf int32. Бизнес-диапазон 1–20 МиБ
+  // проверяется в Files Service, чтобы не дублировать правило в транспортном слое.
   @IsInt()
-  @Min(MIN_IMAGE_SIZE_BYTES)
-  @Max(MAX_IMAGE_SIZE_BYTES)
+  @Min(MIN_INT32_VALUE)
+  @Max(MAX_INT32_VALUE)
   declare readonly size: number;
 }
 
@@ -47,8 +43,6 @@ export class InitiateImageUploadsDto {
     maxItems: MAX_IMAGES_PER_UPLOAD_REQUEST,
   })
   @IsArray()
-  @ArrayMinSize(MIN_IMAGES_PER_UPLOAD_REQUEST)
-  @ArrayMaxSize(MAX_IMAGES_PER_UPLOAD_REQUEST)
   @ValidateNested({ each: true })
   @Type(() => ImageUploadMetadataDto)
   declare readonly images: ImageUploadMetadataDto[];

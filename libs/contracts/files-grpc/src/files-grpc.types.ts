@@ -2,6 +2,7 @@ import type { Observable } from 'rxjs';
 import type { ImageContentType } from './image-upload-policy.js';
 
 export interface ImageUploadMetadata {
+  clientFileId: string;
   originalFilename: string;
   contentType: ImageContentType;
   size: number;
@@ -14,6 +15,9 @@ export interface InitiateImageUploadsRequest {
 
 export interface ImageUploadSession {
   id: string;
+  clientFileId: string;
+  url: string;
+  fields: Record<string, string>;
 }
 
 export interface InitiateImageUploadsResponse {
