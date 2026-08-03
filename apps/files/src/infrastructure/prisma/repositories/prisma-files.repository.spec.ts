@@ -26,7 +26,6 @@ describe('PrismaFilesRepository', () => {
         size: 1_024,
         uploadStatus: FileUploadStatus.PENDING,
         uploadExpiresAt: new Date('2030-01-01T00:00:00Z'),
-        uploadedAt: null,
       },
       {
         id: '22222222-2222-4222-8222-222222222222',
@@ -37,7 +36,6 @@ describe('PrismaFilesRepository', () => {
         size: 2_048,
         uploadStatus: FileUploadStatus.PENDING,
         uploadExpiresAt: new Date('2030-01-01T00:00:00Z'),
-        uploadedAt: null,
       },
     ];
 

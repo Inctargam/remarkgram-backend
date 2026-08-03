@@ -1,6 +1,6 @@
 import type { FileUploadStatus } from '../../domain/enums/file-upload-status.enum.js';
 
-export type FileRecord = {
+export type CreateFileRecord = {
   id: string;
   userId: number;
   objectKey: string;
@@ -9,9 +9,8 @@ export type FileRecord = {
   size: number;
   uploadStatus: FileUploadStatus;
   uploadExpiresAt: Date;
-  uploadedAt: Date | null;
 };
 
 export abstract class FilesRepository {
-  abstract createMany(fileRecords: readonly FileRecord[]): Promise<void>;
+  abstract createMany(fileRecords: readonly CreateFileRecord[]): Promise<void>;
 }

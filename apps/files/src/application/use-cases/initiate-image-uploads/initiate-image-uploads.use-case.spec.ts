@@ -95,7 +95,6 @@ describe('InitiateImageUploadsUseCase', () => {
         contentType: ImageContentType.JPEG,
         size: 1_024,
         uploadExpiresAt: new Date('2030-01-01T00:00:00Z'),
-        uploadedAt: null,
       }),
       expect.objectContaining({
         id: result.sessions[1]?.id,
@@ -105,7 +104,6 @@ describe('InitiateImageUploadsUseCase', () => {
         contentType: ImageContentType.PNG,
         size: 2_048,
         uploadExpiresAt: new Date('2030-01-01T00:00:00Z'),
-        uploadedAt: null,
       }),
     ]);
   });

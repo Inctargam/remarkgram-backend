@@ -15,7 +15,7 @@ import {
   UnsupportedImageContentTypeError,
 } from '../../errors/image-upload.errors.js';
 import { FileUploadStatus } from '../../../domain/enums/file-upload-status.enum.js';
-import { FilesRepository, type FileRecord } from '../../ports/files.repository.js';
+import { FilesRepository, type CreateFileRecord } from '../../ports/files.repository.js';
 import { ObjectStorage } from '../../ports/object-storage.js';
 
 const supportedImageContentTypes = new Set<string>(Object.values(ImageContentType));
@@ -91,7 +91,7 @@ export class InitiateImageUploadsUseCase implements ICommandHandler<InitiateImag
     }
 
     const imageUploadSessions: ImageUploadSession[] = [];
-    const fileRecords: FileRecord[] = [];
+    const fileRecords: CreateFileRecord[] = [];
 
     for (const image of images) {
       const { originalFilename, contentType, size } = image;
@@ -121,7 +121,6 @@ export class InitiateImageUploadsUseCase implements ICommandHandler<InitiateImag
         size,
         uploadStatus: FileUploadStatus.PENDING,
         uploadExpiresAt: expiresAt,
-        uploadedAt: null,
       };
 
       fileRecords.push(fileRecord);
