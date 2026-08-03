@@ -1,10 +1,11 @@
-import { S3Client } from '@aws-sdk/client-s3';
+import { HeadObjectCommand, S3Client, S3ServiceException } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import {
   ObjectStorage,
   type CreatePresignedUploadParams,
+  type ObjectMetadata,
   type PresignedUpload,
 } from '../../application/ports/object-storage.js';
 import { filesConfig } from '../../config/files.config.js';
@@ -41,5 +42,32 @@ export class S3ObjectStorage extends ObjectStorage {
       fields,
       expiresAt: new Date(policy.expiration),
     };
+  }
+
+  async getObjectMetadata(objectKey: string): Promise<ObjectMetadata | null> {
+    try {
+      // HeadObject не скачивает тело объекта. При успешном ответе ContentLength содержит полный
+      // размер объекта в байтах, а ContentType — MIME-тип, сохранённый при его загрузке.
+      const { ContentLength, ContentType } = await this.s3Client.send(
+        new HeadObjectCommand({
+          Bucket: this.config.s3.bucket,
+          Key: objectKey,
+        }),
+      );
+
+      return {
+        size: ContentLength,
+        contentType: ContentType,
+      };
+    } catch (error) {
+      // Для отсутствующего объекта SDK отклоняет Promise ошибкой с HTTP 404, а не возвращает
+      // успешный ответ с пустыми метаданными. Остальные ошибки означают проблемы доступа,
+      // конфигурации или доступности S3, поэтому их нельзя трактовать как отсутствие объекта.
+      if (error instanceof S3ServiceException && error.$metadata.httpStatusCode === 404) {
+        return null;
+      }
+
+      throw error;
+    }
   }
 }

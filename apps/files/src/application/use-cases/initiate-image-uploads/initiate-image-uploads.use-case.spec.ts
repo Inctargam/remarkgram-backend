@@ -16,9 +16,12 @@ import type { ObjectStorage } from '../../ports/object-storage.js';
 describe('InitiateImageUploadsUseCase', () => {
   const filesRepository = {
     createMany: vi.fn<FilesRepository['createMany']>(),
+    findImageUploads: vi.fn<FilesRepository['findImageUploads']>(),
+    updateImageUploadsStatusIfAllPending: vi.fn<FilesRepository['updateImageUploadsStatusIfAllPending']>(),
   };
   const objectStorage = {
     createPresignedUpload: vi.fn<ObjectStorage['createPresignedUpload']>(),
+    getObjectMetadata: vi.fn<ObjectStorage['getObjectMetadata']>(),
   };
 
   const createUseCase = () => new InitiateImageUploadsUseCase(objectStorage, filesRepository);

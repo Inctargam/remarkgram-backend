@@ -40,6 +40,38 @@ export class DuplicateClientFileIdError extends FilesError {
   }
 }
 
+export class DuplicateImageUploadIdError extends FilesError {
+  readonly code = FilesErrorCode.DUPLICATE_IMAGE_UPLOAD_ID;
+
+  constructor() {
+    super('Image upload IDs must be unique');
+  }
+}
+
+export class ImageUploadNotFoundError extends FilesError {
+  readonly code = FilesErrorCode.IMAGE_UPLOAD_NOT_FOUND;
+
+  constructor() {
+    super('One or more image uploads were not found');
+  }
+}
+
+export class InvalidImageUploadStatusError extends FilesError {
+  readonly code = FilesErrorCode.INVALID_IMAGE_UPLOAD_STATUS;
+
+  constructor() {
+    super('Image uploads must be either all pending or all completed');
+  }
+}
+
+export class ImageUploadMetadataMismatchError extends FilesError {
+  readonly code = FilesErrorCode.IMAGE_UPLOAD_METADATA_MISMATCH;
+
+  constructor() {
+    super('One or more uploaded images do not match the expected metadata');
+  }
+}
+
 export class UnsupportedImageContentTypeError extends FilesError {
   readonly code = FilesErrorCode.UNSUPPORTED_IMAGE_CONTENT_TYPE;
 
