@@ -1,6 +1,7 @@
 import { FilesGrpcController } from './files-grpc.controller.js';
 import { ImageContentType } from '@app/files-grpc';
 import type { CommandBus } from '@nestjs/cqrs';
+import { CompleteImageUploadsCommand } from '../../application/use-cases/complete-image-uploads/complete-image-uploads.use-case.js';
 import { InitiateImageUploadsCommand } from '../../application/use-cases/initiate-image-uploads/initiate-image-uploads.use-case.js';
 
 describe('FilesGrpcController', () => {
@@ -53,6 +54,24 @@ describe('FilesGrpcController', () => {
       new InitiateImageUploadsCommand({
         userId: 42,
         images: request.images,
+      }),
+    );
+  });
+
+  it('delegates image upload completion to the use case', async () => {
+    const controller = new FilesGrpcController(commandBus as unknown as CommandBus);
+    const request = {
+      userId: '42',
+      uploadIds: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
+    };
+    commandBus.execute.mockResolvedValue(undefined);
+
+    await expect(controller.completeImageUploads(request)).resolves.toEqual({});
+
+    expect(commandBus.execute).toHaveBeenCalledWith(
+      new CompleteImageUploadsCommand({
+        userId: 42,
+        uploadIds: request.uploadIds,
       }),
     );
   });

@@ -1,7 +1,13 @@
 import { Controller, UseFilters } from '@nestjs/common';
 import { FilesServiceControllerMethods } from '@app/files-grpc';
-import type { InitiateImageUploadsRequest, InitiateImageUploadsResponse } from '@app/files-grpc';
+import type {
+  CompleteImageUploadsRequest,
+  CompleteImageUploadsResponse,
+  InitiateImageUploadsRequest,
+  InitiateImageUploadsResponse,
+} from '@app/files-grpc';
 import { CommandBus } from '@nestjs/cqrs';
+import { CompleteImageUploadsCommand } from '../../application/use-cases/complete-image-uploads/complete-image-uploads.use-case.js';
 import { InitiateImageUploadsCommand } from '../../application/use-cases/initiate-image-uploads/initiate-image-uploads.use-case.js';
 import { FilesRpcExceptionFilter } from './filters/files-rpc-exception.filter.js';
 
@@ -18,5 +24,16 @@ export class FilesGrpcController {
         images: request.images,
       }),
     );
+  }
+
+  async completeImageUploads(request: CompleteImageUploadsRequest): Promise<CompleteImageUploadsResponse> {
+    await this.commandBus.execute(
+      new CompleteImageUploadsCommand({
+        userId: Number(request.userId),
+        uploadIds: request.uploadIds,
+      }),
+    );
+
+    return {};
   }
 }

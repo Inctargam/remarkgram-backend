@@ -2,6 +2,7 @@ import { S3Client } from '@aws-sdk/client-s3';
 import { Module } from '@nestjs/common';
 import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
+import { CompleteImageUploadsUseCase } from './application/use-cases/complete-image-uploads/complete-image-uploads.use-case.js';
 import { InitiateImageUploadsUseCase } from './application/use-cases/initiate-image-uploads/initiate-image-uploads.use-case.js';
 import { filesConfig } from './config/files.config.js';
 import { S3_CLIENT } from './infrastructure/s3/s3.constants.js';
@@ -35,6 +36,7 @@ import { S3ObjectStorage } from './infrastructure/s3/s3-object-storage.js';
   ],
   controllers: [FilesGrpcController],
   providers: [
+    CompleteImageUploadsUseCase,
     InitiateImageUploadsUseCase,
     {
       provide: FilesRepository,
