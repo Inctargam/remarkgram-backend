@@ -6,6 +6,12 @@ import { InitiateImageUploadsUseCase } from './application/use-cases/initiate-im
 import { filesConfig } from './config/files.config.js';
 import { S3_CLIENT } from './infrastructure/s3/s3.constants.js';
 import { FilesGrpcController } from './presentation/grpc/files-grpc.controller.js';
+import { FilesRepository } from './application/ports/files.repository.js';
+import { databaseConfig } from './config/database.config.js';
+import { PrismaModule } from './infrastructure/prisma/prisma.module.js';
+import { PrismaFilesRepository } from './infrastructure/prisma/repositories/prisma-files.repository.js';
+import { ObjectStorage } from './application/ports/object-storage.js';
+import { S3ObjectStorage } from './infrastructure/s3/s3-object-storage.js';
 
 @Module({
   imports: [
@@ -23,12 +29,21 @@ import { FilesGrpcController } from './presentation/grpc/files-grpc.controller.j
         '.env.production',
         '.env',
       ],
-      load: [filesConfig],
+      load: [filesConfig, databaseConfig],
     }),
+    PrismaModule,
   ],
   controllers: [FilesGrpcController],
   providers: [
     InitiateImageUploadsUseCase,
+    {
+      provide: FilesRepository,
+      useClass: PrismaFilesRepository,
+    },
+    {
+      provide: ObjectStorage,
+      useClass: S3ObjectStorage,
+    },
     {
       provide: S3_CLIENT,
       inject: [filesConfig.KEY],

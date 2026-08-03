@@ -13,19 +13,47 @@ describe('FilesGrpcController', () => {
   it('delegates image upload initiation to the use case', async () => {
     const controller = new FilesGrpcController(commandBus as unknown as CommandBus);
     const request = {
-      userId: 'user-id',
+      userId: '42',
       images: [
-        { originalFilename: 'first.jpg', contentType: ImageContentType.JPEG, size: 1_024 },
-        { originalFilename: 'second.png', contentType: ImageContentType.PNG, size: 2_048 },
+        {
+          clientFileId: '11111111-1111-4111-8111-111111111111',
+          originalFilename: 'first.jpg',
+          contentType: ImageContentType.JPEG,
+          size: 1_024,
+        },
+        {
+          clientFileId: '22222222-2222-4222-8222-222222222222',
+          originalFilename: 'second.png',
+          contentType: ImageContentType.PNG,
+          size: 2_048,
+        },
       ],
     };
     const expectedResponse = {
-      sessions: [{ id: 'first-upload-id' }, { id: 'second-upload-id' }],
+      sessions: [
+        {
+          id: 'first-upload-id',
+          clientFileId: '11111111-1111-4111-8111-111111111111',
+          url: 'https://storage.example.com',
+          fields: { key: 'first-object-key' },
+        },
+        {
+          id: 'second-upload-id',
+          clientFileId: '22222222-2222-4222-8222-222222222222',
+          url: 'https://storage.example.com',
+          fields: { key: 'second-object-key' },
+        },
+      ],
     };
     commandBus.execute.mockResolvedValue(expectedResponse);
 
     await expect(controller.initiateImageUploads(request)).resolves.toEqual(expectedResponse);
 
-    expect(commandBus.execute).toHaveBeenCalledWith(new InitiateImageUploadsCommand(request));
+    expect(commandBus.execute).toHaveBeenCalledWith(
+      new InitiateImageUploadsCommand({
+        userId: 42,
+        images: request.images,
+      }),
+    );
   });
 });

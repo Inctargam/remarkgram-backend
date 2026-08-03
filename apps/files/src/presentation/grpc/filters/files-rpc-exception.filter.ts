@@ -1,6 +1,6 @@
 import { Catch, type ArgumentsHost } from '@nestjs/common';
 import { BaseRpcExceptionFilter } from '@nestjs/microservices';
-import { FilesError } from '../../../common/errors/files.error.js';
+import { FilesError } from '../../../application/errors/files.error.js';
 import { mapFilesErrorToRpcException } from './files-rpc-error.mapper.js';
 
 @Catch(FilesError)

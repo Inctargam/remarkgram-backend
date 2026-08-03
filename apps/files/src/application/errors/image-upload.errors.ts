@@ -4,7 +4,15 @@ import {
   MIN_IMAGES_PER_UPLOAD_REQUEST,
   MIN_IMAGE_SIZE_BYTES,
 } from '@app/files-grpc';
-import { FilesError, FilesErrorCode } from '../../common/errors/files.error.js';
+import { FilesError, FilesErrorCode } from './files.error.js';
+
+export class InvalidUserIdError extends FilesError {
+  readonly code = FilesErrorCode.INVALID_USER_ID;
+
+  constructor() {
+    super('User ID must be a positive 32-bit integer');
+  }
+}
 
 export class InvalidImageCountError extends FilesError {
   readonly code = FilesErrorCode.INVALID_IMAGE_COUNT;
@@ -21,6 +29,14 @@ export class InvalidImageSizeError extends FilesError {
 
   constructor() {
     super(`Image size must be between ${MIN_IMAGE_SIZE_BYTES} and ${MAX_IMAGE_SIZE_BYTES} bytes`);
+  }
+}
+
+export class DuplicateClientFileIdError extends FilesError {
+  readonly code = FilesErrorCode.DUPLICATE_CLIENT_FILE_ID;
+
+  constructor(clientFileId: string) {
+    super(`Duplicate client file ID: ${clientFileId}`);
   }
 }
 

@@ -1,11 +1,13 @@
 import { Metadata, status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
 import { FILES_APP_ERROR_CODE_METADATA_KEY } from '@app/files-grpc';
-import { type FilesError, FilesErrorCode } from '../../../common/errors/files.error.js';
+import { type FilesError, FilesErrorCode } from '../../../application/errors/files.error.js';
 
 const GRPC_STATUS_BY_APP_ERROR_CODE = {
+  [FilesErrorCode.INVALID_USER_ID]: status.INVALID_ARGUMENT,
   [FilesErrorCode.INVALID_IMAGE_COUNT]: status.INVALID_ARGUMENT,
   [FilesErrorCode.INVALID_IMAGE_SIZE]: status.INVALID_ARGUMENT,
+  [FilesErrorCode.DUPLICATE_CLIENT_FILE_ID]: status.INVALID_ARGUMENT,
   [FilesErrorCode.UNSUPPORTED_IMAGE_CONTENT_TYPE]: status.INVALID_ARGUMENT,
 } satisfies Record<FilesErrorCode, status>;
 
