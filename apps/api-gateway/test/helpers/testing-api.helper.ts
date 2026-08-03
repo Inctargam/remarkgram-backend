@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import type { ResponseBodySuperTest, SupertestApp } from '../supertest-types.ts';
+import type { ResponseBodySuperTest, SupertestApp } from '../supertest-types.js';
 import { API_PREFIX } from '../../src/http-api.constants.js';
 
 export class TestingApiHelper {

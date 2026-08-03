@@ -10,10 +10,10 @@ import { FilesModule } from './modules/files/files.module.js';
 import { userAccountsGrpcClientConfig } from './modules/user-accounts/config/user-accounts-grpc-client.config.js';
 import { userAccountsHttpConfig } from './modules/user-accounts/config/user-accounts-http.config.js';
 import { UserAccountsModule } from './modules/user-accounts/user-accounts.module.js';
-import { recaptchaSecretConfig } from './modules/user-accounts/config/recaptcha-secret.config.ts';
-import { githubOauthConfig } from './modules/user-accounts/config/github-oauth.config.ts';
+import { recaptchaSecretConfig } from './modules/user-accounts/config/recaptcha-secret.config.js';
+import { githubOauthConfig } from './modules/user-accounts/config/github-oauth.config.js';
 import { frontendConfig } from './config/frontend.config.js';
-import { googleOidcConfig } from './modules/user-accounts/config/google-oidc.config.ts';
+import { googleOidcConfig } from './modules/user-accounts/config/google-oidc.config.js';
 
 @Module({
   imports: [

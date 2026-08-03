@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { AuthIdentitiesRepository } from '../../application/ports/auth-identities-repository.ts';
-import { AuthIdentity, AuthIdentityProvider } from '../../domain/auth-identity.entity.ts';
-import type { TransactionContext } from '../../../../common/application/unit-of-work.ts';
-import type { Prisma } from '../../../../database/generated/client.ts';
-import { PrismaService } from '../../../../database/prisma.service.ts';
+import { AuthIdentitiesRepository } from '../../application/ports/auth-identities-repository.js';
+import { AuthIdentity, AuthIdentityProvider } from '../../domain/auth-identity.entity.js';
+import type { TransactionContext } from '../../../../common/application/unit-of-work.js';
+import type { Prisma } from '../../../../database/generated/client.js';
+import { PrismaService } from '../../../../database/prisma.service.js';
 import type {
   AuthIdentityCreateRepositoryParams,
   UpdateAuthIdentityProviderProfileParams,
-} from '../../application/types/auth-identities.types.ts';
-import { AuthIdentityModel } from '../../../../database/generated/models/AuthIdentity.ts';
+} from '../../application/types/auth-identities.types.js';
+import { AuthIdentityModel } from '../../../../database/generated/models/AuthIdentity.js';
 
 type PrismaClient = PrismaService | Prisma.TransactionClient;
 

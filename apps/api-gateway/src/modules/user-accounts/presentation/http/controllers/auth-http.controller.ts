@@ -56,7 +56,7 @@ import { RegistrationDto } from '../dto/input/registration.dto.js';
 import { ConfirmRegistrationDto } from '../dto/input/confirm-registration.dto.js';
 import { ResendRegistrationConfirmationDto } from '../dto/input/resend-registration-confirmation.dto.js';
 import { ConfirmPasswordResetResponseDto } from '../dto/output/confirm-password-reset-response.dto.js';
-import { RecaptchaVerifiersService } from '../../captcha/recaptcha-verifiers.service.ts';
+import { RecaptchaVerifiersService } from '../../captcha/recaptcha-verifiers.service.js';
 import { ApiAuthController } from '../swagger/auth/auth-controller.swagger.js';
 import { ApiLogin } from '../swagger/auth/post/login.swagger.js';
 import { ApiLogout } from '../swagger/auth/post/logout.swagger.js';
@@ -67,7 +67,7 @@ import { ApiConfirmRegistration } from '../swagger/registration/post/confirm-reg
 import { ApiRegister } from '../swagger/registration/post/register.swagger.js';
 import { ApiResendRegistrationConfirmation } from '../swagger/registration/post/resend-registration-confirmation.swagger.js';
 import { GithubAuthGuard } from '../guards/github/github-auth.guard.js';
-import { OauthRedirectExceptionFilter } from '../../../../../common/http/filters/oauth-redirect-exception.filter.ts';
+import { OauthRedirectExceptionFilter } from '../../../../../common/http/filters/oauth-redirect-exception.filter.js';
 import { ApiGithubAuth } from '../swagger/auth/get/github-auth.swagger.js';
 import { ApiGithubAuthCallback } from '../swagger/auth/get/github-auth-callback.swagger.js';
 import { ApiGoogleAuth } from '../swagger/auth/get/google-auth.swagger.js';

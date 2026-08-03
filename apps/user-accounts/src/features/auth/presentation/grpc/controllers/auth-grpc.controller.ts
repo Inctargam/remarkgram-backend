@@ -7,7 +7,7 @@ import type { LoginRequest, RefreshTokenRequest, TokenPairResponse } from '@app/
 import { UserAccountsRpcExceptionFilter } from '../../../../../common/grpc/filters/user-accounts-rpc-exception.filter.js';
 import { LoginCommand } from '../../../application/use-cases/login.use-case.js';
 import { RefreshTokenCommand } from '../../../application/use-cases/refresh-token.use-case.js';
-import { AuthenticateOAuthCommand } from '../../../application/use-cases/authenticate-oauth.use-case.ts';
+import { AuthenticateOAuthCommand } from '../../../application/use-cases/authenticate-oauth.use-case.js';
 import { mapOAuthIdentity } from '../mappers/oauth-identity.mapper.js';
 
 @Controller()

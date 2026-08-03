@@ -1,7 +1,7 @@
 import { registerAs } from '@nestjs/config';
 import { plainToInstance } from 'class-transformer';
 import { configValidationUtility } from '@app/config';
-import { Trim } from '../../../common/http/decorators/trim.decorator.ts';
+import { Trim } from '../../../common/http/decorators/trim.decorator.js';
 import { IsNotEmpty, IsString, IsUrl } from 'class-validator';
 
 class GithubOauthConfig {

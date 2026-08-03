@@ -12,9 +12,9 @@ import { TestingHttpController } from './presentation/http/controllers/testing-h
 import { UsersHttpController } from './presentation/http/controllers/users-http.controller.js';
 import { OptionalRefreshTokenGuard } from './presentation/http/guards/optional-refresh-token.guard.js';
 import { RefreshTokenGuard } from './presentation/http/guards/refresh-token.guard.js';
-import { RecaptchaVerifiersService } from './presentation/captcha/recaptcha-verifiers.service.ts';
+import { RecaptchaVerifiersService } from './presentation/captcha/recaptcha-verifiers.service.js';
 import { PassportModule } from '@nestjs/passport';
-import { GithubStrategy } from './presentation/http/guards/github/github.strategy.ts';
+import { GithubStrategy } from './presentation/http/guards/github/github.strategy.js';
 import { googleOidcConfigurationProvider } from './config/google-oidc-configuration.provider.js';
 
 @Module({

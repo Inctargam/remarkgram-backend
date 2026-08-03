@@ -1,15 +1,15 @@
 import { describe, expect } from 'vitest';
 import type { CanActivate, ExecutionContext, INestApplication, INestMicroservice } from '@nestjs/common';
-import { setupGatewayAppHttp } from '../setup-app/setup-gateway.app-http.ts';
-import { setupUserAccountsAppGrpc } from '../setup-app/setup-user-accounts.app-grpc.ts';
-import { AuthApiHelper } from '../helpers/auth-api.helper.ts';
+import { setupGatewayAppHttp } from '../setup-app/setup-gateway.app-http.js';
+import { setupUserAccountsAppGrpc } from '../setup-app/setup-user-accounts.app-grpc.js';
+import { AuthApiHelper } from '../helpers/auth-api.helper.js';
 import { type OAuthIdentityClaims, OAuthProvider } from '@app/user-accounts-grpc';
 import { GithubAuthGuard } from '../../src/modules/user-accounts/presentation/http/guards/github/github-auth.guard.js';
 import { PrismaService } from '../../../user-accounts/src/database/prisma.service.js';
-import { AuthProvider } from '../../../user-accounts/src/database/generated/enums.ts';
-import { TestingApiHelper } from '../helpers/testing-api.helper.ts';
+import { AuthProvider } from '../../../user-accounts/src/database/generated/enums.js';
+import { TestingApiHelper } from '../helpers/testing-api.helper.js';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { ConfirmationInfo } from '../../../user-accounts/src/features/users/domain/value-objects/confirmation-info.ts';
+import { ConfirmationInfo } from '../../../user-accounts/src/features/users/domain/value-objects/confirmation-info.js';
 
 const shouldSkip = process.env.SKIP_E2E !== 'false' || process.env.NODE_ENV === 'production';
 
