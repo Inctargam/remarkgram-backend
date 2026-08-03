@@ -4,8 +4,8 @@ import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { Metadata, type ServiceError, status } from '@grpc/grpc-js';
 import {
+  FILES_APP_ERROR_CODE_METADATA_KEY,
   FILES_SERVICE_NAME,
-  MAX_IMAGE_SIZE_BYTES,
   REMARKGRAM_FILES_V1_PACKAGE_NAME,
   type FilesServiceClient,
 } from '@app/files-grpc';
@@ -360,22 +360,37 @@ describe('ApiGateway (e2e)', () => {
   });
 
   it('POST /files/image-uploads rejects unsupported image metadata', async () => {
+    const metadata = new Metadata();
+    metadata.set(FILES_APP_ERROR_CODE_METADATA_KEY, 'UNSUPPORTED_IMAGE_CONTENT_TYPE');
+    filesServiceClient.initiateImageUploads.mockReturnValueOnce(
+      throwError(() =>
+        createServiceError(status.INVALID_ARGUMENT, 'Unsupported image content type: image/webp', metadata),
+      ),
+    );
+    const images = [
+      {
+        clientFileId: '11111111-1111-4111-8111-111111111111',
+        originalFilename: 'photo.webp',
+        contentType: 'image/webp',
+        size: 1_024,
+      },
+    ];
+
     await request(app.getHttpServer() as SupertestApp)
       .post(apiPath('/files/image-uploads'))
       .set('Authorization', 'Bearer access-token')
-      .send({
-        images: [
-          {
-            clientFileId: '11111111-1111-4111-8111-111111111111',
-            originalFilename: 'photo.webp',
-            contentType: 'image/webp',
-            size: MAX_IMAGE_SIZE_BYTES + 1,
-          },
-        ],
-      })
-      .expect(400);
+      .send({ images })
+      .expect(400)
+      .expect({
+        statusCode: 400,
+        code: 'UNSUPPORTED_IMAGE_CONTENT_TYPE',
+        message: 'Unsupported image content type: image/webp',
+      });
 
-    expect(filesServiceClient.initiateImageUploads).not.toHaveBeenCalled();
+    expect(filesServiceClient.initiateImageUploads).toHaveBeenCalledWith({
+      userId: refreshTokenClaims.userId,
+      images,
+    });
   });
 
   it('POST /files/image-uploads requires an authenticated user', async () => {
