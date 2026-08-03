@@ -1,7 +1,10 @@
 import { Metadata, status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
 import { USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
-import { type UserAccountsError, UserAccountsErrorCode } from '../../errors/user-accounts.error.js';
+import {
+  type UserAccountsError,
+  UserAccountsErrorCode,
+} from '../../application/errors/user-accounts.error.js';
 
 const GRPC_STATUS_BY_APP_ERROR_CODE = {
   [UserAccountsErrorCode.INCORRECT_CREDENTIALS]: status.UNAUTHENTICATED,

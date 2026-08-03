@@ -1,4 +1,7 @@
-import { UserAccountsError, UserAccountsErrorCode } from '../../../../common/errors/user-accounts.error.js';
+import {
+  UserAccountsError,
+  UserAccountsErrorCode,
+} from '../../../../common/application/errors/user-accounts.error.js';
 
 export class OAuthEmailRequiredError extends UserAccountsError {
   readonly code = UserAccountsErrorCode.OAUTH_EMAIL_REQUIRED;
