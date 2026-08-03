@@ -1,6 +1,7 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/infrastructure/prisma/generated"
+  provider        = "prisma-client"
+  output          = "../src/infrastructure/prisma/generated"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -16,7 +17,7 @@ enum FileUploadStatus {
 model File {
   id               String           @id @default(uuid()) @db.Uuid
   userId           Int
-  objectKey        String
+  objectKey        String           @unique
   originalFilename String
   contentType      String
   size             Int
@@ -27,5 +28,6 @@ model File {
   createdAt        DateTime         @default(now()) @db.Timestamptz
   updatedAt        DateTime         @updatedAt @db.Timestamptz
 
+  @@index([uploadExpiresAt], where: { uploadStatus: "PENDING", deletedAt: null })
   @@map("files")
 }

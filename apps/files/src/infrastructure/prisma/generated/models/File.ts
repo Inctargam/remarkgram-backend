@@ -295,11 +295,11 @@ export type FileOrderByWithRelationInput = {
 
 export type FileWhereUniqueInput = Prisma.AtLeast<{
   id?: string
+  objectKey?: string
   AND?: Prisma.FileWhereInput | Prisma.FileWhereInput[]
   OR?: Prisma.FileWhereInput[]
   NOT?: Prisma.FileWhereInput | Prisma.FileWhereInput[]
   userId?: Prisma.IntFilter<"File"> | number
-  objectKey?: Prisma.StringFilter<"File"> | string
   originalFilename?: Prisma.StringFilter<"File"> | string
   contentType?: Prisma.StringFilter<"File"> | string
   size?: Prisma.IntFilter<"File"> | number
@@ -309,7 +309,7 @@ export type FileWhereUniqueInput = Prisma.AtLeast<{
   deletedAt?: Prisma.DateTimeNullableFilter<"File"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"File"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"File"> | Date | string
-}, "id">
+}, "id" | "objectKey">
 
 export type FileOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
