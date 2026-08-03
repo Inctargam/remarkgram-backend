@@ -80,6 +80,7 @@ export const FileScalarFieldEnum = {
   uploadStatus: 'uploadStatus',
   uploadExpiresAt: 'uploadExpiresAt',
   uploadedAt: 'uploadedAt',
+  deletedAt: 'deletedAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const

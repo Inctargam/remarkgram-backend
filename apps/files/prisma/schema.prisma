@@ -23,6 +23,7 @@ model File {
   uploadStatus     FileUploadStatus @default(PENDING)
   uploadExpiresAt  DateTime         @db.Timestamptz
   uploadedAt       DateTime?        @db.Timestamptz
+  deletedAt        DateTime?        @db.Timestamptz
   createdAt        DateTime         @default(now()) @db.Timestamptz
   updatedAt        DateTime         @updatedAt @db.Timestamptz
 
