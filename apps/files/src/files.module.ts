@@ -14,6 +14,10 @@ import { PrismaFilesRepository } from './infrastructure/prisma/repositories/pris
 import { ObjectStorage } from './application/ports/object-storage.js';
 import { S3ObjectStorage } from './infrastructure/s3/s3-object-storage.js';
 import { EnsureCompletedImageUploadsUseCase } from './application/use-cases/ensure-completed-image-uploads/ensure-completed-image-uploads.use-case.js';
+import { TestingRepository } from './application/ports/testing.repository.js';
+import { DeleteAllDataUseCase } from './application/use-cases/delete-all-data/delete-all-data.use-case.js';
+import { PrismaTestingRepository } from './infrastructure/prisma/repositories/prisma-testing.repository.js';
+import { TestingGrpcController } from './presentation/grpc/testing-grpc.controller.js';
 
 @Module({
   imports: [
@@ -35,9 +39,10 @@ import { EnsureCompletedImageUploadsUseCase } from './application/use-cases/ensu
     }),
     PrismaModule,
   ],
-  controllers: [FilesGrpcController],
+  controllers: [FilesGrpcController, TestingGrpcController],
   providers: [
     CompleteImageUploadsUseCase,
+    DeleteAllDataUseCase,
     EnsureCompletedImageUploadsUseCase,
     InitiateImageUploadsUseCase,
     {
@@ -47,6 +52,10 @@ import { EnsureCompletedImageUploadsUseCase } from './application/use-cases/ensu
     {
       provide: ObjectStorage,
       useClass: S3ObjectStorage,
+    },
+    {
+      provide: TestingRepository,
+      useClass: PrismaTestingRepository,
     },
     {
       provide: S3_CLIENT,

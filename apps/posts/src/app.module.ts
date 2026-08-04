@@ -13,6 +13,10 @@ import { FilesImageUploadsVerifier } from './infrastructure/grpc/files-image-upl
 import { PrismaService } from './infrastructure/prisma/prisma.service.js';
 import { PrismaPostsRepository } from './infrastructure/prisma/repositories/prisma-posts.repository.js';
 import { PostsGrpcController } from './presentation/grpc/posts-grpc.controller.js';
+import { TestingRepository } from './application/ports/testing.repository.js';
+import { DeleteAllDataUseCase } from './application/use-cases/delete-all-data/delete-all-data.use-case.js';
+import { PrismaTestingRepository } from './infrastructure/prisma/repositories/prisma-testing.repository.js';
+import { TestingGrpcController } from './presentation/grpc/testing-grpc.controller.js';
 
 @Module({
   imports: [
@@ -47,9 +51,10 @@ import { PostsGrpcController } from './presentation/grpc/posts-grpc.controller.j
       },
     ]),
   ],
-  controllers: [PostsGrpcController],
+  controllers: [PostsGrpcController, TestingGrpcController],
   providers: [
     CreatePostUseCase,
+    DeleteAllDataUseCase,
     PrismaService,
     {
       provide: PostsRepository,
@@ -58,6 +63,10 @@ import { PostsGrpcController } from './presentation/grpc/posts-grpc.controller.j
     {
       provide: ImageUploadsVerifier,
       useClass: FilesImageUploadsVerifier,
+    },
+    {
+      provide: TestingRepository,
+      useClass: PrismaTestingRepository,
     },
   ],
 })

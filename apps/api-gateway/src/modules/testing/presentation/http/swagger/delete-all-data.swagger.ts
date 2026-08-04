@@ -10,10 +10,10 @@ import {
 
 export const ApiDeleteAllData = () =>
   applyDecorators(
-    ApiOperation({ summary: 'Delete all data from the user-accounts database' }),
-    ApiNoContentResponse({ description: 'All user-accounts data was deleted.' }),
+    ApiOperation({ summary: 'Delete all data from the microservice databases' }),
+    ApiNoContentResponse({ description: 'All microservice database data was deleted.' }),
     ApiNotFoundResponse({ description: 'The testing endpoint is disabled.' }),
     ApiForbiddenResponse({ description: 'The testing endpoint key is invalid.' }),
-    ApiBadGatewayResponse({ description: 'The upstream service returned an unexpected error.' }),
-    ApiServiceUnavailableResponse({ description: 'The user-accounts service is unavailable.' }),
+    ApiBadGatewayResponse({ description: 'An upstream service returned an unexpected error.' }),
+    ApiServiceUnavailableResponse({ description: 'A microservice is unavailable.' }),
   );

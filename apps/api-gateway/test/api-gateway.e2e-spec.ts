@@ -7,12 +7,16 @@ import {
   FILES_APP_ERROR_CODE_METADATA_KEY,
   FILES_SERVICE_NAME,
   REMARKGRAM_FILES_V1_PACKAGE_NAME,
+  TESTING_SERVICE_NAME as FILES_TESTING_SERVICE_NAME,
   type FilesServiceClient,
+  type TestingServiceClient as FilesTestingServiceClient,
 } from '@app/files-grpc';
 import {
   POSTS_SERVICE_NAME,
   REMARKGRAM_POSTS_V1_PACKAGE_NAME,
+  TESTING_SERVICE_NAME as POSTS_TESTING_SERVICE_NAME,
   type PostsServiceClient,
+  type TestingServiceClient as PostsTestingServiceClient,
 } from '@app/posts-grpc';
 import {
   AUTH_SERVICE_NAME,
@@ -20,14 +24,14 @@ import {
   REGISTRATION_SERVICE_NAME,
   REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
   SESSIONS_SERVICE_NAME,
-  TESTING_SERVICE_NAME,
+  TESTING_SERVICE_NAME as USER_ACCOUNTS_TESTING_SERVICE_NAME,
   USERS_SERVICE_NAME,
   USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY,
   type AuthServiceClient,
   type PasswordResetServiceClient,
   type RegistrationServiceClient,
   type SessionsServiceClient,
-  type TestingServiceClient,
+  type TestingServiceClient as UserAccountsTestingServiceClient,
   type UsersServiceClient,
 } from '@app/user-accounts-grpc';
 import { JwtService } from '@nestjs/jwt';
@@ -76,8 +80,14 @@ describe('ApiGateway (e2e)', () => {
     revokeSession: vi.fn<SessionsServiceClient['revokeSession']>(),
     revokeOtherSessions: vi.fn<SessionsServiceClient['revokeOtherSessions']>(),
   };
-  const testingServiceClient = {
-    deleteAllData: vi.fn<TestingServiceClient['deleteAllData']>(),
+  const filesTestingServiceClient = {
+    deleteAllData: vi.fn<FilesTestingServiceClient['deleteAllData']>(),
+  };
+  const postsTestingServiceClient = {
+    deleteAllData: vi.fn<PostsTestingServiceClient['deleteAllData']>(),
+  };
+  const userAccountsTestingServiceClient = {
+    deleteAllData: vi.fn<UserAccountsTestingServiceClient['deleteAllData']>(),
   };
   const passwordResetServiceClient = {
     requestPasswordReset: vi.fn<PasswordResetServiceClient['requestPasswordReset']>(),
@@ -87,10 +97,28 @@ describe('ApiGateway (e2e)', () => {
     verify: vi.fn<RecaptchaVerifiersService['verify']>(),
   };
   const filesGrpcClient = {
-    getService: vi.fn(() => filesServiceClient),
+    getService: vi.fn((serviceName: string) => {
+      switch (serviceName) {
+        case FILES_SERVICE_NAME:
+          return filesServiceClient;
+        case FILES_TESTING_SERVICE_NAME:
+          return filesTestingServiceClient;
+        default:
+          throw new Error(`Unknown files gRPC service: ${serviceName}`);
+      }
+    }),
   };
   const postsGrpcClient = {
-    getService: vi.fn(() => postsServiceClient),
+    getService: vi.fn((serviceName: string) => {
+      switch (serviceName) {
+        case POSTS_SERVICE_NAME:
+          return postsServiceClient;
+        case POSTS_TESTING_SERVICE_NAME:
+          return postsTestingServiceClient;
+        default:
+          throw new Error(`Unknown posts gRPC service: ${serviceName}`);
+      }
+    }),
   };
   const userAccountsGrpcClient = {
     getService: vi.fn((serviceName: string) => {
@@ -103,8 +131,8 @@ describe('ApiGateway (e2e)', () => {
           return registrationServiceClient;
         case SESSIONS_SERVICE_NAME:
           return sessionsServiceClient;
-        case TESTING_SERVICE_NAME:
-          return testingServiceClient;
+        case USER_ACCOUNTS_TESTING_SERVICE_NAME:
+          return userAccountsTestingServiceClient;
         case PASSWORD_RESET_SERVICE_NAME:
           return passwordResetServiceClient;
         default:
@@ -193,7 +221,9 @@ describe('ApiGateway (e2e)', () => {
     sessionsServiceClient.logoutCurrentSession.mockReturnValue(of({}));
     sessionsServiceClient.revokeSession.mockReturnValue(of({}));
     sessionsServiceClient.revokeOtherSessions.mockReturnValue(of({}));
-    testingServiceClient.deleteAllData.mockReturnValue(of({}));
+    filesTestingServiceClient.deleteAllData.mockReturnValue(of({}));
+    postsTestingServiceClient.deleteAllData.mockReturnValue(of({}));
+    userAccountsTestingServiceClient.deleteAllData.mockReturnValue(of({}));
     passwordResetServiceClient.requestPasswordReset.mockReturnValue(of({ accepted: true }));
     passwordResetServiceClient.confirmPasswordReset.mockReturnValue(of({}));
     recaptchaVerifiersService.verify.mockResolvedValue({
@@ -333,13 +363,15 @@ describe('ApiGateway (e2e)', () => {
     );
   });
 
-  it('DELETE /testing/all-data clears user-accounts data', async () => {
+  it('DELETE /testing/all-data clears all microservice databases', async () => {
     await request(app.getHttpServer() as SupertestApp)
       .delete(apiPath('/testing/all-data'))
       .set('X-Testing-Key', testingEndpointKey)
       .expect(204);
 
-    expect(testingServiceClient.deleteAllData).toHaveBeenCalledWith({});
+    expect(filesTestingServiceClient.deleteAllData).toHaveBeenCalledWith({});
+    expect(postsTestingServiceClient.deleteAllData).toHaveBeenCalledWith({});
+    expect(userAccountsTestingServiceClient.deleteAllData).toHaveBeenCalledWith({});
   });
 
   it('POST /files/image-uploads initiates authenticated image uploads', async () => {

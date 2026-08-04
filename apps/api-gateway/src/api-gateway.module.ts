@@ -16,6 +16,7 @@ import { frontendConfig } from './config/frontend.config.js';
 import { googleOidcConfig } from './modules/user-accounts/config/google-oidc.config.js';
 import { postsGrpcClientConfig } from './modules/posts/config/posts-grpc-client.config.js';
 import { PostsModule } from './modules/posts/posts.module.js';
+import { TestingModule } from './modules/testing/testing.module.js';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { PostsModule } from './modules/posts/posts.module.js';
     }),
     FilesModule,
     PostsModule,
+    TestingModule,
     UserAccountsModule,
   ],
   providers: [

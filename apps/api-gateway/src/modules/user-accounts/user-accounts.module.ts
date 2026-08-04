@@ -8,7 +8,6 @@ import {
 import { userAccountsGrpcClientConfig } from './config/user-accounts-grpc-client.config.js';
 import { AuthHttpController } from './presentation/http/controllers/auth-http.controller.js';
 import { SessionsHttpController } from './presentation/http/controllers/sessions-http.controller.js';
-import { TestingHttpController } from './presentation/http/controllers/testing-http.controller.js';
 import { UsersHttpController } from './presentation/http/controllers/users-http.controller.js';
 import { OptionalRefreshTokenGuard } from './presentation/http/guards/optional-refresh-token.guard.js';
 import { RefreshTokenGuard } from './presentation/http/guards/refresh-token.guard.js';
@@ -35,7 +34,7 @@ import { googleOidcConfigurationProvider } from './config/google-oidc-configurat
     ]),
     PassportModule.register({ defaultStrategy: 'github' }),
   ],
-  controllers: [AuthHttpController, SessionsHttpController, TestingHttpController, UsersHttpController],
+  controllers: [AuthHttpController, SessionsHttpController, UsersHttpController],
   providers: [
     OptionalRefreshTokenGuard,
     RefreshTokenGuard,

@@ -20,6 +20,12 @@ export interface CreatePostResponse {
   id: number;
 }
 
+export interface DeleteAllDataRequest {
+}
+
+export interface DeleteAllDataResponse {
+}
+
 export const REMARKGRAM_POSTS_V1_PACKAGE_NAME = "remarkgram.posts.v1";
 
 export interface PostsServiceClient {
@@ -48,3 +54,30 @@ export function PostsServiceControllerMethods() {
 }
 
 export const POSTS_SERVICE_NAME = "PostsService";
+
+export interface TestingServiceClient {
+  deleteAllData(request: DeleteAllDataRequest): Observable<DeleteAllDataResponse>;
+}
+
+export interface TestingServiceController {
+  deleteAllData(
+    request: DeleteAllDataRequest,
+  ): Promise<DeleteAllDataResponse> | Observable<DeleteAllDataResponse> | DeleteAllDataResponse;
+}
+
+export function TestingServiceControllerMethods() {
+  return function (constructor: Function) {
+    const grpcMethods: string[] = ["deleteAllData"];
+    for (const method of grpcMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcMethod("TestingService", method)(constructor.prototype[method], method, descriptor);
+    }
+    const grpcStreamMethods: string[] = [];
+    for (const method of grpcStreamMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcStreamMethod("TestingService", method)(constructor.prototype[method], method, descriptor);
+    }
+  };
+}
+
+export const TESTING_SERVICE_NAME = "TestingService";

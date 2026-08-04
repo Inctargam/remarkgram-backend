@@ -8,6 +8,10 @@ service FilesService {
   rpc EnsureCompletedImageUploads(EnsureCompletedImageUploadsRequest) returns (EnsureCompletedImageUploadsResponse);
 }
 
+service TestingService {
+  rpc DeleteAllData(DeleteAllDataRequest) returns (DeleteAllDataResponse);
+}
+
 message InitiateImageUploadsRequest {
   string user_id = 1;
   repeated ImageUploadMetadata images = 2;
@@ -44,3 +48,7 @@ message EnsureCompletedImageUploadsRequest {
 }
 
 message EnsureCompletedImageUploadsResponse {}
+
+message DeleteAllDataRequest {}
+
+message DeleteAllDataResponse {}

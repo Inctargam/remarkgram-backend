@@ -54,6 +54,12 @@ export interface EnsureCompletedImageUploadsRequest {
 export interface EnsureCompletedImageUploadsResponse {
 }
 
+export interface DeleteAllDataRequest {
+}
+
+export interface DeleteAllDataResponse {
+}
+
 export const REMARKGRAM_FILES_V1_PACKAGE_NAME = "remarkgram.files.v1";
 
 export interface FilesServiceClient {
@@ -99,3 +105,30 @@ export function FilesServiceControllerMethods() {
 }
 
 export const FILES_SERVICE_NAME = "FilesService";
+
+export interface TestingServiceClient {
+  deleteAllData(request: DeleteAllDataRequest): Observable<DeleteAllDataResponse>;
+}
+
+export interface TestingServiceController {
+  deleteAllData(
+    request: DeleteAllDataRequest,
+  ): Promise<DeleteAllDataResponse> | Observable<DeleteAllDataResponse> | DeleteAllDataResponse;
+}
+
+export function TestingServiceControllerMethods() {
+  return function (constructor: Function) {
+    const grpcMethods: string[] = ["deleteAllData"];
+    for (const method of grpcMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcMethod("TestingService", method)(constructor.prototype[method], method, descriptor);
+    }
+    const grpcStreamMethods: string[] = [];
+    for (const method of grpcStreamMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcStreamMethod("TestingService", method)(constructor.prototype[method], method, descriptor);
+    }
+  };
+}
+
+export const TESTING_SERVICE_NAME = "TestingService";
