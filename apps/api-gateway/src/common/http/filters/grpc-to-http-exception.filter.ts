@@ -3,6 +3,7 @@ import { Metadata, type ServiceError, status } from '@grpc/grpc-js';
 import { BaseExceptionFilter, HttpAdapterHost } from '@nestjs/core';
 import { FILES_APP_ERROR_CODE_METADATA_KEY } from '@app/files-grpc';
 import { USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
+import { POSTS_APP_ERROR_CODE_METADATA_KEY } from '@app/posts-grpc';
 import { ApiErrorResponseDto } from '../api-error-response.dto.js';
 
 function isServiceError(error: unknown): error is ServiceError {
@@ -39,6 +40,7 @@ export const mapGrpcErrorToHttpException = (error: ServiceError): HttpException 
   const httpStatus = HTTP_STATUS_BY_GRPC_STATUS[grpcStatus] ?? HttpStatus.BAD_GATEWAY;
   const appErrorCode =
     error.metadata?.get(FILES_APP_ERROR_CODE_METADATA_KEY).at(0)?.toString() ??
+    error.metadata?.get(POSTS_APP_ERROR_CODE_METADATA_KEY).at(0)?.toString() ??
     error.metadata?.get(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY).at(0)?.toString() ??
     status[grpcStatus] ??
     'UPSTREAM_ERROR';

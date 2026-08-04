@@ -1,6 +1,7 @@
 import { Metadata, type ServiceError, status } from '@grpc/grpc-js';
 import { HttpStatus } from '@nestjs/common';
 import { FILES_APP_ERROR_CODE_METADATA_KEY } from '@app/files-grpc';
+import { POSTS_APP_ERROR_CODE_METADATA_KEY } from '@app/posts-grpc';
 import { USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
 import { mapGrpcErrorToHttpException } from './grpc-to-http-exception.filter.js';
 
@@ -35,6 +36,7 @@ describe('mapGrpcErrorToHttpException', () => {
   it.each([
     [USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED'],
     [FILES_APP_ERROR_CODE_METADATA_KEY, 'INVALID_IMAGE_SIZE'],
+    [POSTS_APP_ERROR_CODE_METADATA_KEY, 'POST_IMAGE_NOT_COMPLETED'],
   ])('preserves the application error code from %s gRPC metadata', (metadataKey, errorCode) => {
     const metadata = new Metadata();
     metadata.set(metadataKey, errorCode);

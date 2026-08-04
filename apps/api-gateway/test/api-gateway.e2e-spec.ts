@@ -10,6 +10,11 @@ import {
   type FilesServiceClient,
 } from '@app/files-grpc';
 import {
+  POSTS_SERVICE_NAME,
+  REMARKGRAM_POSTS_V1_PACKAGE_NAME,
+  type PostsServiceClient,
+} from '@app/posts-grpc';
+import {
   AUTH_SERVICE_NAME,
   PASSWORD_RESET_SERVICE_NAME,
   REGISTRATION_SERVICE_NAME,
@@ -50,6 +55,9 @@ describe('ApiGateway (e2e)', () => {
   const filesServiceClient = {
     initiateImageUploads: vi.fn<FilesServiceClient['initiateImageUploads']>(),
   };
+  const postsServiceClient = {
+    createPost: vi.fn<PostsServiceClient['createPost']>(),
+  };
   const usersServiceClient = {
     getUsers: vi.fn<UsersServiceClient['getUsers']>(),
   };
@@ -80,6 +88,9 @@ describe('ApiGateway (e2e)', () => {
   };
   const filesGrpcClient = {
     getService: vi.fn(() => filesServiceClient),
+  };
+  const postsGrpcClient = {
+    getService: vi.fn(() => postsServiceClient),
   };
   const userAccountsGrpcClient = {
     getService: vi.fn((serviceName: string) => {
@@ -113,6 +124,7 @@ describe('ApiGateway (e2e)', () => {
     vi.stubEnv('GATEWAY_PORT', '0');
     vi.stubEnv('CORS_ALLOWED_ORIGINS', 'https://dev.remark-gram.com,https://dev.remark-gram.com:3000');
     vi.stubEnv('FILES_GRPC_URL', 'localhost:50051');
+    vi.stubEnv('POSTS_GRPC_URL', 'localhost:50053');
     vi.stubEnv('USER_ACCOUNTS_GRPC_URL', 'localhost:50052');
     vi.stubEnv('JWT_PUBLIC_KEY', 'public-key');
     vi.stubEnv('REFRESH_TOKEN_COOKIE_MAX_AGE_MS', '1200000');
@@ -139,6 +151,7 @@ describe('ApiGateway (e2e)', () => {
         ],
       }),
     );
+    postsServiceClient.createPost.mockReturnValue(of({ id: 10 }));
     jwtService.verifyAsync.mockResolvedValue({
       sub: refreshTokenClaims.userId,
       sessionId: refreshTokenClaims.sessionId,
@@ -193,6 +206,8 @@ describe('ApiGateway (e2e)', () => {
     })
       .overrideProvider(REMARKGRAM_FILES_V1_PACKAGE_NAME)
       .useValue(filesGrpcClient)
+      .overrideProvider(REMARKGRAM_POSTS_V1_PACKAGE_NAME)
+      .useValue(postsGrpcClient)
       .overrideProvider(REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME)
       .useValue(userAccountsGrpcClient)
       .overrideProvider(JwtService)
@@ -249,6 +264,7 @@ describe('ApiGateway (e2e)', () => {
       '/auth/password-reset/request',
       '/auth/password-reset/confirm',
       '/files/image-uploads',
+      '/posts',
       '/security/sessions',
       '/security/sessions/{sessionId}',
       '/testing/all-data',
@@ -409,6 +425,48 @@ describe('ApiGateway (e2e)', () => {
       .expect(401);
 
     expect(filesServiceClient.initiateImageUploads).not.toHaveBeenCalled();
+  });
+
+  it('POST /posts creates a post for the authenticated user', async () => {
+    const input = {
+      description: 'A new post',
+      imageIds: ['11111111-1111-4111-8111-111111111111'],
+    };
+
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/posts'))
+      .set('Authorization', 'Bearer access-token')
+      .send(input)
+      .expect(201)
+      .expect({ id: 10 });
+
+    expect(postsServiceClient.createPost).toHaveBeenCalledWith({
+      userId: refreshTokenClaims.userId,
+      ...input,
+    });
+    expect(postsGrpcClient.getService).toHaveBeenCalledWith(POSTS_SERVICE_NAME);
+  });
+
+  it('POST /posts rejects a null description before calling posts', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/posts'))
+      .set('Authorization', 'Bearer access-token')
+      .send({
+        description: null,
+        imageIds: ['11111111-1111-4111-8111-111111111111'],
+      })
+      .expect(400);
+
+    expect(postsServiceClient.createPost).not.toHaveBeenCalled();
+  });
+
+  it('POST /posts requires an authenticated user', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/posts'))
+      .send({ imageIds: ['11111111-1111-4111-8111-111111111111'] })
+      .expect(401);
+
+    expect(postsServiceClient.createPost).not.toHaveBeenCalled();
   });
 
   it('GET /users delegates to user-accounts over gRPC', async () => {

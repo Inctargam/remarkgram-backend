@@ -14,6 +14,8 @@ import { recaptchaSecretConfig } from './modules/user-accounts/config/recaptcha-
 import { githubOauthConfig } from './modules/user-accounts/config/github-oauth.config.js';
 import { frontendConfig } from './config/frontend.config.js';
 import { googleOidcConfig } from './modules/user-accounts/config/google-oidc.config.js';
+import { postsGrpcClientConfig } from './modules/posts/config/posts-grpc-client.config.js';
+import { PostsModule } from './modules/posts/posts.module.js';
 
 @Module({
   imports: [
@@ -32,6 +34,7 @@ import { googleOidcConfig } from './modules/user-accounts/config/google-oidc.con
       load: [
         apiGatewayConfig,
         filesGrpcClientConfig,
+        postsGrpcClientConfig,
         userAccountsGrpcClientConfig,
         userAccountsHttpConfig,
         recaptchaSecretConfig,
@@ -49,6 +52,7 @@ import { googleOidcConfig } from './modules/user-accounts/config/google-oidc.con
       }),
     }),
     FilesModule,
+    PostsModule,
     UserAccountsModule,
   ],
   providers: [
