@@ -1,6 +1,5 @@
-import type { Post } from '../../domain/entities/post.entity.js';
+import type { CreatePostRepositoryParams } from '../types/posts.types.js';
 
 export abstract class PostsRepository {
-  abstract findMany(): Promise<Post[]>;
-  abstract create(post: Post): Promise<Post>;
+  abstract create(params: CreatePostRepositoryParams): Promise<number>;
 }
