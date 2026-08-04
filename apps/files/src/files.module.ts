@@ -13,6 +13,7 @@ import { PrismaModule } from './infrastructure/prisma/prisma.module.js';
 import { PrismaFilesRepository } from './infrastructure/prisma/repositories/prisma-files.repository.js';
 import { ObjectStorage } from './application/ports/object-storage.js';
 import { S3ObjectStorage } from './infrastructure/s3/s3-object-storage.js';
+import { EnsureCompletedImageUploadsUseCase } from './application/use-cases/ensure-completed-image-uploads/ensure-completed-image-uploads.use-case.js';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { S3ObjectStorage } from './infrastructure/s3/s3-object-storage.js';
   controllers: [FilesGrpcController],
   providers: [
     CompleteImageUploadsUseCase,
+    EnsureCompletedImageUploadsUseCase,
     InitiateImageUploadsUseCase,
     {
       provide: FilesRepository,

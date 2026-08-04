@@ -7,6 +7,7 @@ import {
   DuplicateImageUploadIdError,
   ImageUploadMetadataMismatchError,
   ImageUploadNotFoundError,
+  ImageUploadsNotCompletedError,
   InvalidUserIdError,
   InvalidImageSizeError,
   InvalidImageCountError,
@@ -82,22 +83,24 @@ describe('FilesRpcExceptionFilter', () => {
     ).toEqual([error.code]);
   });
 
-  it('maps an invalid upload status to FAILED_PRECONDITION', async () => {
-    const error = new InvalidImageUploadStatusError();
-    const rpcError: unknown = await firstValueFrom(filter.catch(error, host)).catch(
-      (caught: unknown) => caught,
-    );
+  it.each([new InvalidImageUploadStatusError(), new ImageUploadsNotCompletedError()])(
+    'maps $code to FAILED_PRECONDITION',
+    async (error) => {
+      const rpcError: unknown = await firstValueFrom(filter.catch(error, host)).catch(
+        (caught: unknown) => caught,
+      );
 
-    expect(rpcError).toEqual(
-      expect.objectContaining({
-        code: status.FAILED_PRECONDITION,
-        message: error.message,
-      }),
-    );
-    expect(
-      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(
-        FILES_APP_ERROR_CODE_METADATA_KEY,
-      ),
-    ).toEqual([error.code]);
-  });
+      expect(rpcError).toEqual(
+        expect.objectContaining({
+          code: status.FAILED_PRECONDITION,
+          message: error.message,
+        }),
+      );
+      expect(
+        (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(
+          FILES_APP_ERROR_CODE_METADATA_KEY,
+        ),
+      ).toEqual([error.code]);
+    },
+  );
 });

@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 export * from './generated/files.js';
+export * from './files-error-code.js';
 export * from './image-upload-policy.js';
 
 /** Metadata key used to carry a stable application error code through gRPC. */

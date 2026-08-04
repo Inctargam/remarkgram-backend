@@ -5,6 +5,7 @@ package remarkgram.files.v1;
 service FilesService {
   rpc InitiateImageUploads(InitiateImageUploadsRequest) returns (InitiateImageUploadsResponse);
   rpc CompleteImageUploads(CompleteImageUploadsRequest) returns (CompleteImageUploadsResponse);
+  rpc EnsureCompletedImageUploads(EnsureCompletedImageUploadsRequest) returns (EnsureCompletedImageUploadsResponse);
 }
 
 message InitiateImageUploadsRequest {
@@ -36,3 +37,10 @@ message CompleteImageUploadsRequest {
 }
 
 message CompleteImageUploadsResponse {}
+
+message EnsureCompletedImageUploadsRequest {
+  string user_id = 1;
+  repeated string image_ids = 2;
+}
+
+message EnsureCompletedImageUploadsResponse {}

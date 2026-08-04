@@ -1,10 +1,11 @@
 import {
+  FilesErrorCode,
   MAX_IMAGES_PER_UPLOAD_REQUEST,
   MAX_IMAGE_SIZE_BYTES,
   MIN_IMAGES_PER_UPLOAD_REQUEST,
   MIN_IMAGE_SIZE_BYTES,
 } from '@app/files-grpc';
-import { FilesError, FilesErrorCode } from './files.error.js';
+import { FilesError } from './files.error.js';
 
 export class InvalidUserIdError extends FilesError {
   readonly code = FilesErrorCode.INVALID_USER_ID;
@@ -61,6 +62,14 @@ export class InvalidImageUploadStatusError extends FilesError {
 
   constructor() {
     super('Image uploads must be either all pending or all completed');
+  }
+}
+
+export class ImageUploadsNotCompletedError extends FilesError {
+  readonly code = FilesErrorCode.IMAGE_UPLOADS_NOT_COMPLETED;
+
+  constructor() {
+    super('All image uploads must be completed');
   }
 }
 

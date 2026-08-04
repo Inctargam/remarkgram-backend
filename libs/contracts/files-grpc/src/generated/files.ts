@@ -46,12 +46,24 @@ export interface CompleteImageUploadsRequest {
 export interface CompleteImageUploadsResponse {
 }
 
+export interface EnsureCompletedImageUploadsRequest {
+  userId: string;
+  imageIds: string[];
+}
+
+export interface EnsureCompletedImageUploadsResponse {
+}
+
 export const REMARKGRAM_FILES_V1_PACKAGE_NAME = "remarkgram.files.v1";
 
 export interface FilesServiceClient {
   initiateImageUploads(request: InitiateImageUploadsRequest): Observable<InitiateImageUploadsResponse>;
 
   completeImageUploads(request: CompleteImageUploadsRequest): Observable<CompleteImageUploadsResponse>;
+
+  ensureCompletedImageUploads(
+    request: EnsureCompletedImageUploadsRequest,
+  ): Observable<EnsureCompletedImageUploadsResponse>;
 }
 
 export interface FilesServiceController {
@@ -62,11 +74,18 @@ export interface FilesServiceController {
   completeImageUploads(
     request: CompleteImageUploadsRequest,
   ): Promise<CompleteImageUploadsResponse> | Observable<CompleteImageUploadsResponse> | CompleteImageUploadsResponse;
+
+  ensureCompletedImageUploads(
+    request: EnsureCompletedImageUploadsRequest,
+  ):
+    | Promise<EnsureCompletedImageUploadsResponse>
+    | Observable<EnsureCompletedImageUploadsResponse>
+    | EnsureCompletedImageUploadsResponse;
 }
 
 export function FilesServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["initiateImageUploads", "completeImageUploads"];
+    const grpcMethods: string[] = ["initiateImageUploads", "completeImageUploads", "ensureCompletedImageUploads"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("FilesService", method)(constructor.prototype[method], method, descriptor);

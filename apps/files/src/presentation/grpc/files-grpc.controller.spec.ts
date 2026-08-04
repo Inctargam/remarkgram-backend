@@ -1,18 +1,24 @@
 import { FilesGrpcController } from './files-grpc.controller.js';
 import { ImageContentType } from '@app/files-grpc';
-import type { CommandBus } from '@nestjs/cqrs';
+import type { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { CompleteImageUploadsCommand } from '../../application/use-cases/complete-image-uploads/complete-image-uploads.use-case.js';
 import { InitiateImageUploadsCommand } from '../../application/use-cases/initiate-image-uploads/initiate-image-uploads.use-case.js';
+import { EnsureCompletedImageUploadsQuery } from '../../application/use-cases/ensure-completed-image-uploads/ensure-completed-image-uploads.use-case.js';
 
 describe('FilesGrpcController', () => {
   const commandBus = { execute: vi.fn() };
+  const queryBus = { execute: vi.fn() };
 
   beforeEach(() => {
     commandBus.execute.mockReset();
+    queryBus.execute.mockReset();
   });
 
   it('delegates image upload initiation to the use case', async () => {
-    const controller = new FilesGrpcController(commandBus as unknown as CommandBus);
+    const controller = new FilesGrpcController(
+      commandBus as unknown as CommandBus,
+      queryBus as unknown as QueryBus,
+    );
     const request = {
       userId: '42',
       images: [
@@ -59,7 +65,10 @@ describe('FilesGrpcController', () => {
   });
 
   it('delegates image upload completion to the use case', async () => {
-    const controller = new FilesGrpcController(commandBus as unknown as CommandBus);
+    const controller = new FilesGrpcController(
+      commandBus as unknown as CommandBus,
+      queryBus as unknown as QueryBus,
+    );
     const request = {
       userId: '42',
       uploadIds: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
@@ -72,6 +81,27 @@ describe('FilesGrpcController', () => {
       new CompleteImageUploadsCommand({
         userId: 42,
         uploadIds: request.uploadIds,
+      }),
+    );
+  });
+
+  it('delegates completed image verification to the use case', async () => {
+    const controller = new FilesGrpcController(
+      commandBus as unknown as CommandBus,
+      queryBus as unknown as QueryBus,
+    );
+    const request = {
+      userId: '42',
+      imageIds: ['11111111-1111-4111-8111-111111111111'],
+    };
+    queryBus.execute.mockResolvedValue(undefined);
+
+    await expect(controller.ensureCompletedImageUploads(request)).resolves.toEqual({});
+
+    expect(queryBus.execute).toHaveBeenCalledWith(
+      new EnsureCompletedImageUploadsQuery({
+        userId: 42,
+        imageIds: request.imageIds,
       }),
     );
   });

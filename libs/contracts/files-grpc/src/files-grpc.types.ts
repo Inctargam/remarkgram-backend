@@ -31,7 +31,17 @@ export interface CompleteImageUploadsRequest {
 
 export type CompleteImageUploadsResponse = Record<string, never>;
 
+export interface EnsureCompletedImageUploadsRequest {
+  userId: string;
+  imageIds: string[];
+}
+
+export type EnsureCompletedImageUploadsResponse = Record<string, never>;
+
 export interface FilesServiceClient {
   initiateImageUploads(request: InitiateImageUploadsRequest): Observable<InitiateImageUploadsResponse>;
   completeImageUploads(request: CompleteImageUploadsRequest): Observable<CompleteImageUploadsResponse>;
+  ensureCompletedImageUploads(
+    request: EnsureCompletedImageUploadsRequest,
+  ): Observable<EnsureCompletedImageUploadsResponse>;
 }
