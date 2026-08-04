@@ -3,13 +3,52 @@ syntax = "proto3";
 package remarkgram.files.v1;
 
 service FilesService {
-  rpc UploadFile(UploadFileRequest) returns (UploadFileResponse);
+  rpc InitiateImageUploads(InitiateImageUploadsRequest) returns (InitiateImageUploadsResponse);
+  rpc CompleteImageUploads(CompleteImageUploadsRequest) returns (CompleteImageUploadsResponse);
+  rpc EnsureCompletedImageUploads(EnsureCompletedImageUploadsRequest) returns (EnsureCompletedImageUploadsResponse);
 }
 
-message UploadFileRequest {
+service TestingService {
+  rpc DeleteAllData(DeleteAllDataRequest) returns (DeleteAllDataResponse);
+}
+
+message InitiateImageUploadsRequest {
+  string user_id = 1;
+  repeated ImageUploadMetadata images = 2;
+}
+
+message ImageUploadMetadata {
   string original_filename = 1;
+  string content_type = 2;
+  int32 size = 3;
+  string client_file_id = 4;
 }
 
-message UploadFileResponse {
-  string id = 1;
+message InitiateImageUploadsResponse {
+  repeated ImageUploadSession sessions = 1;
 }
+
+message ImageUploadSession {
+  string id = 1;
+  string client_file_id = 2;
+  string url = 3;
+  map<string, string> fields = 4;
+}
+
+message CompleteImageUploadsRequest {
+  string user_id = 1;
+  repeated string upload_ids = 2;
+}
+
+message CompleteImageUploadsResponse {}
+
+message EnsureCompletedImageUploadsRequest {
+  string user_id = 1;
+  repeated string image_ids = 2;
+}
+
+message EnsureCompletedImageUploadsResponse {}
+
+message DeleteAllDataRequest {}
+
+message DeleteAllDataResponse {}

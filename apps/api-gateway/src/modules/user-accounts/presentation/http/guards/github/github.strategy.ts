@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/commo
 import { PassportStrategy } from '@nestjs/passport';
 import { Profile, Strategy } from 'passport-github2';
 import type { ConfigType } from '@nestjs/config';
-import { githubOauthConfig } from '../../../../config/github-oauth.config.ts';
+import { githubOauthConfig } from '../../../../config/github-oauth.config.js';
 import { OAuthProvider, type OAuthIdentityClaims } from '@app/user-accounts-grpc';
 import { validateOAuthEmails } from '../../mappers/oauth-identity-claims.mapper.js';
 

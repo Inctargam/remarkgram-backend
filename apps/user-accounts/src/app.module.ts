@@ -53,8 +53,8 @@ import { UsersService } from './features/users/application/users.service.js';
 import { PrismaUsersRepository } from './features/users/infrastructure/persistence/repositories/prisma-users.repository.js';
 import { UsersGrpcController } from './features/users/presentation/grpc/controllers/users-grpc.controller.js';
 import { RegistrationGrpcController } from './features/users/presentation/grpc/controllers/registration-grpc.controller.js';
-import { AuthIdentitiesRepository } from './features/auth-identities/application/ports/auth-identities-repository.ts';
-import { PrismaAuthIdentitiesRepository } from './features/auth-identities/infrastucture/persistence/prisma-auth-identities.repository.ts';
+import { AuthIdentitiesRepository } from './features/auth-identities/application/ports/auth-identities-repository.js';
+import { PrismaAuthIdentitiesRepository } from './features/auth-identities/infrastucture/persistence/prisma-auth-identities.repository.js';
 import { AuthIdentityService } from './features/auth-identities/application/auth-identity.service.js';
 
 @Module({

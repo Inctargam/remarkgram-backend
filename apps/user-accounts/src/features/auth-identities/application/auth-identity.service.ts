@@ -21,7 +21,7 @@ import {
   AuthenticateOAuthStatus,
   type OAuthEmail,
 } from './types/auth-identities.types.js';
-import { authConfig } from '../../../config/auth.config.ts';
+import { authConfig } from '../../../config/auth.config.js';
 import type { ConfigType } from '@nestjs/config';
 import { normalizeEmail } from '../../users/domain/email-normalization.js';
 

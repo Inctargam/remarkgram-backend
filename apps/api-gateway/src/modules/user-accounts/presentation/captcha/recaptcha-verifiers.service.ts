@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-import { recaptchaSecretConfig } from '../../config/recaptcha-secret.config.ts';
+import { recaptchaSecretConfig } from '../../config/recaptcha-secret.config.js';
 
 type RecaptchaSiteVerifyResponse = {
   success: boolean;

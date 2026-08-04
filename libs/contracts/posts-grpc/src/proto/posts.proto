@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package remarkgram.posts.v1;
+
+service PostsService {
+  rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
+}
+
+service TestingService {
+  rpc DeleteAllData(DeleteAllDataRequest) returns (DeleteAllDataResponse);
+}
+
+message CreatePostRequest {
+  string user_id = 1;
+  optional string description = 2;
+  repeated string image_ids = 3;
+}
+
+message CreatePostResponse {
+  int32 id = 1;
+}
+
+message DeleteAllDataRequest {}
+
+message DeleteAllDataResponse {}

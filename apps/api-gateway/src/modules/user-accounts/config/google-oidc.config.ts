@@ -2,7 +2,7 @@ import { registerAs } from '@nestjs/config';
 import { configValidationUtility } from '@app/config';
 import { plainToInstance } from 'class-transformer';
 import { IsNotEmpty, IsString, IsUrl } from 'class-validator';
-import { Trim } from '../../../common/http/decorators/trim.decorator.ts';
+import { Trim } from '../../../common/http/decorators/trim.decorator.js';
 
 export const GOOGLE_OIDC_ISSUER = 'https://accounts.google.com';
 

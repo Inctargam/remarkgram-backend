@@ -1,24 +1,62 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { IsEnum, IsString } from 'class-validator';
+import { registerAs } from '@nestjs/config';
+import { plainToInstance, Type } from 'class-transformer';
+import { IsDefined, IsEnum, IsNotEmpty, IsString, IsUrl, ValidateNested } from 'class-validator';
 import { configValidationUtility, Environments } from '@app/config';
 
-@Injectable()
-export class FilesConfig {
-  @IsString({ message: 'Set env variable FILES_GRPC_URL, example:localhost:50051 ' })
-  readonly url: string;
-
-  @IsEnum(Environments, {
-    message:
-      'Set correct NODE_ENV value, available values: ' +
-      configValidationUtility.getEnumValues(Environments).join(', '),
+class S3Config {
+  @IsUrl({
+    protocols: ['http', 'https'],
+    require_protocol: true,
+    require_valid_protocol: true,
+    require_tld: false,
   })
-  readonly env: Environments;
+  declare readonly endpoint: string;
 
-  constructor(configService: ConfigService) {
-    this.url = configService.getOrThrow<string>('FILES_GRPC_URL');
-    this.env = configService.get<Environments>('NODE_ENV', Environments.DEVELOPMENT);
+  @IsString()
+  @IsNotEmpty()
+  declare readonly region: string;
 
-    configValidationUtility.validateConfig(this);
-  }
+  @IsString()
+  @IsNotEmpty()
+  declare readonly bucket: string;
+
+  @IsString()
+  @IsNotEmpty()
+  declare readonly accessKeyId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  declare readonly secretAccessKey: string;
 }
+
+class FilesConfig {
+  @IsString({ message: 'Set env variable FILES_GRPC_URL, example: localhost:50051' })
+  @IsNotEmpty()
+  declare readonly url: string;
+
+  @IsEnum(Environments)
+  declare readonly env: Environments;
+
+  @ValidateNested()
+  @Type(() => S3Config)
+  @IsDefined()
+  declare readonly s3: S3Config;
+}
+
+export const filesConfig = registerAs('files', () => {
+  const config = plainToInstance(FilesConfig, {
+    url: process.env.FILES_GRPC_URL?.trim(),
+    env: process.env.NODE_ENV ?? Environments.DEVELOPMENT,
+    s3: {
+      endpoint: process.env.FILES_S3_ENDPOINT?.trim(),
+      region: process.env.FILES_S3_REGION?.trim(),
+      bucket: process.env.FILES_S3_BUCKET?.trim(),
+      accessKeyId: process.env.FILES_S3_ACCESS_KEY_ID?.trim(),
+      secretAccessKey: process.env.FILES_S3_SECRET_ACCESS_KEY?.trim(),
+    },
+  });
+
+  configValidationUtility.validateConfig(config);
+
+  return config;
+});

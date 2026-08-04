@@ -2,26 +2,36 @@ import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-import { Metadata, status } from '@grpc/grpc-js';
+import { Metadata, type ServiceError, status } from '@grpc/grpc-js';
 import {
+  FILES_APP_ERROR_CODE_METADATA_KEY,
   FILES_SERVICE_NAME,
   REMARKGRAM_FILES_V1_PACKAGE_NAME,
+  TESTING_SERVICE_NAME as FILES_TESTING_SERVICE_NAME,
   type FilesServiceClient,
+  type TestingServiceClient as FilesTestingServiceClient,
 } from '@app/files-grpc';
+import {
+  POSTS_SERVICE_NAME,
+  REMARKGRAM_POSTS_V1_PACKAGE_NAME,
+  TESTING_SERVICE_NAME as POSTS_TESTING_SERVICE_NAME,
+  type PostsServiceClient,
+  type TestingServiceClient as PostsTestingServiceClient,
+} from '@app/posts-grpc';
 import {
   AUTH_SERVICE_NAME,
   PASSWORD_RESET_SERVICE_NAME,
   REGISTRATION_SERVICE_NAME,
   REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
   SESSIONS_SERVICE_NAME,
-  TESTING_SERVICE_NAME,
+  TESTING_SERVICE_NAME as USER_ACCOUNTS_TESTING_SERVICE_NAME,
   USERS_SERVICE_NAME,
   USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY,
   type AuthServiceClient,
   type PasswordResetServiceClient,
   type RegistrationServiceClient,
   type SessionsServiceClient,
-  type TestingServiceClient,
+  type TestingServiceClient as UserAccountsTestingServiceClient,
   type UsersServiceClient,
 } from '@app/user-accounts-grpc';
 import { JwtService } from '@nestjs/jwt';
@@ -40,12 +50,17 @@ import { GOOGLE_OIDC_CONFIGURATION } from './../src/modules/user-accounts/config
 
 type SupertestApp = Parameters<typeof request>[0];
 const apiPath = (path: `/${string}`): string => `/${API_PREFIX}${path}`;
+const createServiceError = (code: status, details: string, metadata = new Metadata()): ServiceError =>
+  Object.assign(new Error(details), { code, details, metadata });
 
 describe('ApiGateway (e2e)', () => {
   const testingEndpointKey = 'testing-key-with-at-least-32-characters';
   let app: INestApplication;
   const filesServiceClient = {
-    uploadFile: vi.fn<FilesServiceClient['uploadFile']>(),
+    initiateImageUploads: vi.fn<FilesServiceClient['initiateImageUploads']>(),
+  };
+  const postsServiceClient = {
+    createPost: vi.fn<PostsServiceClient['createPost']>(),
   };
   const usersServiceClient = {
     getUsers: vi.fn<UsersServiceClient['getUsers']>(),
@@ -65,8 +80,14 @@ describe('ApiGateway (e2e)', () => {
     revokeSession: vi.fn<SessionsServiceClient['revokeSession']>(),
     revokeOtherSessions: vi.fn<SessionsServiceClient['revokeOtherSessions']>(),
   };
-  const testingServiceClient = {
-    deleteAllData: vi.fn<TestingServiceClient['deleteAllData']>(),
+  const filesTestingServiceClient = {
+    deleteAllData: vi.fn<FilesTestingServiceClient['deleteAllData']>(),
+  };
+  const postsTestingServiceClient = {
+    deleteAllData: vi.fn<PostsTestingServiceClient['deleteAllData']>(),
+  };
+  const userAccountsTestingServiceClient = {
+    deleteAllData: vi.fn<UserAccountsTestingServiceClient['deleteAllData']>(),
   };
   const passwordResetServiceClient = {
     requestPasswordReset: vi.fn<PasswordResetServiceClient['requestPasswordReset']>(),
@@ -76,7 +97,28 @@ describe('ApiGateway (e2e)', () => {
     verify: vi.fn<RecaptchaVerifiersService['verify']>(),
   };
   const filesGrpcClient = {
-    getService: vi.fn(() => filesServiceClient),
+    getService: vi.fn((serviceName: string) => {
+      switch (serviceName) {
+        case FILES_SERVICE_NAME:
+          return filesServiceClient;
+        case FILES_TESTING_SERVICE_NAME:
+          return filesTestingServiceClient;
+        default:
+          throw new Error(`Unknown files gRPC service: ${serviceName}`);
+      }
+    }),
+  };
+  const postsGrpcClient = {
+    getService: vi.fn((serviceName: string) => {
+      switch (serviceName) {
+        case POSTS_SERVICE_NAME:
+          return postsServiceClient;
+        case POSTS_TESTING_SERVICE_NAME:
+          return postsTestingServiceClient;
+        default:
+          throw new Error(`Unknown posts gRPC service: ${serviceName}`);
+      }
+    }),
   };
   const userAccountsGrpcClient = {
     getService: vi.fn((serviceName: string) => {
@@ -89,8 +131,8 @@ describe('ApiGateway (e2e)', () => {
           return registrationServiceClient;
         case SESSIONS_SERVICE_NAME:
           return sessionsServiceClient;
-        case TESTING_SERVICE_NAME:
-          return testingServiceClient;
+        case USER_ACCOUNTS_TESTING_SERVICE_NAME:
+          return userAccountsTestingServiceClient;
         case PASSWORD_RESET_SERVICE_NAME:
           return passwordResetServiceClient;
         default:
@@ -110,6 +152,7 @@ describe('ApiGateway (e2e)', () => {
     vi.stubEnv('GATEWAY_PORT', '0');
     vi.stubEnv('CORS_ALLOWED_ORIGINS', 'https://dev.remark-gram.com,https://dev.remark-gram.com:3000');
     vi.stubEnv('FILES_GRPC_URL', 'localhost:50051');
+    vi.stubEnv('POSTS_GRPC_URL', 'localhost:50053');
     vi.stubEnv('USER_ACCOUNTS_GRPC_URL', 'localhost:50052');
     vi.stubEnv('JWT_PUBLIC_KEY', 'public-key');
     vi.stubEnv('REFRESH_TOKEN_COOKIE_MAX_AGE_MS', '1200000');
@@ -124,7 +167,19 @@ describe('ApiGateway (e2e)', () => {
     vi.stubEnv('GITHUB_CALLBACK_URL', 'https://api.example.com/api/v1/auth/github/callback');
     vi.stubEnv('GITHUB_API_VERSION', '2026-03-10');
     vi.stubEnv('GITHUB_USER_AGENT', 'remark-gram-tests');
-    filesServiceClient.uploadFile.mockReturnValue(of({ id: 'file-id' }));
+    filesServiceClient.initiateImageUploads.mockReturnValue(
+      of({
+        sessions: [
+          {
+            id: 'image-upload-id',
+            clientFileId: '11111111-1111-4111-8111-111111111111',
+            url: 'https://storage.example.com',
+            fields: { key: 'object-key' },
+          },
+        ],
+      }),
+    );
+    postsServiceClient.createPost.mockReturnValue(of({ id: 10 }));
     jwtService.verifyAsync.mockResolvedValue({
       sub: refreshTokenClaims.userId,
       sessionId: refreshTokenClaims.sessionId,
@@ -166,7 +221,9 @@ describe('ApiGateway (e2e)', () => {
     sessionsServiceClient.logoutCurrentSession.mockReturnValue(of({}));
     sessionsServiceClient.revokeSession.mockReturnValue(of({}));
     sessionsServiceClient.revokeOtherSessions.mockReturnValue(of({}));
-    testingServiceClient.deleteAllData.mockReturnValue(of({}));
+    filesTestingServiceClient.deleteAllData.mockReturnValue(of({}));
+    postsTestingServiceClient.deleteAllData.mockReturnValue(of({}));
+    userAccountsTestingServiceClient.deleteAllData.mockReturnValue(of({}));
     passwordResetServiceClient.requestPasswordReset.mockReturnValue(of({ accepted: true }));
     passwordResetServiceClient.confirmPasswordReset.mockReturnValue(of({}));
     recaptchaVerifiersService.verify.mockResolvedValue({
@@ -179,6 +236,8 @@ describe('ApiGateway (e2e)', () => {
     })
       .overrideProvider(REMARKGRAM_FILES_V1_PACKAGE_NAME)
       .useValue(filesGrpcClient)
+      .overrideProvider(REMARKGRAM_POSTS_V1_PACKAGE_NAME)
+      .useValue(postsGrpcClient)
       .overrideProvider(REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME)
       .useValue(userAccountsGrpcClient)
       .overrideProvider(JwtService)
@@ -234,6 +293,8 @@ describe('ApiGateway (e2e)', () => {
       '/auth/github/callback',
       '/auth/password-reset/request',
       '/auth/password-reset/confirm',
+      '/files/image-uploads',
+      '/posts',
       '/security/sessions',
       '/security/sessions/{sessionId}',
       '/testing/all-data',
@@ -302,25 +363,142 @@ describe('ApiGateway (e2e)', () => {
     );
   });
 
-  it('DELETE /testing/all-data clears user-accounts data', async () => {
+  it('DELETE /testing/all-data clears all microservice databases', async () => {
     await request(app.getHttpServer() as SupertestApp)
       .delete(apiPath('/testing/all-data'))
       .set('X-Testing-Key', testingEndpointKey)
       .expect(204);
 
-    expect(testingServiceClient.deleteAllData).toHaveBeenCalledWith({});
+    expect(filesTestingServiceClient.deleteAllData).toHaveBeenCalledWith({});
+    expect(postsTestingServiceClient.deleteAllData).toHaveBeenCalledWith({});
+    expect(userAccountsTestingServiceClient.deleteAllData).toHaveBeenCalledWith({});
   });
 
-  it('POST /files', async () => {
-    await request(app.getHttpServer() as SupertestApp)
-      .post(apiPath('/files'))
-      .expect(201)
-      .expect({ id: 'file-id' });
+  it('POST /files/image-uploads initiates authenticated image uploads', async () => {
+    const images = [
+      {
+        clientFileId: '11111111-1111-4111-8111-111111111111',
+        originalFilename: 'photo.jpg',
+        contentType: 'image/jpeg',
+        size: 1_048_576,
+      },
+    ];
 
-    expect(filesServiceClient.uploadFile).toHaveBeenCalledWith({
-      originalFilename: 'supper-name-files.png',
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/files/image-uploads'))
+      .set('Authorization', 'Bearer access-token')
+      .send({ images })
+      .expect(201)
+      .expect({
+        sessions: [
+          {
+            id: 'image-upload-id',
+            clientFileId: '11111111-1111-4111-8111-111111111111',
+            url: 'https://storage.example.com',
+            fields: { key: 'object-key' },
+          },
+        ],
+      });
+
+    expect(filesServiceClient.initiateImageUploads).toHaveBeenCalledWith({
+      userId: refreshTokenClaims.userId,
+      images,
     });
     expect(filesGrpcClient.getService).toHaveBeenCalledWith(FILES_SERVICE_NAME);
+  });
+
+  it('POST /files/image-uploads rejects unsupported image metadata', async () => {
+    const metadata = new Metadata();
+    metadata.set(FILES_APP_ERROR_CODE_METADATA_KEY, 'UNSUPPORTED_IMAGE_CONTENT_TYPE');
+    filesServiceClient.initiateImageUploads.mockReturnValueOnce(
+      throwError(() =>
+        createServiceError(status.INVALID_ARGUMENT, 'Unsupported image content type: image/webp', metadata),
+      ),
+    );
+    const images = [
+      {
+        clientFileId: '11111111-1111-4111-8111-111111111111',
+        originalFilename: 'photo.webp',
+        contentType: 'image/webp',
+        size: 1_024,
+      },
+    ];
+
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/files/image-uploads'))
+      .set('Authorization', 'Bearer access-token')
+      .send({ images })
+      .expect(400)
+      .expect({
+        statusCode: 400,
+        code: 'UNSUPPORTED_IMAGE_CONTENT_TYPE',
+        message: 'Unsupported image content type: image/webp',
+      });
+
+    expect(filesServiceClient.initiateImageUploads).toHaveBeenCalledWith({
+      userId: refreshTokenClaims.userId,
+      images,
+    });
+  });
+
+  it('POST /files/image-uploads requires an authenticated user', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/files/image-uploads'))
+      .send({
+        images: [
+          {
+            clientFileId: '11111111-1111-4111-8111-111111111111',
+            originalFilename: 'photo.jpg',
+            contentType: 'image/jpeg',
+            size: 1_024,
+          },
+        ],
+      })
+      .expect(401);
+
+    expect(filesServiceClient.initiateImageUploads).not.toHaveBeenCalled();
+  });
+
+  it('POST /posts creates a post for the authenticated user', async () => {
+    const input = {
+      description: 'A new post',
+      imageIds: ['11111111-1111-4111-8111-111111111111'],
+    };
+
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/posts'))
+      .set('Authorization', 'Bearer access-token')
+      .send(input)
+      .expect(201)
+      .expect({ id: 10 });
+
+    expect(postsServiceClient.createPost).toHaveBeenCalledWith({
+      userId: refreshTokenClaims.userId,
+      ...input,
+    });
+    expect(postsGrpcClient.getService).toHaveBeenCalledWith(POSTS_SERVICE_NAME);
+  });
+
+  it('POST /posts rejects a null description before calling posts', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/posts'))
+      .set('Authorization', 'Bearer access-token')
+      .send({
+        description: null,
+        imageIds: ['11111111-1111-4111-8111-111111111111'],
+      })
+      .expect(400);
+
+    expect(postsServiceClient.createPost).not.toHaveBeenCalled();
+  });
+
+  it('POST /posts requires an authenticated user', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/posts'))
+      .send({ imageIds: ['11111111-1111-4111-8111-111111111111'] })
+      .expect(401);
+
+    expect(postsServiceClient.createPost).not.toHaveBeenCalled();
   });
 
   it('GET /users delegates to user-accounts over gRPC', async () => {
@@ -334,10 +512,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('maps user-accounts gRPC errors to HTTP errors', async () => {
     usersServiceClient.getUsers.mockReturnValueOnce(
-      throwError(() => ({
-        code: status.UNAUTHENTICATED,
-        details: 'Authentication failed',
-      })),
+      throwError(() => createServiceError(status.UNAUTHENTICATED, 'Authentication failed')),
     );
 
     const response = await request(app.getHttpServer() as SupertestApp)
@@ -353,11 +528,9 @@ describe('ApiGateway (e2e)', () => {
     const metadata = new Metadata();
     metadata.set(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED');
     usersServiceClient.getUsers.mockReturnValueOnce(
-      throwError(() => ({
-        code: status.FAILED_PRECONDITION,
-        details: 'Email has not been confirmed',
-        metadata,
-      })),
+      throwError(() =>
+        createServiceError(status.FAILED_PRECONDITION, 'Email has not been confirmed', metadata),
+      ),
     );
 
     await request(app.getHttpServer() as SupertestApp)

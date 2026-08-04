@@ -35,8 +35,4 @@ export const configValidationUtility = {
 
     return numberValue;
   },
-
-  getEnumValues<T extends Record<string, string>>(enumObject: T): string[] {
-    return Object.values(enumObject);
-  },
 };

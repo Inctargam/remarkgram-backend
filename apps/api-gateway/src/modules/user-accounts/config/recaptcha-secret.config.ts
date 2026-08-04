@@ -2,7 +2,7 @@ import { registerAs } from '@nestjs/config';
 import { plainToInstance } from 'class-transformer';
 import { IsNotEmpty, IsString } from 'class-validator';
 import { configValidationUtility } from '@app/config';
-import { Trim } from '../../../common/http/decorators/trim.decorator.ts';
+import { Trim } from '../../../common/http/decorators/trim.decorator.js';
 
 class RecaptchaSecretConfig {
   @IsString()

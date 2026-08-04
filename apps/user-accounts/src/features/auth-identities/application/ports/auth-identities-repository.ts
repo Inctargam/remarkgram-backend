@@ -2,8 +2,8 @@ import type { AuthIdentity, AuthIdentityProvider } from '../../domain/auth-ident
 import type {
   AuthIdentityCreateRepositoryParams,
   UpdateAuthIdentityProviderProfileParams,
-} from '../types/auth-identities.types.ts';
-import type { TransactionContext } from '../../../../common/application/unit-of-work.ts';
+} from '../types/auth-identities.types.js';
+import type { TransactionContext } from '../../../../common/application/unit-of-work.js';
 
 export abstract class AuthIdentitiesRepository {
   abstract createIfAbsent(
