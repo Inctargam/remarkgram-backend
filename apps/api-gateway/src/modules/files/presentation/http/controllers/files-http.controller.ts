@@ -6,25 +6,17 @@ import {
   type FilesServiceClient,
 } from '@app/files-grpc';
 import type { ClientGrpc } from '@nestjs/microservices';
-import {
-  ApiBadGatewayResponse,
-  ApiBearerAuth,
-  ApiCreatedResponse,
-  ApiNoContentResponse,
-  ApiOperation,
-  ApiServiceUnavailableResponse,
-  ApiTags,
-} from '@nestjs/swagger';
 import type { Request } from 'express';
 import { firstValueFrom, type Observable } from 'rxjs';
 import { CompleteImageUploadsDto } from '../dto/input/complete-image-uploads.dto.js';
 import { InitiateImageUploadsDto } from '../dto/input/initiate-image-uploads.dto.js';
-import { InitiateImageUploadsResponseDto } from '../dto/output/initiate-image-uploads-response.dto.js';
+import { ApiFilesController } from '../swagger/files-controller.swagger.js';
+import { ApiCompleteImageUploads } from '../swagger/post/complete-image-uploads.swagger.js';
+import { ApiInitiateImageUploads } from '../swagger/post/initiate-image-uploads.swagger.js';
 
 type AuthenticatedRequest = Request & { userId: string };
 
-@ApiTags('Files')
-@ApiBearerAuth('accessToken')
+@ApiFilesController()
 @Controller('files')
 export class FilesHttpController implements OnModuleInit {
   private filesClient!: FilesServiceClient;
@@ -40,10 +32,7 @@ export class FilesHttpController implements OnModuleInit {
 
   @Post('image-uploads')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Initiate image uploads' })
-  @ApiCreatedResponse({ type: InitiateImageUploadsResponseDto })
-  @ApiBadGatewayResponse({ description: 'The upstream service returned an unexpected error.' })
-  @ApiServiceUnavailableResponse({ description: 'The files service is unavailable.' })
+  @ApiInitiateImageUploads()
   initiateImageUploads(
     @Body() input: InitiateImageUploadsDto,
     @Req() request: AuthenticatedRequest,
@@ -57,10 +46,7 @@ export class FilesHttpController implements OnModuleInit {
 
   @Post('image-uploads/complete')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Complete image uploads' })
-  @ApiNoContentResponse({ description: 'The image uploads were completed.' })
-  @ApiBadGatewayResponse({ description: 'The upstream service returned an unexpected error.' })
-  @ApiServiceUnavailableResponse({ description: 'The files service is unavailable.' })
+  @ApiCompleteImageUploads()
   async completeImageUploads(
     @Body() input: CompleteImageUploadsDto,
     @Req() request: AuthenticatedRequest,

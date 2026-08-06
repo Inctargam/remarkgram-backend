@@ -6,23 +6,15 @@ import {
 } from '@app/posts-grpc';
 import { Body, Controller, HttpCode, HttpStatus, Inject, type OnModuleInit, Post, Req } from '@nestjs/common';
 import type { ClientGrpc } from '@nestjs/microservices';
-import {
-  ApiBadGatewayResponse,
-  ApiBearerAuth,
-  ApiCreatedResponse,
-  ApiOperation,
-  ApiServiceUnavailableResponse,
-  ApiTags,
-} from '@nestjs/swagger';
 import type { Request } from 'express';
 import type { Observable } from 'rxjs';
 import { CreatePostDto } from '../dto/input/create-post.dto.js';
-import { CreatePostResponseDto } from '../dto/output/create-post-response.dto.js';
+import { ApiCreatePost } from '../swagger/post/create-post.swagger.js';
+import { ApiPostsController } from '../swagger/posts-controller.swagger.js';
 
 type AuthenticatedRequest = Request & { userId: string };
 
-@ApiTags('Posts')
-@ApiBearerAuth('accessToken')
+@ApiPostsController()
 @Controller('posts')
 export class PostsHttpController implements OnModuleInit {
   private postsClient!: PostsServiceClient;
@@ -38,10 +30,7 @@ export class PostsHttpController implements OnModuleInit {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a post with uploaded images' })
-  @ApiCreatedResponse({ type: CreatePostResponseDto })
-  @ApiBadGatewayResponse({ description: 'The upstream service returned an unexpected error.' })
-  @ApiServiceUnavailableResponse({ description: 'The posts or files service is unavailable.' })
+  @ApiCreatePost()
   createPost(
     @Body() input: CreatePostDto,
     @Req() request: AuthenticatedRequest,
