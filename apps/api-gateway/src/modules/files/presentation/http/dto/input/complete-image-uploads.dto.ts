@@ -4,7 +4,10 @@ import { IsArray, IsUUID } from 'class-validator';
 
 export class CompleteImageUploadsDto {
   @ApiProperty({
-    type: [String],
+    description:
+      'Session IDs returned by image-uploads for objects that Object Storage has accepted successfully.',
+    type: 'array',
+    items: { type: 'string', format: 'uuid' },
     example: ['83d26252-a350-4e39-a78e-0bdf54d2341d'],
     minItems: MIN_IMAGES_PER_UPLOAD_REQUEST,
     maxItems: MAX_IMAGES_PER_UPLOAD_REQUEST,

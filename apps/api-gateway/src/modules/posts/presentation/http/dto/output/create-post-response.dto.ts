@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreatePostResponseDto {
-  @ApiProperty({ example: 10 })
+  @ApiProperty({ description: 'Identifier of the newly created post.', example: 10 })
   declare readonly id: number;
 }

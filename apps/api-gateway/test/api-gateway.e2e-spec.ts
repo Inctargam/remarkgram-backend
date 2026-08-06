@@ -58,6 +58,7 @@ describe('ApiGateway (e2e)', () => {
   let app: INestApplication;
   const filesServiceClient = {
     initiateImageUploads: vi.fn<FilesServiceClient['initiateImageUploads']>(),
+    completeImageUploads: vi.fn<FilesServiceClient['completeImageUploads']>(),
   };
   const postsServiceClient = {
     createPost: vi.fn<PostsServiceClient['createPost']>(),
@@ -179,6 +180,7 @@ describe('ApiGateway (e2e)', () => {
         ],
       }),
     );
+    filesServiceClient.completeImageUploads.mockReturnValue(of({}));
     postsServiceClient.createPost.mockReturnValue(of({ id: 10 }));
     jwtService.verifyAsync.mockResolvedValue({
       sub: refreshTokenClaims.userId,
@@ -278,6 +280,7 @@ describe('ApiGateway (e2e)', () => {
     const document = response.body as {
       paths: Record<string, unknown>;
       components: { schemas: Record<string, { properties?: Record<string, unknown> }> };
+      tags?: { name: string; description?: string }[];
     };
 
     const documentedPaths = [
@@ -294,6 +297,7 @@ describe('ApiGateway (e2e)', () => {
       '/auth/password-reset/request',
       '/auth/password-reset/confirm',
       '/files/image-uploads',
+      '/files/image-uploads/complete',
       '/posts',
       '/security/sessions',
       '/security/sessions/{sessionId}',
@@ -321,6 +325,7 @@ describe('ApiGateway (e2e)', () => {
     };
     type OpenApiOperation = {
       summary?: string;
+      description?: string;
       parameters?: { name: string; in: string }[];
       responses: Record<string, OpenApiResponse>;
     };
@@ -337,6 +342,13 @@ describe('ApiGateway (e2e)', () => {
     const googleAuthCallback = document.paths[apiPath('/auth/google/callback')] as {
       get: OpenApiOperation;
     };
+    const initiateImageUploads = document.paths[apiPath('/files/image-uploads')] as {
+      post: OpenApiOperation;
+    };
+    const completeImageUploads = document.paths[apiPath('/files/image-uploads/complete')] as {
+      post: OpenApiOperation;
+    };
+    const createPost = document.paths[apiPath('/posts')] as { post: OpenApiOperation };
 
     expect(googleAuth.get.summary).toBe('Start Google OIDC authentication');
     expect(googleAuth.get.responses['302']?.headers).toHaveProperty('Location');
@@ -361,6 +373,46 @@ describe('ApiGateway (e2e)', () => {
     expect(document.components.schemas.ApiErrorResponseDto?.properties?.statusCode).not.toHaveProperty(
       'example',
     );
+    expect(document.tags).toContainEqual({
+      name: 'Posts',
+      description: 'Post creation with completed image uploads.',
+    });
+    expect(initiateImageUploads.post.summary).toBe('Create image upload sessions');
+    expect(initiateImageUploads.post.description).toContain('presigned POST');
+    expect(Object.keys(initiateImageUploads.post.responses)).toEqual(
+      expect.arrayContaining(['201', '400', '401', '502', '503']),
+    );
+    expect(
+      initiateImageUploads.post.responses['400'].content?.['application/json']?.examples
+        ?.unsupportedContentType?.value,
+    ).toEqual({
+      statusCode: 400,
+      code: 'UNSUPPORTED_IMAGE_CONTENT_TYPE',
+      message: 'Unsupported image content type: image/webp',
+    });
+    expect(completeImageUploads.post.summary).toBe('Confirm direct image uploads');
+    expect(Object.keys(completeImageUploads.post.responses)).toEqual(
+      expect.arrayContaining(['204', '400', '401', '404', '409', '502', '503']),
+    );
+    expect(createPost.post.summary).toBe('Create a post with completed image uploads');
+    expect(Object.keys(createPost.post.responses)).toEqual(
+      expect.arrayContaining(['201', '400', '401', '404', '409', '502', '503']),
+    );
+    expect(
+      createPost.post.responses['409'].content?.['application/json']?.examples?.imageAlreadyAttached?.value,
+    ).toEqual({
+      statusCode: 409,
+      code: 'POST_IMAGE_ALREADY_ATTACHED',
+      message: 'One or more images are already attached to a post',
+    });
+    expect(
+      createPost.post.responses['503'].content?.['application/json']?.examples?.imageUploadsServiceUnavailable
+        ?.value,
+    ).toEqual({
+      statusCode: 503,
+      code: 'IMAGE_UPLOADS_SERVICE_UNAVAILABLE',
+      message: 'The image uploads service is unavailable',
+    });
   });
 
   it('DELETE /testing/all-data clears all microservice databases', async () => {
