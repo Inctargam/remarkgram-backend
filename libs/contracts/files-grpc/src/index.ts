@@ -2,6 +2,11 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 export * from './generated/files.js';
+export * from './files-error-code.js';
+export * from './image-upload-policy.js';
+
+/** Metadata key used to carry a stable application error code through gRPC. */
+export const FILES_APP_ERROR_CODE_METADATA_KEY = 'files-error-code';
 
 // В production/build-сценарии Nest CLI копирует files.proto рядом со скомпилированной
 // contract library внутри dist. Этот путь должен совпадать с настройкой assets в nest-cli.json.

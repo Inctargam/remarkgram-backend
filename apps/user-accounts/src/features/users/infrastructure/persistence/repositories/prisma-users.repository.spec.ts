@@ -6,7 +6,6 @@ import {
 } from '../../../application/errors/users.errors.js';
 import type { CreateUserRepositoryParams } from '../../../application/types/users.types.js';
 import { ConfirmationInfo } from '../../../domain/value-objects/confirmation-info.js';
-import { PasswordRecoveryInfo } from '../../../domain/value-objects/password-recovery-info.js';
 import { PrismaUsersRepository } from './prisma-users.repository.js';
 
 describe('PrismaUsersRepository', () => {
@@ -21,7 +20,6 @@ describe('PrismaUsersRepository', () => {
     hash: 'password-hash',
     createdAt: new Date('2026-07-06T12:00:00.000Z'),
     confirmation: ConfirmationInfo.pending('confirmation-code', new Date('2026-07-06T13:00:00.000Z')),
-    passwordRecovery: PasswordRecoveryInfo.inactive(),
   };
 
   beforeEach(() => {
@@ -47,6 +45,36 @@ describe('PrismaUsersRepository', () => {
       },
       data: { deletedAt: now },
     });
+  });
+
+  it('soft-deletes an expired password registration by email inside the provided transaction', async () => {
+    const now = new Date('2026-07-06T12:00:00.000Z');
+    const transactionUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const transactionContext = {
+      user: {
+        updateMany: transactionUpdateMany,
+      },
+    };
+
+    await repository.releaseExpiredRegistrationByEmail(
+      {
+        email: 'user@example.com',
+        now,
+      },
+      transactionContext,
+    );
+
+    expect(transactionUpdateMany).toHaveBeenCalledWith({
+      where: {
+        email: 'user@example.com',
+        deletedAt: null,
+        isConfirmed: false,
+        confirmationExpiration: { lte: now },
+        providers: { none: {} },
+      },
+      data: { deletedAt: now },
+    });
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it('clears confirmation code and expiration when confirming a user', async () => {

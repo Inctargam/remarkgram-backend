@@ -1,4 +1,7 @@
-import { UserAccountsError, UserAccountsErrorCode } from '../../../../common/errors/user-accounts.error.js';
+import {
+  UserAccountsError,
+  UserAccountsErrorCode,
+} from '../../../../common/application/errors/user-accounts.error.js';
 
 export class IncorrectCredentialsError extends UserAccountsError {
   readonly code = UserAccountsErrorCode.INCORRECT_CREDENTIALS;
@@ -29,5 +32,12 @@ export class EmailNotConfirmedError extends UserAccountsError {
 
   constructor() {
     super('Email has not been confirmed');
+  }
+}
+
+export class OAuthSessionCreationFailedError extends UserAccountsError {
+  readonly code = UserAccountsErrorCode.OAUTH_SESSION_CREATION_FAILED;
+  constructor() {
+    super('OAuth session could not be created');
   }
 }

@@ -27,7 +27,7 @@ export class PrismaPasswordResetTokensRepository extends PasswordResetTokensRepo
     const passwordResetToken = await client.passwordResetToken.create({
       data: {
         tokenHash: params.tokenHash,
-        userId: params.userId,
+        userId: Number(params.userId),
         expiresAt: params.expiresAt,
         createdAt: params.createdAt,
       },

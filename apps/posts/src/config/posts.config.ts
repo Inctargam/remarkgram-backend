@@ -1,30 +1,24 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { IsEnum, IsInt, IsString, Max, Min } from 'class-validator';
-import { configValidationUtility, Environments } from '@app/config';
+import { Environments, configValidationUtility } from '@app/config';
+import { registerAs } from '@nestjs/config';
+import { plainToInstance } from 'class-transformer';
+import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
 
-@Injectable()
-export class PostsConfig {
-  @IsInt({ message: 'Set env variable POSTS_PORT, example: 3000' })
-  @Min(0)
-  @Max(65535)
-  readonly port: number;
+class PostsConfig {
+  @IsString({ message: 'Set env variable POSTS_GRPC_URL, example: localhost:50053' })
+  @IsNotEmpty()
+  declare readonly url: string;
 
-  @IsString({ message: 'Set env variable POSTS_DATABASE_URL' })
-  readonly databaseUrl: string;
-
-  @IsEnum(Environments, {
-    message:
-      'Set correct NODE_ENV value, available values: ' +
-      configValidationUtility.getEnumValues(Environments).join(', '),
-  })
-  readonly env: Environments;
-
-  constructor(configService: ConfigService) {
-    this.port = configValidationUtility.convertToNumber(configService.getOrThrow<string>('POSTS_PORT'));
-    this.databaseUrl = configService.getOrThrow<string>('POSTS_DATABASE_URL');
-    this.env = configService.get<Environments>('NODE_ENV', Environments.DEVELOPMENT);
-
-    configValidationUtility.validateConfig(this);
-  }
+  @IsEnum(Environments)
+  declare readonly env: Environments;
 }
+
+export const postsConfig = registerAs('posts', () => {
+  const config = plainToInstance(PostsConfig, {
+    url: process.env.POSTS_GRPC_URL?.trim(),
+    env: process.env.NODE_ENV ?? Environments.DEVELOPMENT,
+  });
+
+  configValidationUtility.validateConfig(config);
+
+  return config;
+});

@@ -8,11 +8,16 @@ import {
 import { UsersRepository } from '../../../application/ports/users.repository.js';
 import type {
   CreateUserRepositoryParams,
+  CreateOAuthRepositoryParams,
   ReleaseExpiredRegistrationCredentialsParams,
+  ReleaseExpiredRegistrationByEmailParams,
   UpdateConfirmationCodeParams,
 } from '../../../application/types/users.types.js';
 import { User } from '../../../domain/entities/user.entity.js';
 import { UserPrismaMapper } from '../mappers/user-prisma.mapper.js';
+import type { TransactionContext } from '../../../../../common/application/unit-of-work.js';
+
+type PrismaClient = PrismaService | Prisma.TransactionClient;
 
 type UniqueConstraintMeta = {
   driverAdapterError?: {
@@ -28,6 +33,54 @@ type UniqueConstraintMeta = {
 export class PrismaUsersRepository implements UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  private getClient(ctx?: TransactionContext): PrismaClient {
+    return (ctx as Prisma.TransactionClient | undefined) ?? this.prisma;
+  }
+
+  async findById(id: number, ctx?: TransactionContext): Promise<User | null> {
+    const user = await this.getClient(ctx).user.findFirst({
+      where: { id, deletedAt: null },
+    });
+
+    return user ? UserPrismaMapper.toDomain(user) : null;
+  }
+
+  async createOAuth(params: CreateOAuthRepositoryParams, ctx?: TransactionContext): Promise<User> {
+    const client = this.getClient(ctx);
+    const rows = await client.$queryRaw<Array<{ username: string }>>`
+      SELECT 'client' || nextval('"oauth_client_username_seq"')::text AS "username"
+    `;
+    const generatedUsername = rows[0]?.username;
+    if (!generatedUsername) throw new Error('Failed to generate OAuth username');
+
+    const user = await client.user.create({
+      data: {
+        username: generatedUsername,
+        email: params.email,
+        hash: null,
+        createdAt: params.createdAt,
+        isConfirmed: params.confirmation.isConfirmed,
+        confirmationCode: params.confirmation.code,
+        confirmationExpiration: params.confirmation.expiration,
+      },
+    });
+
+    return UserPrismaMapper.toDomain(user);
+  }
+
+  async confirmForOAuth(userId: number, ctx?: TransactionContext): Promise<User | null> {
+    const user = await this.getClient(ctx).user.update({
+      where: { id: userId, deletedAt: null },
+      data: {
+        isConfirmed: true,
+        confirmationCode: null,
+        confirmationExpiration: null,
+      },
+    });
+
+    return UserPrismaMapper.toDomain(user);
+  }
+
   async findMany(): Promise<User[]> {
     const users = await this.prisma.user.findMany({
       where: { deletedAt: null },
@@ -39,8 +92,8 @@ export class PrismaUsersRepository implements UsersRepository {
     return users.map((user) => UserPrismaMapper.toDomain(user));
   }
 
-  async findByEmail(email: string): Promise<User | null> {
-    const user = await this.prisma.user.findFirst({
+  async findByEmail(email: string, ctx?: TransactionContext): Promise<User | null> {
+    const user = await this.getClient(ctx).user.findFirst({
       where: { email, deletedAt: null },
     });
 
@@ -66,7 +119,7 @@ export class PrismaUsersRepository implements UsersRepository {
   }
 
   async create(params: CreateUserRepositoryParams): Promise<User> {
-    const { username, email, hash, createdAt, confirmation, passwordRecovery } = params;
+    const { username, email, hash, createdAt, confirmation } = params;
 
     try {
       const user = await this.prisma.user.create({
@@ -78,8 +131,6 @@ export class PrismaUsersRepository implements UsersRepository {
           isConfirmed: confirmation.isConfirmed,
           confirmationCode: confirmation.code,
           confirmationExpiration: confirmation.expiration,
-          passwordRecoveryCode: passwordRecovery.code,
-          passwordRecoveryExpiration: passwordRecovery.expiration,
         },
       });
 
@@ -118,6 +169,24 @@ export class PrismaUsersRepository implements UsersRepository {
         isConfirmed: false,
         confirmationExpiration: { lte: params.now },
         OR: [{ username: params.username }, { email: params.email }],
+      },
+      data: { deletedAt: params.now },
+    });
+  }
+
+  async releaseExpiredRegistrationByEmail(
+    params: ReleaseExpiredRegistrationByEmailParams,
+    ctx?: TransactionContext,
+  ): Promise<void> {
+    await this.getClient(ctx).user.updateMany({
+      where: {
+        email: params.email,
+        deletedAt: null,
+        isConfirmed: false,
+        confirmationExpiration: { lte: params.now },
+        // Регистрация с уже привязанным провайдером больше не является временной
+        // заготовкой и не должна удаляться как просроченная password-регистрация.
+        providers: { none: {} },
       },
       data: { deletedAt: params.now },
     });

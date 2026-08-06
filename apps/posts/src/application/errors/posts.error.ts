@@ -1,0 +1,19 @@
+export enum PostsErrorCode {
+  INVALID_USER_ID = 'INVALID_USER_ID',
+  INVALID_POST_DESCRIPTION = 'INVALID_POST_DESCRIPTION',
+  INVALID_POST_IMAGE_COUNT = 'INVALID_POST_IMAGE_COUNT',
+  DUPLICATE_POST_IMAGE_ID = 'DUPLICATE_POST_IMAGE_ID',
+  POST_IMAGE_NOT_FOUND = 'POST_IMAGE_NOT_FOUND',
+  POST_IMAGE_NOT_COMPLETED = 'POST_IMAGE_NOT_COMPLETED',
+  POST_IMAGE_ALREADY_ATTACHED = 'POST_IMAGE_ALREADY_ATTACHED',
+  IMAGE_UPLOADS_SERVICE_UNAVAILABLE = 'IMAGE_UPLOADS_SERVICE_UNAVAILABLE',
+}
+
+export abstract class PostsError extends Error {
+  abstract readonly code: PostsErrorCode;
+
+  protected constructor(message: string) {
+    super(message);
+    this.name = new.target.name;
+  }
+}

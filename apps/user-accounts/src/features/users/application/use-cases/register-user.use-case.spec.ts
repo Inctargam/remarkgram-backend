@@ -3,7 +3,6 @@ import type { ConfigType } from '@nestjs/config';
 import type { authConfig } from '../../../../config/auth.config.js';
 import { RegistrationConfirmationEmailEvent } from '../../../notifications/use-cases/registration-confirmation-email.event-use-case.js';
 import { createTestUser } from '../../../../../test/factories/user.factory.js';
-import { PasswordRecoveryInfo } from '../../domain/value-objects/password-recovery-info.js';
 import type { UsersRepository } from '../ports/users.repository.js';
 import type { UsersService } from '../users.service.js';
 import { RegisterUserCommand, RegisterUserUseCase } from './register-user.use-case.js';
@@ -64,7 +63,6 @@ describe('RegisterUserUseCase', () => {
         code: createParams.confirmation?.code,
         expiration: new Date('2026-07-02T12:00:00.000Z'),
       },
-      passwordRecovery: PasswordRecoveryInfo.inactive(),
     });
     expect(eventBus.publish).toHaveBeenCalledWith(
       new RegistrationConfirmationEmailEvent('user@example.com', createParams.confirmation?.code ?? ''),

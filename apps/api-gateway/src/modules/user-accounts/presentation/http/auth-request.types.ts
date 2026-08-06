@@ -1,5 +1,5 @@
 import type { Request } from 'express';
-import type { VerifiedRefreshTokenClaims } from '@app/user-accounts-grpc';
+import type { OAuthIdentityClaims, VerifiedRefreshTokenClaims } from '@app/user-accounts-grpc';
 
 type RequestWithRefreshTokenCookie = Omit<Request, 'cookies'> & {
   cookies: {
@@ -15,6 +15,7 @@ export type RequestWithRefreshSession = RequestWithRefreshTokenCookie & {
   refreshTokenClaims: VerifiedRefreshTokenClaims;
 };
 
-export type RequestWithOptionalUserId = Request & {
-  userId: string | null;
+export type RequestWithOAuthIdentityClaims = Request & {
+  user: OAuthIdentityClaims | null;
+  // refreshTokenClaims?: VerifiedRefreshTokenClaims;
 };

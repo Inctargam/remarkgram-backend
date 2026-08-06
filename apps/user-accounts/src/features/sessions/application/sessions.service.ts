@@ -8,6 +8,7 @@ import {
 import { SessionsRepository } from './ports/sessions.repository.js';
 import type {
   CreateSessionParams,
+  CreateAuthenticatedSessionParams,
   RevokeAllSessionsParams,
   RevokeCurrentSessionParams,
   RevokeOtherSessionsParams,
@@ -24,6 +25,10 @@ export class SessionsService {
   /** Сохраняет новую сессию, только если хеш пароля не изменился после проверки credentials. */
   createSession(params: CreateSessionParams): Promise<boolean> {
     return this.sessionsRepository.createSession(params);
+  }
+
+  createAuthenticatedSession(params: CreateAuthenticatedSessionParams): Promise<boolean> {
+    return this.sessionsRepository.createAuthenticatedSession(params);
   }
 
   /** Атомарно заменяет jti refresh-токена и отклоняет повторное использование старого токена. */

@@ -8,10 +8,22 @@ datasource db {
 }
 
 model Post {
-  id       Int    @id @default(autoincrement())
-  title    String
-  content  String
-  authorId Int?   @map("author_id")
+  id          Int         @id @default(autoincrement())
+  authorId    Int         @map("author_id")
+  description String?
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  images      PostImage[]
 
   @@map("posts")
+}
+
+model PostImage {
+  fileId   String @id @map("file_id") @db.Uuid
+  postId   Int    @map("post_id")
+  position Int
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, position])
+  @@map("post_images")
 }

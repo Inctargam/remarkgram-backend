@@ -60,13 +60,58 @@ spec:
                  secretKeyRef:
                    name: api-gateway-production-config-secret
                    key: REFRESH_TOKEN_COOKIE_MAX_AGE_MS
-             - name: GATEWAY_PORT
-               valueFrom:
-                 secretKeyRef:
-                   name: api-gateway-production-config-secret
-                   key: GATEWAY_PORT
              - name: CORS_ALLOWED_ORIGINS
                valueFrom:
                  secretKeyRef:
                    name: api-gateway-production-config-secret
                    key: CORS_ALLOWED_ORIGINS
+             - name: GOOGLE_OAUTH_CLIENT_SECRET
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: GOOGLE_OAUTH_CLIENT_SECRET
+             - name: GOOGLE_OAUTH_CALLBACK_URL
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: GOOGLE_OAUTH_CALLBACK_URL
+             - name: GITHUB_CLIENT_ID
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: GITHUB_CLIENT_ID
+             - name: GITHUB_CLIENT_SECRET
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: GITHUB_CLIENT_SECRET
+             - name: GITHUB_CALLBACK_URL
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: GITHUB_CALLBACK_URL
+             - name: GITHUB_API_VERSION
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: GITHUB_API_VERSION
+             - name: GITHUB_USER_AGENT
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: GITHUB_USER_AGENT
+             - name: GOOGLE_OAUTH_CLIENT_ID
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: GOOGLE_OAUTH_CLIENT_ID
+             - name: POSTS_GRPC_URL
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: POSTS_GRPC_URL
+             - name: GATEWAY_PORT
+               valueFrom:
+                 secretKeyRef:
+                   name: api-gateway-production-config-secret
+                   key: GATEWAY_PORT

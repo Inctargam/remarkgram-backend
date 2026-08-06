@@ -1,0 +1,33 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/infrastructure/prisma/generated"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum FileUploadStatus {
+  PENDING
+  COMPLETED
+  REJECTED
+}
+
+model File {
+  id               String           @id @default(uuid()) @db.Uuid
+  userId           Int
+  objectKey        String           @unique
+  originalFilename String
+  contentType      String
+  size             Int
+  uploadStatus     FileUploadStatus @default(PENDING)
+  uploadExpiresAt  DateTime         @db.Timestamptz
+  uploadedAt       DateTime?        @db.Timestamptz
+  deletedAt        DateTime?        @db.Timestamptz
+  createdAt        DateTime         @default(now()) @db.Timestamptz
+  updatedAt        DateTime         @updatedAt @db.Timestamptz
+
+  @@index([uploadExpiresAt], where: { uploadStatus: "PENDING", deletedAt: null })
+  @@map("files")
+}

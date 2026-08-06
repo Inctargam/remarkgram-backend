@@ -34,6 +34,8 @@ const swaggerConfig = new DocumentBuilder()
     'testingKey',
   )
   .addTag('Auth', 'Registration, authentication and password reset.')
+  .addTag('Files', 'Image upload session management.')
+  .addTag('Posts', 'Post creation with completed image uploads.')
   .addTag('Sessions', 'Active session management.')
   .addTag('Testing', 'Development and test utilities.')
   .build();

@@ -29,11 +29,7 @@ class ApiGatewayConfig {
   @IsUrl({ require_protocol: true, require_tld: false }, { each: true })
   declare readonly corsAllowedOrigins: string[];
 
-  @IsEnum(Environments, {
-    message:
-      'Set correct NODE_ENV value, available values: ' +
-      configValidationUtility.getEnumValues(Environments).join(', '),
-  })
+  @IsEnum(Environments)
   declare readonly env: Environments;
 
   @IsBoolean()

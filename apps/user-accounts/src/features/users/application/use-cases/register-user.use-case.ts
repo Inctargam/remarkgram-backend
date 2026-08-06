@@ -4,7 +4,6 @@ import { Command, CommandHandler, EventBus, type ICommandHandler } from '@nestjs
 import { authConfig } from '../../../../config/auth.config.js';
 import { RegistrationConfirmationEmailEvent } from '../../../notifications/use-cases/registration-confirmation-email.event-use-case.js';
 import { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
-import { PasswordRecoveryInfo } from '../../domain/value-objects/password-recovery-info.js';
 import { UsersRepository } from '../ports/users.repository.js';
 import type { RegisterUserParams } from '../types/users.types.js';
 import { UsersService } from '../users.service.js';
@@ -42,7 +41,6 @@ export class RegisterUserUseCase implements ICommandHandler<RegisterUserCommand>
     await this.usersService.createUser({
       ...command.params,
       confirmation: ConfirmationInfo.pending(code, expiration),
-      passwordRecovery: PasswordRecoveryInfo.inactive(),
     });
 
     this.eventBus.publish(new RegistrationConfirmationEmailEvent(command.params.email, code));

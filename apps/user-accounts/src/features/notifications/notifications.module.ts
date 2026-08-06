@@ -4,6 +4,7 @@ import type { ConfigType } from '@nestjs/config';
 import { emailConfig } from '../../config/email.config.js';
 import { PasswordResetTokenEmailHandler } from './use-cases/password-reset-token-email.event-use-case.js';
 import { RegistrationConfirmationEmailHandler } from './use-cases/registration-confirmation-email.event-use-case.js';
+import { OAuthRegistrationSuccessEmailHandler } from './use-cases/oauth-registration-success-email.event-use-case.js';
 
 @Module({
   imports: [
@@ -27,6 +28,10 @@ import { RegistrationConfirmationEmailHandler } from './use-cases/registration-c
       },
     }),
   ],
-  providers: [PasswordResetTokenEmailHandler, RegistrationConfirmationEmailHandler],
+  providers: [
+    PasswordResetTokenEmailHandler,
+    RegistrationConfirmationEmailHandler,
+    OAuthRegistrationSuccessEmailHandler,
+  ],
 })
 export class NotificationsModule {}

@@ -26,6 +26,10 @@
             "outDir": "dist/apps/api-gateway/libs/contracts/files-grpc"
           },
           {
+            "include": "../../../libs/contracts/posts-grpc/src/proto/*.proto",
+            "outDir": "dist/apps/api-gateway/libs/contracts/posts-grpc"
+          },
+          {
             "include": "../../../libs/contracts/user-accounts-grpc/src/proto/*.proto",
             "outDir": "dist/apps/api-gateway/libs/contracts/user-accounts-grpc"
           }
@@ -66,6 +70,15 @@
         "tsConfigPath": "libs/contracts/files-grpc/tsconfig.lib.json"
       }
     },
+    "posts-grpc": {
+      "type": "library",
+      "root": "libs/contracts/posts-grpc",
+      "entryFile": "index",
+      "sourceRoot": "libs/contracts/posts-grpc/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/contracts/posts-grpc/tsconfig.lib.json"
+      }
+    },
     "user-accounts-grpc": {
       "type": "library",
       "root": "libs/contracts/user-accounts-grpc",
@@ -90,7 +103,18 @@
       "entryFile": "main",
       "sourceRoot": "apps/posts/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/posts/tsconfig.app.json"
+        "tsConfigPath": "apps/posts/tsconfig.app.json",
+        "watchAssets": true,
+        "assets": [
+          {
+            "include": "../../../libs/contracts/posts-grpc/src/proto/*.proto",
+            "outDir": "dist/apps/posts/libs/contracts/posts-grpc"
+          },
+          {
+            "include": "../../../libs/contracts/files-grpc/src/proto/*.proto",
+            "outDir": "dist/apps/posts/libs/contracts/files-grpc"
+          }
+        ]
       }
     },
     "user-accounts": {

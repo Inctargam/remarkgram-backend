@@ -1,12 +1,10 @@
 import type { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
-import type { PasswordRecoveryInfo } from '../../domain/value-objects/password-recovery-info.js';
 
 export type CreateUserParams = {
   username: string;
   email: string;
   password: string;
   confirmation?: ConfirmationInfo;
-  passwordRecovery?: PasswordRecoveryInfo;
 };
 
 export type RegisterUserParams = Pick<CreateUserParams, 'username' | 'email' | 'password'>;
@@ -17,10 +15,19 @@ export type CreateUserRepositoryParams = {
   hash: string;
   createdAt: Date;
   confirmation: ConfirmationInfo;
-  passwordRecovery: PasswordRecoveryInfo;
+};
+export type CreateOAuthRepositoryParams = {
+  email: string;
+  createdAt: Date;
+  confirmation: ConfirmationInfo;
 };
 
 export type ReleaseExpiredRegistrationCredentialsParams = Pick<RegisterUserParams, 'username' | 'email'> & {
+  now: Date;
+};
+
+export type ReleaseExpiredRegistrationByEmailParams = {
+  email: string;
   now: Date;
 };
 

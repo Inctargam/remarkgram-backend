@@ -17,8 +17,8 @@ export class RefreshTokenUseCase implements ICommandHandler<RefreshTokenCommand>
   ) {}
 
   async execute(command: RefreshTokenCommand) {
-    const { auth, deviceName, ip } = command.params;
-    const { userId, sessionId, jti: currentJti } = auth;
+    const { refreshTokenClaims, deviceName, ip } = command.params;
+    const { userId, sessionId, jti: currentJti } = refreshTokenClaims;
     const { accessToken, refreshToken, refreshTokenPayload } = await this.authService.generateTokenPair({
       userId,
       sessionId,

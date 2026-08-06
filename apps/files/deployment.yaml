@@ -25,6 +25,36 @@ spec:
           ports:
             - containerPort: PORT_CONTAINER
           env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: remarkgram-files-production-config-secret
+                  key: DATABASE_URL
+            - name: FILES_S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: remarkgram-files-production-config-secret
+                  key: FILES_S3_ENDPOINT
+            - name: FILES_S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: remarkgram-files-production-config-secret
+                  key: FILES_S3_REGION
+            - name: FILES_S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: remarkgram-files-production-config-secret
+                  key: FILES_S3_BUCKET
+            - name: FILES_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: remarkgram-files-production-config-secret
+                  key: FILES_S3_ACCESS_KEY_ID
+            - name: FILES_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: remarkgram-files-production-config-secret
+                  key: FILES_S3_SECRET_ACCESS_KEY
             - name: FILES_GRPC_URL
               valueFrom:
                 secretKeyRef:

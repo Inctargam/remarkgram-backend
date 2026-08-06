@@ -34,6 +34,7 @@ describe('RefreshTokenGuard', () => {
       sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
       jti: 'jti',
     });
+    expect(jwtService.verifyAsync).toHaveBeenCalledWith('refresh-token', { audience: 'auth' });
   });
 
   it('rejects a required token with an invalid signature', async () => {

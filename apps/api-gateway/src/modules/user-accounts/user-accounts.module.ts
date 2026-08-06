@@ -1,22 +1,20 @@
 import { Module } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
-import { JwtModule } from '@nestjs/jwt';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import {
   REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
   USER_ACCOUNTS_GRPC_PROTO_PATH,
 } from '@app/user-accounts-grpc';
 import { userAccountsGrpcClientConfig } from './config/user-accounts-grpc-client.config.js';
-import { userAccountsHttpConfig } from './config/user-accounts-http.config.js';
 import { AuthHttpController } from './presentation/http/controllers/auth-http.controller.js';
 import { SessionsHttpController } from './presentation/http/controllers/sessions-http.controller.js';
-import { TestingHttpController } from './presentation/http/controllers/testing-http.controller.js';
 import { UsersHttpController } from './presentation/http/controllers/users-http.controller.js';
-import { AccessTokenGuard } from './presentation/http/guards/access-token.guard.js';
 import { OptionalRefreshTokenGuard } from './presentation/http/guards/optional-refresh-token.guard.js';
 import { RefreshTokenGuard } from './presentation/http/guards/refresh-token.guard.js';
-import { RecaptchaVerifiersService } from './presentation/captcha/recaptcha-verifiers.service.ts';
+import { RecaptchaVerifiersService } from './presentation/captcha/recaptcha-verifiers.service.js';
+import { PassportModule } from '@nestjs/passport';
+import { GithubStrategy } from './presentation/http/guards/github/github.strategy.js';
+import { googleOidcConfigurationProvider } from './config/google-oidc-configuration.provider.js';
 
 @Module({
   imports: [
@@ -34,23 +32,15 @@ import { RecaptchaVerifiersService } from './presentation/captcha/recaptcha-veri
         }),
       },
     ]),
-    JwtModule.registerAsync({
-      inject: [userAccountsHttpConfig.KEY],
-      useFactory: (config: ConfigType<typeof userAccountsHttpConfig>) => ({
-        publicKey: config.jwtPublicKey,
-        verifyOptions: { algorithms: ['RS256'] },
-      }),
-    }),
+    PassportModule.register({ defaultStrategy: 'github' }),
   ],
-  controllers: [AuthHttpController, SessionsHttpController, TestingHttpController, UsersHttpController],
+  controllers: [AuthHttpController, SessionsHttpController, UsersHttpController],
   providers: [
     OptionalRefreshTokenGuard,
     RefreshTokenGuard,
     RecaptchaVerifiersService,
-    {
-      provide: APP_GUARD,
-      useClass: AccessTokenGuard,
-    },
+    GithubStrategy,
+    googleOidcConfigurationProvider,
   ],
 })
 export class UserAccountsModule {}

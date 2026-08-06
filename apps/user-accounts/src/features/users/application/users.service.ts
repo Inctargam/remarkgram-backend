@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { AuthService } from '../../auth/application/auth.service.js';
 import type { User } from '../domain/entities/user.entity.js';
 import { ConfirmationInfo } from '../domain/value-objects/confirmation-info.js';
-import { PasswordRecoveryInfo } from '../domain/value-objects/password-recovery-info.js';
 import { EmailAlreadyExistsError, UsernameAlreadyExistsError } from './errors/users.errors.js';
 import { UsersRepository } from './ports/users.repository.js';
 import type { CreateUserParams } from './types/users.types.js';
@@ -16,13 +15,7 @@ export class UsersService {
 
   /** Проверяет уникальность данных, хеширует пароль и создаёт пользователя в репозитории. */
   async createUser(params: CreateUserParams): Promise<User> {
-    const {
-      username,
-      email,
-      password,
-      confirmation = ConfirmationInfo.confirmed(),
-      passwordRecovery = PasswordRecoveryInfo.inactive(),
-    } = params;
+    const { username, email, password, confirmation = ConfirmationInfo.confirmed() } = params;
 
     // Это предварительные проверки для раннего отказа до затратного хеширования пароля. Они не защищают
     // от race condition: окончательную уникальность гарантируют индексы БД и обработка P2002 в репозитории.
@@ -42,7 +35,6 @@ export class UsersService {
       hash,
       createdAt: new Date(),
       confirmation,
-      passwordRecovery,
     });
   }
 }

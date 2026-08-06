@@ -10,29 +10,88 @@ import { Observable } from "rxjs";
 
 export const protobufPackage = "remarkgram.files.v1";
 
-export interface UploadFileRequest {
-  originalFilename: string;
+export interface InitiateImageUploadsRequest {
+  userId: string;
+  images: ImageUploadMetadata[];
 }
 
-export interface UploadFileResponse {
+export interface ImageUploadMetadata {
+  originalFilename: string;
+  contentType: string;
+  size: number;
+  clientFileId: string;
+}
+
+export interface InitiateImageUploadsResponse {
+  sessions: ImageUploadSession[];
+}
+
+export interface ImageUploadSession {
   id: string;
+  clientFileId: string;
+  url: string;
+  fields: { [key: string]: string };
+}
+
+export interface ImageUploadSession_FieldsEntry {
+  key: string;
+  value: string;
+}
+
+export interface CompleteImageUploadsRequest {
+  userId: string;
+  uploadIds: string[];
+}
+
+export interface CompleteImageUploadsResponse {
+}
+
+export interface EnsureCompletedImageUploadsRequest {
+  userId: string;
+  imageIds: string[];
+}
+
+export interface EnsureCompletedImageUploadsResponse {
+}
+
+export interface DeleteAllDataRequest {
+}
+
+export interface DeleteAllDataResponse {
 }
 
 export const REMARKGRAM_FILES_V1_PACKAGE_NAME = "remarkgram.files.v1";
 
 export interface FilesServiceClient {
-  uploadFile(request: UploadFileRequest): Observable<UploadFileResponse>;
+  initiateImageUploads(request: InitiateImageUploadsRequest): Observable<InitiateImageUploadsResponse>;
+
+  completeImageUploads(request: CompleteImageUploadsRequest): Observable<CompleteImageUploadsResponse>;
+
+  ensureCompletedImageUploads(
+    request: EnsureCompletedImageUploadsRequest,
+  ): Observable<EnsureCompletedImageUploadsResponse>;
 }
 
 export interface FilesServiceController {
-  uploadFile(
-    request: UploadFileRequest,
-  ): Promise<UploadFileResponse> | Observable<UploadFileResponse> | UploadFileResponse;
+  initiateImageUploads(
+    request: InitiateImageUploadsRequest,
+  ): Promise<InitiateImageUploadsResponse> | Observable<InitiateImageUploadsResponse> | InitiateImageUploadsResponse;
+
+  completeImageUploads(
+    request: CompleteImageUploadsRequest,
+  ): Promise<CompleteImageUploadsResponse> | Observable<CompleteImageUploadsResponse> | CompleteImageUploadsResponse;
+
+  ensureCompletedImageUploads(
+    request: EnsureCompletedImageUploadsRequest,
+  ):
+    | Promise<EnsureCompletedImageUploadsResponse>
+    | Observable<EnsureCompletedImageUploadsResponse>
+    | EnsureCompletedImageUploadsResponse;
 }
 
 export function FilesServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["uploadFile"];
+    const grpcMethods: string[] = ["initiateImageUploads", "completeImageUploads", "ensureCompletedImageUploads"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("FilesService", method)(constructor.prototype[method], method, descriptor);
@@ -46,3 +105,30 @@ export function FilesServiceControllerMethods() {
 }
 
 export const FILES_SERVICE_NAME = "FilesService";
+
+export interface TestingServiceClient {
+  deleteAllData(request: DeleteAllDataRequest): Observable<DeleteAllDataResponse>;
+}
+
+export interface TestingServiceController {
+  deleteAllData(
+    request: DeleteAllDataRequest,
+  ): Promise<DeleteAllDataResponse> | Observable<DeleteAllDataResponse> | DeleteAllDataResponse;
+}
+
+export function TestingServiceControllerMethods() {
+  return function (constructor: Function) {
+    const grpcMethods: string[] = ["deleteAllData"];
+    for (const method of grpcMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcMethod("TestingService", method)(constructor.prototype[method], method, descriptor);
+    }
+    const grpcStreamMethods: string[] = [];
+    for (const method of grpcStreamMethods) {
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcStreamMethod("TestingService", method)(constructor.prototype[method], method, descriptor);
+    }
+  };
+}
+
+export const TESTING_SERVICE_NAME = "TestingService";
