@@ -27,8 +27,9 @@ pipeline {
                        export NVM_DIR="$HOME/.nvm"
                        [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
                        nvm use --lts
-                       yarn install
-                       yarn test
+                       corepack enable
+                       pnpm install --frozen-lockfile
+                       pnpm test
                     '''
                 }
             }
@@ -40,7 +41,8 @@ pipeline {
                        export NVM_DIR="$HOME/.nvm"
                        [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
                        nvm use --lts
-                       yarn test:e2e
+                       corepack enable
+                       pnpm test:e2e
                     '''
                 }
             }
