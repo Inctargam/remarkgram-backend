@@ -9,6 +9,7 @@
     "types": ["node", "vitest/globals"],
     "resolvePackageJsonExports": true,
     "resolvePackageJsonImports": true,
+    "rewriteRelativeImportExtensions": true,
     "declaration": true,
     "sourceMap": true,
     "outDir": "./dist",
