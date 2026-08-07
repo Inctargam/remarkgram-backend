@@ -23,6 +23,10 @@ export default defineConfig({
         replacement: resolve(import.meta.dirname, 'libs/contracts/user-accounts-grpc/src/index.ts'),
       },
       {
+        find: '@app/validation',
+        replacement: resolve(import.meta.dirname, 'libs/validation/src/index.ts'),
+      },
+      {
         find: /^@libs\/(.+)\.js$/,
         replacement: `${resolve(import.meta.dirname, 'libs')}/$1.ts`,
       },

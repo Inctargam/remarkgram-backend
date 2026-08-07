@@ -1,6 +1,8 @@
 import type { CommandBus } from '@nestjs/cqrs';
 import { CreatePostCommand } from '../../application/use-cases/create-post/create-post.use-case.js';
 import { PostsGrpcController } from './posts-grpc.controller.js';
+import { expect } from 'vitest';
+import { UpdatePostCommand } from '../../application/use-cases/update-post/update-post.use-case.js';
 
 describe('PostsGrpcController', () => {
   const commandBus = { execute: vi.fn() };
@@ -25,6 +27,24 @@ describe('PostsGrpcController', () => {
         userId: 42,
         description: 'A new post',
         imageIds: request.imageIds,
+      }),
+    );
+  });
+
+  it('delegates update post to the use case', async () => {
+    const request = {
+      userId: '1',
+      postId: '1',
+      description: 'Update post',
+    };
+    commandBus.execute.mockResolvedValue(undefined);
+
+    await expect(controller.updatePost(request)).resolves.toEqual({});
+    expect(commandBus.execute).toHaveBeenCalledWith(
+      new UpdatePostCommand({
+        authorId: 1,
+        postId: 1,
+        description: 'Update post',
       }),
     );
   });

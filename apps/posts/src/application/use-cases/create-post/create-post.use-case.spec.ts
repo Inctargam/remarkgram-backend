@@ -7,14 +7,12 @@ import {
   PostImageNotCompletedError,
 } from '../../errors/create-post.errors.js';
 import type { ImageUploadsVerifier } from '../../ports/image-uploads-verifier.js';
-import type { PostsRepository } from '../../ports/posts.repository.js';
 import { CreatePostCommand, CreatePostUseCase } from './create-post.use-case.js';
+import { createPostsRepositoryMock } from '../../../../test/mocks/create-posts-repository.mock.js';
 
 describe('CreatePostUseCase', () => {
   const firstImageId = '11111111-1111-4111-8111-111111111111';
-  const postsRepository = {
-    create: vi.fn<PostsRepository['create']>(),
-  };
+  const postsRepository = createPostsRepositoryMock();
   const imageUploadsVerifier = {
     ensureCompleted: vi.fn<ImageUploadsVerifier['ensureCompleted']>(),
   };

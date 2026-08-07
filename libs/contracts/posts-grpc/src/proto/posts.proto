@@ -3,23 +3,32 @@ syntax = "proto3";
 package remarkgram.posts.v1;
 
 service PostsService {
-  rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
+    rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
+    rpc UpdatePost(UpdatePostRequest) returns (UpdatePostResponse);
 }
 
 service TestingService {
-  rpc DeleteAllData(DeleteAllDataRequest) returns (DeleteAllDataResponse);
+    rpc DeleteAllData(DeleteAllDataRequest) returns (DeleteAllDataResponse);
 }
 
 message CreatePostRequest {
-  string user_id = 1;
-  optional string description = 2;
-  repeated string image_ids = 3;
+    string user_id = 1;
+    optional string description = 2;
+    repeated string image_ids = 3;
 }
 
 message CreatePostResponse {
-  int32 id = 1;
+    int32 id = 1;
 }
 
 message DeleteAllDataRequest {}
 
 message DeleteAllDataResponse {}
+
+message UpdatePostResponse {}
+
+message UpdatePostRequest {
+    string user_id = 1;
+    string post_id = 2;
+    string description = 3;
+}

@@ -12,6 +12,10 @@ const GRPC_STATUS_BY_APP_ERROR_CODE = {
   [PostsErrorCode.POST_IMAGE_NOT_COMPLETED]: status.FAILED_PRECONDITION,
   [PostsErrorCode.POST_IMAGE_ALREADY_ATTACHED]: status.ALREADY_EXISTS,
   [PostsErrorCode.IMAGE_UPLOADS_SERVICE_UNAVAILABLE]: status.UNAVAILABLE,
+  [PostsErrorCode.POST_ACCESS_FORBIDDEN]: status.PERMISSION_DENIED,
+  [PostsErrorCode.POST_UPDATE_CONFLICT]: status.ALREADY_EXISTS,
+  [PostsErrorCode.POST_NOT_FOUND]: status.NOT_FOUND,
+  [PostsErrorCode.INVALID_POST_ID]: status.INVALID_ARGUMENT,
 } satisfies Record<PostsErrorCode, status>;
 
 export const mapPostsErrorToRpcException = (error: PostsError): RpcException => {

@@ -8,6 +8,6 @@
  *
  * 🟢 You can import this file directly.
  */
-export type * from './models/Post.js'
-export type * from './models/PostImage.js'
-export type * from './commonInputTypes.js'
+export type * from './models/Post.ts'
+export type * from './models/PostImage.ts'
+export type * from './commonInputTypes.ts'
