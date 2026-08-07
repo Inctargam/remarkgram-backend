@@ -3,14 +3,29 @@ import {
   REMARKGRAM_POSTS_V1_PACKAGE_NAME,
   type CreatePostResponse,
   type PostsServiceClient,
+  type UpdatePostResponse,
 } from '@app/posts-grpc';
-import { Body, Controller, HttpCode, HttpStatus, Inject, type OnModuleInit, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Inject,
+  type OnModuleInit,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+  Req,
+} from '@nestjs/common';
 import type { ClientGrpc } from '@nestjs/microservices';
 import type { Request } from 'express';
-import type { Observable } from 'rxjs';
+import { firstValueFrom, type Observable } from 'rxjs';
 import { CreatePostDto } from '../dto/input/create-post.dto.js';
+import { UpdatePostDto } from '../dto/input/update-post/update-post.dto.js';
 import { ApiCreatePost } from '../swagger/post/create-post.swagger.js';
 import { ApiPostsController } from '../swagger/posts-controller.swagger.js';
+import { ApiUpdatePost } from '../swagger/put/update-post.swagger.js';
 
 type AuthenticatedRequest = Request & { userId: string };
 
@@ -40,5 +55,22 @@ export class PostsHttpController implements OnModuleInit {
       description: input.description,
       imageIds: input.imageIds,
     });
+  }
+
+  @Put(':postId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiUpdatePost()
+  updatePost(
+    @Param('postId', ParseIntPipe) postId: number,
+    @Body() input: UpdatePostDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<UpdatePostResponse> {
+    return firstValueFrom(
+      this.postsClient.updatePost({
+        userId: request.userId,
+        postId: postId.toString(),
+        description: input.description,
+      }),
+    );
   }
 }
