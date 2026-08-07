@@ -16,12 +16,12 @@ import { PostsRpcExceptionFilter } from './posts-rpc-exception.filter.js';
 import {
   PostUpdateConflictError,
   PostUpdateForbiddenError,
-} from '../../../application/errors/update-post.errors.ts';
+} from '../../../application/errors/update-post.errors.js';
 import {
   InvalidPostIdError,
   PostAccessForbiddenError,
   PostNotFoundError,
-} from '../../../application/errors/base-post.errors.ts';
+} from '../../../application/errors/base-post.errors.js';
 
 describe('PostsRpcExceptionFilter', () => {
   const filter = new PostsRpcExceptionFilter();

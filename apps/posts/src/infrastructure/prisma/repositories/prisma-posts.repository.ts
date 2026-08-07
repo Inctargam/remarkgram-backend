@@ -8,7 +8,7 @@ import {
 import type { CreatePostRepositoryParams } from '../../../application/types/posts.types.js';
 import { Prisma } from '../generated/client.js';
 import { PrismaService } from '../prisma.service.js';
-import { PostUpdateConflictError } from '../../../application/errors/update-post.errors.ts';
+import { PostUpdateConflictError } from '../../../application/errors/update-post.errors.js';
 
 @Injectable()
 export class PrismaPostsRepository implements PostsRepository {

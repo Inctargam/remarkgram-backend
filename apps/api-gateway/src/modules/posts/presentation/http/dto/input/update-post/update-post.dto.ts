@@ -8,6 +8,8 @@ export class UpdatePostDto {
     example: 'Some description',
   })
   @Trim()
-  @MaxLength(MAX_POST_DESCRIPTION_LENGTH, { message: 'Text content must be at least 500 characters long.' })
+  @MaxLength(MAX_POST_DESCRIPTION_LENGTH, {
+    message: `Text content must not exceed ${MAX_POST_DESCRIPTION_LENGTH} characters.`,
+  })
   declare description: string;
 }

@@ -1,4 +1,4 @@
-import { PostsError, PostsErrorCode } from './posts.error.ts';
+import { PostsError, PostsErrorCode } from './posts.error.js';
 
 export class PostNotFoundError extends PostsError {
   readonly code = PostsErrorCode.POST_NOT_FOUND;

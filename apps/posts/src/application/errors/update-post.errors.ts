@@ -1,5 +1,5 @@
-import { PostsError, PostsErrorCode } from './posts.error.ts';
-import { PostAccessForbiddenError } from './base-post.errors.ts';
+import { PostsError, PostsErrorCode } from './posts.error.js';
+import { PostAccessForbiddenError } from './base-post.errors.js';
 
 export class PostUpdateForbiddenError extends PostAccessForbiddenError {
   constructor() {
