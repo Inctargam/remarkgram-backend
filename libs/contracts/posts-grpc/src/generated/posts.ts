@@ -26,21 +26,36 @@ export interface DeleteAllDataRequest {
 export interface DeleteAllDataResponse {
 }
 
+export interface UpdatePostResponse {
+}
+
+export interface UpdatePostRequest {
+  userId: string;
+  postId: string;
+  description: string;
+}
+
 export const REMARKGRAM_POSTS_V1_PACKAGE_NAME = "remarkgram.posts.v1";
 
 export interface PostsServiceClient {
   createPost(request: CreatePostRequest): Observable<CreatePostResponse>;
+
+  updatePost(request: UpdatePostRequest): Observable<UpdatePostResponse>;
 }
 
 export interface PostsServiceController {
   createPost(
     request: CreatePostRequest,
   ): Promise<CreatePostResponse> | Observable<CreatePostResponse> | CreatePostResponse;
+
+  updatePost(
+    request: UpdatePostRequest,
+  ): Promise<UpdatePostResponse> | Observable<UpdatePostResponse> | UpdatePostResponse;
 }
 
 export function PostsServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["createPost"];
+    const grpcMethods: string[] = ["createPost", "updatePost"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("PostsService", method)(constructor.prototype[method], method, descriptor);

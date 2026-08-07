@@ -17,7 +17,7 @@ async function bootstrap() {
       url: config.url,
     },
   });
-
+  await app.init();
   await app.startAllMicroservices();
   console.log('Server POSTS started on port', config.url);
 }

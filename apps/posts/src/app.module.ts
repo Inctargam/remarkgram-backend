@@ -17,6 +17,7 @@ import { TestingRepository } from './application/ports/testing.repository.js';
 import { DeleteAllDataUseCase } from './application/use-cases/delete-all-data/delete-all-data.use-case.js';
 import { PrismaTestingRepository } from './infrastructure/prisma/repositories/prisma-testing.repository.js';
 import { TestingGrpcController } from './presentation/grpc/testing-grpc.controller.js';
+import { UpdatePostUseCase } from './application/use-cases/update-post/update-post.use-case.js';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { TestingGrpcController } from './presentation/grpc/testing-grpc.controll
     CreatePostUseCase,
     DeleteAllDataUseCase,
     PrismaService,
+    UpdatePostUseCase,
     {
       provide: PostsRepository,
       useClass: PrismaPostsRepository,

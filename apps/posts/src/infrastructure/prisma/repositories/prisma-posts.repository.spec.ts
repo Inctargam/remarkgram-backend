@@ -2,11 +2,14 @@ import { PostImageAlreadyAttachedError } from '../../../application/errors/creat
 import { Prisma } from '../generated/client.js';
 import type { PrismaService } from '../prisma.service.js';
 import { PrismaPostsRepository } from './prisma-posts.repository.js';
+import { describe, expect } from 'vitest';
+import { PostUpdateConflictError } from '../../../application/errors/update-post.errors.js';
 
 describe('PrismaPostsRepository', () => {
   const create = vi.fn();
+  const update = vi.fn();
   const prisma = {
-    post: { create },
+    post: { create, update },
   };
   const repository = new PrismaPostsRepository(prisma as unknown as PrismaService);
   const params = {
@@ -18,6 +21,8 @@ describe('PrismaPostsRepository', () => {
   beforeEach(() => {
     create.mockReset();
     create.mockResolvedValue({ id: 10 });
+
+    update.mockReset();
   });
 
   it('atomically creates a post with ordered images', async () => {
@@ -54,5 +59,56 @@ describe('PrismaPostsRepository', () => {
     create.mockRejectedValue(error);
 
     await expect(repository.create(params)).rejects.toBe(error);
+  });
+
+  it('maps a stale version update to PostUpdateConflictError', async () => {
+    update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Record to update not found', {
+        code: 'P2025',
+        clientVersion: '7.8.0',
+      }),
+    );
+
+    await expect(
+      repository.updateAuthorPost({
+        id: 1,
+        authorId: 2,
+        expectedVersion: 0,
+        fields: {
+          description: 'updated',
+        },
+      }),
+    ).rejects.toBeInstanceOf(PostUpdateConflictError);
+  });
+  it('updates a post only when the expected version matches', async () => {
+    update.mockResolvedValue({ id: 1 });
+
+    await expect(
+      repository.updateAuthorPost({
+        id: 1,
+        authorId: 2,
+        expectedVersion: 3,
+        fields: {
+          description: 'updated',
+        },
+      }),
+    ).resolves.toBe(1);
+
+    expect(update).toHaveBeenCalledWith({
+      where: {
+        authorId: 2,
+        id: 1,
+        version: 3,
+      },
+      data: {
+        description: 'updated',
+        version: {
+          increment: 1,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
   });
 });

@@ -13,6 +13,15 @@ import {
   PostImageNotFoundError,
 } from '../../../application/errors/create-post.errors.js';
 import { PostsRpcExceptionFilter } from './posts-rpc-exception.filter.js';
+import {
+  PostUpdateConflictError,
+  PostUpdateForbiddenError,
+} from '../../../application/errors/update-post.errors.js';
+import {
+  InvalidPostIdError,
+  PostAccessForbiddenError,
+  PostNotFoundError,
+} from '../../../application/errors/base-post.errors.js';
 
 describe('PostsRpcExceptionFilter', () => {
   const filter = new PostsRpcExceptionFilter();
@@ -27,6 +36,11 @@ describe('PostsRpcExceptionFilter', () => {
     [new PostImageNotCompletedError(), status.FAILED_PRECONDITION],
     [new PostImageAlreadyAttachedError(), status.ALREADY_EXISTS],
     [new ImageUploadsServiceUnavailableError(), status.UNAVAILABLE],
+    [new PostUpdateForbiddenError(), status.PERMISSION_DENIED],
+    [new PostAccessForbiddenError(), status.PERMISSION_DENIED],
+    [new PostUpdateConflictError(), status.ALREADY_EXISTS],
+    [new InvalidPostIdError(), status.INVALID_ARGUMENT],
+    [new PostNotFoundError(), status.NOT_FOUND],
   ] as const)('maps $0.code to gRPC status $1', async (error, grpcStatus) => {
     const rpcError: unknown = await firstValueFrom(filter.catch(error, host)).catch(
       (caught: unknown) => caught,
