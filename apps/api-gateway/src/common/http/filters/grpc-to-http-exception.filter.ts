@@ -9,10 +9,6 @@ function isServiceError(error: unknown): error is ServiceError {
     error instanceof Error &&
     'code' in error &&
     typeof error.code === 'number' &&
-    Number.isInteger(error.code) &&
-    status[error.code] !== undefined &&
-    'details' in error &&
-    typeof error.details === 'string' &&
     'metadata' in error &&
     error.metadata instanceof Metadata
   );
