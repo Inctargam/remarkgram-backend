@@ -1,4 +1,4 @@
-import { POSTS_APP_ERROR_CODE_METADATA_KEY } from '@app/posts-grpc';
+import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import { Metadata, status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
 import { type PostsError, PostsErrorCode } from '../../../application/errors/posts.error.js';
@@ -20,7 +20,7 @@ const GRPC_STATUS_BY_APP_ERROR_CODE = {
 
 export const mapPostsErrorToRpcException = (error: PostsError): RpcException => {
   const metadata = new Metadata();
-  metadata.set(POSTS_APP_ERROR_CODE_METADATA_KEY, error.code);
+  metadata.set(APP_ERROR_CODE_METADATA_KEY, error.code);
 
   return new RpcException({
     code: GRPC_STATUS_BY_APP_ERROR_CODE[error.code],

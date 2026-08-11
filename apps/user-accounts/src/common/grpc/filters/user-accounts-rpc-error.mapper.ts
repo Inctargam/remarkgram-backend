@@ -1,6 +1,6 @@
 import { Metadata, status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
-import { USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
+import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import {
   type UserAccountsError,
   UserAccountsErrorCode,
@@ -37,7 +37,7 @@ export const mapUserAccountsErrorToRpcException = (error: UserAccountsError): Rp
   const grpcStatus = GRPC_STATUS_BY_APP_ERROR_CODE[appErrorCode];
 
   const metadata = new Metadata();
-  metadata.set(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY, appErrorCode);
+  metadata.set(APP_ERROR_CODE_METADATA_KEY, appErrorCode);
 
   // grpc-js ожидает в серверном error payload поле code и отправляет его значение как grpc-status.
   // message станет grpc-message, а metadata сохраняет точную бизнес-причину рядом с общим gRPC status code.

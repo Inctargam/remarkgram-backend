@@ -1,5 +1,5 @@
 import { status } from '@grpc/grpc-js';
-import { FILES_APP_ERROR_CODE_METADATA_KEY } from '@app/files-grpc';
+import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import type { ArgumentsHost } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 import {
@@ -39,9 +39,7 @@ describe('FilesRpcExceptionFilter', () => {
       }),
     );
     expect(
-      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(
-        FILES_APP_ERROR_CODE_METADATA_KEY,
-      ),
+      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(APP_ERROR_CODE_METADATA_KEY),
     ).toEqual([error.code]);
   });
 
@@ -58,9 +56,7 @@ describe('FilesRpcExceptionFilter', () => {
       }),
     );
     expect(
-      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(
-        FILES_APP_ERROR_CODE_METADATA_KEY,
-      ),
+      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(APP_ERROR_CODE_METADATA_KEY),
     ).toEqual([error.code]);
   });
 
@@ -77,9 +73,7 @@ describe('FilesRpcExceptionFilter', () => {
       }),
     );
     expect(
-      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(
-        FILES_APP_ERROR_CODE_METADATA_KEY,
-      ),
+      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(APP_ERROR_CODE_METADATA_KEY),
     ).toEqual([error.code]);
   });
 
@@ -97,9 +91,7 @@ describe('FilesRpcExceptionFilter', () => {
         }),
       );
       expect(
-        (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(
-          FILES_APP_ERROR_CODE_METADATA_KEY,
-        ),
+        (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(APP_ERROR_CODE_METADATA_KEY),
       ).toEqual([error.code]);
     },
   );

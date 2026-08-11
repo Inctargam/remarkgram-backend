@@ -79,6 +79,15 @@
         "tsConfigPath": "libs/contracts/files-grpc/tsconfig.lib.json"
       }
     },
+    "grpc": {
+      "type": "library",
+      "root": "libs/contracts/grpc",
+      "entryFile": "index",
+      "sourceRoot": "libs/contracts/grpc/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/contracts/grpc/tsconfig.lib.json"
+      }
+    },
     "payments": {
       "type": "application",
       "root": "apps/payments",

@@ -1,10 +1,10 @@
 import { Metadata, type CallOptions, status } from '@grpc/grpc-js';
 import {
-  FILES_APP_ERROR_CODE_METADATA_KEY,
   FilesErrorCode,
   type EnsureCompletedImageUploadsRequest,
   type EnsureCompletedImageUploadsResponse,
 } from '@app/files-grpc';
+import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import type { ClientGrpc } from '@nestjs/microservices';
 import { of, throwError, type Observable } from 'rxjs';
 import {
@@ -23,7 +23,7 @@ const createServiceError = (grpcStatus: status, filesErrorCode?: FilesErrorCode)
   const metadata = new Metadata();
 
   if (filesErrorCode !== undefined) {
-    metadata.set(FILES_APP_ERROR_CODE_METADATA_KEY, filesErrorCode);
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, filesErrorCode);
   }
 
   return Object.assign(new Error('Files error'), {

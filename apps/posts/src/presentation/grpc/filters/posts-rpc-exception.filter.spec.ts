@@ -1,4 +1,4 @@
-import { POSTS_APP_ERROR_CODE_METADATA_KEY } from '@app/posts-grpc';
+import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import { status } from '@grpc/grpc-js';
 import type { ArgumentsHost } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
@@ -53,9 +53,7 @@ describe('PostsRpcExceptionFilter', () => {
       }),
     );
     expect(
-      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(
-        POSTS_APP_ERROR_CODE_METADATA_KEY,
-      ),
+      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(APP_ERROR_CODE_METADATA_KEY),
     ).toEqual([error.code]);
   });
 });

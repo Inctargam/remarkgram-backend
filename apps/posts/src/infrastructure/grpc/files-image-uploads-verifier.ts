@@ -1,12 +1,12 @@
 import { Metadata, type CallOptions, type ServiceError, status } from '@grpc/grpc-js';
 import {
-  FILES_APP_ERROR_CODE_METADATA_KEY,
   FILES_SERVICE_NAME,
   FilesErrorCode,
   REMARKGRAM_FILES_V1_PACKAGE_NAME,
   type EnsureCompletedImageUploadsRequest,
   type EnsureCompletedImageUploadsResponse,
 } from '@app/files-grpc';
+import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import type { ClientGrpc } from '@nestjs/microservices';
 import { firstValueFrom, type Observable } from 'rxjs';
@@ -77,7 +77,7 @@ export class FilesImageUploadsVerifier extends ImageUploadsVerifier implements O
         throw new ImageUploadsServiceUnavailableError();
       }
 
-      const filesErrorCode = error.metadata.get(FILES_APP_ERROR_CODE_METADATA_KEY).at(0)?.toString();
+      const filesErrorCode = error.metadata.get(APP_ERROR_CODE_METADATA_KEY).at(0)?.toString();
 
       if (error.code === status.NOT_FOUND && filesErrorCode === FilesErrorCode.IMAGE_UPLOAD_NOT_FOUND) {
         throw new PostImageNotFoundError();

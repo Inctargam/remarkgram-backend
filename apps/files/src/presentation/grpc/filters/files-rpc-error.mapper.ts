@@ -1,6 +1,7 @@
 import { Metadata, status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
-import { FILES_APP_ERROR_CODE_METADATA_KEY, FilesErrorCode } from '@app/files-grpc';
+import { FilesErrorCode } from '@app/files-grpc';
+import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import type { FilesError } from '../../../application/errors/files.error.js';
 
 const GRPC_STATUS_BY_APP_ERROR_CODE = {
@@ -21,7 +22,7 @@ export const mapFilesErrorToRpcException = (error: FilesError): RpcException => 
   const grpcStatus = GRPC_STATUS_BY_APP_ERROR_CODE[appErrorCode];
 
   const metadata = new Metadata();
-  metadata.set(FILES_APP_ERROR_CODE_METADATA_KEY, appErrorCode);
+  metadata.set(APP_ERROR_CODE_METADATA_KEY, appErrorCode);
 
   return new RpcException({
     code: grpcStatus,

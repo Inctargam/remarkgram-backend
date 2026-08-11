@@ -3,8 +3,8 @@ import { Test } from '@nestjs/testing';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { Metadata, type ServiceError, status } from '@grpc/grpc-js';
+import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import {
-  FILES_APP_ERROR_CODE_METADATA_KEY,
   FILES_SERVICE_NAME,
   REMARKGRAM_FILES_V1_PACKAGE_NAME,
   TESTING_SERVICE_NAME as FILES_TESTING_SERVICE_NAME,
@@ -26,7 +26,6 @@ import {
   SESSIONS_SERVICE_NAME,
   TESTING_SERVICE_NAME as USER_ACCOUNTS_TESTING_SERVICE_NAME,
   USERS_SERVICE_NAME,
-  USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY,
   type AuthServiceClient,
   type PasswordResetServiceClient,
   type RegistrationServiceClient,
@@ -461,7 +460,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('POST /files/image-uploads rejects unsupported image metadata', async () => {
     const metadata = new Metadata();
-    metadata.set(FILES_APP_ERROR_CODE_METADATA_KEY, 'UNSUPPORTED_IMAGE_CONTENT_TYPE');
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, 'UNSUPPORTED_IMAGE_CONTENT_TYPE');
     filesServiceClient.initiateImageUploads.mockReturnValueOnce(
       throwError(() =>
         createServiceError(status.INVALID_ARGUMENT, 'Unsupported image content type: image/webp', metadata),
@@ -578,7 +577,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('preserves user-accounts error codes while mapping gRPC status to HTTP', async () => {
     const metadata = new Metadata();
-    metadata.set(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED');
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED');
     usersServiceClient.getUsers.mockReturnValueOnce(
       throwError(() =>
         createServiceError(status.FAILED_PRECONDITION, 'Email has not been confirmed', metadata),
