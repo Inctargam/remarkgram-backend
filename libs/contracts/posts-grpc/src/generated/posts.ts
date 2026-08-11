@@ -35,12 +35,40 @@ export interface UpdatePostRequest {
   description: string;
 }
 
+export interface PostImage {
+  fileId: string;
+  position: number;
+  postId: string;
+}
+
+export interface Post {
+  id: string;
+  authorId: string;
+  description: string;
+  images: PostImage[];
+  createdAt: string;
+}
+
+export interface GetAuthPostsPaginatedRequest {
+  userId: string;
+  limit: number;
+  cursor?: string | undefined;
+}
+
+export interface GetAuthPostsPaginatedResponse {
+  items: Post[];
+  hasMore: boolean;
+  nextCursor?: string | undefined;
+}
+
 export const REMARKGRAM_POSTS_V1_PACKAGE_NAME = "remarkgram.posts.v1";
 
 export interface PostsServiceClient {
   createPost(request: CreatePostRequest): Observable<CreatePostResponse>;
 
   updatePost(request: UpdatePostRequest): Observable<UpdatePostResponse>;
+
+  getAuthPostsPaginated(request: GetAuthPostsPaginatedRequest): Observable<GetAuthPostsPaginatedResponse>;
 }
 
 export interface PostsServiceController {
@@ -51,11 +79,15 @@ export interface PostsServiceController {
   updatePost(
     request: UpdatePostRequest,
   ): Promise<UpdatePostResponse> | Observable<UpdatePostResponse> | UpdatePostResponse;
+
+  getAuthPostsPaginated(
+    request: GetAuthPostsPaginatedRequest,
+  ): Promise<GetAuthPostsPaginatedResponse> | Observable<GetAuthPostsPaginatedResponse> | GetAuthPostsPaginatedResponse;
 }
 
 export function PostsServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["createPost", "updatePost"];
+    const grpcMethods: string[] = ["createPost", "updatePost", "getAuthPostsPaginated"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("PostsService", method)(constructor.prototype[method], method, descriptor);

@@ -1,22 +1,8 @@
-import type { CreatePostRepositoryParams } from '../types/posts.types.js';
-
-export type UpdateAuthorPostParams = {
-  id: number;
-  authorId: number;
-  expectedVersion: number;
-  fields: {
-    description: string;
-  };
-};
-
-export type PostForUpdate = {
-  id: number;
-  authorId: number;
-  version: number;
-};
+import type { CreatePostRepositoryParams, UpdateAuthorPostRepositoryParams } from '../types/posts.types.js';
+import type { Post } from '../../domain/entities/post.entity.js';
 
 export abstract class PostsRepository {
   abstract create(params: CreatePostRepositoryParams): Promise<number>;
-  abstract findById(id: number): Promise<PostForUpdate | null>;
-  abstract updateAuthorPost(params: UpdateAuthorPostParams): Promise<number>;
+  abstract findById(id: number): Promise<Post | null>;
+  abstract updateAuthorPost(params: UpdateAuthorPostRepositoryParams): Promise<number>;
 }

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect } from 'vitest';
 import { UpdatePostCommand, UpdatePostUseCase } from './update-post.use-case.js';
-import type { PostForUpdate } from '../../ports/posts.repository.js';
+import { Post } from '../../../domain/entities/post.entity.js';
 import { PostNotFoundError } from '../../errors/base-post.errors.js';
 import { PostUpdateForbiddenError } from '../../errors/update-post.errors.js';
 import { createPostsRepositoryMock } from '../../../../test/mocks/create-posts-repository.mock.js';
@@ -16,11 +16,15 @@ describe('UpdatePostHandler', () => {
   });
 
   it('success update post', async () => {
-    const post: PostForUpdate = {
+    const post = Post.restore({
       id: 1,
       authorId: 1,
+      description: null,
+      createdAt: new Date('2026-08-10T00:00:00.000Z'),
+      images: [],
       version: 0,
-    };
+      deletedAt: null,
+    });
     postRepository.findById.mockResolvedValue(post);
 
     const command = new UpdatePostCommand({
@@ -58,11 +62,17 @@ describe('UpdatePostHandler', () => {
   });
 
   it('throws PostUpdateForbiddenError when the post belongs to another author', async () => {
-    postRepository.findById.mockResolvedValue({
-      authorId: 2,
-      id: 1,
-      version: 0,
-    });
+    postRepository.findById.mockResolvedValue(
+      Post.restore({
+        authorId: 2,
+        id: 1,
+        description: null,
+        createdAt: new Date('2026-08-10T00:00:00.000Z'),
+        images: [],
+        version: 0,
+        deletedAt: null,
+      }),
+    );
 
     const command = new UpdatePostCommand({
       authorId: 1,

@@ -5,6 +5,7 @@ package remarkgram.posts.v1;
 service PostsService {
     rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
     rpc UpdatePost(UpdatePostRequest) returns (UpdatePostResponse);
+    rpc GetAuthPostsPaginated(GetAuthPostsPaginatedRequest) returns (GetAuthPostsPaginatedResponse);
 }
 
 service TestingService {
@@ -32,3 +33,32 @@ message UpdatePostRequest {
     string post_id = 2;
     string description = 3;
 }
+message PostImage {
+    string file_id = 1;
+    int32 position = 2;
+    string post_id = 3;
+}
+message Post {
+    string id = 1;
+    string author_id = 2;
+    string description = 3;
+    repeated PostImage images = 4;
+    string created_at = 5;
+
+}
+message GetAuthPostsPaginatedRequest {
+    string user_id = 1;
+    int32 limit = 2;
+    optional string cursor = 3;
+}
+message GetAuthPostsPaginatedResponse {
+    repeated Post items = 1;
+    bool has_more = 2;
+    optional string next_cursor = 3;
+}
+
+
+
+
+
+
