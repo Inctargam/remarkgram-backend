@@ -15,6 +15,10 @@ const GRPC_STATUS_BY_APP_ERROR_CODE = {
   [FilesErrorCode.IMAGE_UPLOADS_NOT_COMPLETED]: status.FAILED_PRECONDITION,
   [FilesErrorCode.IMAGE_UPLOAD_METADATA_MISMATCH]: status.FAILED_PRECONDITION,
   [FilesErrorCode.UNSUPPORTED_IMAGE_CONTENT_TYPE]: status.INVALID_ARGUMENT,
+  [FilesErrorCode.FILE_DELETED]: status.NOT_FOUND,
+  [FilesErrorCode.FILE_NOT_FOUND]: status.NOT_FOUND,
+  [FilesErrorCode.FILE_UPLOAD_NOT_COMPLETED]: status.NOT_FOUND,
+  [FilesErrorCode.FILE_PUBLIC_ACCESS_DENIED]: status.PERMISSION_DENIED,
 } satisfies Record<FilesErrorCode, status>;
 
 export const mapFilesErrorToRpcException = (error: FilesError): RpcException => {

@@ -16,6 +16,8 @@ const GRPC_STATUS_BY_APP_ERROR_CODE = {
   [PostsErrorCode.POST_UPDATE_CONFLICT]: status.ALREADY_EXISTS,
   [PostsErrorCode.POST_NOT_FOUND]: status.NOT_FOUND,
   [PostsErrorCode.INVALID_POST_ID]: status.INVALID_ARGUMENT,
+  [PostsErrorCode.INVALID_POST_CURSOR]: status.INVALID_ARGUMENT,
+  [PostsErrorCode.INVALID_POST_PAGE_LIMIT]: status.INVALID_ARGUMENT,
 } satisfies Record<PostsErrorCode, status>;
 
 export const mapPostsErrorToRpcException = (error: PostsError): RpcException => {

@@ -1,15 +1,21 @@
-import type { CommandBus } from '@nestjs/cqrs';
+import type { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { CreatePostCommand } from '../../application/use-cases/create-post/create-post.use-case.js';
 import { PostsGrpcController } from './posts-grpc.controller.js';
 import { expect } from 'vitest';
 import { UpdatePostCommand } from '../../application/use-cases/update-post/update-post.use-case.js';
+import { GetAuthorPostsQuery } from '../../application/use-cases/get-author-posts/get-author-posts.query-handler.js';
 
 describe('PostsGrpcController', () => {
   const commandBus = { execute: vi.fn() };
-  const controller = new PostsGrpcController(commandBus as unknown as CommandBus);
+  const queryBus = { execute: vi.fn() };
+  const controller = new PostsGrpcController(
+    commandBus as unknown as CommandBus,
+    queryBus as unknown as QueryBus,
+  );
 
   beforeEach(() => {
     commandBus.execute.mockReset();
+    queryBus.execute.mockReset();
   });
 
   it('delegates post creation to the use case', async () => {
@@ -45,6 +51,26 @@ describe('PostsGrpcController', () => {
         authorId: 1,
         postId: 1,
         description: 'Update post',
+      }),
+    );
+  });
+
+  it('delegates get auth posts paginated to the query handler', async () => {
+    const request = {
+      userId: '1',
+      limit: 10,
+      cursor: undefined,
+    };
+    queryBus.execute.mockResolvedValue({ items: [], nextCursor: undefined, hasMore: false });
+
+    const response = await controller.getAuthPostsPaginated(request);
+
+    expect(response).toEqual({ items: [], nextCursor: undefined, hasMore: false });
+    expect(queryBus.execute).toHaveBeenCalledWith(
+      new GetAuthorPostsQuery({
+        authorId: +request.userId,
+        limit: 10,
+        cursor: undefined,
       }),
     );
   });

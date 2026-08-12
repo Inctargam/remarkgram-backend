@@ -1,5 +1,9 @@
 import { Controller, UseFilters } from '@nestjs/common';
-import { FilesServiceControllerMethods } from '@app/files-grpc';
+import {
+  FilesServiceControllerMethods,
+  GetPublicFileUrlRequest,
+  GetPublicFileUrlResponse,
+} from '@app/files-grpc';
 import type {
   CompleteImageUploadsRequest,
   CompleteImageUploadsResponse,
@@ -13,6 +17,7 @@ import { CompleteImageUploadsCommand } from '../../application/use-cases/complet
 import { InitiateImageUploadsCommand } from '../../application/use-cases/initiate-image-uploads/initiate-image-uploads.use-case.js';
 import { FilesRpcExceptionFilter } from './filters/files-rpc-exception.filter.js';
 import { EnsureCompletedImageUploadsQuery } from '../../application/use-cases/ensure-completed-image-uploads/ensure-completed-image-uploads.use-case.js';
+import { GetPublicFileUrlQuery } from '../../application/use-cases/get-public-file-url/get-public-file-url.query-handler.js';
 
 @Controller()
 @FilesServiceControllerMethods()
@@ -54,5 +59,8 @@ export class FilesGrpcController {
     );
 
     return {};
+  }
+  async getPublicFileUrl(request: GetPublicFileUrlRequest): Promise<GetPublicFileUrlResponse> {
+    return await this.queryBus.execute(new GetPublicFileUrlQuery(request.fileId));
   }
 }

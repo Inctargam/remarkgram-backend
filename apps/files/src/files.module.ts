@@ -18,6 +18,7 @@ import { TestingRepository } from './application/ports/testing.repository.js';
 import { DeleteAllDataUseCase } from './application/use-cases/delete-all-data/delete-all-data.use-case.js';
 import { PrismaTestingRepository } from './infrastructure/prisma/repositories/prisma-testing.repository.js';
 import { TestingGrpcController } from './presentation/grpc/testing-grpc.controller.js';
+import { GetPublicFileUrlQueryHandler } from './application/use-cases/get-public-file-url/get-public-file-url.query-handler.js';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { TestingGrpcController } from './presentation/grpc/testing-grpc.controll
     DeleteAllDataUseCase,
     EnsureCompletedImageUploadsUseCase,
     InitiateImageUploadsUseCase,
+    GetPublicFileUrlQueryHandler,
     {
       provide: FilesRepository,
       useClass: PrismaFilesRepository,

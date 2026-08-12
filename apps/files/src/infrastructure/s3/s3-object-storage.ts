@@ -70,4 +70,12 @@ export class S3ObjectStorage extends ObjectStorage {
       throw error;
     }
   }
+  getPublicUrl(objectKey: string) {
+    const baseUrl = this.config.s3.publicUrl.endsWith('/')
+      ? this.config.s3.publicUrl
+      : `${this.config.s3.publicUrl}/`;
+
+    const encodedKey = objectKey.split('/').map(encodeURIComponent).join('/');
+    return new URL(encodedKey, baseUrl).toString();
+  }
 }

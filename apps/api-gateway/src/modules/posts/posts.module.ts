@@ -4,6 +4,7 @@ import type { ConfigType } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { postsGrpcClientConfig } from './config/posts-grpc-client.config.js';
 import { PostsHttpController } from './presentation/http/controllers/posts-http.controller.js';
+import { UserPostsHttpController } from '../user-accounts/presentation/http/controllers/user-posts.http-controller.js';
 
 @Module({
   imports: [
@@ -22,6 +23,6 @@ import { PostsHttpController } from './presentation/http/controllers/posts-http.
       },
     ]),
   ],
-  controllers: [PostsHttpController],
+  controllers: [PostsHttpController, UserPostsHttpController],
 })
 export class PostsModule {}

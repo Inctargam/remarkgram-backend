@@ -5,6 +5,8 @@ import {
   type FindImageUploadsParams,
   type ImageUploadRecord,
   type UpdateImageUploadsStatusParams,
+  FindAvailableByIdRepositoryParams,
+  FindAvailableByIdRepositoryResult,
 } from '../../../application/ports/files.repository.js';
 import { InvalidImageUploadStatusError } from '../../../application/errors/image-upload.errors.js';
 import { FileUploadStatus } from '../../../domain/enums/file-upload-status.enum.js';
@@ -67,5 +69,30 @@ export class PrismaFilesRepository extends FilesRepository {
         throw new InvalidImageUploadStatusError();
       }
     });
+  }
+  async findAvailableById(
+    params: FindAvailableByIdRepositoryParams,
+  ): Promise<FindAvailableByIdRepositoryResult> {
+    const { id } = params;
+    const file = await this.prisma.file.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+        uploadStatus: FileUploadStatus.COMPLETED,
+      },
+      select: {
+        id: true,
+        objectKey: true,
+        userId: true,
+      },
+    });
+    if (!file) {
+      return null;
+    }
+    return {
+      id: file.id,
+      userId: file.userId,
+      objectKey: file.objectKey,
+    };
   }
 }

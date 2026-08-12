@@ -7,9 +7,10 @@ import { PostUpdateConflictError } from '../../../application/errors/update-post
 
 describe('PrismaPostsRepository', () => {
   const create = vi.fn();
+  const findUnique = vi.fn();
   const update = vi.fn();
   const prisma = {
-    post: { create, update },
+    post: { create, findUnique, update },
   };
   const repository = new PrismaPostsRepository(prisma as unknown as PrismaService);
   const params = {
@@ -22,6 +23,7 @@ describe('PrismaPostsRepository', () => {
     create.mockReset();
     create.mockResolvedValue({ id: 10 });
 
+    findUnique.mockReset();
     update.mockReset();
   });
 
@@ -97,6 +99,7 @@ describe('PrismaPostsRepository', () => {
     expect(update).toHaveBeenCalledWith({
       where: {
         authorId: 2,
+        deletedAt: null,
         id: 1,
         version: 3,
       },
@@ -109,6 +112,32 @@ describe('PrismaPostsRepository', () => {
       select: {
         id: true,
       },
+    });
+  });
+
+  it('maps a persisted post with images to the domain', async () => {
+    const createdAt = new Date('2026-08-10T00:00:00.000Z');
+    findUnique.mockResolvedValue({
+      id: 1,
+      authorId: 2,
+      description: 'description',
+      createdAt,
+      version: 3,
+      deletedAt: null,
+      images: [{ fileId: params.imageIds[0], postId: 1, position: 0 }],
+    });
+
+    await expect(repository.findById(1)).resolves.toMatchObject({
+      id: 1,
+      authorId: 2,
+      description: 'description',
+      images: [{ fileId: params.imageIds[0], position: 0 }],
+      version: 3,
+    });
+
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { id: 1, deletedAt: null },
+      include: { images: { orderBy: { position: 'asc' } } },
     });
   });
 });
