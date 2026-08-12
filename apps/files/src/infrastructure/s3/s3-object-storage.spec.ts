@@ -24,7 +24,7 @@ describe('S3ObjectStorage', () => {
 
   it('creates a constrained presigned upload and returns its policy expiration', async () => {
     const fields = {
-      key: 'user/42/images/image-id',
+      key: 'users/42/images/image-id',
       Policy: Buffer.from(JSON.stringify({ expiration: '2030-01-01T00:00:00Z' })).toString('base64'),
     };
     vi.mocked(createPresignedPost).mockResolvedValue({
@@ -33,7 +33,7 @@ describe('S3ObjectStorage', () => {
     });
 
     const result = await objectStorage.createPresignedUpload({
-      objectKey: 'user/42/images/image-id',
+      objectKey: 'users/42/images/image-id',
       contentType: 'image/jpeg',
       size: 1_024,
       expiresInSeconds: 300,
@@ -41,7 +41,7 @@ describe('S3ObjectStorage', () => {
 
     expect(createPresignedPost).toHaveBeenCalledWith(s3Client, {
       Bucket: 'images-bucket',
-      Key: 'user/42/images/image-id',
+      Key: 'users/42/images/image-id',
       Expires: 300,
       Fields: {
         'Content-Type': 'image/jpeg',
@@ -62,7 +62,7 @@ describe('S3ObjectStorage', () => {
       $metadata: {},
     });
 
-    await expect(objectStorage.getObjectMetadata('user/42/images/image-id')).resolves.toEqual({
+    await expect(objectStorage.getObjectMetadata('users/42/images/image-id')).resolves.toEqual({
       size: 1_024,
       contentType: 'image/jpeg',
     });
@@ -71,7 +71,7 @@ describe('S3ObjectStorage', () => {
     expect(command).toBeInstanceOf(HeadObjectCommand);
     expect((command as HeadObjectCommand).input).toEqual({
       Bucket: 'images-bucket',
-      Key: 'user/42/images/image-id',
+      Key: 'users/42/images/image-id',
     });
   });
 

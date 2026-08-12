@@ -26,7 +26,7 @@ describe('EnsureCompletedImageUploadsUseCase', () => {
     filesRepository.findImageUploads.mockResolvedValue([
       {
         id: firstImageId,
-        objectKey: `user/42/images/${firstImageId}`,
+        objectKey: `users/42/images/${firstImageId}`,
         contentType: 'image/jpeg',
         size: 1_024,
         uploadStatus: FileUploadStatus.COMPLETED,
@@ -59,7 +59,7 @@ describe('EnsureCompletedImageUploadsUseCase', () => {
       filesRepository.findImageUploads.mockResolvedValue([
         {
           id: firstImageId,
-          objectKey: `user/42/images/${firstImageId}`,
+          objectKey: `users/42/images/${firstImageId}`,
           contentType: 'image/jpeg',
           size: 1_024,
           uploadStatus,
@@ -76,14 +76,14 @@ describe('EnsureCompletedImageUploadsUseCase', () => {
     filesRepository.findImageUploads.mockResolvedValue([
       {
         id: firstImageId,
-        objectKey: `user/42/images/${firstImageId}`,
+        objectKey: `users/42/images/${firstImageId}`,
         contentType: 'image/jpeg',
         size: 1_024,
         uploadStatus: FileUploadStatus.COMPLETED,
       },
       {
         id: secondImageId,
-        objectKey: `user/42/images/${secondImageId}`,
+        objectKey: `users/42/images/${secondImageId}`,
         contentType: 'image/png',
         size: 2_048,
         uploadStatus: FileUploadStatus.PENDING,

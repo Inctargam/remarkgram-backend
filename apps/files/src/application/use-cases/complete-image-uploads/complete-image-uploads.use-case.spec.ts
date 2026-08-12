@@ -34,7 +34,7 @@ describe('CompleteImageUploadsUseCase', () => {
     filesRepository.findImageUploads.mockResolvedValue([
       {
         id: uploadId,
-        objectKey: `user/42/images/${uploadId}`,
+        objectKey: `users/42/images/${uploadId}`,
         contentType: 'image/jpeg',
         size: 1_024,
         uploadStatus: FileUploadStatus.PENDING,
@@ -71,7 +71,7 @@ describe('CompleteImageUploadsUseCase', () => {
       uploadIds: [uploadId],
       userId: 42,
     });
-    expect(objectStorage.getObjectMetadata).toHaveBeenCalledWith(`user/42/images/${uploadId}`);
+    expect(objectStorage.getObjectMetadata).toHaveBeenCalledWith(`users/42/images/${uploadId}`);
     expect(filesRepository.updateImageUploadsStatusIfAllPending).toHaveBeenCalledWith({
       uploadIds: [uploadId],
       userId: 42,
@@ -84,14 +84,14 @@ describe('CompleteImageUploadsUseCase', () => {
     filesRepository.findImageUploads.mockResolvedValue([
       {
         id: uploadId,
-        objectKey: `user/42/images/${uploadId}`,
+        objectKey: `users/42/images/${uploadId}`,
         contentType: 'image/jpeg',
         size: 1_024,
         uploadStatus: FileUploadStatus.PENDING,
       },
       {
         id: secondUploadId,
-        objectKey: `user/42/images/${secondUploadId}`,
+        objectKey: `users/42/images/${secondUploadId}`,
         contentType: 'image/png',
         size: 2_048,
         uploadStatus: FileUploadStatus.PENDING,
@@ -156,7 +156,7 @@ describe('CompleteImageUploadsUseCase', () => {
     filesRepository.findImageUploads.mockResolvedValue([
       {
         id: uploadId,
-        objectKey: `user/42/images/${uploadId}`,
+        objectKey: `users/42/images/${uploadId}`,
         contentType: 'image/jpeg',
         size: 1_024,
         uploadStatus: FileUploadStatus.COMPLETED,
@@ -179,7 +179,7 @@ describe('CompleteImageUploadsUseCase', () => {
     filesRepository.findImageUploads.mockResolvedValue([
       {
         id: uploadId,
-        objectKey: `user/42/images/${uploadId}`,
+        objectKey: `users/42/images/${uploadId}`,
         contentType: 'image/jpeg',
         size: 1_024,
         uploadStatus: FileUploadStatus.REJECTED,

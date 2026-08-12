@@ -33,7 +33,7 @@ describe('PrismaFilesRepository', () => {
       {
         id: '11111111-1111-4111-8111-111111111111',
         userId: 42,
-        objectKey: 'user/42/images/11111111-1111-4111-8111-111111111111',
+        objectKey: 'users/42/images/11111111-1111-4111-8111-111111111111',
         originalFilename: 'first.jpg',
         contentType: 'image/jpeg',
         size: 1_024,
@@ -43,7 +43,7 @@ describe('PrismaFilesRepository', () => {
       {
         id: '22222222-2222-4222-8222-222222222222',
         userId: 42,
-        objectKey: 'user/42/images/22222222-2222-4222-8222-222222222222',
+        objectKey: 'users/42/images/22222222-2222-4222-8222-222222222222',
         originalFilename: 'second.png',
         contentType: 'image/png',
         size: 2_048,
@@ -64,14 +64,14 @@ describe('PrismaFilesRepository', () => {
     const fileRecords = [
       {
         id: uploadIds[0],
-        objectKey: 'user/42/images/first',
+        objectKey: 'users/42/images/first',
         contentType: 'image/jpeg',
         size: 1_024,
         uploadStatus: FileUploadStatus.PENDING,
       },
       {
         id: uploadIds[1],
-        objectKey: 'user/42/images/second',
+        objectKey: 'users/42/images/second',
         contentType: 'image/png',
         size: 2_048,
         uploadStatus: FileUploadStatus.PENDING,

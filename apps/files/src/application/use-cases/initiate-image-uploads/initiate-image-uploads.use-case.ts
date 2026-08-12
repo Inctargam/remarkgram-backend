@@ -96,7 +96,7 @@ export class InitiateImageUploadsUseCase implements ICommandHandler<InitiateImag
     for (const image of images) {
       const { originalFilename, contentType, size } = image;
       const id = randomUUID();
-      const objectKey = `user/${userId}/images/${id}`;
+      const objectKey = `users/${userId}/images/${id}`;
 
       const { url, fields, expiresAt } = await this.objectStorage.createPresignedUpload({
         objectKey,

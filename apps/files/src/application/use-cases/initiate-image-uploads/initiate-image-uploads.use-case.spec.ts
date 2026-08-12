@@ -77,13 +77,13 @@ describe('InitiateImageUploadsUseCase', () => {
     ]);
     expect(result.sessions.map(({ fields }) => fields.key)).toEqual(['object-key', 'object-key']);
     expect(objectStorage.createPresignedUpload).toHaveBeenNthCalledWith(1, {
-      objectKey: `user/42/images/${result.sessions[0]?.id}`,
+      objectKey: `users/42/images/${result.sessions[0]?.id}`,
       contentType: ImageContentType.JPEG,
       size: 1_024,
       expiresInSeconds: 300,
     });
     expect(objectStorage.createPresignedUpload).toHaveBeenNthCalledWith(2, {
-      objectKey: `user/42/images/${result.sessions[1]?.id}`,
+      objectKey: `users/42/images/${result.sessions[1]?.id}`,
       contentType: ImageContentType.PNG,
       size: 2_048,
       expiresInSeconds: 300,
@@ -93,7 +93,7 @@ describe('InitiateImageUploadsUseCase', () => {
       expect.objectContaining({
         id: result.sessions[0]?.id,
         userId: 42,
-        objectKey: `user/42/images/${result.sessions[0]?.id}`,
+        objectKey: `users/42/images/${result.sessions[0]?.id}`,
         originalFilename: 'first.jpg',
         contentType: ImageContentType.JPEG,
         size: 1_024,
@@ -102,7 +102,7 @@ describe('InitiateImageUploadsUseCase', () => {
       expect.objectContaining({
         id: result.sessions[1]?.id,
         userId: 42,
-        objectKey: `user/42/images/${result.sessions[1]?.id}`,
+        objectKey: `users/42/images/${result.sessions[1]?.id}`,
         originalFilename: 'second.png',
         contentType: ImageContentType.PNG,
         size: 2_048,
