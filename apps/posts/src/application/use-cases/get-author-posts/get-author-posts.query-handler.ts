@@ -6,6 +6,11 @@ import { InvalidUserIdError } from '../../errors/create-post.errors.js';
 import type { AuthorPostsCursor } from '../../types/posts.types.js';
 import type { PostViewMapper } from '../../../infrastructure/prisma/mappers/post-view.mapper.js';
 import { InvalidPostsCursorError, InvalidPostsPageLimitError } from '../../errors/post-pagination.errors.js';
+import {
+  DEFAULT_POSTS_PAGE_SIZE,
+  MAX_POSTS_PAGE_SIZE,
+  MIN_POSTS_PAGE_SIZE,
+} from '@app/posts-grpc';
 
 type SerializedCursorPayload = {
   id: number;
@@ -34,7 +39,7 @@ export class GetAuthorPostsQueryHandler implements IQueryHandler<GetAuthorPostsQ
   constructor(private readonly postsQueryRepository: PostsQueryRepository) {}
 
   async execute(query: GetAuthorPostsQuery): Promise<GetAuthorPostsQueryResult> {
-    const { authorId, limit = 8, cursor = null } = query.params;
+    const { authorId, limit = DEFAULT_POSTS_PAGE_SIZE, cursor = null } = query.params;
     if (!isValidNumericEntityId(authorId)) {
       throw new InvalidUserIdError();
     }
@@ -57,7 +62,7 @@ export class GetAuthorPostsQueryHandler implements IQueryHandler<GetAuthorPostsQ
   }
 
   private isValidLimit(limit: number): boolean {
-    return limit >= 1 && limit <= 20 && Number.isInteger(limit);
+    return limit >= MIN_POSTS_PAGE_SIZE && limit <= MAX_POSTS_PAGE_SIZE && Number.isInteger(limit);
   }
 
   private normalizeCursor(cursor: string | null): AuthorPostsCursor | null {
