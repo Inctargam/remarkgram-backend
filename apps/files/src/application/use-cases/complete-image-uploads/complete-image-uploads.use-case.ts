@@ -12,8 +12,6 @@ import { FilesRepository } from '../../ports/files.repository.js';
 import { ObjectStorage } from '../../ports/object-storage.js';
 import { FileUploadStatus } from '../../../domain/enums/file-upload-status.enum.js';
 
-const MAX_USER_ID = 2_147_483_647;
-
 export type CompleteImageUploadsParams = {
   userId: number;
   uploadIds: readonly string[];
@@ -35,7 +33,9 @@ export class CompleteImageUploadsUseCase implements ICommandHandler<CompleteImag
   async execute(command: CompleteImageUploadsCommand) {
     const { userId, uploadIds } = command.params;
 
-    if (!Number.isSafeInteger(userId) || userId <= 0 || userId > MAX_USER_ID) {
+    // После преобразования userId из транспортной строки application-слой принимает
+    // только положительное целое, независимо от используемого транспорта и хранилища.
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
       throw new InvalidUserIdError();
     }
 

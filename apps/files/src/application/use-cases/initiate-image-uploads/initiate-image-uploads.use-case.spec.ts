@@ -196,7 +196,7 @@ describe('InitiateImageUploadsUseCase', () => {
     expect(filesRepository.createMany).not.toHaveBeenCalled();
   });
 
-  it.each([Number.NaN, Number.POSITIVE_INFINITY, 0, -1, 1.5, 2_147_483_648])(
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, 0, -1, 1.5])(
     'rejects invalid user ID: %s',
     async (userId) => {
       const useCase = createUseCase();

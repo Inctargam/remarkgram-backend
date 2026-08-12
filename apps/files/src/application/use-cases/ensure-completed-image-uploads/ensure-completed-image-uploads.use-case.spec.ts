@@ -100,7 +100,7 @@ describe('EnsureCompletedImageUploadsUseCase', () => {
     ).rejects.toBeInstanceOf(ImageUploadsNotCompletedError);
   });
 
-  it.each([0, -1, 2_147_483_648, Number.NaN, 1.5])('rejects invalid user ID %s', async (userId) => {
+  it.each([0, -1, Number.NaN, 1.5])('rejects invalid user ID %s', async (userId) => {
     await expect(
       useCase.execute(new EnsureCompletedImageUploadsQuery({ userId, imageIds: [firstImageId] })),
     ).rejects.toBeInstanceOf(InvalidUserIdError);

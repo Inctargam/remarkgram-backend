@@ -10,8 +10,6 @@ import {
 } from '../../errors/image-upload.errors.js';
 import { FilesRepository } from '../../ports/files.repository.js';
 
-const MAX_USER_ID = 2_147_483_647;
-
 export type EnsureCompletedImageUploadsParams = {
   userId: number;
   imageIds: readonly string[];
@@ -30,7 +28,9 @@ export class EnsureCompletedImageUploadsUseCase implements IQueryHandler<EnsureC
   async execute(query: EnsureCompletedImageUploadsQuery): Promise<void> {
     const { userId, imageIds } = query.params;
 
-    if (!Number.isSafeInteger(userId) || userId <= 0 || userId > MAX_USER_ID) {
+    // После преобразования userId из транспортной строки application-слой принимает
+    // только положительное целое, независимо от используемого транспорта и хранилища.
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
       throw new InvalidUserIdError();
     }
 

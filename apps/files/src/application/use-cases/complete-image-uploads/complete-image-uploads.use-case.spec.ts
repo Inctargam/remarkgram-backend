@@ -213,7 +213,7 @@ describe('CompleteImageUploadsUseCase', () => {
     ).rejects.toThrow(InvalidImageUploadStatusError);
   });
 
-  it.each([0, -1, 1.5, Number.NaN, 2_147_483_648])('rejects an invalid user ID: %s', async (userId) => {
+  it.each([0, -1, 1.5, Number.NaN])('rejects an invalid user ID: %s', async (userId) => {
     await expect(
       useCase.execute(
         new CompleteImageUploadsCommand({

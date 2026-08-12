@@ -10,8 +10,6 @@ import { ImageUploadsVerifier } from '../../ports/image-uploads-verifier.js';
 import { PostsRepository } from '../../ports/posts.repository.js';
 import type { CreatePostResult } from '../../types/posts.types.js';
 
-const MAX_USER_ID = 2_147_483_647;
-
 export type CreatePostParams = {
   userId: number;
   description?: string;
@@ -34,7 +32,9 @@ export class CreatePostUseCase implements ICommandHandler<CreatePostCommand> {
   async execute(command: CreatePostCommand) {
     const { userId, description, imageIds } = command.params;
 
-    if (!Number.isSafeInteger(userId) || userId <= 0 || userId > MAX_USER_ID) {
+    // После преобразования userId из транспортной строки application-слой принимает
+    // только положительное целое, независимо от используемого транспорта и хранилища.
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
       throw new InvalidUserIdError();
     }
 
