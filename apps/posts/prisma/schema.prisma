@@ -1,6 +1,7 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/infrastructure/prisma/generated"
+  provider        = "prisma-client"
+  output          = "../src/infrastructure/prisma/generated"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -16,6 +17,8 @@ model Post {
   version     Int         @default(0)
   deletedAt   DateTime?   @map("deleted_at") @db.Timestamptz
 
+  @@index([authorId, createdAt(sort: Desc), id(sort: Desc)], map: "posts_author_created_id_active_idx", where: { deletedAt: null })
+
   @@map("posts")
 }
 
@@ -25,7 +28,6 @@ model PostImage {
   position Int
 
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-
 
   @@unique([postId, position])
   @@map("post_images")

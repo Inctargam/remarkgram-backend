@@ -16,11 +16,13 @@ import type * as Prisma from "./prismaNamespace.ts"
 
 
 const config: runtime.GetPrismaClientConfig = {
-  "previewFeatures": [],
+  "previewFeatures": [
+    "partialIndexes"
+  ],
   "clientVersion": "7.8.0",
   "engineVersion": "3c6e192761c0362d496ed980de936e2f3cebcd3a",
   "activeProvider": "postgresql",
-  "inlineSchema": "generator client {\n  provider = \"prisma-client\"\n  output   = \"../src/infrastructure/prisma/generated\"\n}\n\ndatasource db {\n  provider = \"postgresql\"\n}\n\nmodel Post {\n  id          Int         @id @default(autoincrement())\n  authorId    Int         @map(\"author_id\")\n  description String?\n  createdAt   DateTime    @default(now()) @map(\"created_at\") @db.Timestamptz\n  images      PostImage[]\n  version     Int         @default(0)\n  deletedAt   DateTime?   @map(\"deleted_at\") @db.Timestamptz\n\n  @@map(\"posts\")\n}\n\nmodel PostImage {\n  fileId   String @id @map(\"file_id\") @db.Uuid\n  postId   Int    @map(\"post_id\")\n  position Int\n\n  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)\n\n  @@unique([postId, position])\n  @@map(\"post_images\")\n}\n",
+  "inlineSchema": "generator client {\n  provider        = \"prisma-client\"\n  output          = \"../src/infrastructure/prisma/generated\"\n  previewFeatures = [\"partialIndexes\"]\n}\n\ndatasource db {\n  provider = \"postgresql\"\n}\n\nmodel Post {\n  id          Int         @id @default(autoincrement())\n  authorId    Int         @map(\"author_id\")\n  description String?\n  createdAt   DateTime    @default(now()) @map(\"created_at\") @db.Timestamptz\n  images      PostImage[]\n  version     Int         @default(0)\n  deletedAt   DateTime?   @map(\"deleted_at\") @db.Timestamptz\n\n  @@index([authorId, createdAt(sort: Desc), id(sort: Desc)], map: \"posts_author_created_id_active_idx\", where: { deletedAt: null })\n  @@map(\"posts\")\n}\n\nmodel PostImage {\n  fileId   String @id @map(\"file_id\") @db.Uuid\n  postId   Int    @map(\"post_id\")\n  position Int\n\n  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)\n\n  @@unique([postId, position])\n  @@map(\"post_images\")\n}\n",
   "runtimeDataModel": {
     "models": {},
     "enums": {},

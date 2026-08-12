@@ -17,7 +17,9 @@ export class PrismaPostsQueryRepository implements PostsQueryRepository {
       take: take,
       where: { authorId: authorId, deletedAt: null },
       include: {
-        images: true,
+        images: {
+          orderBy: { position: 'asc' },
+        },
       },
       orderBy: [
         {

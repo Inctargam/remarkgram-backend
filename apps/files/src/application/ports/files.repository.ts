@@ -29,10 +29,21 @@ export type UpdateImageUploadsStatusParams = FindImageUploadsParams & {
   uploadedAt: Date | null;
 };
 
+export type FindAvailableByIdRepositoryParams = {
+  id: string;
+};
+export type FindAvailableByIdRepositoryResult = {
+  id: string;
+  userId: number;
+  objectKey: string;
+} | null;
 export abstract class FilesRepository {
   abstract createMany(fileRecords: readonly CreateFileRecord[]): Promise<void>;
 
   abstract findImageUploads(params: FindImageUploadsParams): Promise<ImageUploadRecord[]>;
 
   abstract updateImageUploadsStatusIfAllPending(params: UpdateImageUploadsStatusParams): Promise<void>;
+  abstract findAvailableById(
+    params: FindAvailableByIdRepositoryParams,
+  ): Promise<FindAvailableByIdRepositoryResult>;
 }

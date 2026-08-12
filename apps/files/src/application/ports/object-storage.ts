@@ -20,4 +20,6 @@ export abstract class ObjectStorage {
   abstract createPresignedUpload(params: CreatePresignedUploadParams): Promise<PresignedUpload>;
 
   abstract getObjectMetadata(objectKey: string): Promise<ObjectMetadata | null>;
+
+  abstract getPublicUrl(objectKey: string): string;
 }

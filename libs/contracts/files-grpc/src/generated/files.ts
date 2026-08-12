@@ -60,6 +60,14 @@ export interface DeleteAllDataRequest {
 export interface DeleteAllDataResponse {
 }
 
+export interface GetPublicFileUrlRequest {
+  fileId: string;
+}
+
+export interface GetPublicFileUrlResponse {
+  url: string;
+}
+
 export const REMARKGRAM_FILES_V1_PACKAGE_NAME = "remarkgram.files.v1";
 
 export interface FilesServiceClient {
@@ -70,6 +78,8 @@ export interface FilesServiceClient {
   ensureCompletedImageUploads(
     request: EnsureCompletedImageUploadsRequest,
   ): Observable<EnsureCompletedImageUploadsResponse>;
+
+  getPublicFileUrl(request: GetPublicFileUrlRequest): Observable<GetPublicFileUrlResponse>;
 }
 
 export interface FilesServiceController {
@@ -87,11 +97,20 @@ export interface FilesServiceController {
     | Promise<EnsureCompletedImageUploadsResponse>
     | Observable<EnsureCompletedImageUploadsResponse>
     | EnsureCompletedImageUploadsResponse;
+
+  getPublicFileUrl(
+    request: GetPublicFileUrlRequest,
+  ): Promise<GetPublicFileUrlResponse> | Observable<GetPublicFileUrlResponse> | GetPublicFileUrlResponse;
 }
 
 export function FilesServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["initiateImageUploads", "completeImageUploads", "ensureCompletedImageUploads"];
+    const grpcMethods: string[] = [
+      "initiateImageUploads",
+      "completeImageUploads",
+      "ensureCompletedImageUploads",
+      "getPublicFileUrl",
+    ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("FilesService", method)(constructor.prototype[method], method, descriptor);

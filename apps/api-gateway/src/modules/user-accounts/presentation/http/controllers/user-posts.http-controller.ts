@@ -1,34 +1,42 @@
 import { Controller, Get, Inject, OnModuleInit, Param, Query } from '@nestjs/common';
-import { REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME } from '@app/user-accounts-grpc';
 import type { ClientGrpc } from '@nestjs/microservices';
-import { POSTS_SERVICE_NAME, PostsServiceClient } from '@app/posts-grpc';
+import { POSTS_SERVICE_NAME, PostsServiceClient, REMARKGRAM_POSTS_V1_PACKAGE_NAME } from '@app/posts-grpc';
 import { firstValueFrom } from 'rxjs';
 import { Public } from '../../../../../common/http/decorators/public.decorator.js';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { GetAuthorPostsParamsDto } from '../dto/input/get-author-posts-params.dto.js';
 import { GetAuthorPostsQueryDto } from '../dto/input/get-author-posts-query.dto.js';
-import { GetAuthorPostsResponseDto } from '../dto/output/get-author-posts/get-author-posts-response.dto.js';
+import { GetAuthorPostsDto } from '../dto/output/get-author-posts/get-author-posts.dto.js';
 import { GetAuthorPostsResponseMapper } from '../mappers/get-author-posts-response.mapper.js';
+import type { ConfigType } from '@nestjs/config';
+import { apiGatewayConfig } from '../../../../../config/api-gateway.config.js';
 
 @ApiTags('Posts')
 @Controller('users/:userId')
 export class UserPostsHttpController implements OnModuleInit {
   private postsGrpcClient!: PostsServiceClient;
-  constructor(@Inject(REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME) private readonly grpcClient: ClientGrpc) {}
+
+  constructor(
+    @Inject(REMARKGRAM_POSTS_V1_PACKAGE_NAME) private readonly grpcClient: ClientGrpc,
+    @Inject(apiGatewayConfig.KEY)
+    private readonly gatewayConfig: ConfigType<typeof apiGatewayConfig>,
+  ) {}
+
   onModuleInit() {
     this.postsGrpcClient = this.grpcClient.getService<PostsServiceClient>(POSTS_SERVICE_NAME);
   }
+
   @Public()
   @Get('posts')
   @ApiOperation({ summary: "Get an author's posts using cursor pagination" })
   @ApiOkResponse({
     description: "The requested page of the author's posts.",
-    type: GetAuthorPostsResponseDto,
+    type: GetAuthorPostsDto,
   })
   async getAuthorPosts(
     @Param() params: GetAuthorPostsParamsDto,
     @Query() query: GetAuthorPostsQueryDto,
-  ): Promise<GetAuthorPostsResponseDto> {
+  ): Promise<GetAuthorPostsDto> {
     const grpcResponse = await firstValueFrom(
       this.postsGrpcClient.getAuthPostsPaginated({
         userId: params.userId.toString(),
@@ -37,6 +45,6 @@ export class UserPostsHttpController implements OnModuleInit {
       }),
     );
 
-    return GetAuthorPostsResponseMapper.toResponse(grpcResponse);
+    return GetAuthorPostsResponseMapper.toResponse(grpcResponse, this.gatewayConfig.backendApiUrl);
   }
 }

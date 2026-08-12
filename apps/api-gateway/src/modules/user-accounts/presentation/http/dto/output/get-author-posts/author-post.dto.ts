@@ -1,12 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { AuthorPostImageResponseDto } from './author-post-image-response.dto.js';
+import { AuthorPostImageDto } from './author-post-image.dto.js';
 
-export class AuthorPostResponseDto {
-  @ApiProperty({ description: 'Post identifier.', example: '42' })
-  declare id: string;
+export class AuthorPostDto {
+  @ApiProperty({ description: 'Post identifier.', example: 42, type: Number })
+  declare id: number;
 
-  @ApiProperty({ description: 'Author identifier.', example: '7' })
-  declare authorId: string;
+  @ApiProperty({ description: 'Author identifier.', example: 7, type: Number })
+  declare authorId: number;
 
   @ApiProperty({
     description: 'Post description, or null when the post has no description.',
@@ -24,7 +24,7 @@ export class AuthorPostResponseDto {
 
   @ApiProperty({
     description: 'Post images ordered by position.',
-    type: () => [AuthorPostImageResponseDto],
+    type: () => [AuthorPostImageDto],
   })
-  declare images: AuthorPostImageResponseDto[];
+  declare images: AuthorPostImageDto[];
 }

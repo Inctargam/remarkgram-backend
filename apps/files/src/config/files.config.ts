@@ -27,6 +27,14 @@ class S3Config {
   @IsString()
   @IsNotEmpty()
   declare readonly secretAccessKey: string;
+
+  @IsUrl({
+    protocols: ['http', 'https'],
+    require_protocol: true,
+    require_valid_protocol: true,
+    require_tld: false,
+  })
+  declare readonly publicUrl: string;
 }
 
 class FilesConfig {
@@ -53,6 +61,7 @@ export const filesConfig = registerAs('files', () => {
       bucket: process.env.FILES_S3_BUCKET?.trim(),
       accessKeyId: process.env.FILES_S3_ACCESS_KEY_ID?.trim(),
       secretAccessKey: process.env.FILES_S3_SECRET_ACCESS_KEY?.trim(),
+      publicUrl: process.env.FILES_S3_PUBLIC_URL?.trim(),
     },
   });
 

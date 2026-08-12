@@ -8,7 +8,10 @@ describe('UserPostsHttpController', () => {
   const grpcClient = {
     getService: vi.fn(() => ({ getAuthPostsPaginated })),
   };
-  const controller = new UserPostsHttpController(grpcClient as unknown as ClientGrpc);
+  const gatewayConfig = {
+    backendApiUrl: 'https://api.remark-gram.com/api/v1/',
+  } as ConstructorParameters<typeof UserPostsHttpController>[1];
+  const controller = new UserPostsHttpController(grpcClient as unknown as ClientGrpc, gatewayConfig);
 
   beforeEach(() => {
     getAuthPostsPaginated.mockReset();

@@ -19,6 +19,7 @@ async function bootstrap() {
     },
   });
   await app.startAllMicroservices();
+  await app.init();
   console.log('Server FILES started on port', config.url);
 }
 void bootstrap();

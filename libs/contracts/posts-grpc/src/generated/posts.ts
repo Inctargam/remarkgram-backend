@@ -38,13 +38,12 @@ export interface UpdatePostRequest {
 export interface PostImage {
   fileId: string;
   position: number;
-  postId: string;
 }
 
 export interface Post {
   id: string;
   authorId: string;
-  description: string;
+  description?: string | undefined;
   images: PostImage[];
   createdAt: string;
 }

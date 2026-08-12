@@ -1,12 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { AuthorPostResponseDto } from './author-post-response.dto.js';
+import { AuthorPostDto } from './author-post.dto.js';
 
-export class GetAuthorPostsResponseDto {
+export class GetAuthorPostsDto {
   @ApiProperty({
     description: 'Posts from the requested page.',
-    type: () => [AuthorPostResponseDto],
+    type: () => [AuthorPostDto],
   })
-  declare items: AuthorPostResponseDto[];
+  declare items: AuthorPostDto[];
 
   @ApiProperty({
     description: 'Whether another page is available.',
