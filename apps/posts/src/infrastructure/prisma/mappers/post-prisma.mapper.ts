@@ -1,11 +1,8 @@
 import { Post } from '../../../domain/entities/post.entity.js';
-import type { PostModel } from '../generated/models/Post.js';
-import type { PostImageModel } from '../generated/models/PostImage.js';
+import type { Prisma } from '../generated/client.js';
 import { PostImagePrismaMapper } from './post-image-prisma.mapper.js';
 
-type PostWithImages = PostModel & {
-  images: PostImageModel[];
-};
+type PostWithImages = Prisma.PostGetPayload<{ include: { images: true } }>;
 
 export class PostPrismaMapper {
   static toDomain(row: PostWithImages): Post {
