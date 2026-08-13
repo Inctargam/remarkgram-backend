@@ -49,8 +49,8 @@ export class PrismaFilesRepository extends FilesRepository {
   async updateImageUploadsStatusIfAllPending(params: UpdateImageUploadsStatusParams): Promise<void> {
     const { uploadIds, userId, uploadStatus, uploadedAt } = params;
 
-    await this.prisma.$transaction(async (prisma) => {
-      const result = await prisma.file.updateMany({
+    await this.prisma.$transaction(async (tx) => {
+      const result = await tx.file.updateMany({
         where: {
           id: { in: [...uploadIds] },
           userId,
