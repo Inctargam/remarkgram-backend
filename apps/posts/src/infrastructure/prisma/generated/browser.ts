@@ -27,3 +27,8 @@ export type Post = Prisma.PostModel
  * 
  */
 export type PostImage = Prisma.PostImageModel
+/**
+ * Model OutboxEvent
+ * 
+ */
+export type OutboxEvent = Prisma.OutboxEventModel

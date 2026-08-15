@@ -19,6 +19,8 @@ import { DeleteAllDataUseCase } from './application/use-cases/delete-all-data/de
 import { PrismaTestingRepository } from './infrastructure/prisma/repositories/prisma-testing.repository.js';
 import { TestingGrpcController } from './presentation/grpc/testing-grpc.controller.js';
 import { GetPublicFileUrlQueryHandler } from './application/use-cases/get-public-file-url/get-public-file-url.query-handler.js';
+import { PostDeletedConsumer } from './presentation/messaging/post-deleted.consumer.js';
+import { filesMessageBrokerConfig } from './config/message-broker.config.js';
 
 @Module({
   imports: [
@@ -36,11 +38,11 @@ import { GetPublicFileUrlQueryHandler } from './application/use-cases/get-public
         '.env.production',
         '.env',
       ],
-      load: [filesConfig, databaseConfig],
+      load: [filesConfig, databaseConfig, filesMessageBrokerConfig],
     }),
     PrismaModule,
   ],
-  controllers: [FilesGrpcController, TestingGrpcController],
+  controllers: [FilesGrpcController, TestingGrpcController, PostDeletedConsumer],
   providers: [
     CompleteImageUploadsUseCase,
     DeleteAllDataUseCase,

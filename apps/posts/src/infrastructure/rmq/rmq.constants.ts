@@ -1,0 +1,1 @@
+export const POSTS_EVENTS_RMQ_CLIENT = Symbol('POSTS_EVENTS_RMQ_CLIENT');

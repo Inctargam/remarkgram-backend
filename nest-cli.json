@@ -88,6 +88,15 @@
         "tsConfigPath": "libs/contracts/grpc/tsconfig.lib.json"
       }
     },
+    "message-broker": {
+      "type": "library",
+      "root": "libs/contracts/message-broker",
+      "entryFile": "index",
+      "sourceRoot": "libs/contracts/message-broker/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/contracts/message-broker/tsconfig.lib.json"
+      }
+    },
     "payments": {
       "type": "application",
       "root": "apps/payments",

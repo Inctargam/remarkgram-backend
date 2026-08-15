@@ -8,6 +8,7 @@ import {
 import {
   Body,
   Controller,
+  Delete,
   HttpCode,
   HttpStatus,
   Inject,
@@ -26,6 +27,7 @@ import { UpdatePostDto } from '../dto/input/update-post/update-post.dto.js';
 import { ApiCreatePost } from '../swagger/post/create-post.swagger.js';
 import { ApiPostsController } from '../swagger/posts-controller.swagger.js';
 import { ApiUpdatePost } from '../swagger/put/update-post.swagger.js';
+import { Public } from '../../../../../common/http/decorators/public.decorator.js';
 
 type AuthenticatedRequest = Request & { userId: string };
 
@@ -72,5 +74,14 @@ export class PostsHttpController implements OnModuleInit {
         description: input.description,
       }),
     );
+  }
+  @Public()
+  @Delete(':postId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deletePost(@Param('postId', ParseIntPipe) postId: number, @Req() request: AuthenticatedRequest) {
+    await firstValueFrom(
+      this.postsClient.deletePost({ userId: request.userId ?? 1, postId: String(postId) }),
+    );
+    return;
   }
 }

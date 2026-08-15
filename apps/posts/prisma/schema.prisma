@@ -32,3 +32,26 @@ model PostImage {
   @@unique([postId, position])
   @@map("post_images")
 }
+
+enum OutboxStatus {
+  PENDING
+  PUBLISHED
+  DEAD
+}
+
+model OutboxEvent {
+  id            String       @id @default(uuid()) @db.Uuid
+  eventType     String       @map("event_type")
+  aggregateType String       @map("aggregate_type") // событие относится к агрегату типа Post.
+  aggregateId   String       @map("aggregate_id") //делают строкой как универсальный транспортный формат: у одного агрегата ID может быть числом, у другого — UUID.
+  payload       Json
+  status        OutboxStatus @default(PENDING)
+  attempts      Int          @default(0)
+  availableAt   DateTime     @default(now()) @map("available_at") @db.Timestamptz //то время, начиная с которого воркер имеет право попытаться отправить или обработать событие
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  publishedAt   DateTime?    @map("published_at") @db.Timestamptz
+  lastError     String?      @map("last_error")
+
+  @@index([availableAt], map: "outbox_pending_available_at_idx", where: { status: "PENDING" })
+  @@map("outbox_events")
+}
