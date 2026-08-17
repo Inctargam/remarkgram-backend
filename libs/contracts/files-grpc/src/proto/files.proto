@@ -8,38 +8,39 @@ service FilesService {
   rpc ReserveImageUploads(ReserveImageUploadsRequest) returns (ReserveImageUploadsResponse);
   rpc AttachReservedImageUploads(AttachReservedImageUploadsRequest) returns (AttachReservedImageUploadsResponse);
   rpc ReleaseReservedImageUploads(ReleaseReservedImageUploadsRequest) returns (ReleaseReservedImageUploadsResponse);
+    rpc GetPublicFileUrl(GetPublicFileUrlRequest) returns (GetPublicFileUrlResponse);
 }
 
 service TestingService {
-  rpc DeleteAllData(DeleteAllDataRequest) returns (DeleteAllDataResponse);
+    rpc DeleteAllData(DeleteAllDataRequest) returns (DeleteAllDataResponse);
 }
 
 message InitiateImageUploadsRequest {
-  string user_id = 1;
-  repeated ImageUploadMetadata images = 2;
+    string user_id = 1;
+    repeated ImageUploadMetadata images = 2;
 }
 
 message ImageUploadMetadata {
-  string original_filename = 1;
-  string content_type = 2;
-  int32 size = 3;
-  string client_file_id = 4;
+    string original_filename = 1;
+    string content_type = 2;
+    int32 size = 3;
+    string client_file_id = 4;
 }
 
 message InitiateImageUploadsResponse {
-  repeated ImageUploadSession sessions = 1;
+    repeated ImageUploadSession sessions = 1;
 }
 
 message ImageUploadSession {
-  string id = 1;
-  string client_file_id = 2;
-  string url = 3;
-  map<string, string> fields = 4;
+    string id = 1;
+    string client_file_id = 2;
+    string url = 3;
+    map<string, string> fields = 4;
 }
 
 message CompleteImageUploadsRequest {
-  string user_id = 1;
-  repeated string upload_ids = 2;
+    string user_id = 1;
+    repeated string upload_ids = 2;
 }
 
 message ReserveImageUploadsRequest {
@@ -69,3 +70,11 @@ message ReserveImageUploadsResponse {}
 message AttachReservedImageUploadsResponse {}
 
 message ReleaseReservedImageUploadsResponse {}
+
+message GetPublicFileUrlRequest {
+    string file_id = 1;
+}
+
+message GetPublicFileUrlResponse {
+    string url = 1;
+}

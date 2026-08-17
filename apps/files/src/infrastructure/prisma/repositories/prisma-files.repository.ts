@@ -7,6 +7,8 @@ import {
   type CreateFileRecord,
   type DeleteClaimedImageUploadParams,
   type DeleteRejectedImageUploadsParams,
+  FindAvailableByIdRepositoryParams,
+  FindAvailableByIdRepositoryResult,
   type FindImageUploadsParams,
   type ImageUploadRecord,
   type ReleaseReservedImageUploadsRepositoryParams,
@@ -80,7 +82,6 @@ export class PrismaFilesRepository extends FilesRepository {
       }
     });
   }
-
   async reserveImageUploads(params: ReserveImageUploadsRepositoryParams): Promise<void> {
     const { uploadIds, userId, reservationId, reservationExpiresAt } = params;
 
@@ -287,5 +288,31 @@ export class PrismaFilesRepository extends FilesRepository {
         deletedAt: null,
       },
     });
+  }
+
+  async findAvailableById(
+    params: FindAvailableByIdRepositoryParams,
+  ): Promise<FindAvailableByIdRepositoryResult> {
+    const { id } = params;
+    const file = await this.prisma.file.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+        uploadStatus: { in: [FileUploadStatus.COMPLETED, FileUploadStatus.ATTACHED] },
+      },
+      select: {
+        id: true,
+        objectKey: true,
+        userId: true,
+      },
+    });
+    if (!file) {
+      return null;
+    }
+    return {
+      id: file.id,
+      userId: file.userId,
+      objectKey: file.objectKey,
+    };
   }
 }

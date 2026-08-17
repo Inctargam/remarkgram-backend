@@ -1,6 +1,6 @@
 import { FilesGrpcController } from './files-grpc.controller.js';
 import { ImageContentType } from '@app/files-grpc';
-import type { CommandBus } from '@nestjs/cqrs';
+import type { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { AttachReservedImageUploadsCommand } from '../../application/use-cases/attach-reserved-image-uploads/attach-reserved-image-uploads.use-case.js';
 import { CompleteImageUploadsCommand } from '../../application/use-cases/complete-image-uploads/complete-image-uploads.use-case.js';
 import { InitiateImageUploadsCommand } from '../../application/use-cases/initiate-image-uploads/initiate-image-uploads.use-case.js';
@@ -9,13 +9,18 @@ import { ReserveImageUploadsCommand } from '../../application/use-cases/reserve-
 
 describe('FilesGrpcController', () => {
   const commandBus = { execute: vi.fn() };
+  const queryBus = { execute: vi.fn() };
+
+  const createController = () =>
+    new FilesGrpcController(commandBus as unknown as CommandBus, queryBus as unknown as QueryBus);
 
   beforeEach(() => {
     commandBus.execute.mockReset();
+    queryBus.execute.mockReset();
   });
 
   it('delegates image upload initiation to the use case', async () => {
-    const controller = new FilesGrpcController(commandBus as unknown as CommandBus);
+    const controller = createController();
     const request = {
       userId: '42',
       images: [
@@ -62,7 +67,7 @@ describe('FilesGrpcController', () => {
   });
 
   it('delegates image upload completion to the use case', async () => {
-    const controller = new FilesGrpcController(commandBus as unknown as CommandBus);
+    const controller = createController();
     const request = {
       userId: '42',
       uploadIds: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
@@ -80,7 +85,7 @@ describe('FilesGrpcController', () => {
   });
 
   it('delegates image upload reservation to the use case', async () => {
-    const controller = new FilesGrpcController(commandBus as unknown as CommandBus);
+    const controller = createController();
     const request = {
       userId: '42',
       uploadIds: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
@@ -100,7 +105,7 @@ describe('FilesGrpcController', () => {
   });
 
   it('delegates release of reserved image uploads to the use case', async () => {
-    const controller = new FilesGrpcController(commandBus as unknown as CommandBus);
+    const controller = createController();
     const request = {
       userId: '42',
       reservationId: '33333333-3333-4333-8333-333333333333',
@@ -118,7 +123,7 @@ describe('FilesGrpcController', () => {
   });
 
   it('delegates attachment of reserved image uploads to the use case', async () => {
-    const controller = new FilesGrpcController(commandBus as unknown as CommandBus);
+    const controller = createController();
     const request = {
       userId: '42',
       reservationId: '33333333-3333-4333-8333-333333333333',

@@ -22,6 +22,10 @@ import {
   PostAccessForbiddenError,
   PostNotFoundError,
 } from '../../../application/errors/base-post.errors.js';
+import {
+  InvalidPostsCursorError,
+  InvalidPostsPageLimitError,
+} from '../../../application/errors/post-pagination.errors.js';
 
 describe('PostsRpcExceptionFilter', () => {
   const filter = new PostsRpcExceptionFilter();
@@ -41,11 +45,12 @@ describe('PostsRpcExceptionFilter', () => {
     [new PostUpdateConflictError(), status.ALREADY_EXISTS],
     [new InvalidPostIdError(), status.INVALID_ARGUMENT],
     [new PostNotFoundError(), status.NOT_FOUND],
+    [new InvalidPostsPageLimitError(), status.INVALID_ARGUMENT],
+    [new InvalidPostsCursorError(), status.INVALID_ARGUMENT],
   ] as const)('maps $0.code to gRPC status $1', async (error, grpcStatus) => {
     const rpcError: unknown = await firstValueFrom(filter.catch(error, host)).catch(
       (caught: unknown) => caught,
     );
-
     expect(rpcError).toEqual(
       expect.objectContaining({
         code: grpcStatus,

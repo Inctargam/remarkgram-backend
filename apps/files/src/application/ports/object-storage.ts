@@ -22,4 +22,6 @@ export abstract class ObjectStorage {
   abstract getObjectMetadata(objectKey: string): Promise<ObjectMetadata | null>;
 
   abstract deleteObject(objectKey: string): Promise<void>;
+
+  abstract getPublicUrl(objectKey: string): string;
 }

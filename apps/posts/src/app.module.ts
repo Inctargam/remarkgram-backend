@@ -18,6 +18,9 @@ import { DeleteAllDataUseCase } from './application/use-cases/delete-all-data/de
 import { PrismaTestingRepository } from './infrastructure/prisma/repositories/prisma-testing.repository.js';
 import { TestingGrpcController } from './presentation/grpc/testing-grpc.controller.js';
 import { UpdatePostUseCase } from './application/use-cases/update-post/update-post.use-case.js';
+import { PrismaPostsQueryRepository } from './infrastructure/prisma/repositories/prisma-posts-query.repository.js';
+import { PostsQueryRepository } from './application/ports/posts-query.repository.js';
+import { GetAuthorPostsQueryHandler } from './application/use-cases/get-author-posts/get-author-posts.query-handler.js';
 
 @Module({
   imports: [
@@ -58,6 +61,7 @@ import { UpdatePostUseCase } from './application/use-cases/update-post/update-po
     DeleteAllDataUseCase,
     PrismaService,
     UpdatePostUseCase,
+    GetAuthorPostsQueryHandler,
     {
       provide: PostsRepository,
       useClass: PrismaPostsRepository,
@@ -69,6 +73,10 @@ import { UpdatePostUseCase } from './application/use-cases/update-post/update-po
     {
       provide: TestingRepository,
       useClass: PrismaTestingRepository,
+    },
+    {
+      provide: PostsQueryRepository,
+      useClass: PrismaPostsQueryRepository,
     },
   ],
 })

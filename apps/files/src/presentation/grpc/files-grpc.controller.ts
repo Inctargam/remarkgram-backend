@@ -5,6 +5,8 @@ import type {
   AttachReservedImageUploadsResponse,
   CompleteImageUploadsRequest,
   CompleteImageUploadsResponse,
+  GetPublicFileUrlRequest,
+  GetPublicFileUrlResponse,
   InitiateImageUploadsRequest,
   InitiateImageUploadsResponse,
   ReleaseReservedImageUploadsRequest,
@@ -12,19 +14,23 @@ import type {
   ReserveImageUploadsRequest,
   ReserveImageUploadsResponse,
 } from '@app/files-grpc';
-import { CommandBus } from '@nestjs/cqrs';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { AttachReservedImageUploadsCommand } from '../../application/use-cases/attach-reserved-image-uploads/attach-reserved-image-uploads.use-case.js';
 import { CompleteImageUploadsCommand } from '../../application/use-cases/complete-image-uploads/complete-image-uploads.use-case.js';
 import { InitiateImageUploadsCommand } from '../../application/use-cases/initiate-image-uploads/initiate-image-uploads.use-case.js';
 import { ReleaseReservedImageUploadsCommand } from '../../application/use-cases/release-reserved-image-uploads/release-reserved-image-uploads.use-case.js';
 import { ReserveImageUploadsCommand } from '../../application/use-cases/reserve-image-uploads/reserve-image-uploads.use-case.js';
+import { GetPublicFileUrlQuery } from '../../application/use-cases/get-public-file-url/get-public-file-url.query-handler.js';
 import { FilesRpcExceptionFilter } from './filters/files-rpc-exception.filter.js';
 
 @Controller()
 @FilesServiceControllerMethods()
 @UseFilters(FilesRpcExceptionFilter)
 export class FilesGrpcController {
-  constructor(private readonly commandBus: CommandBus) {}
+  constructor(
+    private readonly commandBus: CommandBus,
+    private readonly queryBus: QueryBus,
+  ) {}
 
   initiateImageUploads(request: InitiateImageUploadsRequest): Promise<InitiateImageUploadsResponse> {
     return this.commandBus.execute(
@@ -82,5 +88,9 @@ export class FilesGrpcController {
     );
 
     return {};
+  }
+
+  async getPublicFileUrl(request: GetPublicFileUrlRequest): Promise<GetPublicFileUrlResponse> {
+    return await this.queryBus.execute(new GetPublicFileUrlQuery(request.fileId));
   }
 }

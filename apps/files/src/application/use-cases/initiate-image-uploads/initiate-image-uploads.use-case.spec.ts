@@ -24,11 +24,13 @@ describe('InitiateImageUploadsUseCase', () => {
     claimExpiredImageUploads: vi.fn<FilesRepository['claimExpiredImageUploads']>(),
     deleteClaimedImageUpload: vi.fn<FilesRepository['deleteClaimedImageUpload']>(),
     deleteRejectedImageUploads: vi.fn<FilesRepository['deleteRejectedImageUploads']>(),
+    findAvailableById: vi.fn<FilesRepository['findAvailableById']>(),
   };
   const objectStorage = {
     createPresignedUpload: vi.fn<ObjectStorage['createPresignedUpload']>(),
     getObjectMetadata: vi.fn<ObjectStorage['getObjectMetadata']>(),
     deleteObject: vi.fn<ObjectStorage['deleteObject']>(),
+    getPublicUrl: vi.fn<ObjectStorage['getPublicUrl']>(),
   };
 
   const createUseCase = () => new InitiateImageUploadsUseCase(objectStorage, filesRepository);

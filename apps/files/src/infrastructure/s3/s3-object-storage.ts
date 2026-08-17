@@ -70,7 +70,6 @@ export class S3ObjectStorage extends ObjectStorage {
       throw error;
     }
   }
-
   async deleteObject(objectKey: string): Promise<void> {
     await this.s3Client.send(
       new DeleteObjectCommand({
@@ -78,5 +77,14 @@ export class S3ObjectStorage extends ObjectStorage {
         Key: objectKey,
       }),
     );
+  }
+
+  getPublicUrl(objectKey: string) {
+    const baseUrl = this.config.s3.publicUrl.endsWith('/')
+      ? this.config.s3.publicUrl
+      : `${this.config.s3.publicUrl}/`;
+
+    const encodedKey = objectKey.split('/').map(encodeURIComponent).join('/');
+    return new URL(encodedKey, baseUrl).toString();
   }
 }

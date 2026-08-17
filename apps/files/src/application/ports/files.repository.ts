@@ -62,13 +62,22 @@ export type DeleteClaimedImageUploadParams = {
 
 export type DeleteRejectedImageUploadsParams = FindImageUploadsParams;
 
+export type FindAvailableByIdRepositoryParams = {
+  id: string;
+};
+
+export type FindAvailableByIdRepositoryResult = {
+  id: string;
+  userId: number;
+  objectKey: string;
+} | null;
+
 export abstract class FilesRepository {
   abstract createMany(fileRecords: readonly CreateFileRecord[]): Promise<void>;
 
   abstract findImageUploads(params: FindImageUploadsParams): Promise<ImageUploadRecord[]>;
 
   abstract updateImageUploadsStatusIfAllPending(params: UpdateImageUploadsStatusParams): Promise<void>;
-
   abstract reserveImageUploads(params: ReserveImageUploadsRepositoryParams): Promise<void>;
 
   abstract attachReservedImageUploads(params: AttachReservedImageUploadsRepositoryParams): Promise<void>;
@@ -80,4 +89,8 @@ export abstract class FilesRepository {
   abstract deleteClaimedImageUpload(params: DeleteClaimedImageUploadParams): Promise<boolean>;
 
   abstract deleteRejectedImageUploads(params: DeleteRejectedImageUploadsParams): Promise<void>;
+
+  abstract findAvailableById(
+    params: FindAvailableByIdRepositoryParams,
+  ): Promise<FindAvailableByIdRepositoryResult>;
 }

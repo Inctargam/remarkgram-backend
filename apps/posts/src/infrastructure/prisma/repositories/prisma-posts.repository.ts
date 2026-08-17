@@ -1,14 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { PostImageAlreadyAttachedError } from '../../../application/errors/create-post.errors.js';
-import {
-  PostForUpdate,
-  PostsRepository,
-  UpdateAuthorPostParams,
-} from '../../../application/ports/posts.repository.js';
-import type { CreatePostRepositoryParams } from '../../../application/types/posts.types.js';
+import { PostsRepository } from '../../../application/ports/posts.repository.js';
+import type { Post } from '../../../domain/entities/post.entity.js';
+import type {
+  CreatePostRepositoryParams,
+  UpdateAuthorPostRepositoryParams,
+} from '../../../application/types/posts.types.js';
 import { Prisma } from '../generated/client.js';
 import { PrismaService } from '../prisma.service.js';
 import { PostUpdateConflictError } from '../../../application/errors/update-post.errors.js';
+import { PostNotFoundError } from '../../../application/errors/base-post.errors.js';
+import { PostPrismaMapper } from '../mappers/post-prisma.mapper.js';
 
 @Injectable()
 export class PrismaPostsRepository implements PostsRepository {
@@ -40,24 +42,33 @@ export class PrismaPostsRepository implements PostsRepository {
       throw error;
     }
   }
-
-  async findById(id: number): Promise<PostForUpdate | null> {
-    const post = await this.prisma.post.findUnique({ where: { id: id } });
+  async findByIdAndAuthorId(id: number, authorId: number): Promise<Post | null> {
+    const post = await this.prisma.post.findUnique({
+      where: { id: id, deletedAt: null, authorId: authorId },
+      include: { images: { orderBy: { position: 'asc' } } },
+    });
     if (!post) {
       return null;
     }
-    return {
-      id: post.id,
-      authorId: post.authorId,
-      version: post.version,
-    };
+    return PostPrismaMapper.toDomain(post);
   }
-  async updateAuthorPost(params: UpdateAuthorPostParams): Promise<number> {
+
+  async findById(id: number): Promise<Post | null> {
+    const post = await this.prisma.post.findUnique({
+      where: { id: id, deletedAt: null },
+      include: { images: { orderBy: { position: 'asc' } } },
+    });
+    if (!post) {
+      return null;
+    }
+    return PostPrismaMapper.toDomain(post);
+  }
+  async updateAuthorPost(params: UpdateAuthorPostRepositoryParams): Promise<number> {
     const { authorId, id, expectedVersion, fields } = params;
     //При обновлении используем подход optimistic lock
     try {
       const result = await this.prisma.post.update({
-        where: { authorId: authorId, id: id, version: expectedVersion },
+        where: { authorId: authorId, id: id, version: expectedVersion, deletedAt: null },
         data: {
           description: fields.description,
           version: {
@@ -70,6 +81,36 @@ export class PrismaPostsRepository implements PostsRepository {
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         throw new PostUpdateConflictError();
+      }
+      throw error;
+    }
+  }
+
+  async softDeleteById(
+    id: number,
+    authorId: number,
+  ): Promise<{
+    id: number;
+    images: {
+      fileId: string;
+    }[];
+  }> {
+    try {
+      const result = await this.prisma.post.update({
+        where: { authorId: authorId, id: id, deletedAt: null },
+        data: {
+          version: {
+            increment: 1,
+          },
+          deletedAt: new Date(), // Standard JS equivalent to SQL NOW()
+        },
+        select: { id: true, images: { select: { fileId: true } } },
+      });
+      return result;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        //::TODO определить тип ошибки
+        throw new PostNotFoundError();
       }
       throw error;
     }

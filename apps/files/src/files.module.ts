@@ -23,6 +23,7 @@ import { DeleteAllDataUseCase } from './application/use-cases/delete-all-data/de
 import { PrismaTestingRepository } from './infrastructure/prisma/repositories/prisma-testing.repository.js';
 import { TestingGrpcController } from './presentation/grpc/testing-grpc.controller.js';
 import { ExpiredImageUploadsCleanupJob } from './infrastructure/scheduling/expired-image-uploads-cleanup.job.js';
+import { GetPublicFileUrlQueryHandler } from './application/use-cases/get-public-file-url/get-public-file-url.query-handler.js';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { ExpiredImageUploadsCleanupJob } from './infrastructure/scheduling/expir
     CompleteImageUploadsUseCase,
     DeleteAllDataUseCase,
     InitiateImageUploadsUseCase,
+    GetPublicFileUrlQueryHandler,
     ReleaseReservedImageUploadsUseCase,
     ReserveImageUploadsUseCase,
     ExpiredImageUploadsCleanupJob,
