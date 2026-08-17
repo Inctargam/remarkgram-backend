@@ -5,7 +5,9 @@ package remarkgram.files.v1;
 service FilesService {
   rpc InitiateImageUploads(InitiateImageUploadsRequest) returns (InitiateImageUploadsResponse);
   rpc CompleteImageUploads(CompleteImageUploadsRequest) returns (CompleteImageUploadsResponse);
-  rpc EnsureCompletedImageUploads(EnsureCompletedImageUploadsRequest) returns (EnsureCompletedImageUploadsResponse);
+  rpc ReserveImageUploads(ReserveImageUploadsRequest) returns (ReserveImageUploadsResponse);
+  rpc AttachReservedImageUploads(AttachReservedImageUploadsRequest) returns (AttachReservedImageUploadsResponse);
+  rpc ReleaseReservedImageUploads(ReleaseReservedImageUploadsRequest) returns (ReleaseReservedImageUploadsResponse);
 }
 
 service TestingService {
@@ -40,15 +42,30 @@ message CompleteImageUploadsRequest {
   repeated string upload_ids = 2;
 }
 
-message CompleteImageUploadsResponse {}
-
-message EnsureCompletedImageUploadsRequest {
+message ReserveImageUploadsRequest {
   string user_id = 1;
-  repeated string image_ids = 2;
+  repeated string upload_ids = 2;
+  string reservation_id = 3;
 }
 
-message EnsureCompletedImageUploadsResponse {}
+message ReleaseReservedImageUploadsRequest {
+  string user_id = 1;
+  string reservation_id = 2;
+}
+
+message AttachReservedImageUploadsRequest {
+  string user_id = 1;
+  string reservation_id = 2;
+}
+
+message CompleteImageUploadsResponse {}
 
 message DeleteAllDataRequest {}
 
 message DeleteAllDataResponse {}
+
+message ReserveImageUploadsResponse {}
+
+message AttachReservedImageUploadsResponse {}
+
+message ReleaseReservedImageUploadsResponse {}

@@ -31,17 +31,36 @@ export interface CompleteImageUploadsRequest {
 
 export type CompleteImageUploadsResponse = Record<string, never>;
 
-export interface EnsureCompletedImageUploadsRequest {
+export interface ReserveImageUploadsRequest {
   userId: string;
-  imageIds: string[];
+  uploadIds: string[];
+  reservationId: string;
 }
 
-export type EnsureCompletedImageUploadsResponse = Record<string, never>;
+export type ReserveImageUploadsResponse = Record<string, never>;
+
+export interface AttachReservedImageUploadsRequest {
+  userId: string;
+  reservationId: string;
+}
+
+export type AttachReservedImageUploadsResponse = Record<string, never>;
+
+export interface ReleaseReservedImageUploadsRequest {
+  userId: string;
+  reservationId: string;
+}
+
+export type ReleaseReservedImageUploadsResponse = Record<string, never>;
 
 export interface FilesServiceClient {
   initiateImageUploads(request: InitiateImageUploadsRequest): Observable<InitiateImageUploadsResponse>;
   completeImageUploads(request: CompleteImageUploadsRequest): Observable<CompleteImageUploadsResponse>;
-  ensureCompletedImageUploads(
-    request: EnsureCompletedImageUploadsRequest,
-  ): Observable<EnsureCompletedImageUploadsResponse>;
+  reserveImageUploads(request: ReserveImageUploadsRequest): Observable<ReserveImageUploadsResponse>;
+  attachReservedImageUploads(
+    request: AttachReservedImageUploadsRequest,
+  ): Observable<AttachReservedImageUploadsResponse>;
+  releaseReservedImageUploads(
+    request: ReleaseReservedImageUploadsRequest,
+  ): Observable<ReleaseReservedImageUploadsResponse>;
 }
