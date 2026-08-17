@@ -5,7 +5,7 @@ export class InvalidUserIdError extends PostsError {
   readonly code = PostsErrorCode.INVALID_USER_ID;
 
   constructor() {
-    super('User ID must be a positive 32-bit integer');
+    super('User ID must be a positive integer');
   }
 }
 
@@ -41,11 +41,11 @@ export class PostImageNotFoundError extends PostsError {
   }
 }
 
-export class PostImageNotCompletedError extends PostsError {
-  readonly code = PostsErrorCode.POST_IMAGE_NOT_COMPLETED;
+export class PostImagesNotAvailableError extends PostsError {
+  readonly code = PostsErrorCode.POST_IMAGES_NOT_AVAILABLE;
 
   constructor() {
-    super('All post images must have completed uploads');
+    super('One or more post images are not available');
   }
 }
 

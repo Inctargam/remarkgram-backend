@@ -394,9 +394,19 @@ describe('ApiGateway (e2e)', () => {
       expect.arrayContaining(['204', '400', '401', '404', '409', '502', '503']),
     );
     expect(createPost.post.summary).toBe('Create a post with completed image uploads');
+    expect(createPost.post.parameters).toContainEqual(
+      expect.objectContaining({ name: 'Idempotency-Key', in: 'header', required: false }),
+    );
     expect(Object.keys(createPost.post.responses)).toEqual(
       expect.arrayContaining(['201', '400', '401', '404', '409', '502', '503']),
     );
+    expect(
+      createPost.post.responses['409'].content?.['application/json']?.examples?.imagesNotAvailable?.value,
+    ).toEqual({
+      statusCode: 409,
+      code: 'POST_IMAGES_NOT_AVAILABLE',
+      message: 'One or more post images are not available',
+    });
     expect(
       createPost.post.responses['409'].content?.['application/json']?.examples?.imageAlreadyAttached?.value,
     ).toEqual({

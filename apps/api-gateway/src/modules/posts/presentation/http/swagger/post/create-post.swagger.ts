@@ -1,5 +1,12 @@
 import { applyDecorators } from '@nestjs/common';
-import { ApiBody, ApiCreatedResponse, ApiOperation, ApiResponse, getSchemaPath } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiCreatedResponse,
+  ApiHeader,
+  ApiOperation,
+  ApiResponse,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import { ApiErrorResponseDto } from '../../../../../../common/http/api-error-response.dto.js';
 import { ValidationErrorResponseDto } from '../../../../../../common/http/validation-error-response.dto.js';
 import { createApiErrorResponseExample } from '../../../../../../swagger/examples/api-error-response.example.js';
@@ -12,13 +19,27 @@ export const ApiCreatePost = () =>
       summary: 'Create a post with completed image uploads',
       description:
         'Final step of publication creation. Supply the IDs previously confirmed through ' +
-        'files/image-uploads/complete in their display order. Posts asks Files over gRPC to verify that every ' +
-        'image exists, belongs to the authenticated author, is not soft-deleted and has status COMPLETED. ' +
-        'The post and its ordered image relations are then created atomically.',
+        'files/image-uploads/complete in their display order. Posts asks Files over gRPC to reserve images ' +
+        'that exist, belong to the authenticated author, are not soft-deleted and have status COMPLETED. ' +
+        'The post and its ordered image relations are then created atomically, after which the reservation ' +
+        'is marked as attached.',
     }),
     ApiBody({
       type: CreatePostDto,
       description: 'Post description and completed image IDs in the desired display order.',
+    }),
+    ApiHeader({
+      name: 'Idempotency-Key',
+      required: false,
+      description:
+        'Client-generated UUID for one publication attempt. Reuse the same value only when retrying ' +
+        'an identical request. The current API version accepts this header but does not yet enforce ' +
+        'request-level idempotency.',
+      schema: {
+        type: 'string',
+        format: 'uuid',
+        example: '7b96a443-8b33-41cf-9bd9-2f57b720d39e',
+      },
     }),
     ApiCreatedResponse({
       description: 'The post and all ordered image relations were created.',
@@ -94,17 +115,18 @@ export const ApiCreatePost = () =>
     }),
     ApiResponse({
       status: 409,
-      description: 'At least one image is not COMPLETED or is already attached to another post.',
+      description:
+        'At least one image cannot be reserved in its current state or is already attached to another post.',
       content: {
         'application/json': {
           schema: { $ref: getSchemaPath(ApiErrorResponseDto) },
           examples: {
-            imageNotCompleted: {
-              summary: 'At least one image upload is PENDING or REJECTED',
+            imagesNotAvailable: {
+              summary: 'At least one image cannot be reserved for this post',
               value: createApiErrorResponseExample(
                 409,
-                'POST_IMAGE_NOT_COMPLETED',
-                'All post images must have completed uploads',
+                'POST_IMAGES_NOT_AVAILABLE',
+                'One or more post images are not available',
               ),
             },
             imageAlreadyAttached: {

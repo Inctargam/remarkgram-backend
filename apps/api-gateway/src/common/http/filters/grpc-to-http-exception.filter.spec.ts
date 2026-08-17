@@ -31,7 +31,7 @@ describe('mapGrpcErrorToHttpException', () => {
     });
   });
 
-  it.each(['EMAIL_NOT_CONFIRMED', 'INVALID_IMAGE_SIZE', 'POST_IMAGE_NOT_COMPLETED'])(
+  it.each(['EMAIL_NOT_CONFIRMED', 'INVALID_IMAGE_SIZE', 'POST_IMAGES_NOT_AVAILABLE'])(
     'preserves the application error code %s from gRPC metadata',
     (errorCode) => {
       const metadata = new Metadata();

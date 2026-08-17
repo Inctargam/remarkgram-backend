@@ -3,13 +3,13 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { ImageUploadsVerifier } from './application/ports/image-uploads-verifier.js';
+import { ImageUploadsGateway } from './application/ports/image-uploads.gateway.js';
 import { PostsRepository } from './application/ports/posts.repository.js';
 import { CreatePostUseCase } from './application/use-cases/create-post/create-post.use-case.js';
 import { databaseConfig } from './config/database.config.js';
 import { filesGrpcClientConfig } from './config/files-grpc-client.config.js';
 import { postsConfig } from './config/posts.config.js';
-import { FilesImageUploadsVerifier } from './infrastructure/grpc/files-image-uploads-verifier.js';
+import { GrpcImageUploadsGateway } from './infrastructure/grpc/grpc-image-uploads.gateway.js';
 import { PrismaService } from './infrastructure/prisma/prisma.service.js';
 import { PrismaPostsRepository } from './infrastructure/prisma/repositories/prisma-posts.repository.js';
 import { PostsGrpcController } from './presentation/grpc/posts-grpc.controller.js';
@@ -63,8 +63,8 @@ import { UpdatePostUseCase } from './application/use-cases/update-post/update-po
       useClass: PrismaPostsRepository,
     },
     {
-      provide: ImageUploadsVerifier,
-      useClass: FilesImageUploadsVerifier,
+      provide: ImageUploadsGateway,
+      useClass: GrpcImageUploadsGateway,
     },
     {
       provide: TestingRepository,

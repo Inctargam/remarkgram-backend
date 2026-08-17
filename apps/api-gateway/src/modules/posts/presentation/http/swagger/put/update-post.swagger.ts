@@ -41,7 +41,7 @@ export const ApiUpdatePost = () =>
               value: createApiErrorResponseExample(
                 HttpStatus.BAD_REQUEST,
                 'INVALID_USER_ID',
-                'User ID must be a positive 32-bit integer',
+                'User ID must be a positive integer',
               ),
             },
             invalidPostId: {

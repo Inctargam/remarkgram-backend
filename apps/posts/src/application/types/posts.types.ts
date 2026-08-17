@@ -8,7 +8,18 @@ export type CreatePostRepositoryParams = {
   imageIds: readonly string[];
 };
 
-export type EnsureCompletedImagesParams = {
+export type ReserveImageUploadsParams = {
   userId: number;
   imageIds: readonly string[];
+  reservationId: string;
+};
+
+export type AttachReservedImageUploadsParams = {
+  userId: number;
+  reservationId: string;
+};
+
+export type ReleaseReservedImageUploadsParams = {
+  userId: number;
+  reservationId: string;
 };

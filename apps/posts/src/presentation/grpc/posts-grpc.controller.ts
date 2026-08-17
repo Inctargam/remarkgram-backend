@@ -26,6 +26,7 @@ export class PostsGrpcController {
       }),
     );
   }
+
   async updatePost(request: UpdatePostRequest): Promise<UpdatePostResponse> {
     await this.commandBus.execute(
       new UpdatePostCommand({

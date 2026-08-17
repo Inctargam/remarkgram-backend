@@ -9,8 +9,8 @@ import {
   InvalidPostImageCountError,
   InvalidUserIdError,
   PostImageAlreadyAttachedError,
-  PostImageNotCompletedError,
   PostImageNotFoundError,
+  PostImagesNotAvailableError,
 } from '../../../application/errors/create-post.errors.js';
 import { PostsRpcExceptionFilter } from './posts-rpc-exception.filter.js';
 import {
@@ -33,7 +33,7 @@ describe('PostsRpcExceptionFilter', () => {
     [new InvalidPostImageCountError(), status.INVALID_ARGUMENT],
     [new DuplicatePostImageIdError(), status.INVALID_ARGUMENT],
     [new PostImageNotFoundError(), status.NOT_FOUND],
-    [new PostImageNotCompletedError(), status.FAILED_PRECONDITION],
+    [new PostImagesNotAvailableError(), status.FAILED_PRECONDITION],
     [new PostImageAlreadyAttachedError(), status.ALREADY_EXISTS],
     [new ImageUploadsServiceUnavailableError(), status.UNAVAILABLE],
     [new PostUpdateForbiddenError(), status.PERMISSION_DENIED],
