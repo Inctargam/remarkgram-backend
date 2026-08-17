@@ -29,10 +29,55 @@ export type UpdateImageUploadsStatusParams = FindImageUploadsParams & {
   uploadedAt: Date | null;
 };
 
+export type ReserveImageUploadsRepositoryParams = FindImageUploadsParams & {
+  reservationId: string;
+  reservationExpiresAt: Date;
+};
+
+export type ReleaseReservedImageUploadsRepositoryParams = {
+  userId: number;
+  reservationId: string;
+};
+
+export type AttachReservedImageUploadsRepositoryParams = ReleaseReservedImageUploadsRepositoryParams;
+
+export type ClaimExpiredImageUploadsParams = {
+  pendingExpiredBefore: Date;
+  completedBefore: Date;
+  rejectedBefore: Date;
+  retryBefore: Date;
+  claimedAt: Date;
+  limit: number;
+};
+
+export type ClaimedImageUpload = {
+  id: string;
+  objectKey: string;
+};
+
+export type DeleteClaimedImageUploadParams = {
+  uploadId: string;
+  claimedAt: Date;
+};
+
+export type DeleteRejectedImageUploadsParams = FindImageUploadsParams;
+
 export abstract class FilesRepository {
   abstract createMany(fileRecords: readonly CreateFileRecord[]): Promise<void>;
 
   abstract findImageUploads(params: FindImageUploadsParams): Promise<ImageUploadRecord[]>;
 
   abstract updateImageUploadsStatusIfAllPending(params: UpdateImageUploadsStatusParams): Promise<void>;
+
+  abstract reserveImageUploads(params: ReserveImageUploadsRepositoryParams): Promise<void>;
+
+  abstract attachReservedImageUploads(params: AttachReservedImageUploadsRepositoryParams): Promise<void>;
+
+  abstract releaseReservedImageUploads(params: ReleaseReservedImageUploadsRepositoryParams): Promise<void>;
+
+  abstract claimExpiredImageUploads(params: ClaimExpiredImageUploadsParams): Promise<ClaimedImageUpload[]>;
+
+  abstract deleteClaimedImageUpload(params: DeleteClaimedImageUploadParams): Promise<boolean>;
+
+  abstract deleteRejectedImageUploads(params: DeleteRejectedImageUploadsParams): Promise<void>;
 }

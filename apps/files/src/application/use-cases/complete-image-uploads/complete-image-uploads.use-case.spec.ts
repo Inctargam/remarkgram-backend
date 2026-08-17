@@ -1,4 +1,5 @@
 import { MAX_IMAGES_PER_UPLOAD_REQUEST } from '@app/files-grpc';
+import { Logger } from '@nestjs/common';
 import {
   DuplicateImageUploadIdError,
   ImageUploadMetadataMismatchError,
@@ -20,10 +21,17 @@ describe('CompleteImageUploadsUseCase', () => {
     createMany: vi.fn<FilesRepository['createMany']>(),
     findImageUploads: vi.fn<FilesRepository['findImageUploads']>(),
     updateImageUploadsStatusIfAllPending: vi.fn<FilesRepository['updateImageUploadsStatusIfAllPending']>(),
+    reserveImageUploads: vi.fn<FilesRepository['reserveImageUploads']>(),
+    attachReservedImageUploads: vi.fn<FilesRepository['attachReservedImageUploads']>(),
+    releaseReservedImageUploads: vi.fn<FilesRepository['releaseReservedImageUploads']>(),
+    claimExpiredImageUploads: vi.fn<FilesRepository['claimExpiredImageUploads']>(),
+    deleteClaimedImageUpload: vi.fn<FilesRepository['deleteClaimedImageUpload']>(),
+    deleteRejectedImageUploads: vi.fn<FilesRepository['deleteRejectedImageUploads']>(),
   };
   const objectStorage = {
     createPresignedUpload: vi.fn<ObjectStorage['createPresignedUpload']>(),
     getObjectMetadata: vi.fn<ObjectStorage['getObjectMetadata']>(),
+    deleteObject: vi.fn<ObjectStorage['deleteObject']>(),
   };
   const useCase = new CompleteImageUploadsUseCase(filesRepository, objectStorage);
   const uploadId = '11111111-1111-4111-8111-111111111111';
@@ -42,15 +50,20 @@ describe('CompleteImageUploadsUseCase', () => {
     ]);
     filesRepository.updateImageUploadsStatusIfAllPending.mockReset();
     filesRepository.updateImageUploadsStatusIfAllPending.mockResolvedValue();
+    filesRepository.deleteRejectedImageUploads.mockReset();
+    filesRepository.deleteRejectedImageUploads.mockResolvedValue();
     objectStorage.getObjectMetadata.mockReset();
     objectStorage.getObjectMetadata.mockResolvedValue({
       size: 1_024,
       contentType: 'image/jpeg',
     });
+    objectStorage.deleteObject.mockReset();
+    objectStorage.deleteObject.mockResolvedValue();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('marks all requested uploads as completed when their metadata matches', async () => {
@@ -117,6 +130,34 @@ describe('CompleteImageUploadsUseCase', () => {
       uploadStatus: FileUploadStatus.REJECTED,
       uploadedAt: null,
     });
+    await vi.waitFor(() => {
+      expect(objectStorage.deleteObject).toHaveBeenCalledWith(`users/42/images/${uploadId}`);
+      expect(objectStorage.deleteObject).toHaveBeenCalledWith(`users/42/images/${secondUploadId}`);
+      expect(filesRepository.deleteRejectedImageUploads).toHaveBeenCalledWith({
+        uploadIds: [uploadId, secondUploadId],
+        userId: 42,
+      });
+    });
+  });
+
+  it('leaves rejected records for scheduled cleanup when immediate S3 deletion fails', async () => {
+    const loggerError = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    objectStorage.getObjectMetadata.mockResolvedValue(null);
+    objectStorage.deleteObject.mockRejectedValue(new Error('S3 is unavailable'));
+
+    await expect(
+      useCase.execute(
+        new CompleteImageUploadsCommand({
+          userId: 42,
+          uploadIds: [uploadId],
+        }),
+      ),
+    ).rejects.toThrow(ImageUploadMetadataMismatchError);
+
+    await vi.waitFor(() => {
+      expect(loggerError).toHaveBeenCalledOnce();
+    });
+    expect(filesRepository.deleteRejectedImageUploads).not.toHaveBeenCalled();
   });
 
   it('does not change upload statuses when storage metadata cannot be requested', async () => {

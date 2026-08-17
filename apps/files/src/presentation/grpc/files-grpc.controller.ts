@@ -1,27 +1,30 @@
 import { Controller, UseFilters } from '@nestjs/common';
 import { FilesServiceControllerMethods } from '@app/files-grpc';
 import type {
+  AttachReservedImageUploadsRequest,
+  AttachReservedImageUploadsResponse,
   CompleteImageUploadsRequest,
   CompleteImageUploadsResponse,
-  EnsureCompletedImageUploadsRequest,
-  EnsureCompletedImageUploadsResponse,
   InitiateImageUploadsRequest,
   InitiateImageUploadsResponse,
+  ReleaseReservedImageUploadsRequest,
+  ReleaseReservedImageUploadsResponse,
+  ReserveImageUploadsRequest,
+  ReserveImageUploadsResponse,
 } from '@app/files-grpc';
-import { CommandBus, QueryBus } from '@nestjs/cqrs';
+import { CommandBus } from '@nestjs/cqrs';
+import { AttachReservedImageUploadsCommand } from '../../application/use-cases/attach-reserved-image-uploads/attach-reserved-image-uploads.use-case.js';
 import { CompleteImageUploadsCommand } from '../../application/use-cases/complete-image-uploads/complete-image-uploads.use-case.js';
 import { InitiateImageUploadsCommand } from '../../application/use-cases/initiate-image-uploads/initiate-image-uploads.use-case.js';
+import { ReleaseReservedImageUploadsCommand } from '../../application/use-cases/release-reserved-image-uploads/release-reserved-image-uploads.use-case.js';
+import { ReserveImageUploadsCommand } from '../../application/use-cases/reserve-image-uploads/reserve-image-uploads.use-case.js';
 import { FilesRpcExceptionFilter } from './filters/files-rpc-exception.filter.js';
-import { EnsureCompletedImageUploadsQuery } from '../../application/use-cases/ensure-completed-image-uploads/ensure-completed-image-uploads.use-case.js';
 
 @Controller()
 @FilesServiceControllerMethods()
 @UseFilters(FilesRpcExceptionFilter)
 export class FilesGrpcController {
-  constructor(
-    private readonly commandBus: CommandBus,
-    private readonly queryBus: QueryBus,
-  ) {}
+  constructor(private readonly commandBus: CommandBus) {}
 
   initiateImageUploads(request: InitiateImageUploadsRequest): Promise<InitiateImageUploadsResponse> {
     return this.commandBus.execute(
@@ -43,13 +46,38 @@ export class FilesGrpcController {
     return {};
   }
 
-  async ensureCompletedImageUploads(
-    request: EnsureCompletedImageUploadsRequest,
-  ): Promise<EnsureCompletedImageUploadsResponse> {
-    await this.queryBus.execute(
-      new EnsureCompletedImageUploadsQuery({
+  async reserveImageUploads(request: ReserveImageUploadsRequest): Promise<ReserveImageUploadsResponse> {
+    await this.commandBus.execute(
+      new ReserveImageUploadsCommand({
         userId: Number(request.userId),
-        imageIds: request.imageIds,
+        uploadIds: request.uploadIds,
+        reservationId: request.reservationId,
+      }),
+    );
+
+    return {};
+  }
+
+  async releaseReservedImageUploads(
+    request: ReleaseReservedImageUploadsRequest,
+  ): Promise<ReleaseReservedImageUploadsResponse> {
+    await this.commandBus.execute(
+      new ReleaseReservedImageUploadsCommand({
+        userId: Number(request.userId),
+        reservationId: request.reservationId,
+      }),
+    );
+
+    return {};
+  }
+
+  async attachReservedImageUploads(
+    request: AttachReservedImageUploadsRequest,
+  ): Promise<AttachReservedImageUploadsResponse> {
+    await this.commandBus.execute(
+      new AttachReservedImageUploadsCommand({
+        userId: Number(request.userId),
+        reservationId: request.reservationId,
       }),
     );
 

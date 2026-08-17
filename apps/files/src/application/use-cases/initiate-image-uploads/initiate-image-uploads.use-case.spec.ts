@@ -18,10 +18,17 @@ describe('InitiateImageUploadsUseCase', () => {
     createMany: vi.fn<FilesRepository['createMany']>(),
     findImageUploads: vi.fn<FilesRepository['findImageUploads']>(),
     updateImageUploadsStatusIfAllPending: vi.fn<FilesRepository['updateImageUploadsStatusIfAllPending']>(),
+    reserveImageUploads: vi.fn<FilesRepository['reserveImageUploads']>(),
+    attachReservedImageUploads: vi.fn<FilesRepository['attachReservedImageUploads']>(),
+    releaseReservedImageUploads: vi.fn<FilesRepository['releaseReservedImageUploads']>(),
+    claimExpiredImageUploads: vi.fn<FilesRepository['claimExpiredImageUploads']>(),
+    deleteClaimedImageUpload: vi.fn<FilesRepository['deleteClaimedImageUpload']>(),
+    deleteRejectedImageUploads: vi.fn<FilesRepository['deleteRejectedImageUploads']>(),
   };
   const objectStorage = {
     createPresignedUpload: vi.fn<ObjectStorage['createPresignedUpload']>(),
     getObjectMetadata: vi.fn<ObjectStorage['getObjectMetadata']>(),
+    deleteObject: vi.fn<ObjectStorage['deleteObject']>(),
   };
 
   const createUseCase = () => new InitiateImageUploadsUseCase(objectStorage, filesRepository);

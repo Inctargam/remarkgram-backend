@@ -17,8 +17,8 @@
 
 import * as runtime from "@prisma/client/runtime/index-browser"
 
-export type * from '../models.js'
-export type * from './prismaNamespace.js'
+export type * from '../models.ts'
+export type * from './prismaNamespace.ts'
 
 export const Decimal = runtime.Decimal
 
@@ -80,6 +80,8 @@ export const FileScalarFieldEnum = {
   uploadStatus: 'uploadStatus',
   uploadExpiresAt: 'uploadExpiresAt',
   uploadedAt: 'uploadedAt',
+  reservationId: 'reservationId',
+  reservationExpiresAt: 'reservationExpiresAt',
   deletedAt: 'deletedAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'

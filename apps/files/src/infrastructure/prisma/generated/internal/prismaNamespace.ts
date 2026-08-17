@@ -16,10 +16,10 @@
  */
 
 import * as runtime from "@prisma/client/runtime/client"
-import type * as Prisma from "../models.js"
-import { type PrismaClient } from "./class.js"
+import type * as Prisma from "../models.ts"
+import { type PrismaClient } from "./class.ts"
 
-export type * from '../models.js'
+export type * from '../models.ts'
 
 export type DMMF = typeof runtime.DMMF
 
@@ -527,6 +527,8 @@ export const FileScalarFieldEnum = {
   uploadStatus: 'uploadStatus',
   uploadExpiresAt: 'uploadExpiresAt',
   uploadedAt: 'uploadedAt',
+  reservationId: 'reservationId',
+  reservationExpiresAt: 'reservationExpiresAt',
   deletedAt: 'deletedAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'

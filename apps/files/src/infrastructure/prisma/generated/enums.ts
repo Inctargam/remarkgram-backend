@@ -12,7 +12,9 @@
 export const FileUploadStatus = {
   PENDING: 'PENDING',
   COMPLETED: 'COMPLETED',
-  REJECTED: 'REJECTED'
+  REJECTED: 'REJECTED',
+  RESERVED: 'RESERVED',
+  ATTACHED: 'ATTACHED'
 } as const
 
 export type FileUploadStatus = (typeof FileUploadStatus)[keyof typeof FileUploadStatus]

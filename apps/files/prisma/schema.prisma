@@ -12,22 +12,29 @@ enum FileUploadStatus {
   PENDING
   COMPLETED
   REJECTED
+  RESERVED
+  ATTACHED
 }
 
 model File {
-  id               String           @id @default(uuid()) @db.Uuid
-  userId           Int
-  objectKey        String           @unique
-  originalFilename String
-  contentType      String
-  size             Int
-  uploadStatus     FileUploadStatus @default(PENDING)
-  uploadExpiresAt  DateTime         @db.Timestamptz
-  uploadedAt       DateTime?        @db.Timestamptz
-  deletedAt        DateTime?        @db.Timestamptz
-  createdAt        DateTime         @default(now()) @db.Timestamptz
-  updatedAt        DateTime         @updatedAt @db.Timestamptz
+  id                   String           @id @default(uuid()) @db.Uuid
+  userId               Int
+  objectKey            String           @unique
+  originalFilename     String
+  contentType          String
+  size                 Int
+  uploadStatus         FileUploadStatus @default(PENDING)
+  uploadExpiresAt      DateTime         @db.Timestamptz
+  uploadedAt           DateTime?        @db.Timestamptz
+  reservationId        String?          @db.Uuid
+  reservationExpiresAt DateTime?        @db.Timestamptz
+  deletedAt            DateTime?        @db.Timestamptz
+  createdAt            DateTime         @default(now()) @db.Timestamptz
+  updatedAt            DateTime         @updatedAt @db.Timestamptz
 
   @@index([uploadExpiresAt], where: { uploadStatus: "PENDING", deletedAt: null })
+  @@index([uploadedAt], where: { uploadStatus: "COMPLETED", reservationId: null, deletedAt: null })
+  @@index([updatedAt], where: { uploadStatus: "REJECTED", deletedAt: null })
+  @@index([userId, reservationId])
   @@map("files")
 }

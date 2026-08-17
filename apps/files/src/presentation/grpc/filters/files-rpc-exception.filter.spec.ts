@@ -7,7 +7,7 @@ import {
   DuplicateImageUploadIdError,
   ImageUploadMetadataMismatchError,
   ImageUploadNotFoundError,
-  ImageUploadsNotCompletedError,
+  ImageUploadsNotAvailableError,
   InvalidUserIdError,
   InvalidImageSizeError,
   InvalidImageCountError,
@@ -77,7 +77,7 @@ describe('FilesRpcExceptionFilter', () => {
     ).toEqual([error.code]);
   });
 
-  it.each([new InvalidImageUploadStatusError(), new ImageUploadsNotCompletedError()])(
+  it.each([new InvalidImageUploadStatusError(), new ImageUploadsNotAvailableError()])(
     'maps $code to FAILED_PRECONDITION',
     async (error) => {
       const rpcError: unknown = await firstValueFrom(filter.catch(error, host)).catch(
