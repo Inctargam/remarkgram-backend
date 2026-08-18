@@ -21,6 +21,13 @@ import { TestingGrpcController } from './presentation/grpc/testing-grpc.controll
 import { GetPublicFileUrlQueryHandler } from './application/use-cases/get-public-file-url/get-public-file-url.query-handler.js';
 import { PostDeletedConsumer } from './presentation/messaging/post-deleted.consumer.js';
 import { filesMessageBrokerConfig } from './config/message-broker.config.js';
+import { InboxEventsRepository } from './application/ports/inbox-events.repository.js';
+import { PrismaInboxEventsRepository } from './infrastructure/prisma/repositories/prisma-inbox-events.repository.js';
+import { ScheduleModule } from '@nestjs/schedule';
+import { PostDeletedInboxScheduler } from './infrastructure/scheduling/post-deleted-inbox.scheduler.js';
+import { PostDeletedInboxWorker } from './application/workers/post-deleted-inbox.worker.js';
+import { UnitOfWork } from './application/ports/unit-of-work.js';
+import { PrismaUnitOfWork } from './infrastructure/prisma/prisma-unit-of-work.js';
 
 @Module({
   imports: [
@@ -41,6 +48,7 @@ import { filesMessageBrokerConfig } from './config/message-broker.config.js';
       load: [filesConfig, databaseConfig, filesMessageBrokerConfig],
     }),
     PrismaModule,
+    ScheduleModule.forRoot(),
   ],
   controllers: [FilesGrpcController, TestingGrpcController, PostDeletedConsumer],
   providers: [
@@ -49,6 +57,8 @@ import { filesMessageBrokerConfig } from './config/message-broker.config.js';
     EnsureCompletedImageUploadsUseCase,
     InitiateImageUploadsUseCase,
     GetPublicFileUrlQueryHandler,
+    PostDeletedInboxScheduler,
+    PostDeletedInboxWorker,
     {
       provide: FilesRepository,
       useClass: PrismaFilesRepository,
@@ -73,6 +83,14 @@ import { filesMessageBrokerConfig } from './config/message-broker.config.js';
             secretAccessKey: config.s3.secretAccessKey,
           },
         }),
+    },
+    {
+      provide: InboxEventsRepository,
+      useClass: PrismaInboxEventsRepository,
+    },
+    {
+      provide: UnitOfWork,
+      useClass: PrismaUnitOfWork,
     },
   ],
 })

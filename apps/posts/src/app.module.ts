@@ -31,10 +31,13 @@ import { DeletePostUseCase } from './application/use-cases/delete-post/delete-po
 import { PostsEventsPublisher } from './application/ports/posts-events.publisher.js';
 import { RmqPostsEventsPublisher } from './infrastructure/rmq/rmq-posts-events.publisher.js';
 import { POSTS_EVENTS_RMQ_CLIENT } from './infrastructure/rmq/rmq.constants.js';
+import { ScheduleModule } from '@nestjs/schedule';
+import { DeletedPostsPublisherWorker } from './application/workers/deleted-posts-publisher.worker.js';
 
 @Module({
   imports: [
     CqrsModule,
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
@@ -92,6 +95,7 @@ import { POSTS_EVENTS_RMQ_CLIENT } from './infrastructure/rmq/rmq.constants.js';
     UpdatePostUseCase,
     GetAuthorPostsQueryHandler,
     DeletePostUseCase,
+    DeletedPostsPublisherWorker,
     {
       provide: PostsRepository,
       useClass: PrismaPostsRepository,

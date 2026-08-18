@@ -5,9 +5,7 @@ import { InvalidUserIdError } from '../../errors/create-post.errors.js';
 import { InvalidPostIdError, PostAccessForbiddenError } from '../../errors/base-post.errors.js';
 import { UnitOfWork } from '../../ports/unit-of-work.js';
 import { OutboxEventsRepository } from '../../ports/outbox-events.repository.js';
-import { PostDeletedV1Factory } from '../../../integration-events/post-deleted-v1/post-deleted-v1.factory.js';
-import { PostsEventsPublisher } from '../../ports/posts-events.publisher.js';
-import { randomUUID } from 'node:crypto';
+import { PostDeletedV1Factory } from '../../integration-events/post-deleted-v1/post-deleted-v1.factory.js';
 
 type DeletePostParams = {
   postId: number;
@@ -24,7 +22,7 @@ export class DeletePostCommand extends Command<void> {
 export class DeletePostUseCase implements ICommandHandler<DeletePostCommand> {
   constructor(
     private readonly postsRepository: PostsRepository,
-    private unitOfWork: UnitOfWork,
+    private readonly unitOfWork: UnitOfWork,
     private readonly outbox: OutboxEventsRepository,
   ) {}
   async execute(command: DeletePostCommand) {
@@ -51,13 +49,13 @@ export class DeletePostUseCase implements ICommandHandler<DeletePostCommand> {
         },
         ctx,
       );
-      const domainEvent = PostDeletedV1Factory.create({
+      const integrationEvent = PostDeletedV1Factory.create({
         postId: resultDeleted.id,
         authorId: resultDeleted.authorId,
         deletedAt: resultDeleted.deletedAt,
         fileIds: resultDeleted.filedIds,
       });
-      await this.outbox.add(domainEvent, ctx);
+      await this.outbox.add(integrationEvent, ctx);
     });
 
     return;

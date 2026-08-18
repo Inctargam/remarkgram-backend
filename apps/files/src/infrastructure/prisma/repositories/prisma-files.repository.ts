@@ -11,6 +11,8 @@ import {
 import { InvalidImageUploadStatusError } from '../../../application/errors/image-upload.errors.js';
 import { FileUploadStatus } from '../../../domain/enums/file-upload-status.enum.js';
 import { PrismaService } from '../prisma.service.js';
+import type { TransactionContext } from '../../../application/ports/unit-of-work.js';
+import { Prisma } from '../generated/client.js';
 
 @Injectable()
 export class PrismaFilesRepository extends FilesRepository {
@@ -94,5 +96,23 @@ export class PrismaFilesRepository extends FilesRepository {
       userId: file.userId,
       objectKey: file.objectKey,
     };
+  }
+  async softDeleteFileIdsByUser(
+    fileIds: string[],
+    userId: number,
+    ctx?: TransactionContext,
+  ): Promise<boolean> {
+    const client = (ctx as Prisma.TransactionClient | undefined) ?? this.prisma;
+    const results = await client.file.updateMany({
+      where: {
+        id: { in: [...fileIds] },
+        deletedAt: null,
+        userId: Number(userId),
+      },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
+    return results.count > 0;
   }
 }

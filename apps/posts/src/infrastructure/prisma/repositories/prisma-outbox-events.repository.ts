@@ -1,12 +1,15 @@
-import type { OutboxEventsRepository } from '../../../application/ports/outbox-events.repository.js';
+import type {
+  OutboxEventsRepository,
+  PendingOutboxEvent,
+} from '../../../application/ports/outbox-events.repository.js';
 import type { IntegrationEvent } from '@app/message-broker';
 import type { Prisma } from '../generated/client.js';
-import type { PrismaService } from '../prisma.service.js';
+import { PrismaService } from '../prisma.service.js';
 import type { TransactionContext } from '../../../application/ports/unit-of-work.js';
-import { Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
+@Injectable()
 export class PrismaOutboxEventsRepository implements OutboxEventsRepository {
-  private readonly logger = new Logger(PrismaOutboxEventsRepository.name);
   constructor(private readonly prisma: PrismaService) {}
 
   private getClient(ctx?: TransactionContext) {
@@ -23,6 +26,46 @@ export class PrismaOutboxEventsRepository implements OutboxEventsRepository {
         aggregateId: event.aggregateId,
         payload: event.data,
       },
+    });
+  }
+
+  async findAvailable(limit: number): Promise<PendingOutboxEvent[]> {
+    const rows = await this.prisma.outboxEvent.findMany({
+      where: { status: 'PENDING', availableAt: { lte: new Date() } },
+      orderBy: [{ availableAt: 'asc' }, { createdAt: 'asc' }],
+      take: limit,
+    });
+
+    return rows.map((row) => ({
+      attempts: row.attempts,
+      event: {
+        eventId: row.id,
+        eventType: row.eventType,
+        aggregateType: row.aggregateType,
+        aggregateId: row.aggregateId,
+        data: row.payload as IntegrationEvent['data'],
+      },
+    }));
+  }
+
+  async markPublished(eventId: string): Promise<void> {
+    await this.prisma.outboxEvent.update({
+      where: { id: eventId },
+      data: { status: 'PUBLISHED', publishedAt: new Date(), lastError: null },
+    });
+  }
+
+  async reschedule(eventId: string, error: string, availableAt: Date): Promise<void> {
+    await this.prisma.outboxEvent.update({
+      where: { id: eventId },
+      data: { attempts: { increment: 1 }, availableAt, lastError: error },
+    });
+  }
+
+  async markDead(eventId: string, error: string): Promise<void> {
+    await this.prisma.outboxEvent.update({
+      where: { id: eventId },
+      data: { status: 'DEAD', attempts: { increment: 1 }, lastError: error },
     });
   }
 }

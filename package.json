@@ -58,7 +58,8 @@
     "test:watch": "vitest --exclude \"apps/**/*.e2e-spec.ts\"",
     "test:cov": "vitest run --exclude \"apps/**/*.e2e-spec.ts\" --coverage",
     "test:debug": "vitest --inspectBrk --run --no-file-parallelism --exclude \"apps/**/*.e2e-spec.ts\"",
-    "test:e2e": "vitest run --exclude \"apps/**/*.spec.ts\""
+    "test:e2e": "vitest run --exclude \"apps/**/*.spec.ts\"",
+    "create:posts": "node scripts/create-posts.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1100.0",
