@@ -21,9 +21,9 @@ export class FileDeletedError extends FilesError {
     super(`File already deleted`);
   }
 }
-export class FilePublicAccessDeniedError extends FilesError {
-  readonly code = FilesErrorCode.FILE_PUBLIC_ACCESS_DENIED;
+export class FileDownloadUrlGenerationError extends FilesError {
+  readonly code = FilesErrorCode.FILE_DOWNLOAD_URL_GENERATION_FAILED;
   constructor() {
-    super(`File  is not public`);
+    super(`Unable to create file download URL`);
   }
 }

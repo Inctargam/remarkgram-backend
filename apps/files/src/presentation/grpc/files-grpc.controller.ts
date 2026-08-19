@@ -5,8 +5,8 @@ import type {
   AttachReservedImageUploadsResponse,
   CompleteImageUploadsRequest,
   CompleteImageUploadsResponse,
-  GetPublicFileUrlRequest,
-  GetPublicFileUrlResponse,
+  GetFileDownloadUrlRequest,
+  GetFileDownloadUrlResponse,
   InitiateImageUploadsRequest,
   InitiateImageUploadsResponse,
   ReleaseReservedImageUploadsRequest,
@@ -20,7 +20,7 @@ import { CompleteImageUploadsCommand } from '../../application/use-cases/complet
 import { InitiateImageUploadsCommand } from '../../application/use-cases/initiate-image-uploads/initiate-image-uploads.use-case.js';
 import { ReleaseReservedImageUploadsCommand } from '../../application/use-cases/release-reserved-image-uploads/release-reserved-image-uploads.use-case.js';
 import { ReserveImageUploadsCommand } from '../../application/use-cases/reserve-image-uploads/reserve-image-uploads.use-case.js';
-import { GetPublicFileUrlQuery } from '../../application/use-cases/get-public-file-url/get-public-file-url.query-handler.js';
+import { GetFileDownloadUrlQuery } from '../../application/use-cases/get-public-file-url/get-public-file-url.query-handler.js';
 import { FilesRpcExceptionFilter } from './filters/files-rpc-exception.filter.js';
 
 @Controller()
@@ -90,7 +90,7 @@ export class FilesGrpcController {
     return {};
   }
 
-  async getPublicFileUrl(request: GetPublicFileUrlRequest): Promise<GetPublicFileUrlResponse> {
-    return await this.queryBus.execute(new GetPublicFileUrlQuery(request.fileId));
+  async getFileDownloadUrl(request: GetFileDownloadUrlRequest): Promise<GetFileDownloadUrlResponse> {
+    return await this.queryBus.execute(new GetFileDownloadUrlQuery(request.fileId));
   }
 }

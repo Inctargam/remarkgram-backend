@@ -298,7 +298,7 @@ export class PrismaFilesRepository extends FilesRepository {
       where: {
         id,
         deletedAt: null,
-        uploadStatus: { in: [FileUploadStatus.COMPLETED, FileUploadStatus.ATTACHED] },
+        uploadStatus: { in: [FileUploadStatus.ATTACHED] },
       },
       select: {
         id: true,

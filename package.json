@@ -63,6 +63,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1100.0",
     "@aws-sdk/s3-presigned-post": "^3.1100.0",
+    "@aws-sdk/s3-request-presigner": "^3.1112.0",
     "@grpc/grpc-js": "^1.14.4",
     "@grpc/proto-loader": "^0.8.1",
     "@nestjs-modules/mailer": "^2.3.7",

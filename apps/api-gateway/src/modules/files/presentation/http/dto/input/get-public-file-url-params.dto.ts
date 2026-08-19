@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsUUID } from 'class-validator';
 
-export class GetPublicFileUrlParamsDto {
+export class GetFileDownloadUrlParamsDto {
   @ApiProperty({
     description: 'Identifier of the completed, non-deleted image file.',
     type: 'string',

@@ -1,16 +1,21 @@
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   S3ServiceException,
   type S3Client,
 } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { ConfigType } from '@nestjs/config';
 import type { filesConfig } from '../../config/files.config.js';
 import { S3ObjectStorage } from './s3-object-storage.js';
 
 vi.mock('@aws-sdk/s3-presigned-post', () => ({
   createPresignedPost: vi.fn(),
+}));
+vi.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: vi.fn(),
 }));
 
 describe('S3ObjectStorage', () => {
@@ -24,7 +29,28 @@ describe('S3ObjectStorage', () => {
 
   beforeEach(() => {
     vi.mocked(createPresignedPost).mockReset();
+    vi.mocked(getSignedUrl).mockReset();
     send.mockReset();
+  });
+
+  it('creates a temporary signed download URL', async () => {
+    vi.mocked(getSignedUrl).mockResolvedValue('https://storage.example.com/signed-object');
+
+    await expect(
+      objectStorage.createPresignedDownloadUrl({
+        objectKey: 'users/42/images/image-id',
+        expiresInSeconds: 300,
+      }),
+    ).resolves.toBe('https://storage.example.com/signed-object');
+
+    expect(getSignedUrl).toHaveBeenCalledTimes(1);
+    const [, command, options] = vi.mocked(getSignedUrl).mock.calls[0];
+    expect(command).toBeInstanceOf(GetObjectCommand);
+    expect((command as GetObjectCommand).input).toEqual({
+      Bucket: 'images-bucket',
+      Key: 'users/42/images/image-id',
+    });
+    expect(options).toEqual({ expiresIn: 300 });
   });
 
   it('creates a constrained presigned upload and returns its policy expiration', async () => {

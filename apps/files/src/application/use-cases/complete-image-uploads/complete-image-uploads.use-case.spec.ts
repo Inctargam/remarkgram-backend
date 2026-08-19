@@ -33,7 +33,7 @@ describe('CompleteImageUploadsUseCase', () => {
     createPresignedUpload: vi.fn<ObjectStorage['createPresignedUpload']>(),
     getObjectMetadata: vi.fn<ObjectStorage['getObjectMetadata']>(),
     deleteObject: vi.fn<ObjectStorage['deleteObject']>(),
-    getPublicUrl: vi.fn<ObjectStorage['getPublicUrl']>(),
+    createPresignedDownloadUrl: vi.fn<ObjectStorage['createPresignedDownloadUrl']>(),
   };
   const useCase = new CompleteImageUploadsUseCase(filesRepository, objectStorage);
   const uploadId = '11111111-1111-4111-8111-111111111111';

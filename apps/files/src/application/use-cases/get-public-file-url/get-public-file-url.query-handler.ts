@@ -1,30 +1,36 @@
 import { IQueryHandler, Query, QueryHandler } from '@nestjs/cqrs';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
 import { ObjectStorage } from '../../ports/object-storage.js';
-import { FileNotFoundError, FilePublicAccessDeniedError } from '../../errors/get-public-file-url.errors.js';
+import {
+  FileDownloadUrlGenerationError,
+  FileNotFoundError,
+} from '../../errors/get-public-file-url.errors.js';
 import { FilesRepository } from '../../ports/files.repository.js';
+import { filesConfig } from '../../../config/files.config.js';
 
-type GetPublicFileUrlResult = {
+type GetFileDownloadUrlResult = {
   url: string;
 };
 
-export class GetPublicFileUrlQuery extends Query<GetPublicFileUrlResult> {
+export class GetFileDownloadUrlQuery extends Query<GetFileDownloadUrlResult> {
   constructor(public fileId: string) {
     super();
   }
 }
 
-@QueryHandler(GetPublicFileUrlQuery)
-export class GetPublicFileUrlQueryHandler implements IQueryHandler<GetPublicFileUrlQuery> {
-  private readonly logger = new Logger(GetPublicFileUrlQueryHandler.name);
+@QueryHandler(GetFileDownloadUrlQuery)
+export class GetFileDownloadUrlQueryHandler implements IQueryHandler<GetFileDownloadUrlQuery> {
+  private readonly logger = new Logger(GetFileDownloadUrlQueryHandler.name);
 
   constructor(
     private readonly storage: ObjectStorage,
     private readonly filesRepository: FilesRepository,
+    @Inject(filesConfig.KEY) private readonly config: ConfigType<typeof filesConfig>,
   ) {}
-  async execute(query: GetPublicFileUrlQuery): Promise<GetPublicFileUrlResult> {
+  async execute(query: GetFileDownloadUrlQuery): Promise<GetFileDownloadUrlResult> {
     const { fileId } = query;
-    this.logger.log(`Getting public URL for file with ID: ${fileId}`);
+    this.logger.log(`Creating signed download URL for file with ID: ${fileId}`);
     const findFile = await this.filesRepository.findAvailableById({ id: fileId });
 
     if (!findFile) {
@@ -33,11 +39,14 @@ export class GetPublicFileUrlQueryHandler implements IQueryHandler<GetPublicFile
 
     try {
       return {
-        url: this.storage.getPublicUrl(findFile.objectKey),
+        url: await this.storage.createPresignedDownloadUrl({
+          objectKey: findFile.objectKey,
+          expiresInSeconds: this.config.s3.downloadUrlExpiresInSeconds,
+        }),
       };
     } catch (error) {
       this.logger.error(error);
-      throw new FilePublicAccessDeniedError();
+      throw new FileDownloadUrlGenerationError();
     }
   }
 }

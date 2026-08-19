@@ -30,7 +30,7 @@ describe('InitiateImageUploadsUseCase', () => {
     createPresignedUpload: vi.fn<ObjectStorage['createPresignedUpload']>(),
     getObjectMetadata: vi.fn<ObjectStorage['getObjectMetadata']>(),
     deleteObject: vi.fn<ObjectStorage['deleteObject']>(),
-    getPublicUrl: vi.fn<ObjectStorage['getPublicUrl']>(),
+    createPresignedDownloadUrl: vi.fn<ObjectStorage['createPresignedDownloadUrl']>(),
   };
 
   const createUseCase = () => new InitiateImageUploadsUseCase(objectStorage, filesRepository);

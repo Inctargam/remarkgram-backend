@@ -1,6 +1,16 @@
 import { registerAs } from '@nestjs/config';
 import { plainToInstance, Type } from 'class-transformer';
-import { IsDefined, IsEnum, IsNotEmpty, IsString, IsUrl, ValidateNested } from 'class-validator';
+import {
+  IsDefined,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsString,
+  IsUrl,
+  Max,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { configValidationUtility, Environments } from '@app/config';
 
 class S3Config {
@@ -28,13 +38,11 @@ class S3Config {
   @IsNotEmpty()
   declare readonly secretAccessKey: string;
 
-  @IsUrl({
-    protocols: ['http', 'https'],
-    require_protocol: true,
-    require_valid_protocol: true,
-    require_tld: false,
-  })
-  declare readonly publicUrl: string;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(604800)
+  declare readonly downloadUrlExpiresInSeconds: number;
 }
 
 class FilesConfig {
@@ -61,7 +69,7 @@ export const filesConfig = registerAs('files', () => {
       bucket: process.env.FILES_S3_BUCKET?.trim(),
       accessKeyId: process.env.FILES_S3_ACCESS_KEY_ID?.trim(),
       secretAccessKey: process.env.FILES_S3_SECRET_ACCESS_KEY?.trim(),
-      publicUrl: process.env.FILES_S3_PUBLIC_URL?.trim(),
+      downloadUrlExpiresInSeconds: process.env.FILES_S3_DOWNLOAD_URL_EXPIRES_IN_SECONDS?.trim() || '300',
     },
   });
 

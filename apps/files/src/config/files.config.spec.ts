@@ -11,7 +11,7 @@ describe('filesConfig', () => {
     vi.stubEnv('FILES_S3_BUCKET', 'remarkgram-files');
     vi.stubEnv('FILES_S3_ACCESS_KEY_ID', 'access-key-id');
     vi.stubEnv('FILES_S3_SECRET_ACCESS_KEY', 'secret-access-key');
-    vi.stubEnv('FILES_S3_PUBLIC_URL', 'https://pu-storage.yandexcloud.net');
+    vi.stubEnv('FILES_S3_DOWNLOAD_URL_EXPIRES_IN_SECONDS', '300');
   });
 
   afterEach(() => {
@@ -28,7 +28,7 @@ describe('filesConfig', () => {
         bucket: 'remarkgram-files',
         accessKeyId: 'access-key-id',
         secretAccessKey: 'secret-access-key',
-        publicUrl: 'https://pu-storage.yandexcloud.net',
+        downloadUrlExpiresInSeconds: 300,
       },
     });
   });
@@ -40,11 +40,16 @@ describe('filesConfig', () => {
     'FILES_S3_BUCKET',
     'FILES_S3_ACCESS_KEY_ID',
     'FILES_S3_SECRET_ACCESS_KEY',
-    'FILES_S3_PUBLIC_URL',
   ])('throws when %s is empty', (variableName) => {
     vi.stubEnv(variableName, '');
 
     expect(() => filesConfig()).toThrow('Validation failed');
+  });
+
+  it('uses a 300-second download URL lifetime when the variable is not set', () => {
+    vi.stubEnv('FILES_S3_DOWNLOAD_URL_EXPIRES_IN_SECONDS', '');
+
+    expect(filesConfig().s3.downloadUrlExpiresInSeconds).toBe(300);
   });
 
   it('throws when FILES_S3_ENDPOINT is not a URL', () => {
@@ -52,8 +57,8 @@ describe('filesConfig', () => {
 
     expect(() => filesConfig()).toThrow('Validation failed');
   });
-  it('throws when FILES_S3_PUBLIC_URL is not a URL', () => {
-    vi.stubEnv('FILES_S3_PUBLIC_URL', 'pu0storage.yandexcloud.net');
+  it('throws when FILES_S3_DOWNLOAD_URL_EXPIRES_IN_SECONDS is outside the supported range', () => {
+    vi.stubEnv('FILES_S3_DOWNLOAD_URL_EXPIRES_IN_SECONDS', '604801');
 
     expect(() => filesConfig()).toThrow('Validation failed');
   });

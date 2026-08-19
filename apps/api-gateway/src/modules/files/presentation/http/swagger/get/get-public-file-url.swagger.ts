@@ -1,7 +1,7 @@
 import { applyDecorators } from '@nestjs/common';
 import {
-  ApiForbiddenResponse,
   ApiFoundResponse,
+  ApiInternalServerErrorResponse,
   ApiNotFoundResponse,
   ApiOperation,
   ApiResponse,
@@ -11,24 +11,25 @@ import { ApiErrorResponseDto } from '../../../../../../common/http/api-error-res
 import { ValidationErrorResponseDto } from '../../../../../../common/http/validation-error-response.dto.js';
 import { createApiErrorResponseExample } from '../../../../../../swagger/examples/api-error-response.example.js';
 
-export const ApiGetPublicFileUrl = () =>
+export const ApiGetFileDownloadUrl = () =>
   applyDecorators(
     ApiOperation({
-      summary: 'Redirect to a public image',
+      summary: 'Redirect to an image using a temporary signed URL',
       description:
-        'Resolves a completed, non-deleted file by its ID and redirects the client to its public Object Storage URL. ' +
+        'Resolves a completed, non-deleted file by its ID and redirects the client to a temporary signed Object Storage URL. ' +
         'The gateway does not proxy the image bytes. Browsers follow the redirect and download the image directly ' +
         'from Object Storage.',
     }),
     ApiFoundResponse({
-      description: 'The client is redirected to the public Object Storage URL of the image.',
+      description: 'The client is redirected to a temporary signed Object Storage URL of the image.',
       headers: {
         Location: {
-          description: 'Public URL of the image in Object Storage.',
+          description: 'Temporary signed URL of the image in Object Storage.',
           schema: {
             type: 'string',
             format: 'uri',
-            example: 'https://pub-example.r2.dev/user/42/images/83d26252-a350-4e39-a78e-0bdf54d2341d',
+            example:
+              'https://storage.example.com/user/42/images/83d26252-a350-4e39-a78e-0bdf54d2341d?X-Amz-Expires=300&X-Amz-Signature=example',
           },
         },
       },
@@ -56,12 +57,16 @@ export const ApiGetPublicFileUrl = () =>
         },
       },
     }),
-    ApiForbiddenResponse({
-      description: 'Object Storage cannot provide a public URL for the file.',
+    ApiInternalServerErrorResponse({
+      description: 'Object Storage cannot create a signed download URL for the file.',
       content: {
         'application/json': {
           schema: { $ref: getSchemaPath(ApiErrorResponseDto) },
-          example: createApiErrorResponseExample(403, 'FILE_PUBLIC_ACCESS_DENIED', 'File is not public'),
+          example: createApiErrorResponseExample(
+            500,
+            'FILE_DOWNLOAD_URL_GENERATION_FAILED',
+            'Unable to create file download URL',
+          ),
         },
       },
     }),

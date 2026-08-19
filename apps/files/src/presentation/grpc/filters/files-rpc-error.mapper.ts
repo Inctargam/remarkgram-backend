@@ -19,6 +19,7 @@ const GRPC_STATUS_BY_APP_ERROR_CODE = {
   [FilesErrorCode.FILE_NOT_FOUND]: status.NOT_FOUND,
   [FilesErrorCode.FILE_UPLOAD_NOT_COMPLETED]: status.NOT_FOUND,
   [FilesErrorCode.FILE_PUBLIC_ACCESS_DENIED]: status.PERMISSION_DENIED,
+  [FilesErrorCode.FILE_DOWNLOAD_URL_GENERATION_FAILED]: status.INTERNAL,
 } satisfies Record<FilesErrorCode, status>;
 
 export const mapFilesErrorToRpcException = (error: FilesError): RpcException => {

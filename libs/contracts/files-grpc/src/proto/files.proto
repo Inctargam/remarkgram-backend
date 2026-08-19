@@ -8,7 +8,7 @@ service FilesService {
   rpc ReserveImageUploads(ReserveImageUploadsRequest) returns (ReserveImageUploadsResponse);
   rpc AttachReservedImageUploads(AttachReservedImageUploadsRequest) returns (AttachReservedImageUploadsResponse);
   rpc ReleaseReservedImageUploads(ReleaseReservedImageUploadsRequest) returns (ReleaseReservedImageUploadsResponse);
-    rpc GetPublicFileUrl(GetPublicFileUrlRequest) returns (GetPublicFileUrlResponse);
+    rpc GetFileDownloadUrl(GetFileDownloadUrlRequest) returns (GetFileDownloadUrlResponse);
 }
 
 service TestingService {
@@ -71,10 +71,10 @@ message AttachReservedImageUploadsResponse {}
 
 message ReleaseReservedImageUploadsResponse {}
 
-message GetPublicFileUrlRequest {
+message GetFileDownloadUrlRequest {
     string file_id = 1;
 }
 
-message GetPublicFileUrlResponse {
+message GetFileDownloadUrlResponse {
     string url = 1;
 }

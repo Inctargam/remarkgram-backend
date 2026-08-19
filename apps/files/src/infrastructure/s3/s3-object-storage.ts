@@ -1,9 +1,17 @@
-import { DeleteObjectCommand, HeadObjectCommand, S3Client, S3ServiceException } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  S3Client,
+  S3ServiceException,
+} from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import {
   ObjectStorage,
+  type CreatePresignedDownloadUrlParams,
   type CreatePresignedUploadParams,
   type ObjectMetadata,
   type PresignedUpload,
@@ -79,12 +87,14 @@ export class S3ObjectStorage extends ObjectStorage {
     );
   }
 
-  getPublicUrl(objectKey: string) {
-    const baseUrl = this.config.s3.publicUrl.endsWith('/')
-      ? this.config.s3.publicUrl
-      : `${this.config.s3.publicUrl}/`;
-
-    const encodedKey = objectKey.split('/').map(encodeURIComponent).join('/');
-    return new URL(encodedKey, baseUrl).toString();
+  async createPresignedDownloadUrl(params: CreatePresignedDownloadUrlParams): Promise<string> {
+    return await getSignedUrl(
+      this.s3Client,
+      new GetObjectCommand({
+        Bucket: this.config.s3.bucket,
+        Key: params.objectKey,
+      }),
+      { expiresIn: params.expiresInSeconds },
+    );
   }
 }

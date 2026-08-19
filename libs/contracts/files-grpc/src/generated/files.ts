@@ -77,11 +77,11 @@ export interface AttachReservedImageUploadsResponse {
 export interface ReleaseReservedImageUploadsResponse {
 }
 
-export interface GetPublicFileUrlRequest {
+export interface GetFileDownloadUrlRequest {
   fileId: string;
 }
 
-export interface GetPublicFileUrlResponse {
+export interface GetFileDownloadUrlResponse {
   url: string;
 }
 
@@ -102,7 +102,7 @@ export interface FilesServiceClient {
     request: ReleaseReservedImageUploadsRequest,
   ): Observable<ReleaseReservedImageUploadsResponse>;
 
-  getPublicFileUrl(request: GetPublicFileUrlRequest): Observable<GetPublicFileUrlResponse>;
+  getFileDownloadUrl(request: GetFileDownloadUrlRequest): Observable<GetFileDownloadUrlResponse>;
 }
 
 export interface FilesServiceController {
@@ -132,9 +132,9 @@ export interface FilesServiceController {
     | Observable<ReleaseReservedImageUploadsResponse>
     | ReleaseReservedImageUploadsResponse;
 
-  getPublicFileUrl(
-    request: GetPublicFileUrlRequest,
-  ): Promise<GetPublicFileUrlResponse> | Observable<GetPublicFileUrlResponse> | GetPublicFileUrlResponse;
+  getFileDownloadUrl(
+    request: GetFileDownloadUrlRequest,
+  ): Promise<GetFileDownloadUrlResponse> | Observable<GetFileDownloadUrlResponse> | GetFileDownloadUrlResponse;
 }
 
 export function FilesServiceControllerMethods() {
@@ -145,7 +145,7 @@ export function FilesServiceControllerMethods() {
       "reserveImageUploads",
       "attachReservedImageUploads",
       "releaseReservedImageUploads",
-      "getPublicFileUrl",
+      "getFileDownloadUrl",
     ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);

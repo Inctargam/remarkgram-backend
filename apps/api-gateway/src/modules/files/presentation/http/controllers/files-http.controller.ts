@@ -25,8 +25,8 @@ import { InitiateImageUploadsDto } from '../dto/input/initiate-image-uploads.dto
 import { ApiFilesController } from '../swagger/files-controller.swagger.js';
 import { ApiCompleteImageUploads } from '../swagger/post/complete-image-uploads.swagger.js';
 import { ApiInitiateImageUploads } from '../swagger/post/initiate-image-uploads.swagger.js';
-import { GetPublicFileUrlParamsDto } from '../dto/input/get-public-file-url-params.dto.js';
-import { ApiGetPublicFileUrl } from '../swagger/get/get-public-file-url.swagger.js';
+import { GetFileDownloadUrlParamsDto } from '../dto/input/get-public-file-url-params.dto.js';
+import { ApiGetFileDownloadUrl } from '../swagger/get/get-public-file-url.swagger.js';
 import { Public } from '../../../../../common/http/decorators/public.decorator.js';
 
 type AuthenticatedRequest = Request & { userId: string };
@@ -76,11 +76,12 @@ export class FilesHttpController implements OnModuleInit {
 
   @Public()
   @Get('images/:fileId')
-  @ApiGetPublicFileUrl()
-  async getPublicFileUrl(@Param() paramsDto: GetPublicFileUrlParamsDto, @Res() res: Response) {
-    console.log(paramsDto);
-    const publicUrl = await firstValueFrom(this.filesClient.getPublicFileUrl({ fileId: paramsDto.fileId }));
+  @ApiGetFileDownloadUrl()
+  async getFileDownloadUrl(@Param() paramsDto: GetFileDownloadUrlParamsDto, @Res() res: Response) {
+    const downloadUrl = await firstValueFrom(
+      this.filesClient.getFileDownloadUrl({ fileId: paramsDto.fileId }),
+    );
 
-    res.setHeader('Content-type', ['image/png']).redirect(302, publicUrl.url);
+    res.redirect(HttpStatus.FOUND, downloadUrl.url);
   }
 }
