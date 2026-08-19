@@ -18,6 +18,9 @@ import { UserPostsHttpController } from '../user-accounts/presentation/http/cont
             package: REMARKGRAM_POSTS_V1_PACKAGE_NAME,
             protoPath: POSTS_GRPC_PROTO_PATH,
             url: config.url,
+            loader: {
+              arrays: true,
+            },
           },
         }),
       },
