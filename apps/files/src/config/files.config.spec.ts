@@ -11,7 +11,6 @@ describe('filesConfig', () => {
     vi.stubEnv('FILES_S3_BUCKET', 'remarkgram-files');
     vi.stubEnv('FILES_S3_ACCESS_KEY_ID', 'access-key-id');
     vi.stubEnv('FILES_S3_SECRET_ACCESS_KEY', 'secret-access-key');
-    vi.stubEnv('FILES_S3_PUBLIC_URL', 'https://pu-storage.yandexcloud.net');
   });
 
   afterEach(() => {
@@ -28,7 +27,6 @@ describe('filesConfig', () => {
         bucket: 'remarkgram-files',
         accessKeyId: 'access-key-id',
         secretAccessKey: 'secret-access-key',
-        publicUrl: 'https://pu-storage.yandexcloud.net',
       },
     });
   });
@@ -40,7 +38,6 @@ describe('filesConfig', () => {
     'FILES_S3_BUCKET',
     'FILES_S3_ACCESS_KEY_ID',
     'FILES_S3_SECRET_ACCESS_KEY',
-    'FILES_S3_PUBLIC_URL',
   ])('throws when %s is empty', (variableName) => {
     vi.stubEnv(variableName, '');
 
@@ -52,12 +49,6 @@ describe('filesConfig', () => {
 
     expect(() => filesConfig()).toThrow('Validation failed');
   });
-  it('throws when FILES_S3_PUBLIC_URL is not a URL', () => {
-    vi.stubEnv('FILES_S3_PUBLIC_URL', 'pu0storage.yandexcloud.net');
-
-    expect(() => filesConfig()).toThrow('Validation failed');
-  });
-
   it('throws when NODE_ENV is invalid', () => {
     vi.stubEnv('NODE_ENV', 'invalid');
 

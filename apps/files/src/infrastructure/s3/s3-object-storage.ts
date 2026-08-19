@@ -80,10 +80,11 @@ export class S3ObjectStorage extends ObjectStorage {
   }
 
   getPublicUrl(objectKey: string) {
-    const baseUrl = this.config.s3.publicUrl.endsWith('/')
-      ? this.config.s3.publicUrl
-      : `${this.config.s3.publicUrl}/`;
-
+    // TODO: Replace this unsigned private-bucket URL with a short-lived presigned GET URL.
+    const endpoint = this.config.s3.endpoint.endsWith('/')
+      ? this.config.s3.endpoint
+      : `${this.config.s3.endpoint}/`;
+    const baseUrl = new URL(`${encodeURIComponent(this.config.s3.bucket)}/`, endpoint);
     const encodedKey = objectKey.split('/').map(encodeURIComponent).join('/');
     return new URL(encodedKey, baseUrl).toString();
   }
