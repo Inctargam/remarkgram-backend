@@ -12,6 +12,7 @@ describe('filesConfig', () => {
     vi.stubEnv('FILES_S3_ACCESS_KEY_ID', 'access-key-id');
     vi.stubEnv('FILES_S3_SECRET_ACCESS_KEY', 'secret-access-key');
     vi.stubEnv('FILES_S3_DOWNLOAD_URL_EXPIRES_IN_SECONDS', '300');
+    vi.stubEnv('FILES_S3_UPLOAD_URL_EXPIRES_IN_SECONDS', '300');
   });
 
   afterEach(() => {
@@ -29,6 +30,7 @@ describe('filesConfig', () => {
         accessKeyId: 'access-key-id',
         secretAccessKey: 'secret-access-key',
         downloadUrlExpiresInSeconds: 300,
+        uploadUrlExpiresInSeconds: 300,
       },
     });
   });
@@ -52,6 +54,12 @@ describe('filesConfig', () => {
     expect(filesConfig().s3.downloadUrlExpiresInSeconds).toBe(300);
   });
 
+  it('uses a 300-second upload URL lifetime when the variable is not set', () => {
+    vi.stubEnv('FILES_S3_UPLOAD_URL_EXPIRES_IN_SECONDS', '');
+
+    expect(filesConfig().s3.uploadUrlExpiresInSeconds).toBe(300);
+  });
+
   it('throws when FILES_S3_ENDPOINT is not a URL', () => {
     vi.stubEnv('FILES_S3_ENDPOINT', 'storage.yandexcloud.net');
 
@@ -59,6 +67,12 @@ describe('filesConfig', () => {
   });
   it('throws when FILES_S3_DOWNLOAD_URL_EXPIRES_IN_SECONDS is outside the supported range', () => {
     vi.stubEnv('FILES_S3_DOWNLOAD_URL_EXPIRES_IN_SECONDS', '604801');
+
+    expect(() => filesConfig()).toThrow('Validation failed');
+  });
+
+  it('throws when FILES_S3_UPLOAD_URL_EXPIRES_IN_SECONDS is outside the supported range', () => {
+    vi.stubEnv('FILES_S3_UPLOAD_URL_EXPIRES_IN_SECONDS', '604801');
 
     expect(() => filesConfig()).toThrow('Validation failed');
   });

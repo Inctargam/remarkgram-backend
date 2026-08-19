@@ -1,3 +1,5 @@
+import { Inject } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import { randomUUID } from 'node:crypto';
 import {
@@ -14,12 +16,12 @@ import {
   InvalidUserIdError,
   UnsupportedImageContentTypeError,
 } from '../../errors/image-upload.errors.js';
+import { filesConfig } from '../../../config/files.config.js';
 import { FileUploadStatus } from '../../../domain/enums/file-upload-status.enum.js';
 import { FilesRepository, type CreateFileRecord } from '../../ports/files.repository.js';
 import { ObjectStorage } from '../../ports/object-storage.js';
 
 const supportedImageContentTypes = new Set<string>(Object.values(ImageContentType));
-const IMAGE_UPLOAD_TTL_SECONDS = 300;
 export type ImageUploadMetadataInput = {
   clientFileId: string;
   originalFilename: string;
@@ -54,6 +56,7 @@ export class InitiateImageUploadsUseCase implements ICommandHandler<InitiateImag
   constructor(
     private readonly objectStorage: ObjectStorage,
     private readonly filesRepository: FilesRepository,
+    @Inject(filesConfig.KEY) private readonly config: ConfigType<typeof filesConfig>,
   ) {}
   async execute(command: InitiateImageUploadsCommand) {
     const { userId, images } = command.params;
@@ -102,7 +105,7 @@ export class InitiateImageUploadsUseCase implements ICommandHandler<InitiateImag
         objectKey,
         contentType,
         size,
-        expiresInSeconds: IMAGE_UPLOAD_TTL_SECONDS,
+        expiresInSeconds: this.config.s3.uploadUrlExpiresInSeconds,
       });
 
       const uploadSession = {

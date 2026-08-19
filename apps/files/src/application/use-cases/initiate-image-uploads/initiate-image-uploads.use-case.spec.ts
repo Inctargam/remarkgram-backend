@@ -1,4 +1,6 @@
+import type { ConfigType } from '@nestjs/config';
 import { ImageContentType, MAX_IMAGE_SIZE_BYTES } from '@app/files-grpc';
+import type { filesConfig } from '../../../config/files.config.js';
 import {
   DuplicateClientFileIdError,
   InvalidImageSizeError,
@@ -33,7 +35,12 @@ describe('InitiateImageUploadsUseCase', () => {
     createPresignedDownloadUrl: vi.fn<ObjectStorage['createPresignedDownloadUrl']>(),
   };
 
-  const createUseCase = () => new InitiateImageUploadsUseCase(objectStorage, filesRepository);
+  const config = {
+    s3: {
+      uploadUrlExpiresInSeconds: 600,
+    },
+  } as ConfigType<typeof filesConfig>;
+  const createUseCase = () => new InitiateImageUploadsUseCase(objectStorage, filesRepository, config);
 
   beforeEach(() => {
     filesRepository.createMany.mockReset();
@@ -89,13 +96,13 @@ describe('InitiateImageUploadsUseCase', () => {
       objectKey: `users/42/images/${result.sessions[0]?.id}`,
       contentType: ImageContentType.JPEG,
       size: 1_024,
-      expiresInSeconds: 300,
+      expiresInSeconds: 600,
     });
     expect(objectStorage.createPresignedUpload).toHaveBeenNthCalledWith(2, {
       objectKey: `users/42/images/${result.sessions[1]?.id}`,
       contentType: ImageContentType.PNG,
       size: 2_048,
-      expiresInSeconds: 300,
+      expiresInSeconds: 600,
     });
     expect(filesRepository.createMany).toHaveBeenCalledOnce();
     expect(filesRepository.createMany).toHaveBeenCalledWith([

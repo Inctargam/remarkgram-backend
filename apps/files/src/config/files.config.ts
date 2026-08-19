@@ -43,6 +43,12 @@ class S3Config {
   @Min(1)
   @Max(604800)
   declare readonly downloadUrlExpiresInSeconds: number;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(604800)
+  declare readonly uploadUrlExpiresInSeconds: number;
 }
 
 class FilesConfig {
@@ -70,6 +76,7 @@ export const filesConfig = registerAs('files', () => {
       accessKeyId: process.env.FILES_S3_ACCESS_KEY_ID?.trim(),
       secretAccessKey: process.env.FILES_S3_SECRET_ACCESS_KEY?.trim(),
       downloadUrlExpiresInSeconds: process.env.FILES_S3_DOWNLOAD_URL_EXPIRES_IN_SECONDS?.trim() || '300',
+      uploadUrlExpiresInSeconds: process.env.FILES_S3_UPLOAD_URL_EXPIRES_IN_SECONDS?.trim() || '300',
     },
   });
 

@@ -60,6 +60,11 @@ spec:
                 secretKeyRef:
                   name: remarkgram-files-production-config-secret
                   key: FILES_S3_DOWNLOAD_URL_EXPIRES_IN_SECONDS
+            - name: FILES_S3_UPLOAD_URL_EXPIRES_IN_SECONDS
+              valueFrom:
+                secretKeyRef:
+                  name: remarkgram-files-production-config-secret
+                  key: FILES_S3_UPLOAD_URL_EXPIRES_IN_SECONDS
             - name: FILES_GRPC_URL
               valueFrom:
                 secretKeyRef:
