@@ -53,5 +53,6 @@ model OutboxEvent {
   lastError     String?      @map("last_error")
 
   @@index([availableAt], map: "outbox_pending_available_at_idx", where: { status: "PENDING" })
+
   @@map("outbox_events")
 }

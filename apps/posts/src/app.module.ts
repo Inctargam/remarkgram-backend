@@ -33,6 +33,7 @@ import { RmqPostsEventsPublisher } from './infrastructure/rmq/rmq-posts-events.p
 import { POSTS_EVENTS_RMQ_CLIENT } from './infrastructure/rmq/rmq.constants.js';
 import { ScheduleModule } from '@nestjs/schedule';
 import { DeletedPostsPublisherWorker } from './application/workers/deleted-posts-publisher.worker.js';
+import { PublishDeletedPostEventScheduler } from './infrastructure/schedulers/publish-deleted-post-event.scheduler.js';
 
 @Module({
   imports: [
@@ -96,6 +97,7 @@ import { DeletedPostsPublisherWorker } from './application/workers/deleted-posts
     GetAuthorPostsQueryHandler,
     DeletePostUseCase,
     DeletedPostsPublisherWorker,
+    PublishDeletedPostEventScheduler,
     {
       provide: PostsRepository,
       useClass: PrismaPostsRepository,

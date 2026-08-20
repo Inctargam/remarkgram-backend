@@ -4,10 +4,23 @@ import { DeletePostCommand, DeletePostUseCase } from './delete-post.use-case.js'
 import { Post } from '../../../domain/entities/post.entity.js';
 import { InvalidPostIdError, PostAccessForbiddenError } from '../../errors/base-post.errors.js';
 import { InvalidUserIdError } from '../../errors/create-post.errors.js';
+import type { UnitOfWork } from '../../ports/unit-of-work.js';
+import type { OutboxEventsRepository } from '../../ports/outbox-events.repository.js';
 
 describe('UpdatePostHandler', () => {
   const postRepository = createPostsRepositoryMock();
-  const useCase: DeletePostUseCase = new DeletePostUseCase(postRepository);
+  const transactionContext = {};
+  const unitOfWork = {
+    run: vi.fn<UnitOfWork['run']>(),
+  } satisfies UnitOfWork;
+  const outbox = {
+    add: vi.fn<OutboxEventsRepository['add']>(),
+    findAvailable: vi.fn<OutboxEventsRepository['findAvailable']>(),
+    ensurePublished: vi.fn<OutboxEventsRepository['ensurePublished']>(),
+    reschedule: vi.fn<OutboxEventsRepository['reschedule']>(),
+    markDead: vi.fn<OutboxEventsRepository['markDead']>(),
+  } satisfies OutboxEventsRepository;
+  const useCase = new DeletePostUseCase(postRepository, unitOfWork, outbox);
 
   const post = Post.restore({
     id: 1,
@@ -28,6 +41,9 @@ describe('UpdatePostHandler', () => {
     postRepository.create.mockReset();
     postRepository.updateAuthorPost.mockReset();
     postRepository.softDeleteById.mockReset();
+    unitOfWork.run.mockReset();
+    unitOfWork.run.mockImplementation(async (handler) => handler(transactionContext));
+    outbox.add.mockReset();
   });
 
   it('success soft delete post', async () => {
@@ -35,7 +51,8 @@ describe('UpdatePostHandler', () => {
     postRepository.softDeleteById.mockResolvedValue({
       id: post.id,
       authorId: post.authorId,
-      imagesIds: post.images.map((i) => i.fileId),
+      filedIds: post.images.map((i) => i.fileId),
+      deletedAt: new Date('2026-08-19T00:00:00.000Z'),
     });
     await expect(
       useCase.execute(
@@ -47,10 +64,14 @@ describe('UpdatePostHandler', () => {
     ).resolves.toBeUndefined();
 
     expect(postRepository.findById).toHaveBeenCalledTimes(1);
-    expect(postRepository.softDeleteById).toHaveBeenCalledWith({
-      id: 1,
-      authorId: 1,
-    });
+    expect(postRepository.softDeleteById).toHaveBeenCalledWith(
+      {
+        id: 1,
+        authorId: 1,
+      },
+      transactionContext,
+    );
+    expect(outbox.add).toHaveBeenCalledTimes(1);
   });
 
   it('repeat call delete to be idempotent', async () => {
@@ -66,6 +87,25 @@ describe('UpdatePostHandler', () => {
 
     expect(postRepository.findById).toHaveBeenCalledTimes(1);
     expect(postRepository.softDeleteById).not.toHaveBeenCalled();
+    expect(unitOfWork.run).not.toHaveBeenCalled();
+    expect(outbox.add).not.toHaveBeenCalled();
+  });
+
+  it('stays idempotent when post disappears before soft delete', async () => {
+    postRepository.findById.mockResolvedValue(post);
+    postRepository.softDeleteById.mockResolvedValue(null);
+
+    await expect(
+      useCase.execute(
+        new DeletePostCommand({
+          postId: post.id,
+          authorId: post.authorId,
+        }),
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(postRepository.softDeleteById).toHaveBeenCalledTimes(1);
+    expect(outbox.add).not.toHaveBeenCalled();
   });
 
   it('throws access forbidden error', async () => {

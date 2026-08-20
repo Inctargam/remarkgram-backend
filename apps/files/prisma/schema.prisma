@@ -36,7 +36,6 @@ model File {
 enum InboxStatus {
   RECEIVED
   PROCESSED
-  FAILED
   DEAD
 }
 

@@ -2,14 +2,15 @@ import { PrismaService } from '../prisma.service.js';
 import {
   AddInboxEventRepositoryParams,
   AddInboxEventRepositoryResult,
-  FindAvailableEventsByTypeParams,
-  FindAvailableEventsRepositoryResult,
+  ClaimAvailableEventParams,
+  InboxEventType,
   InboxEventsRepository,
 } from '../../../application/ports/inbox-events.repository.js';
 import { type TransactionContext } from '../../../application/ports/unit-of-work.js';
 import { Prisma } from '../generated/client.js';
 import { Injectable, Logger } from '@nestjs/common';
 import type { PostDeletedPayload } from '../../../application/integration-events/post-deleted.event.js';
+import { InboxEventStatus } from '../../../domain/enums/inbox-event-status.enum.js';
 
 type InboxEventRaw = {
   event_id: string;
@@ -29,6 +30,24 @@ export class PrismaInboxEventsRepository implements InboxEventsRepository {
   constructor(private readonly prisma: PrismaService) {}
   private getClient(ctx?: TransactionContext) {
     return (ctx as Prisma.TransactionClient | undefined) ?? this.prisma;
+  }
+  private mapToEvent(raw: InboxEventRaw) {
+    return {
+      eventId: raw.event_id,
+      eventType: raw.event_type,
+      payload: {
+        userId: raw.payload.userId,
+        postId: raw?.payload.postId,
+        fileIds: raw?.payload.fileIds ?? [],
+        deletedAt: raw?.payload.deletedAt,
+      },
+      status: raw.status,
+      attempts: raw.attempts,
+      receivedAt: raw.received_at,
+      processedAt: raw.processed_at,
+      availableAt: raw.available_at,
+      lastError: raw.last_error,
+    };
   }
   async add(event: AddInboxEventRepositoryParams): Promise<AddInboxEventRepositoryResult> {
     const client = this.getClient();
@@ -62,106 +81,87 @@ export class PrismaInboxEventsRepository implements InboxEventsRepository {
     }
   }
 
-  async findAvailableEventsByType(
-    params: FindAvailableEventsByTypeParams,
-    ctx?: TransactionContext,
-  ): Promise<FindAvailableEventsRepositoryResult> {
-    const client = this.getClient(ctx);
+  async findAvailableBatch(params: ClaimAvailableEventParams): Promise<InboxEventType[] | null> {
+    const client = this.getClient();
 
-    const events = await client.$queryRaw<InboxEventRaw[]>`SELECT event_id,
-                                                                  event_type,
-                                                                  payload,
-                                                                  status,
-                                                                  attempts,
-                                                                  received_at,
-                                                                  processed_at,
-                                                                  available_at,
-                                                                  last_error
-                                                           FROM inbox_events
-                                                           WHERE status IN ('RECEIVED', 'FAILED')
-                                                             AND event_type = ${params.eventType}
-                                                             AND available_at <= CURRENT_TIMESTAMP
-                                                             AND attempts < 5
-                                                           ORDER BY available_at, received_at
-                                                             FOR UPDATE SKIP LOCKED
-                                                           LIMIT ${params.limit}
+    /*
+     * SELECT блокирует кандидата до завершения всего SQL-запроса. SKIP LOCKED
+     * позволяет нескольким воркерам одновременно резервировать разные события.
+     *
+     * После UPDATE блокировка БД освобождается, а available_at становится арендой
+     * на две минуты. date_trunc сохраняет миллисекундную точность, совместимую с
+     * JavaScript Date: возвращённое значение можно безопасно использовать как
+     * токен оптимистической блокировки в markAsProcessed/reschedule/markDead.
+     */
+    const events = await client.$queryRaw<InboxEventRaw[]>`
+      WITH claimed_events AS (
+        SELECT event_id
+        FROM inbox_events
+        WHERE event_type = ${params.eventType}
+          AND attempts < ${params.maxAttempts}
+          AND available_at <= CURRENT_TIMESTAMP
+          AND status = ${InboxEventStatus.RECEIVED}::"InboxStatus"
+      ORDER BY available_at, received_at
+        FOR UPDATE SKIP LOCKED
+              LIMIT ${params.batchSize}
+              )
+      UPDATE inbox_events AS event
+      SET available_at = CURRENT_TIMESTAMP + INTERVAL '2 minutes',
+        attempts = event.attempts + 1
+      FROM claimed_events
+      WHERE event.event_id = claimed_events.event_id
+        RETURNING event.*;
     `;
-    if (!Array.isArray(events) || events.length === 0) return null;
-    return events.map((event: InboxEventRaw) => ({
-      eventId: event.event_id,
-      eventType: event.event_type,
-      payload: {
-        userId: event.payload.userId,
-        postId: event?.payload.postId,
-        fileIds: event?.payload.fileIds ?? [],
-        deletedAt: event?.payload.deletedAt,
-      },
-      status: event.status,
-      attempts: event.attempts,
-      receivedAt: event.received_at,
-      processedAt: event.processed_at,
-      availableAt: event.available_at,
-      lastError: event.last_error,
-    }));
+    if (!Array.isArray(events) || events.length === 0) {
+      return null;
+    }
+
+    return events.map((event) => this.mapToEvent(event));
   }
-  async markAsProcessed(eventId: string, ctx?: TransactionContext): Promise<boolean> {
+
+  async markAsProcessed(eventId: string, leaseUntil: Date, ctx?: TransactionContext): Promise<void> {
     const client = this.getClient(ctx);
-
-    const result = await client.inboxEvents.updateMany({
+    await client.inboxEvents.update({
       where: {
-        eventId,
-        status: { in: ['RECEIVED', 'FAILED'] },
+        eventId: eventId,
+        leaseUntil: leaseUntil,
       },
       data: {
-        status: 'PROCESSED',
-        processedAt: new Date(),
         lastError: null,
+        processedAt: new Date(),
+        status: InboxEventStatus.PROCESSED,
       },
     });
-
-    if (result.count !== 1) {
-      throw new Error(`Inbox event ${eventId} could not be marked as PROCESSED`);
-    }
-
-    return true;
   }
 
-  async reschedule(eventId: string, lastError: string): Promise<boolean> {
-    const result = await this.prisma.inboxEvents.updateMany({
-      where: {
-        eventId,
-        status: { in: ['RECEIVED', 'FAILED'] },
-      },
-      data: {
-        status: 'FAILED',
-        attempts: { increment: 1 },
-        availableAt: new Date(Date.now() + 10_000),
-        lastError,
-      },
-    });
+  async resolveFailedAttempt(
+    eventId: string,
+    leaseUntil: Date,
+    lastError: string,
+    maxAttempts: number,
+  ): Promise<boolean> {
+    const number = await this.prisma.$executeRaw`
+      UPDATE inbox_events
+      SET status       = CASE
+                           WHEN attempts >= ${maxAttempts}
+                             THEN ${InboxEventStatus.DEAD}::"InboxStatus"
+                           ELSE ${InboxEventStatus.RECEIVED}::"InboxStatus"
+        END,
 
-    if (result.count !== 1) {
-      throw new Error(`Inbox event ${eventId} could not be rescheduled`);
-    }
+          available_at = CASE
+                           WHEN attempts >= ${maxAttempts}
+                             THEN available_at
+                           ELSE now() + (
+                             interval '10 seconds' * power(2, attempts - 1)
+                             )
+            END,
 
-    return true;
-  }
+          last_error   = ${lastError}
+      WHERE event_id = ${eventId}
+        AND status = ${InboxEventStatus.RECEIVED}::"InboxStatus"
+        AND available_at = ${leaseUntil};
+    `;
 
-  async markDead(eventId: string, lastError: string): Promise<void> {
-    const result = await this.prisma.inboxEvents.updateMany({
-      where: {
-        eventId,
-        status: { in: ['RECEIVED', 'FAILED'] },
-      },
-      data: {
-        status: 'DEAD',
-        attempts: { increment: 1 },
-        lastError: lastError ?? null,
-      },
-    });
-
-    if (result.count !== 1) {
-      throw new Error(`Inbox event ${eventId} could not be marked as DEAD`);
-    }
+    return number > 0;
   }
 }

@@ -36,8 +36,11 @@ export class DeletePostUseCase implements ICommandHandler<DeletePostCommand> {
     }
     const post = await this.postsRepository.findById(postId);
     if (!post) {
+      // DELETE is idempotent: an absent or already deleted post is the desired final state.
       return;
     }
+    // Ownership must be checked before deletion so an existing post owned by another user
+    // is not indistinguishable from an absent post.
     if (Number(post.authorId) !== Number(authorId)) {
       throw new PostAccessForbiddenError();
     }
@@ -49,6 +52,12 @@ export class DeletePostUseCase implements ICommandHandler<DeletePostCommand> {
         },
         ctx,
       );
+      // The post can disappear between findById and the conditional update. This is an
+      // expected concurrent/idempotent outcome, so no deletion event should be emitted.
+      if (!resultDeleted) {
+        return;
+      }
+
       const integrationEvent = PostDeletedV1Factory.create({
         postId: resultDeleted.id,
         authorId: resultDeleted.authorId,

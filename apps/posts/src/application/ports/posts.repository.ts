@@ -14,5 +14,5 @@ export abstract class PostsRepository {
   abstract softDeleteById(
     params: SoftDeletePostRepositoryParams,
     ctx?: TransactionContext,
-  ): Promise<SoftDeletePostResult>;
+  ): Promise<SoftDeletePostResult | null>;
 }

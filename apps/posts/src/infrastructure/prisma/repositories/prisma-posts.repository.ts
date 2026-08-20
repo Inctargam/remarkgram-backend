@@ -11,7 +11,6 @@ import {
 import { Prisma } from '../generated/client.js';
 import { PrismaService } from '../prisma.service.js';
 import { PostUpdateConflictError } from '../../../application/errors/update-post.errors.js';
-import { PostNotFoundError } from '../../../application/errors/base-post.errors.js';
 import { PostPrismaMapper } from '../mappers/post-prisma.mapper.js';
 import { TransactionContext } from '../../../application/ports/unit-of-work.js';
 
@@ -95,7 +94,7 @@ export class PrismaPostsRepository implements PostsRepository {
   async softDeleteById(
     params: SoftDeletePostRepositoryParams,
     ctx?: TransactionContext,
-  ): Promise<SoftDeletePostResult> {
+  ): Promise<SoftDeletePostResult | null> {
     const client = this.getClient(ctx);
     try {
       const { authorId, id } = params;
@@ -117,8 +116,9 @@ export class PrismaPostsRepository implements PostsRepository {
       };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        //::TODO определить тип ошибки
-        throw new PostNotFoundError();
+        // A conditional update misses when the post was concurrently removed or already
+        // soft-deleted. This is an expected outcome of an idempotent delete, not a failure.
+        return null;
       }
       throw error;
     }

@@ -21,19 +21,29 @@ export type InboxEventType = {
   lastError: string | null;
 };
 
-export type FindAvailableEventsRepositoryResult = InboxEventType[] | null;
-export type FindAvailableEventsByTypeParams = {
-  limit: number;
+export type ClaimAvailableEventParams = {
   eventType: string;
+  maxAttempts: number;
+  batchSize: number;
 };
 
 export abstract class InboxEventsRepository {
   abstract add(event: AddInboxEventRepositoryParams): Promise<AddInboxEventRepositoryResult>;
-  abstract findAvailableEventsByType(
-    params: FindAvailableEventsByTypeParams,
-    ctx?: TransactionContext,
-  ): Promise<FindAvailableEventsRepositoryResult>;
-  abstract markAsProcessed(eventId: string, ctx?: TransactionContext): Promise<boolean>;
-  abstract reschedule(eventId: string, lastError: string): Promise<boolean>;
-  abstract markDead(eventId: string, lastError: string): Promise<void>;
+  /**
+   * Атомарно резервирует следующее доступное событие.
+   * Возвращённый availableAt является токеном аренды: все последующие изменения
+   * события обязаны передать его, чтобы запоздавший воркер не перезаписал результат
+   * воркера, который получил событие после истечения предыдущей аренды.
+   */
+  abstract findAvailableBatch(params: ClaimAvailableEventParams): Promise<InboxEventType[] | null>;
+  // abstract claimNextAvailableEvent(params: ClaimAvailableEventParams): Promise<InboxEventType | null>;
+  abstract markAsProcessed(eventId: string, leaseUntil: Date, ctx?: TransactionContext): Promise<void>;
+  // abstract reschedule(eventId: string, leaseUntil: Date, lastError: string): Promise<boolean>;
+  // abstract markDead(eventId: string, leaseUntil: Date, lastError: string): Promise<boolean>;
+  abstract resolveFailedAttempt(
+    eventId: string,
+    leaseUntil: Date,
+    lastError: string,
+    maxAttempts: number,
+  ): Promise<boolean>;
 }

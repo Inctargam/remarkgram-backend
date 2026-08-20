@@ -19,7 +19,7 @@ import { DeleteAllDataUseCase } from './application/use-cases/delete-all-data/de
 import { PrismaTestingRepository } from './infrastructure/prisma/repositories/prisma-testing.repository.js';
 import { TestingGrpcController } from './presentation/grpc/testing-grpc.controller.js';
 import { GetPublicFileUrlQueryHandler } from './application/use-cases/get-public-file-url/get-public-file-url.query-handler.js';
-import { PostDeletedConsumer } from './presentation/messaging/post-deleted.consumer.js';
+import { PostDeletedEventConsumer } from './presentation/messaging/post-deleted-event.consumer.js';
 import { filesMessageBrokerConfig } from './config/message-broker.config.js';
 import { InboxEventsRepository } from './application/ports/inbox-events.repository.js';
 import { PrismaInboxEventsRepository } from './infrastructure/prisma/repositories/prisma-inbox-events.repository.js';
@@ -50,7 +50,7 @@ import { PrismaUnitOfWork } from './infrastructure/prisma/prisma-unit-of-work.js
     PrismaModule,
     ScheduleModule.forRoot(),
   ],
-  controllers: [FilesGrpcController, TestingGrpcController, PostDeletedConsumer],
+  controllers: [FilesGrpcController, TestingGrpcController, PostDeletedEventConsumer],
   providers: [
     CompleteImageUploadsUseCase,
     DeleteAllDataUseCase,

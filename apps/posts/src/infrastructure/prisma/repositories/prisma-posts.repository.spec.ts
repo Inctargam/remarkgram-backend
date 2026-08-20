@@ -82,6 +82,18 @@ describe('PrismaPostsRepository', () => {
       }),
     ).rejects.toBeInstanceOf(PostUpdateConflictError);
   });
+
+  it('returns null when a post is absent during an idempotent soft delete', async () => {
+    update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Record to update not found', {
+        code: 'P2025',
+        clientVersion: '7.8.0',
+      }),
+    );
+
+    await expect(repository.softDeleteById({ id: 1, authorId: 2 })).resolves.toBeNull();
+  });
+
   it('updates a post only when the expected version matches', async () => {
     update.mockResolvedValue({ id: 1 });
 

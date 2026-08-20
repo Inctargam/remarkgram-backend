@@ -34,7 +34,7 @@ async function bootstrap() {
       exchangeType: 'topic',
       routingKey: POST_DELETED_V1_EVENT_NAME,
       noAck: false,
-      prefetchCount: 10,
+      prefetchCount: 1,
     },
   });
   await app.startAllMicroservices();
