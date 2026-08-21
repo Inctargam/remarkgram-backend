@@ -91,6 +91,7 @@ message ResendRegistrationConfirmationResponse {}
 // Users
 service UsersService {
   rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
+  rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse);
 }
 
 message GetUsersRequest {}
@@ -103,6 +104,20 @@ message User {
 
 message GetUsersResponse {
   repeated User users = 1;
+}
+
+message GetCurrentUserRequest {
+  string user_id = 1;
+}
+
+message GetCurrentUserResponse {
+  int32 id = 1;
+  string username = 2;
+  string email = 3;
+  bool email_verified = 4;
+  bool has_password = 5;
+  repeated OAuthProvider oauth_providers = 6;
+  string created_at = 7;
 }
 
 // Sessions

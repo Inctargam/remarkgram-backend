@@ -50,3 +50,11 @@ export class IncorrectEmailError extends UserAccountsError {
     super('Email is incorrect');
   }
 }
+
+export class InvalidUserIdError extends UserAccountsError {
+  readonly code = UserAccountsErrorCode.INVALID_USER_ID;
+
+  constructor() {
+    super('Unauthorized');
+  }
+}
