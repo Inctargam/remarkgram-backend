@@ -20,6 +20,7 @@ import {
 } from '@app/posts-grpc';
 import {
   AUTH_SERVICE_NAME,
+  OAuthProvider,
   PASSWORD_RESET_SERVICE_NAME,
   REGISTRATION_SERVICE_NAME,
   REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
@@ -64,6 +65,7 @@ describe('ApiGateway (e2e)', () => {
   };
   const usersServiceClient = {
     getUsers: vi.fn<UsersServiceClient['getUsers']>(),
+    getCurrentUser: vi.fn<UsersServiceClient['getCurrentUser']>(),
   };
   const authServiceClient = {
     login: vi.fn<AuthServiceClient['login']>(),
@@ -191,6 +193,17 @@ describe('ApiGateway (e2e)', () => {
         users: [{ id: 1, username: 'user', email: 'user@example.com' }],
       }),
     );
+    usersServiceClient.getCurrentUser.mockReturnValue(
+      of({
+        id: 1,
+        username: 'client123',
+        email: 'user@example.com',
+        emailVerified: true,
+        hasPassword: true,
+        oauthProviders: [OAuthProvider.OAUTH_PROVIDER_GOOGLE, OAuthProvider.OAUTH_PROVIDER_GITHUB],
+        createdAt: '2026-08-21T10:15:00.000Z',
+      }),
+    );
     authServiceClient.login.mockReturnValue(
       of({
         accessToken: 'login-access-token',
@@ -289,6 +302,7 @@ describe('ApiGateway (e2e)', () => {
       '/auth/login',
       '/auth/refresh-token',
       '/auth/logout',
+      '/auth/me',
       '/auth/google',
       '/auth/google/callback',
       '/auth/github',
@@ -311,6 +325,17 @@ describe('ApiGateway (e2e)', () => {
     expect(document.paths).not.toHaveProperty(apiPath('/files'));
     expect(Object.keys(document.components.schemas.SessionResponseDto?.properties ?? {})).toEqual(
       expect.arrayContaining(['sessionId', 'deviceName', 'ip', 'lastActiveAt', 'isCurrent']),
+    );
+    expect(Object.keys(document.components.schemas.CurrentUserResponseDto?.properties ?? {})).toEqual(
+      expect.arrayContaining([
+        'id',
+        'username',
+        'email',
+        'avatarUrl',
+        'emailVerified',
+        'loginMethods',
+        'createdAt',
+      ]),
     );
     expect(document.components.schemas).not.toHaveProperty('DeviceResponseDto');
 
@@ -338,6 +363,9 @@ describe('ApiGateway (e2e)', () => {
       delete: OpenApiOperation;
     };
     const googleAuth = document.paths[apiPath('/auth/google')] as { get: OpenApiOperation };
+    const getCurrentUser = document.paths[apiPath('/auth/me')] as {
+      get: OpenApiOperation & { security?: Record<string, unknown>[] };
+    };
     const googleAuthCallback = document.paths[apiPath('/auth/google/callback')] as {
       get: OpenApiOperation;
     };
@@ -350,6 +378,11 @@ describe('ApiGateway (e2e)', () => {
     const createPost = document.paths[apiPath('/posts')] as { post: OpenApiOperation };
 
     expect(googleAuth.get.summary).toBe('Start Google OIDC authentication');
+    expect(getCurrentUser.get.summary).toBe('Get the current authenticated user');
+    expect(getCurrentUser.get.security).toContainEqual({ accessToken: [] });
+    expect(Object.keys(getCurrentUser.get.responses)).toEqual(
+      expect.arrayContaining(['200', '401', '502', '503']),
+    );
     expect(googleAuth.get.responses['302']?.headers).toHaveProperty('Location');
     expect(googleAuth.get.responses['302']?.headers).toHaveProperty('Set-Cookie');
     expect(googleAuthCallback.get.summary).toBe('Complete Google OIDC authentication');
@@ -569,6 +602,52 @@ describe('ApiGateway (e2e)', () => {
       .expect([{ id: 1, username: 'user', email: 'user@example.com' }]);
 
     expect(usersServiceClient.getUsers).toHaveBeenCalledOnce();
+  });
+
+  it('GET /auth/me returns the current user with stable login method ordering', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .get(apiPath('/auth/me'))
+      .set('Authorization', 'Bearer access-token')
+      .expect(200)
+      .expect({
+        id: 1,
+        username: 'client123',
+        email: 'user@example.com',
+        avatarUrl: null,
+        emailVerified: true,
+        loginMethods: ['password', 'github', 'google'],
+        createdAt: '2026-08-21T10:15:00.000Z',
+      });
+
+    expect(usersServiceClient.getCurrentUser).toHaveBeenCalledWith({
+      userId: refreshTokenClaims.userId,
+    });
+  });
+
+  it('GET /auth/me requires an access token', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .get(apiPath('/auth/me'))
+      .expect(401);
+
+    expect(usersServiceClient.getCurrentUser).not.toHaveBeenCalled();
+  });
+
+  it('GET /auth/me maps a missing token subject user to 401', async () => {
+    const metadata = new Metadata();
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, 'INVALID_USER_ID');
+    usersServiceClient.getCurrentUser.mockReturnValueOnce(
+      throwError(() => createServiceError(status.UNAUTHENTICATED, 'Unauthorized', metadata)),
+    );
+
+    await request(app.getHttpServer() as SupertestApp)
+      .get(apiPath('/auth/me'))
+      .set('Authorization', 'Bearer access-token')
+      .expect(401)
+      .expect({
+        statusCode: 401,
+        code: 'INVALID_USER_ID',
+        message: 'Unauthorized',
+      });
   });
 
   it('maps user-accounts gRPC errors to HTTP errors', async () => {
