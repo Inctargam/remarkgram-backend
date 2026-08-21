@@ -6,6 +6,8 @@ import { InvalidPostIdError, PostAccessForbiddenError } from '../../errors/base-
 import { UnitOfWork } from '../../ports/unit-of-work.js';
 import { OutboxEventsRepository } from '../../ports/outbox-events.repository.js';
 import { PostDeletedV1Factory } from '../../integration-events/post-deleted-v1/post-deleted-v1.factory.js';
+import { DeletedPostsPublisherWorker } from '../../workers/deleted-posts-publisher.worker.js';
+import { worker } from 'globals';
 
 type DeletePostParams = {
   postId: number;
@@ -24,6 +26,7 @@ export class DeletePostUseCase implements ICommandHandler<DeletePostCommand> {
     private readonly postsRepository: PostsRepository,
     private readonly unitOfWork: UnitOfWork,
     private readonly outbox: OutboxEventsRepository,
+    private readonly worker: DeletedPostsPublisherWorker,
   ) {}
   async execute(command: DeletePostCommand) {
     const { postId, authorId } = command.params;
@@ -66,7 +69,7 @@ export class DeletePostUseCase implements ICommandHandler<DeletePostCommand> {
       });
       await this.outbox.add(integrationEvent, ctx);
     });
-
+    this.worker.run().catch();
     return;
   }
 }

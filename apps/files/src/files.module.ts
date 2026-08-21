@@ -28,6 +28,10 @@ import { PostDeletedInboxScheduler } from './infrastructure/scheduling/post-dele
 import { PostDeletedInboxWorker } from './application/workers/post-deleted-inbox.worker.js';
 import { UnitOfWork } from './application/ports/unit-of-work.js';
 import { PrismaUnitOfWork } from './infrastructure/prisma/prisma-unit-of-work.js';
+import { FileDeletionJobsRepository } from './application/ports/file-deletion-jobs.repository.js';
+import { PrismaFileDeletionJobsRepository } from './infrastructure/prisma/repositories/prisma-file-deletion-jobs.repository.js';
+import { FileDeletionJobsWorker } from './application/workers/file-deletion-jobs.worker.js';
+import { FileDeletionJobsScheduler } from './infrastructure/scheduling/file-deletion-jobs.scheduler.js';
 
 @Module({
   imports: [
@@ -59,6 +63,8 @@ import { PrismaUnitOfWork } from './infrastructure/prisma/prisma-unit-of-work.js
     GetPublicFileUrlQueryHandler,
     PostDeletedInboxScheduler,
     PostDeletedInboxWorker,
+    FileDeletionJobsWorker,
+    FileDeletionJobsScheduler,
     {
       provide: FilesRepository,
       useClass: PrismaFilesRepository,
@@ -91,6 +97,10 @@ import { PrismaUnitOfWork } from './infrastructure/prisma/prisma-unit-of-work.js
     {
       provide: UnitOfWork,
       useClass: PrismaUnitOfWork,
+    },
+    {
+      provide: FileDeletionJobsRepository,
+      useClass: PrismaFileDeletionJobsRepository,
     },
   ],
 })

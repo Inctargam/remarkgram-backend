@@ -7,6 +7,7 @@ import {
   type UpdateImageUploadsStatusParams,
   FindAvailableByIdRepositoryParams,
   FindAvailableByIdRepositoryResult,
+  SoftDeleteFileIdsByUserRepositoryResult,
 } from '../../../application/ports/files.repository.js';
 import { InvalidImageUploadStatusError } from '../../../application/errors/image-upload.errors.js';
 import { FileUploadStatus } from '../../../domain/enums/file-upload-status.enum.js';
@@ -101,9 +102,10 @@ export class PrismaFilesRepository extends FilesRepository {
     fileIds: string[],
     userId: number,
     ctx?: TransactionContext,
-  ): Promise<boolean> {
+  ): Promise<SoftDeleteFileIdsByUserRepositoryResult> {
     const client = (ctx as Prisma.TransactionClient | undefined) ?? this.prisma;
-    const results = await client.file.updateMany({
+
+    return client.file.updateManyAndReturn({
       where: {
         id: { in: [...fileIds] },
         deletedAt: null,
@@ -112,7 +114,22 @@ export class PrismaFilesRepository extends FilesRepository {
       data: {
         deletedAt: new Date(),
       },
+      select: {
+        id: true,
+        objectKey: true,
+        deletedAt: true,
+      },
     });
-    return results.count > 0;
+  }
+
+  async hardDeleteSoftDeletedById(fileId: string, ctx?: TransactionContext): Promise<void> {
+    const client = (ctx as Prisma.TransactionClient | undefined) ?? this.prisma;
+
+    await client.file.deleteMany({
+      where: {
+        id: fileId,
+        deletedAt: { not: null },
+      },
+    });
   }
 }

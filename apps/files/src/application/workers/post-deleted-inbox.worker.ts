@@ -3,12 +3,26 @@ import { UnitOfWork } from '../ports/unit-of-work.js';
 import { InboxEventsRepository, InboxEventType } from '../ports/inbox-events.repository.js';
 import { FilesRepository } from '../ports/files.repository.js';
 import { POST_DELETED_V1_EVENT_NAME } from '@app/message-broker';
+import { FileDeletionJobsRepository } from '../ports/file-deletion-jobs.repository.js';
 
 export type PostDeletedInboxEventOptions = {
   batchSize: number;
   concurrency: number;
   maxAttempts: number;
+  retentionMs: number;
 };
+
+class PostDeletedInboxLeaseLostError extends Error {
+  constructor(eventId: string) {
+    super(`Lease was lost for post-deleted inbox event ${eventId}`);
+  }
+}
+
+class SoftDeletedFileTimestampMissingError extends Error {
+  constructor(fileId: string) {
+    super(`Soft-deleted file ${fileId} was returned without deletedAt`);
+  }
+}
 @Injectable()
 export class PostDeletedInboxWorker {
   private readonly logger = new Logger(PostDeletedInboxWorker.name);
@@ -16,11 +30,13 @@ export class PostDeletedInboxWorker {
     batchSize: 100,
     concurrency: 10,
     maxAttempts: 100,
+    retentionMs: 24 * 60 * 60 * 1000, // 24 hours
   };
   constructor(
     private readonly unitOfWork: UnitOfWork,
     private readonly inbox: InboxEventsRepository,
     private readonly files: FilesRepository,
+    private readonly fileDeletionJob: FileDeletionJobsRepository,
   ) {}
 
   async run(): Promise<void> {
@@ -30,13 +46,13 @@ export class PostDeletedInboxWorker {
         batchSize: this.options.batchSize,
         eventType: POST_DELETED_V1_EVENT_NAME,
       });
-      if (!events || !Array.isArray(events)) {
-        return;
-      }
+      if (!events) return;
+
+      this.logger.debug(`Claimed post-deleted inbox batch: eventCount=${events.length}`);
       await this.processWithConcurrency(events, this.options.concurrency, (event) => this.processOne(event));
     } catch (error) {
       const message = this.errorMessage(error);
-      this.logger.error(`Failed processing POST_DELETED_V1_EVENT_NAME event: ${message}`);
+      this.logger.error(`Failed to claim ${POST_DELETED_V1_EVENT_NAME} inbox events: reason="${message}"`);
     }
   }
 
@@ -48,16 +64,49 @@ export class PostDeletedInboxWorker {
     try {
       await this.unitOfWork.run(async (ctx) => {
         const { payload } = eventToProcess;
+        const fileIds = [...new Set(payload.fileIds)];
 
-        await this.files.softDeleteFileIdsByUser(payload.fileIds, payload.userId, ctx);
+        const deletionData = await this.files.softDeleteFileIdsByUser(fileIds, payload.userId, ctx);
+
+        if (deletionData.length !== fileIds.length) {
+          this.logger.warn(
+            `Post-deleted event matched only active owned files: eventId=${eventToProcess.eventId} postId=${payload.postId} requested=${fileIds.length} softDeleted=${deletionData.length}`,
+          );
+        }
+
+        await this.fileDeletionJob.addMany(
+          {
+            data: deletionData.map((file) => {
+              if (!file.deletedAt) throw new SoftDeletedFileTimestampMissingError(file.id);
+
+              return {
+                fileId: file.id,
+                objectKey: file.objectKey,
+                availableAt: new Date(file.deletedAt.getTime() + this.options.retentionMs),
+              };
+            }),
+          },
+          ctx,
+        );
         // availableAt служит токеном аренды. Если аренда уже истекла и событие
         // забрал другой воркер, update вернёт 0 и вся транзакция soft-delete откатится.
-        await this.inbox.markAsProcessed(eventToProcess.eventId, eventToProcess.availableAt, ctx);
+        const processed = await this.inbox.markAsProcessed(
+          eventToProcess.eventId,
+          eventToProcess.availableAt,
+          ctx,
+        );
+        if (!processed) throw new PostDeletedInboxLeaseLostError(eventToProcess.eventId);
+
         return;
       });
+      this.logger.debug(
+        `Processed post-deleted inbox event: eventId=${eventToProcess.eventId} postId=${eventToProcess.payload.postId}`,
+      );
     } catch (error) {
       const message = this.errorMessage(error);
-      this.logger.error(`Failed to mark soft-delete file: ${message}`);
+      this.logger.error(
+        `Failed to process post-deleted inbox event: eventId=${eventToProcess.eventId} postId=${eventToProcess.payload.postId} attempt=${eventToProcess.attempts} reason="${message}"`,
+      );
       try {
         const resolved = await this.inbox.resolveFailedAttempt(
           eventToProcess.eventId,
@@ -68,12 +117,12 @@ export class PostDeletedInboxWorker {
 
         if (!resolved) {
           this.logger.warn(
-            `Failed attempt was not recorded for event ${eventToProcess.eventId}: lease was lost`,
+            `Post-deleted failure was not recorded because lease was lost: eventId=${eventToProcess.eventId}`,
           );
         }
       } catch (statusError) {
         this.logger.error(
-          `Failed to record failed attempt for event ${eventToProcess.eventId}: ${this.errorMessage(statusError)}`,
+          `Failed to record post-deleted processing error: eventId=${eventToProcess.eventId} reason="${this.errorMessage(statusError)}"`,
           statusError instanceof Error ? statusError.stack : undefined,
         );
       }
@@ -104,39 +153,4 @@ export class PostDeletedInboxWorker {
 
     await Promise.all(consumers);
   }
-
-  // private async processException(event: InboxEventType, error: unknown): Promise<void> {
-  //   const message = error instanceof Error ? error.message : String(error);
-  //   this.logger.error(
-  //     `Failed to process event ${event.eventId}: ${message}`,
-  //     error instanceof Error ? error.stack : undefined,
-  //   );
-  //
-  //   try {
-  //     const nextAttempt = event.attempts + 1;
-  //
-  //     if (error instanceof InvalidInboxEventPayloadError || nextAttempt >= MAX_ATTEMPTS) {
-  //       const result = await this.inbox.markDead(event.eventId, event.availableAt, message);
-  //       if (!result) {
-  //         this.logger.warn(`Inbox event ${event.eventId} was not marked as dead because its lease was lost`);
-  //       }
-  //       // this.logger.error(
-  //       //   `Marking inbox event ${event.eventId} as dead for ${result} attempts`,
-  //       //   error instanceof Error ? error.stack : undefined,
-  //       // );
-  //     } else {
-  //       const result = await this.inbox.reschedule(event.eventId, event.availableAt, message);
-  //       if (!result) {
-  //         this.logger.warn(`Inbox event ${event.eventId} was not rescheduled because its lease was lost`);
-  //       }
-  //     }
-  //   } catch (statusError: unknown) {
-  //     this.logger.error(
-  //       `Failed to update status for inbox event ${event.eventId}: ${
-  //         statusError instanceof Error ? statusError.message : String(statusError)
-  //       }`,
-  //       statusError instanceof Error ? statusError.stack : undefined,
-  //     );
-  //   }
-  // }
 }

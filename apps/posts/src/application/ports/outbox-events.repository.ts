@@ -24,5 +24,4 @@ export abstract class OutboxEventsRepository {
     maxAttempts: number,
   ): Promise<boolean>;
   // abstract reschedule(eventId: string, error: string, leaseUntil: Date): Promise<void>;
-  abstract markExpiredExhaustedEventsDead(eventType: string, maxAttempts: number): Promise<void>;
 }

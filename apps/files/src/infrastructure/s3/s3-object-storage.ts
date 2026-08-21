@@ -1,4 +1,4 @@
-import { HeadObjectCommand, S3Client, S3ServiceException } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, HeadObjectCommand, S3Client, S3ServiceException } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
@@ -70,6 +70,16 @@ export class S3ObjectStorage extends ObjectStorage {
       throw error;
     }
   }
+
+  async deleteObject(objectKey: string): Promise<void> {
+    await this.s3Client.send(
+      new DeleteObjectCommand({
+        Bucket: this.config.s3.bucket,
+        Key: objectKey,
+      }),
+    );
+  }
+
   getPublicUrl(objectKey: string) {
     const baseUrl = this.config.s3.publicUrl.endsWith('/')
       ? this.config.s3.publicUrl

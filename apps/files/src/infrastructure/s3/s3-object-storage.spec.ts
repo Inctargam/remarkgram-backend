@@ -1,4 +1,9 @@
-import { HeadObjectCommand, S3ServiceException, type S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  HeadObjectCommand,
+  S3ServiceException,
+  type S3Client,
+} from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import type { ConfigType } from '@nestjs/config';
 import type { filesConfig } from '../../config/files.config.js';
@@ -98,5 +103,25 @@ describe('S3ObjectStorage', () => {
     send.mockRejectedValue(error);
 
     await expect(objectStorage.getObjectMetadata('object-key')).rejects.toBe(error);
+  });
+
+  it('deletes an object from the configured bucket', async () => {
+    send.mockResolvedValue({ $metadata: { httpStatusCode: 204 } });
+
+    await objectStorage.deleteObject('users/42/images/image-id');
+
+    const command = send.mock.calls[0]?.[0];
+    expect(command).toBeInstanceOf(DeleteObjectCommand);
+    expect((command as DeleteObjectCommand).input).toEqual({
+      Bucket: 'images-bucket',
+      Key: 'users/42/images/image-id',
+    });
+  });
+
+  it('propagates object deletion errors so the worker can retry', async () => {
+    const error = new Error('S3 unavailable');
+    send.mockRejectedValue(error);
+
+    await expect(objectStorage.deleteObject('object-key')).rejects.toBe(error);
   });
 });

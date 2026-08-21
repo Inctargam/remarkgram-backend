@@ -44,7 +44,7 @@ model InboxEvents {
   eventType   String      @map("event_type")
   payload     Json
   status      InboxStatus @default(RECEIVED)
-  attempts     Int         @default(0)
+  attempts    Int         @default(0)
   receivedAt  DateTime    @default(now()) @map("received_at") @db.Timestamptz
   processedAt DateTime?   @map("processed_at") @db.Timestamptz
   availableAt DateTime    @default(now()) @map("available_at") @db.Timestamptz
@@ -52,4 +52,26 @@ model InboxEvents {
 
   @@index([status, availableAt])
   @@map("inbox_events")
+}
+
+enum FileDeletionJobStatus {
+  PENDING
+  DONE
+  DEAD
+}
+
+model FileDeletionJob {
+  fileId      String                @id @map("file_id") @db.Uuid
+  objectKey   String                @map("object_key")
+  status      FileDeletionJobStatus @default(PENDING)
+  attempts    Int                   @default(0)
+  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime              @updatedAt @map("updated_at") @db.Timestamptz
+  doneAt      DateTime?             @map("done_at") @db.Timestamptz
+  availableAt DateTime              @map("available_at") @db.Timestamptz
+  leaseUntil  DateTime?             @map("lease_until") @db.Timestamptz
+  lastError   String?               @map("last_error")
+
+  @@index([status, availableAt])
+  @@map("file_deletion_jobs")
 }

@@ -15,8 +15,18 @@ export class PostDeletedInboxScheduler {
    * необработанными после остановки или падения процесса, не создавая частый
    * polling и лишние пробуждения compute Neon.
    */
-  @Cron(CronExpression.EVERY_5_SECONDS, {})
-  handleCron() {
-    this.postDeletedInboxWorker.run().catch();
+  @Cron(CronExpression.EVERY_12_HOURS, {
+    waitForCompletion: true, //пока текущий handleCron() не завершился, следующий запуск не начинается (в рамках одного єкземпляра)
+  })
+  async handleCron() {
+    try {
+      await this.postDeletedInboxWorker.run();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Fallback inbox processing failed: ${message}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
   }
 }

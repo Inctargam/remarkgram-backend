@@ -38,6 +38,12 @@ export type FindAvailableByIdRepositoryResult = {
   userId: number;
   objectKey: string;
 } | null;
+
+export type SoftDeleteFileIdsByUserRepositoryResult = {
+  id: string;
+  objectKey: string;
+  deletedAt: Date | null;
+}[];
 export abstract class FilesRepository {
   abstract createMany(fileRecords: readonly CreateFileRecord[]): Promise<void>;
 
@@ -52,5 +58,7 @@ export abstract class FilesRepository {
     fileIds: string[],
     userId: number,
     ctx?: TransactionContext,
-  ): Promise<boolean>;
+  ): Promise<SoftDeleteFileIdsByUserRepositoryResult>;
+
+  abstract hardDeleteSoftDeletedById(fileId: string, ctx?: TransactionContext): Promise<void>;
 }

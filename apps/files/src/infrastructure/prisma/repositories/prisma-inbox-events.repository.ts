@@ -11,6 +11,8 @@ import { Prisma } from '../generated/client.js';
 import { Injectable, Logger } from '@nestjs/common';
 import type { PostDeletedPayload } from '../../../application/integration-events/post-deleted.event.js';
 import { InboxEventStatus } from '../../../domain/enums/inbox-event-status.enum.js';
+import { isDeepStrictEqual } from 'node:util';
+import { InboxEventIdCollisionError } from '../../../application/errors/inbox-event-id-collision.error.js';
 
 type InboxEventRaw = {
   event_id: string;
@@ -61,6 +63,7 @@ export class PrismaInboxEventsRepository implements InboxEventsRepository {
       });
       return {
         eventId: created.eventId,
+        created: true,
       };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -70,11 +73,16 @@ export class PrismaInboxEventsRepository implements InboxEventsRepository {
             eventId: event.eventId,
           },
         });
-        return existing
-          ? {
-              eventId: existing.eventId,
-            }
-          : Promise.reject(error);
+        if (!existing) throw error;
+
+        if (existing.eventType !== event.eventType || !isDeepStrictEqual(existing.payload, event.payload)) {
+          throw new InboxEventIdCollisionError(event.eventId);
+        }
+
+        return {
+          eventId: existing.eventId,
+          created: false,
+        };
       }
 
       throw error;
@@ -85,6 +93,11 @@ export class PrismaInboxEventsRepository implements InboxEventsRepository {
     const client = this.getClient();
 
     /*
+     * exhausted_events закрывает события, для которых worker получил последнюю
+     * попытку и завершился аварийно до resolveFailedAttempt. После истечения
+     * available_at, выполняющего роль lease, такое событие уже нельзя повторно
+     * claim из-за attempts >= maxAttempts, поэтому переводим его в DEAD.
+     *
      * SELECT блокирует кандидата до завершения всего SQL-запроса. SKIP LOCKED
      * позволяет нескольким воркерам одновременно резервировать разные события.
      *
@@ -94,7 +107,16 @@ export class PrismaInboxEventsRepository implements InboxEventsRepository {
      * токен оптимистической блокировки в markAsProcessed/reschedule/markDead.
      */
     const events = await client.$queryRaw<InboxEventRaw[]>`
-      WITH claimed_events AS (
+      WITH exhausted_events AS (
+        UPDATE inbox_events
+        SET status = ${InboxEventStatus.DEAD}::"InboxStatus",
+            last_error = COALESCE(last_error, 'Maximum inbox processing attempts reached')
+        WHERE event_type = ${params.eventType}
+          AND status = ${InboxEventStatus.RECEIVED}::"InboxStatus"
+          AND attempts >= ${params.maxAttempts}
+          AND available_at <= CURRENT_TIMESTAMP
+      ),
+      claimed_events AS (
         SELECT event_id
         FROM inbox_events
         WHERE event_type = ${params.eventType}
@@ -106,7 +128,10 @@ export class PrismaInboxEventsRepository implements InboxEventsRepository {
               LIMIT ${params.batchSize}
               )
       UPDATE inbox_events AS event
-      SET available_at = CURRENT_TIMESTAMP + INTERVAL '2 minutes',
+      SET available_at = date_trunc(
+        'milliseconds',
+        CURRENT_TIMESTAMP + INTERVAL '2 minutes'
+      ),
         attempts = event.attempts + 1
       FROM claimed_events
       WHERE event.event_id = claimed_events.event_id
@@ -119,12 +144,13 @@ export class PrismaInboxEventsRepository implements InboxEventsRepository {
     return events.map((event) => this.mapToEvent(event));
   }
 
-  async markAsProcessed(eventId: string, leaseUntil: Date, ctx?: TransactionContext): Promise<void> {
+  async markAsProcessed(eventId: string, leaseUntil: Date, ctx?: TransactionContext): Promise<boolean> {
     const client = this.getClient(ctx);
-    await client.inboxEvents.update({
+    const result = await client.inboxEvents.updateMany({
       where: {
-        eventId: eventId,
-        leaseUntil: leaseUntil,
+        eventId,
+        availableAt: leaseUntil,
+        status: InboxEventStatus.RECEIVED,
       },
       data: {
         lastError: null,
@@ -132,6 +158,8 @@ export class PrismaInboxEventsRepository implements InboxEventsRepository {
         status: InboxEventStatus.PROCESSED,
       },
     });
+
+    return result.count === 1;
   }
 
   async resolveFailedAttempt(

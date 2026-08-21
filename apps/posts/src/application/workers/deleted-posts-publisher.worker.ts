@@ -16,7 +16,7 @@ export class DeletedPostsPublisherWorker {
   protected options: DeletedPostsBatchPublisherOptions = {
     batchSize: 100,
     concurrency: 10,
-    maxAttempts: 100,
+    maxAttempts: 5,
   };
   constructor(
     private readonly outbox: OutboxEventsRepository,
@@ -30,19 +30,27 @@ export class DeletedPostsPublisherWorker {
         this.options.batchSize,
       );
       if (!events) return;
+
+      this.logger.debug(`Claimed post-deleted outbox batch: eventCount=${events.length}`);
       await this.processWithConcurrency(events, this.options.concurrency, (event) => this.processOne(event));
     } catch (error: unknown) {
       const message = this.errorMessage(error);
-      this.logger.error(`Failed to publish outbox events: ${message}`);
+      this.logger.error(
+        `Failed to claim ${POST_DELETED_V1_EVENT_NAME} outbox events: reason="${message}"`,
+        error instanceof Error ? error.stack : undefined,
+      );
     }
   }
 
   private async processOne(eventToProcess: ApplicationOutboxEvent) {
     try {
-      this.logger.log(`Processing outbox event ${eventToProcess.id}`);
       const event = PostDeletedOutboxEventMapper.toIntegrationEvent(eventToProcess);
       await this.publisher.deletedPostEvent(event);
       await this.outbox.ensurePublished(event.eventId);
+
+      this.logger.debug(
+        `Published post-deleted outbox event: eventId=${eventToProcess.id} postId=${eventToProcess.aggregateId} attempt=${eventToProcess.attempts}`,
+      );
     } catch (error: unknown) {
       const message = this.errorMessage(error);
       await this.handleProcessingFailure(eventToProcess, message);
@@ -70,7 +78,9 @@ export class DeletedPostsPublisherWorker {
     eventToProcess: ApplicationOutboxEvent,
     message: string,
   ): Promise<void> {
-    this.logger.error(`Failed to publishes event: ${message}`);
+    this.logger.error(
+      `Failed to publish post-deleted outbox event: eventId=${eventToProcess.id} postId=${eventToProcess.aggregateId} attempt=${eventToProcess.attempts} reason="${message}"`,
+    );
     try {
       const resolved = await this.outbox.resolveFailedAttempt(
         eventToProcess.id,
@@ -80,11 +90,13 @@ export class DeletedPostsPublisherWorker {
       );
 
       if (!resolved) {
-        this.logger.warn(`Failed attempt was not recorded for event ${eventToProcess.id}: lease was lost`);
+        this.logger.warn(
+          `Outbox publishing failure was not recorded because lease was lost: eventId=${eventToProcess.id}`,
+        );
       }
     } catch (statusError) {
       this.logger.error(
-        `Failed to record failed attempt for event ${eventToProcess.id}: ${this.errorMessage(statusError)}`,
+        `Failed to record outbox publishing error: eventId=${eventToProcess.id} reason="${this.errorMessage(statusError)}"`,
         statusError instanceof Error ? statusError.stack : undefined,
       );
     }

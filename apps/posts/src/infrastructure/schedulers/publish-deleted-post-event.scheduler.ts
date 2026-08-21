@@ -5,11 +5,19 @@ import { DeletedPostsPublisherWorker } from '../../application/workers/deleted-p
 @Injectable()
 export class PublishDeletedPostEventScheduler {
   private readonly logger = new Logger(PublishDeletedPostEventScheduler.name);
-  constructor(private worker: DeletedPostsPublisherWorker) {}
+  constructor(private readonly worker: DeletedPostsPublisherWorker) {}
 
-  @Cron(CronExpression.EVERY_5_SECONDS)
-  handleDeletePostEvent() {
-    this.logger.log('Cron job: Publish events deleted posts');
-    this.worker.run();
+  @Cron(CronExpression.EVERY_6_HOURS, { waitForCompletion: true })
+  async handleDeletePostEvent(): Promise<void> {
+    try {
+      await this.worker.run();
+    } catch (error) {
+      this.logger.error(
+        `Scheduled post-deleted outbox publishing failed: reason="${
+          error instanceof Error ? error.message : String(error)
+        }"`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
   }
 }

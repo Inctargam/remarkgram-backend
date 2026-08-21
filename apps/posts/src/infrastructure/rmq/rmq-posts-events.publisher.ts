@@ -19,7 +19,9 @@ export class RmqPostsEventsPublisher implements OnModuleInit, PostsEventsPublish
   }
 
   async deletedPostEvent(event: PostDeletedV1Event): Promise<void> {
-    this.logger.log(`Publishing post deleted event: ${event.eventId}`);
+    this.logger.debug(
+      `Sending post-deleted integration event: eventId=${event.eventId} postId=${event.data.postId}`,
+    );
 
     await lastValueFrom(this.client.emit(POST_DELETED_V1_EVENT_NAME, event), {
       defaultValue: undefined,

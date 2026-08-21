@@ -5,7 +5,7 @@ import { InboxEventsRepository } from '../../application/ports/inbox-events.repo
 import { PostDeletedEventMapper } from './mappers/post-deleted-event.mapper.js';
 import { PostDeletedInboxWorker } from '../../application/workers/post-deleted-inbox.worker.js';
 import { PostDeletedEventDecoder } from './decoders/post-deleted-event.decoder.js';
-
+import { InboxEventIdCollisionError } from '../../application/errors/inbox-event-id-collision.error.js';
 
 @Controller()
 export class PostDeletedEventConsumer {
@@ -27,7 +27,7 @@ export class PostDeletedEventConsumer {
      * */
     const decoded = PostDeletedEventDecoder.decode(data);
     if (!decoded.success) {
-      this.logger.error(`Invalid message type[PostDeletedV1Event]: ${decoded.error}`);
+      this.logger.warn(`Rejected post-deleted message: reason="${decoded.error}"`);
       // false означает не отправлять повторно сообщение в очередь.
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access
       channel.nack(message, false, false);
@@ -35,11 +35,23 @@ export class PostDeletedEventConsumer {
     }
     try {
       const event = PostDeletedEventMapper.toInboxEvent(decoded.value);
-      await this.inbox.add({
+      if (event.payload.fileIds.length !== decoded.value.data.fileIds.length) {
+        this.logger.warn(
+          `Normalized duplicate file IDs in post-deleted event: eventId=${event.eventId} postId=${event.payload.postId}`,
+        );
+      }
+
+      const result = await this.inbox.add({
         eventId: event.eventId,
         eventType: event.eventType,
         payload: event.payload,
       });
+
+      this.logger.debug(
+        result.created
+          ? `Persisted post-deleted inbox event: eventId=${event.eventId} postId=${event.payload.postId} fileCount=${event.payload.fileIds.length}`
+          : `Acknowledged duplicate post-deleted event: eventId=${event.eventId}`,
+      );
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access
       channel.ack(message);
 
@@ -59,13 +71,14 @@ export class PostDeletedEventConsumer {
       const errorMessage = error instanceof Error ? error.message : String(error);
 
       this.logger.error(
-        `Failed to persist inbox event ${decoded.value.eventId}: ${errorMessage}`,
+        `Failed to persist post-deleted inbox event: eventId=${decoded.value.eventId} reason="${errorMessage}"`,
         error instanceof Error ? error.stack : undefined,
       );
 
-      // true означает повторно положить сообщение в очередь.
+      // Коллизия eventId не исправится повторной доставкой, остальные ошибки
+      // считаются временными и возвращают сообщение в очередь.
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access
-      channel.nack(message, false, true);
+      channel.nack(message, false, !(error instanceof InboxEventIdCollisionError));
     }
   }
 }

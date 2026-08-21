@@ -1,4 +1,5 @@
 import { POST_DELETED_V1_EVENT_NAME, type PostDeletedV1Event } from '@app/message-broker';
+import { isISO8601, isUUID } from 'class-validator';
 
 export type DecodeResult<T> = { success: true; value: T } | { success: false; error: string };
 
@@ -8,7 +9,7 @@ export class PostDeletedEventDecoder {
       return this.failure('Event must be an object');
     }
 
-    if (typeof value.eventId !== 'string' || value.eventId.length === 0) {
+    if (typeof value.eventId !== 'string' || !isUUID(value.eventId, '4')) {
       return this.failure('Invalid eventId');
     }
 
@@ -30,22 +31,26 @@ export class PostDeletedEventDecoder {
 
     const { data } = value;
 
-    if (typeof data.postId !== 'number' || !Number.isSafeInteger(data.postId)) {
+    if (typeof data.postId !== 'number' || !Number.isSafeInteger(data.postId) || data.postId <= 0) {
       return this.failure('Invalid postId');
     }
 
-    if (typeof data.authorId !== 'number' || !Number.isSafeInteger(data.authorId)) {
+    if (value.aggregateId !== String(data.postId)) {
+      return this.failure('aggregateId must match data.postId');
+    }
+
+    if (typeof data.authorId !== 'number' || !Number.isSafeInteger(data.authorId) || data.authorId <= 0) {
       return this.failure('Invalid authorId');
     }
 
-    if (!this.isNonEmptyStringArray(data.fileIds)) {
-      return this.failure('fileIds must be a non-empty array of non-empty strings');
+    if (!this.isUuidArray(data.fileIds)) {
+      return this.failure('fileIds must be a non-empty array of UUID v4 strings');
     }
 
     if (
       typeof data.deletedAt !== 'string' ||
       data.deletedAt.length === 0 ||
-      Number.isNaN(Date.parse(data.deletedAt))
+      !isISO8601(data.deletedAt, { strict: true, strictSeparator: true })
     ) {
       return this.failure('Invalid deletedAt');
     }
@@ -75,11 +80,11 @@ export class PostDeletedEventDecoder {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 
-  private static isNonEmptyStringArray(value: unknown): value is string[] {
+  private static isUuidArray(value: unknown): value is string[] {
     return (
       Array.isArray(value) &&
       value.length > 0 &&
-      value.every((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      value.every((item): item is string => typeof item === 'string' && isUUID(item.trim(), '4'))
     );
   }
 }

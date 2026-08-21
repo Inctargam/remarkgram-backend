@@ -38,7 +38,6 @@ describe('Deleted posts publisher worker', () => {
     add: vi.fn<OutboxEventsRepository['add']>(),
     findClaimNextAvailableEvent: vi.fn<OutboxEventsRepository['findClaimNextAvailableEvent']>(),
     ensurePublished: vi.fn<OutboxEventsRepository['ensurePublished']>(),
-    markExpiredExhaustedEventsDead: vi.fn<OutboxEventsRepository['markExpiredExhaustedEventsDead']>(),
   } satisfies OutboxEventsRepository;
   const publisher = {
     deletedPostEvent: vi.fn<PostsEventsPublisher['deletedPostEvent']>(),
@@ -53,7 +52,6 @@ describe('Deleted posts publisher worker', () => {
   beforeEach(() => {
     outbox.findClaimNextAvailableEvent.mockReset();
     outbox.ensurePublished.mockReset();
-    outbox.markExpiredExhaustedEventsDead.mockReset();
     publisher.publishPostDeleted.mockReset();
     mapperSpy.mockReset();
   });
@@ -78,7 +76,6 @@ describe('Deleted posts publisher worker', () => {
     expect(publisher.publishPostDeleted).toHaveBeenCalledOnce();
     expect(publisher.publishPostDeleted).toHaveBeenCalledWith(integrationEvent);
     expect(outbox.ensurePublished).toHaveBeenCalledWith(integrationEvent.eventId);
-    expect(outbox.markExpiredExhaustedEventsDead).toHaveBeenCalledOnce();
 
     expect(outbox.findClaimNextAvailableEvent).toHaveBeenCalledTimes(2);
   });
@@ -92,7 +89,6 @@ describe('Deleted posts publisher worker', () => {
     expect(mapperSpy).toHaveBeenCalledTimes(0);
     expect(publisher.publishPostDeleted).not.toHaveBeenCalledOnce();
     expect(outbox.ensurePublished).not.toHaveBeenCalledOnce();
-    expect(outbox.markExpiredExhaustedEventsDead).toHaveBeenCalledTimes(1);
   });
 
   it('returns an error if the mapper receives an event of an invalid', async () => {
@@ -105,7 +101,6 @@ describe('Deleted posts publisher worker', () => {
     expect(mapperSpy).toThrow(Error);
     expect(publisher.publishPostDeleted).not.toHaveBeenCalledOnce();
     expect(outbox.ensurePublished).not.toHaveBeenCalledOnce();
-    expect(outbox.markExpiredExhaustedEventsDead).toHaveBeenCalledTimes(1);
   });
 
   it('does not mark the event as published if the broker returns an error', async () => {
@@ -116,7 +111,6 @@ describe('Deleted posts publisher worker', () => {
     expect(publisher.publishPostDeleted).toHaveBeenCalledOnce();
     expect(outbox.ensurePublished).not.toHaveBeenCalledOnce();
 
-    expect(outbox.markExpiredExhaustedEventsDead).toHaveBeenCalledTimes(1);
     expect(outbox.findClaimNextAvailableEvent).toHaveBeenCalledTimes(2);
   });
 
@@ -172,7 +166,6 @@ describe('Deleted posts publisher worker', () => {
     expect(mapperSpy).toHaveBeenCalledTimes(2);
     expect(publisher.publishPostDeleted).toHaveBeenCalledTimes(2);
     expect(outbox.ensurePublished).toHaveBeenCalledTimes(2);
-    expect(outbox.markExpiredExhaustedEventsDead).toHaveBeenCalledTimes(1);
   });
 
   it('check the procedure for making a call', async () => {
@@ -182,7 +175,6 @@ describe('Deleted posts publisher worker', () => {
     expect(mapperSpy).toHaveBeenCalledOnce();
     expect(publisher.publishPostDeleted).toHaveBeenCalledOnce();
     expect(outbox.ensurePublished).toHaveBeenCalledOnce();
-    expect(outbox.markExpiredExhaustedEventsDead).toHaveBeenCalledOnce();
 
     expect(outbox.findClaimNextAvailableEvent.mock.invocationCallOrder[0]).toBeLessThan(
       mapperSpy.mock.invocationCallOrder[0],
@@ -193,9 +185,6 @@ describe('Deleted posts publisher worker', () => {
 
     expect(publisher.publishPostDeleted.mock.invocationCallOrder[0]).toBeLessThan(
       outbox.ensurePublished.mock.invocationCallOrder[0],
-    );
-    expect(outbox.ensurePublished.mock.invocationCallOrder[0]).toBeLessThan(
-      outbox.markExpiredExhaustedEventsDead.mock.invocationCallOrder[0],
     );
   });
 });

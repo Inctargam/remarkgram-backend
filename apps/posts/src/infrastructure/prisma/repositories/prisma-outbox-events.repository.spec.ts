@@ -61,7 +61,7 @@ describe('PrismaOutboxEventsRepository', () => {
     });
   });
 
-  it('claim next available event', async () => {
+  it('claims an available batch and recovers exhausted events in the same query', async () => {
     vi.setSystemTime(new Date('2026-08-20T10:03:00.000Z'));
     const claimedRow = {
       id: randomUUID(),
@@ -85,22 +85,25 @@ describe('PrismaOutboxEventsRepository', () => {
 
     prisma.$queryRaw.mockResolvedValueOnce([claimedRow]);
 
-    const eventRecord = await repository.findClaimNextAvailableEvent(
+    const eventRecords = await repository.findAvailableBatch(
       POST_DELETED_V1_EVENT_NAME,
       max_attempts,
+      100,
     );
     expect(prisma.$queryRaw).toHaveBeenCalledOnce();
-    expect(eventRecord).toEqual(claimedRow);
+    expect(eventRecords).toEqual([claimedRow]);
 
     const executeRawCall = prisma.$queryRaw.mock.calls[0];
     expect(executeRawCall).toContain(OutboxStatus.PENDING);
+    expect(executeRawCall).toContain(OutboxStatus.DEAD);
     expect(executeRawCall).toContain(POST_DELETED_V1_EVENT_NAME);
     expect(executeRawCall).toContain(max_attempts);
+    expect(executeRawCall).toContain(100);
   });
 
   it('returns null when no event is available', async () => {
     prisma.$queryRaw.mockResolvedValueOnce([]);
-    const eventRecord = await repository.findClaimNextAvailableEvent(POST_DELETED_V1_EVENT_NAME, 5);
+    const eventRecord = await repository.findAvailableBatch(POST_DELETED_V1_EVENT_NAME, 5, 100);
     expect(prisma.$queryRaw).toHaveBeenCalledOnce();
     expect(eventRecord).toBeNull();
   });
@@ -108,7 +111,7 @@ describe('PrismaOutboxEventsRepository', () => {
   it('propagates a database error', async () => {
     const dataBaseError = new Error('Database error');
     prisma.$queryRaw.mockRejectedValueOnce(dataBaseError);
-    await expect(repository.findClaimNextAvailableEvent(POST_DELETED_V1_EVENT_NAME, 5)).rejects.toThrow();
+    await expect(repository.findAvailableBatch(POST_DELETED_V1_EVENT_NAME, 5, 100)).rejects.toThrow();
   });
 
   it('completes successfully when no row needs to be updated', async () => {
@@ -123,18 +126,4 @@ describe('PrismaOutboxEventsRepository', () => {
     expect(executeRawCall).toContain(eventId);
   });
 
-  it('delegates marking expired exhausted events as dead to the database', async () => {
-    prisma.$executeRaw.mockResolvedValueOnce(3);
-
-    await expect(
-      repository.markExpiredExhaustedEventsDead(POST_DELETED_V1_EVENT_NAME, 5),
-    ).resolves.toBeUndefined();
-
-    expect(prisma.$executeRaw).toHaveBeenCalledOnce();
-    const executeRawCall = prisma.$executeRaw.mock.calls[0];
-
-    expect(executeRawCall).toContain(POST_DELETED_V1_EVENT_NAME);
-
-    expect(executeRawCall).toContain(5);
-  });
 });

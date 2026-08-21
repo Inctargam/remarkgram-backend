@@ -8,6 +8,7 @@ export type AddInboxEventRepositoryParams = {
 };
 export type AddInboxEventRepositoryResult = {
   eventId: string;
+  created: boolean;
 };
 export type InboxEventType = {
   eventId: string;
@@ -37,7 +38,7 @@ export abstract class InboxEventsRepository {
    */
   abstract findAvailableBatch(params: ClaimAvailableEventParams): Promise<InboxEventType[] | null>;
   // abstract claimNextAvailableEvent(params: ClaimAvailableEventParams): Promise<InboxEventType | null>;
-  abstract markAsProcessed(eventId: string, leaseUntil: Date, ctx?: TransactionContext): Promise<void>;
+  abstract markAsProcessed(eventId: string, leaseUntil: Date, ctx?: TransactionContext): Promise<boolean>;
   // abstract reschedule(eventId: string, leaseUntil: Date, lastError: string): Promise<boolean>;
   // abstract markDead(eventId: string, leaseUntil: Date, lastError: string): Promise<boolean>;
   abstract resolveFailedAttempt(

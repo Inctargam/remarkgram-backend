@@ -43,27 +43,33 @@ export class PrismaOutboxEventsRepository implements OutboxEventsRepository {
     `;
   }
 
-  async markExpiredExhaustedEventsDead(eventType: string, maxAttempts: number): Promise<void> {
-    await this.prisma.$executeRaw`
-      UPDATE outbox_events
-      SET status = ${OutboxStatus.DEAD}::"OutboxStatus",
-          last_error = 'Max attempts exceeded'
-      WHERE event_type = ${eventType}
-        AND status = ${OutboxStatus.PENDING}::"OutboxStatus"
-        AND attempts >= ${maxAttempts}
-        AND available_at <= now();
-    `;
-  }
   async findAvailableBatch(
     eventType: string,
     maxAttempts: number,
     maxBatchSize: number,
   ): Promise<FindAvailableBatchRepositoryResult> {
+    /*
+     * exhausted_events восстанавливает состояние после аварийного завершения
+     * worker. attempts увеличивается при claim, поэтому процесс может получить
+     * последнюю разрешённую попытку и упасть до resolveFailedAttempt. После
+     * истечения available_at (текущей lease) такое событие уже не подходит под
+     * attempts < maxAttempts и осталось бы в PENDING навсегда. Перед новым
+     * claim атомарно переводим эти события в DEAD.
+     */
     // При захвате события увеличиваем attempts, фиксируя количество начатых попыток обработки.
     // available_at переносим в будущее, временно резервируя событие за текущим воркером.
     // При этом available_at выполняет роль срока аренды, но не уникального токена владения.
     const events = await this.prisma.$queryRaw<OutboxEventModel[]>`
-      WITH pending_events AS (
+      WITH exhausted_events AS (
+        UPDATE outbox_events
+        SET status = ${OutboxStatus.DEAD}::"OutboxStatus",
+            last_error = COALESCE(last_error, 'Maximum publishing attempts reached')
+        WHERE event_type = ${eventType}
+          AND status = ${OutboxStatus.PENDING}::"OutboxStatus"
+          AND attempts >= ${maxAttempts}
+          AND available_at <= CURRENT_TIMESTAMP
+      ),
+      pending_events AS (
         SELECT id
         FROM outbox_events
         WHERE status = ${OutboxStatus.PENDING}::"OutboxStatus"
@@ -75,7 +81,10 @@ export class PrismaOutboxEventsRepository implements OutboxEventsRepository {
         LIMIT ${maxBatchSize}
       ), claimed_events AS (
         UPDATE outbox_events AS outbox
-        SET available_at = CURRENT_TIMESTAMP + INTERVAL '2 minutes',
+        SET available_at = date_trunc(
+              'milliseconds',
+              CURRENT_TIMESTAMP + INTERVAL '2 minutes'
+            ),
             attempts = outbox.attempts + 1
         FROM pending_events
         WHERE outbox.id = pending_events.id
