@@ -9,17 +9,49 @@ datasource db {
 }
 
 model Post {
-  id          Int         @id @default(autoincrement())
-  authorId    Int         @map("author_id")
-  description String?
-  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
-  images      PostImage[]
-  version     Int         @default(0)
-  deletedAt   DateTime?   @map("deleted_at") @db.Timestamptz
+  id                Int                    @id @default(autoincrement())
+  authorId          Int                    @map("author_id")
+  description       String?
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz
+  publishedAt       DateTime?              @map("published_at") @db.Timestamptz
+  images            PostImage[]
+  creationOperation PostCreationOperation?
+  version           Int                    @default(0)
+  deletedAt         DateTime?              @map("deleted_at") @db.Timestamptz
 
   @@index([authorId, createdAt(sort: Desc), id(sort: Desc)], map: "posts_author_created_id_active_idx", where: { deletedAt: null })
-
   @@map("posts")
+}
+
+enum PostCreationOperationStatus {
+  STARTED
+  POST_CREATED
+  COMPENSATION_PENDING
+  COMPLETED
+  FAILED
+}
+
+model PostCreationOperation {
+  id                      String                      @id @db.Uuid
+  userId                  Int                         @map("user_id")
+  idempotencyKey          String                      @map("idempotency_key") @db.Uuid
+  description             String?
+  imageIds                String[]                    @map("image_ids") @db.Uuid
+  status                  PostCreationOperationStatus @default(STARTED)
+  /// Монотонная версия оптимистичной блокировки, изменяемая только CAS-переходами состояния.
+  version                 Int                         @default(0)
+  reserveOperationId      String                      @map("reserve_operation_id") @db.Uuid
+  attachOperationId       String                      @map("attach_operation_id") @db.Uuid
+  compensationOperationId String                      @map("compensation_operation_id") @db.Uuid
+  failureCode             String?                     @map("failure_code")
+  postId                  Int?                        @unique @map("post_id")
+  createdAt               DateTime                    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime                    @updatedAt @map("updated_at") @db.Timestamptz
+
+  post Post? @relation(fields: [postId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, idempotencyKey])
+  @@map("post_creation_operations")
 }
 
 model PostImage {

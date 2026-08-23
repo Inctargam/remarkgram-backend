@@ -65,6 +65,38 @@ export class ImageUploadsNotAvailableError extends FilesError {
   }
 }
 
+export class ImageUploadOperationConflictError extends FilesError {
+  readonly code = FilesErrorCode.IMAGE_UPLOAD_OPERATION_CONFLICT;
+
+  constructor() {
+    super('Image upload operation or reservation ID is already used by another operation');
+  }
+}
+
+export class InvalidImageUploadIdError extends FilesError {
+  readonly code = FilesErrorCode.INVALID_IMAGE_UPLOAD_ID;
+
+  constructor() {
+    super('Image upload ID must be a UUID');
+  }
+}
+
+export class InvalidImageUploadOperationIdError extends FilesError {
+  readonly code = FilesErrorCode.INVALID_IMAGE_UPLOAD_OPERATION_ID;
+
+  constructor() {
+    super('Image upload operation ID must be a UUID');
+  }
+}
+
+export class InvalidImageUploadReservationIdError extends FilesError {
+  readonly code = FilesErrorCode.INVALID_IMAGE_UPLOAD_RESERVATION_ID;
+
+  constructor() {
+    super('Image upload reservation ID must be a UUID');
+  }
+}
+
 export class InvalidImageUploadStatusError extends FilesError {
   readonly code = FilesErrorCode.INVALID_IMAGE_UPLOAD_STATUS;
 

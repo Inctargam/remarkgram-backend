@@ -45,6 +45,22 @@ describe('PrismaPostsRepository', () => {
     });
   });
 
+  it('publishes a post through the supplied transaction client', async () => {
+    const transactionUpdate = vi.fn().mockResolvedValue({ id: 10 });
+    const transaction = { post: { update: transactionUpdate } };
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+
+    await expect(repository.publish(10, transaction)).resolves.toBeUndefined();
+
+    expect(transactionUpdate).toHaveBeenCalledWith({
+      where: { id: 10, publishedAt: null, deletedAt: null },
+      data: { publishedAt: new Date('2030-01-01T00:00:00.000Z') },
+      select: { id: true },
+    });
+    vi.useRealTimers();
+  });
+
   it('maps a unique constraint violation to an application error', async () => {
     create.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {

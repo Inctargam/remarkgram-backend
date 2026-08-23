@@ -14,16 +14,19 @@ export type ReserveImageUploadsParams = {
   userId: number;
   imageIds: readonly string[];
   reservationId: string;
+  operationId: string;
 };
 
 export type AttachReservedImageUploadsParams = {
   userId: number;
   reservationId: string;
+  operationId: string;
 };
 
 export type ReleaseReservedImageUploadsParams = {
   userId: number;
   reservationId: string;
+  operationId: string;
 };
 
 export type AuthorPostsCursor = {

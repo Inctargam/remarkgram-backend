@@ -16,6 +16,7 @@ message CreatePostRequest {
     string user_id = 1;
     optional string description = 2;
     repeated string image_ids = 3;
+    string idempotency_key = 4;
 }
 
 message CreatePostResponse {
@@ -55,7 +56,6 @@ message GetAuthPostsPaginatedResponse {
     bool has_more = 2;
     optional string next_cursor = 3;
 }
-
 
 
 

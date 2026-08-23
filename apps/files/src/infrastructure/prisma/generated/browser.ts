@@ -22,3 +22,8 @@ export * from './enums.ts';
  * 
  */
 export type File = Prisma.FileModel
+/**
+ * Model ImageUploadOperationReceipt
+ *
+ */
+export type ImageUploadOperationReceipt = Prisma.ImageUploadOperationReceiptModel

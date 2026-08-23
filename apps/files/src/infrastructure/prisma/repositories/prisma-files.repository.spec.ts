@@ -1,11 +1,20 @@
 import type { PrismaService } from '../prisma.service.js';
 import {
+  ImageUploadOperationConflictError,
   ImageUploadNotFoundError,
   ImageUploadsNotAvailableError,
   InvalidImageUploadStatusError,
 } from '../../../application/errors/image-upload.errors.js';
 import { FileUploadStatus } from '../../../domain/enums/file-upload-status.enum.js';
+import { Prisma } from '../generated/client.js';
+import { ImageUploadOperationKind } from '../generated/enums.js';
 import { PrismaFilesRepository } from './prisma-files.repository.js';
+
+const uniqueConstraintError = () =>
+  new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+    code: 'P2002',
+    clientVersion: '7.8.0',
+  });
 
 describe('PrismaFilesRepository', () => {
   const file = {
@@ -15,12 +24,18 @@ describe('PrismaFilesRepository', () => {
     updateMany: vi.fn(),
     updateManyAndReturn: vi.fn(),
   };
-  const transactionClient = { file };
+  const imageUploadOperationReceipt = {
+    create: vi.fn(),
+    findMany: vi.fn(),
+    findUnique: vi.fn(),
+  };
+  const transactionClient = { file, imageUploadOperationReceipt };
   const transaction = vi.fn<
     (operation: (client: typeof transactionClient) => Promise<void>) => Promise<void>
   >((operation) => operation(transactionClient));
   const prisma = {
     file,
+    imageUploadOperationReceipt,
     $transaction: transaction,
   };
   const repository = new PrismaFilesRepository(prisma as unknown as PrismaService);
@@ -35,7 +50,17 @@ describe('PrismaFilesRepository', () => {
     file.updateMany.mockResolvedValue({ count: 2 });
     file.updateManyAndReturn.mockReset();
     file.updateManyAndReturn.mockResolvedValue([]);
-    transaction.mockClear();
+    imageUploadOperationReceipt.create.mockReset();
+    imageUploadOperationReceipt.create.mockResolvedValue({});
+    imageUploadOperationReceipt.findMany.mockReset();
+    imageUploadOperationReceipt.findMany.mockResolvedValue([]);
+    imageUploadOperationReceipt.findUnique.mockReset();
+    imageUploadOperationReceipt.findUnique.mockResolvedValue({
+      userId: 42,
+      uploadIds: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
+    });
+    transaction.mockReset();
+    transaction.mockImplementation((operation) => operation(transactionClient));
   });
 
   it('creates file records in one query', async () => {
@@ -159,220 +184,182 @@ describe('PrismaFilesRepository', () => {
     ).rejects.toBe(error);
   });
 
-  it('atomically reserves all completed image uploads', async () => {
-    const uploadIds = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'];
+  it('atomically stores the receipt and reserves the canonical upload set', async () => {
+    const uploadIds = ['22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111'];
+    const canonicalUploadIds = [...uploadIds].sort();
     const reservationExpiresAt = new Date('2030-01-01T00:05:00Z');
     const reservationId = '33333333-3333-4333-8333-333333333333';
+    const operationId = '44444444-4444-4444-8444-444444444444';
 
     await expect(
       repository.reserveImageUploads({
         uploadIds,
         userId: 42,
         reservationId,
+        operationId,
         reservationExpiresAt,
       }),
     ).resolves.toBeUndefined();
 
-    expect(transaction).toHaveBeenCalledOnce();
+    expect(imageUploadOperationReceipt.create).toHaveBeenCalledWith({
+      data: {
+        operationId,
+        kind: ImageUploadOperationKind.RESERVE,
+        userId: 42,
+        reservationId,
+        uploadIds: canonicalUploadIds,
+      },
+    });
+    expect(file.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: canonicalUploadIds },
+        userId: 42,
+        uploadStatus: FileUploadStatus.COMPLETED,
+        reservationId: null,
+        reservationExpiresAt: null,
+        deletedAt: null,
+      },
+      data: {
+        uploadStatus: FileUploadStatus.RESERVED,
+        reservationId,
+        reservationExpiresAt,
+      },
+    });
+  });
+
+  it('reports image uploads as missing and rolls the receipt back with the transaction', async () => {
+    file.updateMany.mockResolvedValue({ count: 1 });
+    file.findMany.mockResolvedValue([{ id: '11111111-1111-4111-8111-111111111111' }]);
+
+    await expect(
+      repository.reserveImageUploads({
+        uploadIds: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
+        userId: 42,
+        reservationId: '33333333-3333-4333-8333-333333333333',
+        operationId: '44444444-4444-4444-8444-444444444444',
+        reservationExpiresAt: new Date('2030-01-01T00:05:00Z'),
+      }),
+    ).rejects.toThrow(ImageUploadNotFoundError);
+
+    expect(imageUploadOperationReceipt.create).toHaveBeenCalledOnce();
+  });
+
+  it('rejects an existing upload set in an incompatible state', async () => {
+    file.updateMany.mockResolvedValue({ count: 0 });
+    file.findMany.mockResolvedValue([{ id: '11111111-1111-4111-8111-111111111111' }]);
+
+    await expect(
+      repository.reserveImageUploads({
+        uploadIds: ['11111111-1111-4111-8111-111111111111'],
+        userId: 42,
+        reservationId: '33333333-3333-4333-8333-333333333333',
+        operationId: '44444444-4444-4444-8444-444444444444',
+        reservationExpiresAt: new Date('2030-01-01T00:05:00Z'),
+      }),
+    ).rejects.toThrow(ImageUploadsNotAvailableError);
+  });
+
+  it('returns success for an exact replay after a unique receipt conflict', async () => {
+    const operation = {
+      uploadIds: ['22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111'],
+      userId: 42,
+      reservationId: '33333333-3333-4333-8333-333333333333',
+      operationId: '44444444-4444-4444-8444-444444444444',
+      reservationExpiresAt: new Date('2030-01-01T00:05:00Z'),
+    };
+    transaction.mockRejectedValueOnce(uniqueConstraintError());
+    imageUploadOperationReceipt.findMany.mockResolvedValue([
+      {
+        operationId: operation.operationId,
+        kind: ImageUploadOperationKind.RESERVE,
+        userId: operation.userId,
+        reservationId: operation.reservationId,
+        uploadIds: [...operation.uploadIds].sort(),
+      },
+    ]);
+
+    await expect(repository.reserveImageUploads(operation)).resolves.toBeUndefined();
+    expect(file.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      variant: 'subset',
+      uploadIds: ['11111111-1111-4111-8111-111111111111'],
+    },
+    {
+      variant: 'disjoint set',
+      uploadIds: ['66666666-6666-4666-8666-666666666666'],
+    },
+  ])('rejects reuse of a reservation for a different $variant', async ({ uploadIds }) => {
+    transaction.mockRejectedValueOnce(uniqueConstraintError());
+    imageUploadOperationReceipt.findMany.mockResolvedValue([
+      {
+        operationId: '55555555-5555-4555-8555-555555555555',
+        kind: ImageUploadOperationKind.RESERVE,
+        userId: 42,
+        reservationId: '33333333-3333-4333-8333-333333333333',
+        uploadIds: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
+      },
+    ]);
+
+    await expect(
+      repository.reserveImageUploads({
+        uploadIds,
+        userId: 42,
+        reservationId: '33333333-3333-4333-8333-333333333333',
+        operationId: '44444444-4444-4444-8444-444444444444',
+        reservationExpiresAt: new Date('2030-01-01T00:05:00Z'),
+      }),
+    ).rejects.toThrow(ImageUploadOperationConflictError);
+  });
+
+  it('rejects reuse of the operation ID for a different reservation', async () => {
+    transaction.mockRejectedValueOnce(uniqueConstraintError());
+    imageUploadOperationReceipt.findMany.mockResolvedValue([
+      {
+        operationId: '44444444-4444-4444-8444-444444444444',
+        kind: ImageUploadOperationKind.RESERVE,
+        userId: 42,
+        reservationId: '55555555-5555-4555-8555-555555555555',
+        uploadIds: ['11111111-1111-4111-8111-111111111111'],
+      },
+    ]);
+
+    await expect(
+      repository.reserveImageUploads({
+        uploadIds: ['11111111-1111-4111-8111-111111111111'],
+        userId: 42,
+        reservationId: '33333333-3333-4333-8333-333333333333',
+        operationId: '44444444-4444-4444-8444-444444444444',
+        reservationExpiresAt: new Date('2030-01-01T00:05:00Z'),
+      }),
+    ).rejects.toThrow(ImageUploadOperationConflictError);
+  });
+
+  it('attaches exactly the files recorded by the reserve operation', async () => {
+    const reservationId = '33333333-3333-4333-8333-333333333333';
+    const operationId = '44444444-4444-4444-8444-444444444444';
+    const uploadIds = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'];
+    imageUploadOperationReceipt.findUnique.mockResolvedValue({ userId: 42, uploadIds });
+
+    await expect(
+      repository.attachReservedImageUploads({ userId: 42, reservationId, operationId }),
+    ).resolves.toBeUndefined();
+
+    expect(imageUploadOperationReceipt.create).toHaveBeenCalledWith({
+      data: {
+        operationId,
+        kind: ImageUploadOperationKind.ATTACH,
+        userId: 42,
+        reservationId,
+        uploadIds: [],
+      },
+    });
     expect(file.updateMany).toHaveBeenCalledWith({
       where: {
         id: { in: uploadIds },
         userId: 42,
-        uploadStatus: FileUploadStatus.COMPLETED,
-        reservationId: null,
-        reservationExpiresAt: null,
-        deletedAt: null,
-      },
-      data: {
-        uploadStatus: FileUploadStatus.RESERVED,
-        reservationId,
-        reservationExpiresAt,
-      },
-    });
-    expect(file.findMany).not.toHaveBeenCalled();
-  });
-
-  it('treats a reservation owned by the same operation as successful', async () => {
-    const reservationId = '33333333-3333-4333-8333-333333333333';
-    file.updateMany.mockResolvedValue({ count: 0 });
-    file.findMany.mockResolvedValue([
-      {
-        uploadStatus: FileUploadStatus.RESERVED,
-        reservationId,
-      },
-    ]);
-
-    await expect(
-      repository.reserveImageUploads({
-        uploadIds: ['11111111-1111-4111-8111-111111111111'],
-        userId: 42,
-        reservationId,
-        reservationExpiresAt: new Date('2030-01-01T00:05:00Z'),
-      }),
-    ).resolves.toBeUndefined();
-  });
-
-  it('treats uploads already attached by the same operation as successful', async () => {
-    const reservationId = '33333333-3333-4333-8333-333333333333';
-    file.updateMany.mockResolvedValue({ count: 0 });
-    file.findMany.mockResolvedValue([
-      {
-        uploadStatus: FileUploadStatus.ATTACHED,
-        reservationId,
-      },
-    ]);
-
-    await expect(
-      repository.reserveImageUploads({
-        uploadIds: ['11111111-1111-4111-8111-111111111111'],
-        userId: 42,
-        reservationId,
-        reservationExpiresAt: new Date('2030-01-01T00:05:00Z'),
-      }),
-    ).resolves.toBeUndefined();
-  });
-
-  it('rejects a mixed set instead of treating a partial update as an idempotent retry', async () => {
-    const reservationId = '33333333-3333-4333-8333-333333333333';
-    const reservationExpiresAt = new Date('2030-01-01T00:05:00Z');
-    file.updateMany.mockResolvedValue({ count: 1 });
-    file.findMany.mockResolvedValue([
-      {
-        uploadStatus: FileUploadStatus.RESERVED,
-        reservationId,
-        reservationExpiresAt,
-      },
-      {
-        uploadStatus: FileUploadStatus.RESERVED,
-        reservationId,
-        reservationExpiresAt,
-      },
-    ]);
-
-    await expect(
-      repository.reserveImageUploads({
-        uploadIds: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
-        userId: 42,
-        reservationId,
-        reservationExpiresAt,
-      }),
-    ).rejects.toThrow(ImageUploadsNotAvailableError);
-  });
-
-  it('reports image uploads as missing when the complete owned set cannot be found', async () => {
-    file.updateMany.mockResolvedValue({ count: 1 });
-    file.findMany.mockResolvedValue([
-      {
-        uploadStatus: FileUploadStatus.COMPLETED,
-        reservationId: null,
-        reservationExpiresAt: null,
-      },
-    ]);
-
-    await expect(
-      repository.reserveImageUploads({
-        uploadIds: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
-        userId: 42,
-        reservationId: '33333333-3333-4333-8333-333333333333',
-        reservationExpiresAt: new Date('2030-01-01T00:05:00Z'),
-      }),
-    ).rejects.toThrow(ImageUploadNotFoundError);
-  });
-
-  it.each([
-    {
-      uploadStatus: FileUploadStatus.PENDING,
-      reservationId: null,
-    },
-    {
-      uploadStatus: FileUploadStatus.REJECTED,
-      reservationId: null,
-    },
-    {
-      uploadStatus: FileUploadStatus.RESERVED,
-      reservationId: '44444444-4444-4444-8444-444444444444',
-    },
-    {
-      uploadStatus: FileUploadStatus.ATTACHED,
-      reservationId: '44444444-4444-4444-8444-444444444444',
-    },
-  ])('reports $uploadStatus uploads outside the current reservation as unavailable', async (fileRecord) => {
-    file.updateMany.mockResolvedValue({ count: 0 });
-    file.findMany.mockResolvedValue([fileRecord]);
-
-    await expect(
-      repository.reserveImageUploads({
-        uploadIds: ['11111111-1111-4111-8111-111111111111'],
-        userId: 42,
-        reservationId: '33333333-3333-4333-8333-333333333333',
-        reservationExpiresAt: new Date('2030-01-01T00:05:00Z'),
-      }),
-    ).rejects.toThrow(ImageUploadsNotAvailableError);
-  });
-
-  it('propagates an unexpected reservation update error', async () => {
-    const error = new Error('Database is unavailable');
-    file.updateMany.mockRejectedValue(error);
-
-    await expect(
-      repository.reserveImageUploads({
-        uploadIds: ['11111111-1111-4111-8111-111111111111'],
-        userId: 42,
-        reservationId: '33333333-3333-4333-8333-333333333333',
-        reservationExpiresAt: new Date('2030-01-01T00:05:00Z'),
-      }),
-    ).rejects.toBe(error);
-    expect(file.findMany).not.toHaveBeenCalled();
-  });
-
-  it('releases only image uploads reserved by the same user and operation', async () => {
-    const reservationId = '33333333-3333-4333-8333-333333333333';
-
-    await expect(
-      repository.releaseReservedImageUploads({ userId: 42, reservationId }),
-    ).resolves.toBeUndefined();
-
-    expect(file.updateMany).toHaveBeenCalledWith({
-      where: {
-        userId: 42,
-        uploadStatus: FileUploadStatus.RESERVED,
-        reservationId,
-        deletedAt: null,
-      },
-      data: {
-        uploadStatus: FileUploadStatus.COMPLETED,
-        reservationId: null,
-        reservationExpiresAt: null,
-      },
-    });
-  });
-
-  it('treats release of an absent or already released reservation as successful', async () => {
-    file.updateMany.mockResolvedValue({ count: 0 });
-
-    await expect(
-      repository.releaseReservedImageUploads({
-        userId: 42,
-        reservationId: '33333333-3333-4333-8333-333333333333',
-      }),
-    ).resolves.toBeUndefined();
-  });
-
-  it('atomically marks every image upload in the reservation as attached', async () => {
-    const reservationId = '33333333-3333-4333-8333-333333333333';
-    file.findMany.mockResolvedValue([
-      { uploadStatus: FileUploadStatus.ATTACHED, deletedAt: null },
-      { uploadStatus: FileUploadStatus.ATTACHED, deletedAt: null },
-    ]);
-
-    await expect(
-      repository.attachReservedImageUploads({ userId: 42, reservationId }),
-    ).resolves.toBeUndefined();
-
-    expect(transaction).toHaveBeenCalledOnce();
-    expect(file.updateMany).toHaveBeenCalledWith({
-      where: {
-        userId: 42,
         uploadStatus: FileUploadStatus.RESERVED,
         reservationId,
         deletedAt: null,
@@ -382,46 +369,82 @@ describe('PrismaFilesRepository', () => {
         reservationExpiresAt: null,
       },
     });
-    expect(file.findMany).toHaveBeenCalledWith({
+  });
+
+  it('releases exactly the files recorded by the reserve operation', async () => {
+    const reservationId = '33333333-3333-4333-8333-333333333333';
+    const operationId = '44444444-4444-4444-8444-444444444444';
+    const uploadIds = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'];
+    imageUploadOperationReceipt.findUnique.mockResolvedValue({ userId: 42, uploadIds });
+
+    await expect(
+      repository.releaseReservedImageUploads({ userId: 42, reservationId, operationId }),
+    ).resolves.toBeUndefined();
+
+    expect(file.updateMany).toHaveBeenCalledWith({
       where: {
+        id: { in: uploadIds },
         userId: 42,
+        uploadStatus: FileUploadStatus.RESERVED,
         reservationId,
+        deletedAt: null,
       },
-      select: {
-        uploadStatus: true,
-        deletedAt: true,
+      data: {
+        uploadStatus: FileUploadStatus.COMPLETED,
+        reservationId: null,
+        reservationExpiresAt: null,
       },
     });
   });
 
-  it('treats attachment of an already attached reservation as successful', async () => {
-    file.updateMany.mockResolvedValue({ count: 0 });
-    file.findMany.mockResolvedValue([{ uploadStatus: FileUploadStatus.ATTACHED, deletedAt: null }]);
+  it('rejects attach when no successful reserve receipt exists', async () => {
+    imageUploadOperationReceipt.findUnique.mockResolvedValue(null);
 
     await expect(
       repository.attachReservedImageUploads({
         userId: 42,
         reservationId: '33333333-3333-4333-8333-333333333333',
-      }),
-    ).resolves.toBeUndefined();
-  });
-
-  it.each([
-    { fileRecords: [] },
-    { fileRecords: [{ uploadStatus: FileUploadStatus.RESERVED, deletedAt: null }] },
-    {
-      fileRecords: [{ uploadStatus: FileUploadStatus.ATTACHED, deletedAt: new Date('2030-01-01T00:00:00Z') }],
-    },
-  ])('rejects an incomplete or unavailable attachment set', async ({ fileRecords }) => {
-    file.updateMany.mockResolvedValue({ count: 0 });
-    file.findMany.mockResolvedValue(fileRecords);
-
-    await expect(
-      repository.attachReservedImageUploads({
-        userId: 42,
-        reservationId: '33333333-3333-4333-8333-333333333333',
+        operationId: '44444444-4444-4444-8444-444444444444',
       }),
     ).rejects.toThrow(ImageUploadsNotAvailableError);
+  });
+
+  it('returns success for an exact attach replay without mutating files again', async () => {
+    const operation = {
+      userId: 42,
+      reservationId: '33333333-3333-4333-8333-333333333333',
+      operationId: '44444444-4444-4444-8444-444444444444',
+    };
+    transaction.mockRejectedValueOnce(uniqueConstraintError());
+    imageUploadOperationReceipt.findMany.mockResolvedValue([
+      {
+        ...operation,
+        kind: ImageUploadOperationKind.ATTACH,
+        uploadIds: [],
+      },
+    ]);
+
+    await expect(repository.attachReservedImageUploads(operation)).resolves.toBeUndefined();
+    expect(file.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('returns success for an exact release replay without mutating files again', async () => {
+    const operation = {
+      userId: 42,
+      reservationId: '33333333-3333-4333-8333-333333333333',
+      operationId: '44444444-4444-4444-8444-444444444444',
+    };
+    transaction.mockRejectedValueOnce(uniqueConstraintError());
+    imageUploadOperationReceipt.findMany.mockResolvedValue([
+      {
+        ...operation,
+        kind: ImageUploadOperationKind.RELEASE,
+        uploadIds: [],
+      },
+    ]);
+
+    await expect(repository.releaseReservedImageUploads(operation)).resolves.toBeUndefined();
+    expect(file.updateMany).not.toHaveBeenCalled();
   });
 
   it('atomically claims image uploads eligible for cleanup', async () => {
@@ -529,5 +552,4 @@ describe('PrismaFilesRepository', () => {
       },
     });
   });
-
 });

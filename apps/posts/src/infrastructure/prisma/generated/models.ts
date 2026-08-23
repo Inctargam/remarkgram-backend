@@ -9,5 +9,6 @@
  * 🟢 You can import this file directly.
  */
 export type * from './models/Post.ts'
+export type * from './models/PostCreationOperation.ts'
 export type * from './models/PostImage.ts'
 export type * from './commonInputTypes.ts'

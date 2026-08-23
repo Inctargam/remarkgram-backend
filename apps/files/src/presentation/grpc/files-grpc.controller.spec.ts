@@ -90,6 +90,7 @@ describe('FilesGrpcController', () => {
       userId: '42',
       uploadIds: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
       reservationId: '33333333-3333-4333-8333-333333333333',
+      operationId: '44444444-4444-4444-8444-444444444444',
     };
     commandBus.execute.mockResolvedValue(undefined);
 
@@ -100,6 +101,7 @@ describe('FilesGrpcController', () => {
         userId: 42,
         uploadIds: request.uploadIds,
         reservationId: request.reservationId,
+        operationId: request.operationId,
       }),
     );
   });
@@ -109,6 +111,7 @@ describe('FilesGrpcController', () => {
     const request = {
       userId: '42',
       reservationId: '33333333-3333-4333-8333-333333333333',
+      operationId: '44444444-4444-4444-8444-444444444444',
     };
     commandBus.execute.mockResolvedValue(undefined);
 
@@ -118,6 +121,7 @@ describe('FilesGrpcController', () => {
       new ReleaseReservedImageUploadsCommand({
         userId: 42,
         reservationId: request.reservationId,
+        operationId: request.operationId,
       }),
     );
   });
@@ -127,6 +131,7 @@ describe('FilesGrpcController', () => {
     const request = {
       userId: '42',
       reservationId: '33333333-3333-4333-8333-333333333333',
+      operationId: '44444444-4444-4444-8444-444444444444',
     };
     commandBus.execute.mockResolvedValue(undefined);
 
@@ -136,6 +141,7 @@ describe('FilesGrpcController', () => {
       new AttachReservedImageUploadsCommand({
         userId: 42,
         reservationId: request.reservationId,
+        operationId: request.operationId,
       }),
     );
   });

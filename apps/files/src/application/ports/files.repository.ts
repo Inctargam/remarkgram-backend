@@ -31,12 +31,14 @@ export type UpdateImageUploadsStatusParams = FindImageUploadsParams & {
 
 export type ReserveImageUploadsRepositoryParams = FindImageUploadsParams & {
   reservationId: string;
+  operationId: string;
   reservationExpiresAt: Date;
 };
 
 export type ReleaseReservedImageUploadsRepositoryParams = {
   userId: number;
   reservationId: string;
+  operationId: string;
 };
 
 export type AttachReservedImageUploadsRepositoryParams = ReleaseReservedImageUploadsRepositoryParams;

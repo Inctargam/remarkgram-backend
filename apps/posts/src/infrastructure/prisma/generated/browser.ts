@@ -23,6 +23,11 @@ export * from './enums.ts';
  */
 export type Post = Prisma.PostModel
 /**
+ * Model PostCreationOperation
+ *
+ */
+export type PostCreationOperation = Prisma.PostCreationOperationModel
+/**
  * Model PostImage
  * 
  */

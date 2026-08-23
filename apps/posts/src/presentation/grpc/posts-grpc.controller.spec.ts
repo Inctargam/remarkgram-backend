@@ -23,6 +23,7 @@ describe('PostsGrpcController', () => {
       userId: '42',
       description: 'A new post',
       imageIds: ['11111111-1111-4111-8111-111111111111'],
+      idempotencyKey: '33333333-3333-4333-8333-333333333333',
     };
     commandBus.execute.mockResolvedValue({ id: 10 });
 
@@ -33,6 +34,7 @@ describe('PostsGrpcController', () => {
         userId: 42,
         description: 'A new post',
         imageIds: request.imageIds,
+        idempotencyKey: request.idempotencyKey,
       }),
     );
   });

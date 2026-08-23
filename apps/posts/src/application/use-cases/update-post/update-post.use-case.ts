@@ -37,6 +37,7 @@ export class UpdatePostUseCase implements ICommandHandler<UpdatePostCommand> {
       throw new InvalidPostDescriptionError();
     }
 
+    // TODO: При доработке UC-2 запретить обновление постов, у которых publishedAt равен null.
     const post = await this.postsRepository.findById(postId);
     if (!post) {
       throw new PostNotFoundError();

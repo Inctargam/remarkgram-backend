@@ -49,6 +49,7 @@ export class GetAuthorPostsQueryHandler implements IQueryHandler<GetAuthorPostsQ
 
     const cursorEncode = this.normalizeCursor(cursor);
 
+    // TODO: При доработке UC-4 исключить из выдачи посты, у которых publishedAt равен null.
     const postsPageResult = await this.postsQueryRepository.findAuthorPostsPage({
       authorId,
       limit,

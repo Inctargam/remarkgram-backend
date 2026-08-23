@@ -428,7 +428,7 @@ describe('ApiGateway (e2e)', () => {
     );
     expect(createPost.post.summary).toBe('Create a post with completed image uploads');
     expect(createPost.post.parameters).toContainEqual(
-      expect.objectContaining({ name: 'Idempotency-Key', in: 'header', required: false }),
+      expect.objectContaining({ name: 'Idempotency-Key', in: 'header', required: true }),
     );
     expect(Object.keys(createPost.post.responses)).toEqual(
       expect.arrayContaining(['201', '400', '401', '404', '409', '502', '503']),
@@ -554,6 +554,7 @@ describe('ApiGateway (e2e)', () => {
   });
 
   it('POST /posts creates a post for the authenticated user', async () => {
+    const idempotencyKey = '33333333-3333-4333-8333-333333333333';
     const input = {
       description: 'A new post',
       imageIds: ['11111111-1111-4111-8111-111111111111'],
@@ -562,21 +563,34 @@ describe('ApiGateway (e2e)', () => {
     await request(app.getHttpServer() as SupertestApp)
       .post(apiPath('/posts'))
       .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', idempotencyKey)
       .send(input)
       .expect(201)
       .expect({ id: 10 });
 
     expect(postsServiceClient.createPost).toHaveBeenCalledWith({
       userId: refreshTokenClaims.userId,
+      idempotencyKey,
       ...input,
     });
     expect(postsGrpcClient.getService).toHaveBeenCalledWith(POSTS_SERVICE_NAME);
+  });
+
+  it('POST /posts requires an idempotency key', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/posts'))
+      .set('Authorization', 'Bearer access-token')
+      .send({ imageIds: ['11111111-1111-4111-8111-111111111111'] })
+      .expect(400);
+
+    expect(postsServiceClient.createPost).not.toHaveBeenCalled();
   });
 
   it('POST /posts rejects a null description before calling posts', async () => {
     await request(app.getHttpServer() as SupertestApp)
       .post(apiPath('/posts'))
       .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', '33333333-3333-4333-8333-333333333333')
       .send({
         description: null,
         imageIds: ['11111111-1111-4111-8111-111111111111'],

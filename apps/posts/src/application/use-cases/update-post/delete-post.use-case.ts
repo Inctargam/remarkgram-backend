@@ -6,6 +6,7 @@ type DeletePostParams = {
 };
 
 export class DeletePostCommand extends Command<void> {
+  // TODO: При реализации UC-3 не считать пост с publishedAt равным null опубликованным постом пользователя.
   constructor(public params: DeletePostParams) {
     super();
   }

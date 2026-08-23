@@ -7,11 +7,15 @@ import {
   DuplicateImageUploadIdError,
   ImageUploadMetadataMismatchError,
   ImageUploadNotFoundError,
+  ImageUploadOperationConflictError,
   ImageUploadsNotAvailableError,
   InvalidUserIdError,
   InvalidImageSizeError,
   InvalidImageCountError,
+  InvalidImageUploadIdError,
   InvalidImageUploadStatusError,
+  InvalidImageUploadOperationIdError,
+  InvalidImageUploadReservationIdError,
   UnsupportedImageContentTypeError,
 } from '../../../application/errors/image-upload.errors.js';
 import { FilesRpcExceptionFilter } from './files-rpc-exception.filter.js';
@@ -26,6 +30,9 @@ describe('FilesRpcExceptionFilter', () => {
     new InvalidImageSizeError(),
     new DuplicateClientFileIdError('11111111-1111-4111-8111-111111111111'),
     new DuplicateImageUploadIdError(),
+    new InvalidImageUploadIdError(),
+    new InvalidImageUploadOperationIdError(),
+    new InvalidImageUploadReservationIdError(),
     new UnsupportedImageContentTypeError('image/gif'),
   ])('maps $code to INVALID_ARGUMENT with an application error code', async (error) => {
     const rpcError: unknown = await firstValueFrom(filter.catch(error, host)).catch(
@@ -95,4 +102,21 @@ describe('FilesRpcExceptionFilter', () => {
       ).toEqual([error.code]);
     },
   );
+
+  it('maps reused operation IDs to ALREADY_EXISTS', async () => {
+    const error = new ImageUploadOperationConflictError();
+    const rpcError: unknown = await firstValueFrom(filter.catch(error, host)).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(rpcError).toEqual(
+      expect.objectContaining({
+        code: status.ALREADY_EXISTS,
+        message: error.message,
+      }),
+    );
+    expect(
+      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(APP_ERROR_CODE_METADATA_KEY),
+    ).toEqual([error.code]);
+  });
 });

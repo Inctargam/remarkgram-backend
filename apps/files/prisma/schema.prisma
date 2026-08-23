@@ -16,6 +16,12 @@ enum FileUploadStatus {
   ATTACHED
 }
 
+enum ImageUploadOperationKind {
+  RESERVE
+  ATTACH
+  RELEASE
+}
+
 model File {
   id                   String           @id @default(uuid()) @db.Uuid
   userId               Int
@@ -37,4 +43,18 @@ model File {
   @@index([updatedAt], where: { uploadStatus: "REJECTED", deletedAt: null })
   @@index([userId, reservationId])
   @@map("files")
+}
+
+model ImageUploadOperationReceipt {
+  operationId   String                   @id @db.Uuid
+  kind          ImageUploadOperationKind
+  userId        Int
+  reservationId String                   @db.Uuid
+  uploadIds     String[]                 @db.Uuid
+  createdAt     DateTime                 @default(now()) @db.Timestamptz
+
+  // Для одного резервирования может быть успешно выполнена только одна команда каждого вида.
+  // Вместе с operationId это выявляет повторное использование идентификаторов и конкурирующие шаги.
+  @@unique([kind, reservationId])
+  @@map("image_upload_operation_receipts")
 }

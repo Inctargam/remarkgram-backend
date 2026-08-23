@@ -8,6 +8,8 @@ describe('PrismaTestingRepository', () => {
     const repository = new PrismaTestingRepository(prisma as unknown as PrismaService);
 
     await expect(repository.deleteAllData()).resolves.toBeUndefined();
-    expect(executeRawUnsafe).toHaveBeenCalledWith('TRUNCATE TABLE "posts" RESTART IDENTITY CASCADE');
+    expect(executeRawUnsafe).toHaveBeenCalledWith(
+      'TRUNCATE TABLE "post_creation_operations", "posts" RESTART IDENTITY CASCADE',
+    );
   });
 });

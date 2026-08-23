@@ -18,3 +18,12 @@ export const FileUploadStatus = {
 } as const
 
 export type FileUploadStatus = (typeof FileUploadStatus)[keyof typeof FileUploadStatus]
+
+
+export const ImageUploadOperationKind = {
+  RESERVE: 'RESERVE',
+  ATTACH: 'ATTACH',
+  RELEASE: 'RELEASE'
+} as const
+
+export type ImageUploadOperationKind = (typeof ImageUploadOperationKind)[keyof typeof ImageUploadOperationKind]

@@ -52,6 +52,7 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   Post: 'Post',
+  PostCreationOperation: 'PostCreationOperation',
   PostImage: 'PostImage'
 } as const
 
@@ -76,11 +77,32 @@ export const PostScalarFieldEnum = {
   authorId: 'authorId',
   description: 'description',
   createdAt: 'createdAt',
+  publishedAt: 'publishedAt',
   version: 'version',
   deletedAt: 'deletedAt'
 } as const
 
 export type PostScalarFieldEnum = (typeof PostScalarFieldEnum)[keyof typeof PostScalarFieldEnum]
+
+
+export const PostCreationOperationScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  idempotencyKey: 'idempotencyKey',
+  description: 'description',
+  imageIds: 'imageIds',
+  status: 'status',
+  version: 'version',
+  reserveOperationId: 'reserveOperationId',
+  attachOperationId: 'attachOperationId',
+  compensationOperationId: 'compensationOperationId',
+  failureCode: 'failureCode',
+  postId: 'postId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PostCreationOperationScalarFieldEnum = (typeof PostCreationOperationScalarFieldEnum)[keyof typeof PostCreationOperationScalarFieldEnum]
 
 
 export const PostImageScalarFieldEnum = {

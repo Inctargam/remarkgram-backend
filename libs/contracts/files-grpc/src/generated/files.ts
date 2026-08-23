@@ -47,16 +47,19 @@ export interface ReserveImageUploadsRequest {
   userId: string;
   uploadIds: string[];
   reservationId: string;
+  operationId: string;
 }
 
 export interface ReleaseReservedImageUploadsRequest {
   userId: string;
   reservationId: string;
+  operationId: string;
 }
 
 export interface AttachReservedImageUploadsRequest {
   userId: string;
   reservationId: string;
+  operationId: string;
 }
 
 export interface CompleteImageUploadsResponse {

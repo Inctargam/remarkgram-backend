@@ -9,7 +9,12 @@
 * 🟢 You can import this file directly.
 */
 
+export const PostCreationOperationStatus = {
+  STARTED: 'STARTED',
+  POST_CREATED: 'POST_CREATED',
+  COMPENSATION_PENDING: 'COMPENSATION_PENDING',
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED'
+} as const
 
-
-// This file is empty because there are no enums in the schema.
-export {}
+export type PostCreationOperationStatus = (typeof PostCreationOperationStatus)[keyof typeof PostCreationOperationStatus]

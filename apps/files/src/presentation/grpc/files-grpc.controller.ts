@@ -58,6 +58,7 @@ export class FilesGrpcController {
         userId: Number(request.userId),
         uploadIds: request.uploadIds,
         reservationId: request.reservationId,
+        operationId: request.operationId,
       }),
     );
 
@@ -71,6 +72,7 @@ export class FilesGrpcController {
       new ReleaseReservedImageUploadsCommand({
         userId: Number(request.userId),
         reservationId: request.reservationId,
+        operationId: request.operationId,
       }),
     );
 
@@ -84,6 +86,7 @@ export class FilesGrpcController {
       new AttachReservedImageUploadsCommand({
         userId: Number(request.userId),
         reservationId: request.reservationId,
+        operationId: request.operationId,
       }),
     );
 

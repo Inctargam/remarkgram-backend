@@ -49,6 +49,7 @@ describe('GrpcImageUploadsGateway', () => {
   };
   const gateway = new GrpcImageUploadsGateway(grpcClient as unknown as ClientGrpc);
   const reservationId = '22222222-2222-4222-8222-222222222222';
+  const operationId = '33333333-3333-4333-8333-333333333333';
   const deadline = new Date('2030-01-01T00:00:05.000Z');
 
   beforeEach(() => {
@@ -68,9 +69,14 @@ describe('GrpcImageUploadsGateway', () => {
   it('forwards attachment of reserved image uploads with a deadline', async () => {
     attachReservedImageUploads.mockReturnValue(of({}));
 
-    await expect(gateway.attachReservedImageUploads({ userId: 42, reservationId })).resolves.toBeUndefined();
+    await expect(
+      gateway.attachReservedImageUploads({ userId: 42, reservationId, operationId }),
+    ).resolves.toBeUndefined();
 
-    expect(attachReservedImageUploads).toHaveBeenCalledWith({ userId: '42', reservationId }, { deadline });
+    expect(attachReservedImageUploads).toHaveBeenCalledWith(
+      { userId: '42', reservationId, operationId },
+      { deadline },
+    );
   });
 
   it('forwards an image upload reservation with a deadline', async () => {
@@ -81,6 +87,7 @@ describe('GrpcImageUploadsGateway', () => {
         userId: 42,
         imageIds: ['11111111-1111-4111-8111-111111111111'],
         reservationId,
+        operationId,
       }),
     ).resolves.toBeUndefined();
 
@@ -89,6 +96,7 @@ describe('GrpcImageUploadsGateway', () => {
         userId: '42',
         uploadIds: ['11111111-1111-4111-8111-111111111111'],
         reservationId,
+        operationId,
       },
       { deadline },
     );
@@ -97,21 +105,27 @@ describe('GrpcImageUploadsGateway', () => {
   it('forwards release of reserved image uploads with a deadline', async () => {
     releaseReservedImageUploads.mockReturnValue(of({}));
 
-    await expect(gateway.releaseReservedImageUploads({ userId: 42, reservationId })).resolves.toBeUndefined();
+    await expect(
+      gateway.releaseReservedImageUploads({ userId: 42, reservationId, operationId }),
+    ).resolves.toBeUndefined();
 
-    expect(releaseReservedImageUploads).toHaveBeenCalledWith({ userId: '42', reservationId }, { deadline });
+    expect(releaseReservedImageUploads).toHaveBeenCalledWith(
+      { userId: '42', reservationId, operationId },
+      { deadline },
+    );
   });
 
   it.each([
     [status.NOT_FOUND, FilesErrorCode.IMAGE_UPLOAD_NOT_FOUND, PostImageNotFoundError],
     [status.FAILED_PRECONDITION, FilesErrorCode.IMAGE_UPLOADS_NOT_AVAILABLE, PostImagesNotAvailableError],
+    [status.ALREADY_EXISTS, FilesErrorCode.IMAGE_UPLOAD_OPERATION_CONFLICT, PostImagesNotAvailableError],
   ] as const)(
     'maps Files error %s/%s to a Posts application error',
     async (grpcStatus, filesErrorCode, ErrorType) => {
       reserveImageUploads.mockReturnValue(throwError(() => createServiceError(grpcStatus, filesErrorCode)));
 
       await expect(
-        gateway.reserveImageUploads({ userId: 42, imageIds: ['image-id'], reservationId }),
+        gateway.reserveImageUploads({ userId: 42, imageIds: ['image-id'], reservationId, operationId }),
       ).rejects.toBeInstanceOf(ErrorType);
     },
   );
@@ -122,7 +136,7 @@ describe('GrpcImageUploadsGateway', () => {
       reserveImageUploads.mockReturnValue(throwError(() => createServiceError(grpcStatus)));
 
       await expect(
-        gateway.reserveImageUploads({ userId: 42, imageIds: ['image-id'], reservationId }),
+        gateway.reserveImageUploads({ userId: 42, imageIds: ['image-id'], reservationId, operationId }),
       ).rejects.toBeInstanceOf(ImageUploadsServiceUnavailableError);
     },
   );
@@ -132,7 +146,7 @@ describe('GrpcImageUploadsGateway', () => {
     reserveImageUploads.mockReturnValue(throwError(() => error));
 
     await expect(
-      gateway.reserveImageUploads({ userId: 42, imageIds: ['image-id'], reservationId }),
+      gateway.reserveImageUploads({ userId: 42, imageIds: ['image-id'], reservationId, operationId }),
     ).rejects.toBe(error);
   });
 
@@ -141,7 +155,7 @@ describe('GrpcImageUploadsGateway', () => {
     reserveImageUploads.mockReturnValue(throwError(() => error));
 
     await expect(
-      gateway.reserveImageUploads({ userId: 42, imageIds: ['image-id'], reservationId }),
+      gateway.reserveImageUploads({ userId: 42, imageIds: ['image-id'], reservationId, operationId }),
     ).rejects.toBe(error);
   });
 });

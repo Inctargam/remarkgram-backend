@@ -21,6 +21,10 @@ import { UpdatePostUseCase } from './application/use-cases/update-post/update-po
 import { PrismaPostsQueryRepository } from './infrastructure/prisma/repositories/prisma-posts-query.repository.js';
 import { PostsQueryRepository } from './application/ports/posts-query.repository.js';
 import { GetAuthorPostsQueryHandler } from './application/use-cases/get-author-posts/get-author-posts.query-handler.js';
+import { PostCreationOperationsRepository } from './application/ports/post-creation-operations.repository.js';
+import { UnitOfWork } from './application/ports/unit-of-work.js';
+import { PrismaPostCreationOperationsRepository } from './infrastructure/prisma/repositories/prisma-post-creation-operations.repository.js';
+import { PrismaUnitOfWork } from './infrastructure/prisma/prisma-unit-of-work.js';
 
 @Module({
   imports: [
@@ -62,6 +66,14 @@ import { GetAuthorPostsQueryHandler } from './application/use-cases/get-author-p
     PrismaService,
     UpdatePostUseCase,
     GetAuthorPostsQueryHandler,
+    {
+      provide: PostCreationOperationsRepository,
+      useClass: PrismaPostCreationOperationsRepository,
+    },
+    {
+      provide: UnitOfWork,
+      useClass: PrismaUnitOfWork,
+    },
     {
       provide: PostsRepository,
       useClass: PrismaPostsRepository,

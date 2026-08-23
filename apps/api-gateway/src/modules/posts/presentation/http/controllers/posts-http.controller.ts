@@ -14,6 +14,7 @@ import {
   type OnModuleInit,
   Param,
   ParseIntPipe,
+  ParseUUIDPipe,
   Post,
   Put,
   Req,
@@ -22,6 +23,7 @@ import type { ClientGrpc } from '@nestjs/microservices';
 import type { Request } from 'express';
 import { firstValueFrom, type Observable } from 'rxjs';
 import { CreatePostDto } from '../dto/input/create-post.dto.js';
+import { IdempotencyKey } from '../decorators/idempotency-key.decorator.js';
 import { UpdatePostDto } from '../dto/input/update-post/update-post.dto.js';
 import { ApiCreatePost } from '../swagger/post/create-post.swagger.js';
 import { ApiPostsController } from '../swagger/posts-controller.swagger.js';
@@ -49,11 +51,13 @@ export class PostsHttpController implements OnModuleInit {
   createPost(
     @Body() input: CreatePostDto,
     @Req() request: AuthenticatedRequest,
+    @IdempotencyKey(new ParseUUIDPipe({ version: '4' })) idempotencyKey: string,
   ): Observable<CreatePostResponse> {
     return this.postsClient.createPost({
       userId: request.userId,
       description: input.description,
       imageIds: input.imageIds,
+      idempotencyKey,
     });
   }
 

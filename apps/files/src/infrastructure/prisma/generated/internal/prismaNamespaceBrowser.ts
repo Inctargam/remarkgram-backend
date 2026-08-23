@@ -51,7 +51,8 @@ export const AnyNull = runtime.AnyNull
 
 
 export const ModelName = {
-  File: 'File'
+  File: 'File',
+  ImageUploadOperationReceipt: 'ImageUploadOperationReceipt'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -88,6 +89,18 @@ export const FileScalarFieldEnum = {
 } as const
 
 export type FileScalarFieldEnum = (typeof FileScalarFieldEnum)[keyof typeof FileScalarFieldEnum]
+
+
+export const ImageUploadOperationReceiptScalarFieldEnum = {
+  operationId: 'operationId',
+  kind: 'kind',
+  userId: 'userId',
+  reservationId: 'reservationId',
+  uploadIds: 'uploadIds',
+  createdAt: 'createdAt'
+} as const
+
+export type ImageUploadOperationReceiptScalarFieldEnum = (typeof ImageUploadOperationReceiptScalarFieldEnum)[keyof typeof ImageUploadOperationReceiptScalarFieldEnum]
 
 
 export const SortOrder = {

@@ -28,8 +28,8 @@ import type {
 
 const FILES_REQUEST_TIMEOUT_MS = 5_000;
 
-// ts-proto does not include grpc-js CallOptions in the generated Nest client interface,
-// although Nest forwards the second unary-method argument to grpc-js at runtime.
+// ts-proto не добавляет grpc-js CallOptions в сгенерированный интерфейс Nest-клиента,
+// хотя во время выполнения Nest передаёт второй аргумент унарного метода в grpc-js.
 interface FilesImageUploadsClient {
   reserveImageUploads(
     request: ReserveImageUploadsRequest,
@@ -77,6 +77,7 @@ export class GrpcImageUploadsGateway extends ImageUploadsGateway implements OnMo
           userId: String(params.userId),
           uploadIds: [...params.imageIds],
           reservationId: params.reservationId,
+          operationId: params.operationId,
         },
         this.createCallOptions(),
       ),
@@ -89,6 +90,7 @@ export class GrpcImageUploadsGateway extends ImageUploadsGateway implements OnMo
         {
           userId: String(params.userId),
           reservationId: params.reservationId,
+          operationId: params.operationId,
         },
         this.createCallOptions(),
       ),
@@ -101,6 +103,7 @@ export class GrpcImageUploadsGateway extends ImageUploadsGateway implements OnMo
         {
           userId: String(params.userId),
           reservationId: params.reservationId,
+          operationId: params.operationId,
         },
         this.createCallOptions(),
       ),
@@ -108,7 +111,7 @@ export class GrpcImageUploadsGateway extends ImageUploadsGateway implements OnMo
   }
 
   private createCallOptions(): CallOptions {
-    // grpc-js expects an absolute deadline rather than a timeout duration.
+    // grpc-js ожидает абсолютный момент завершения запроса, а не длительность тайм-аута.
     return { deadline: new Date(Date.now() + FILES_REQUEST_TIMEOUT_MS) };
   }
 
@@ -133,6 +136,13 @@ export class GrpcImageUploadsGateway extends ImageUploadsGateway implements OnMo
       if (
         error.code === status.FAILED_PRECONDITION &&
         filesErrorCode === FilesErrorCode.IMAGE_UPLOADS_NOT_AVAILABLE
+      ) {
+        throw new PostImagesNotAvailableError();
+      }
+
+      if (
+        error.code === status.ALREADY_EXISTS &&
+        filesErrorCode === FilesErrorCode.IMAGE_UPLOAD_OPERATION_CONFLICT
       ) {
         throw new PostImagesNotAvailableError();
       }

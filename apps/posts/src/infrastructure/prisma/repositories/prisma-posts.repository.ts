@@ -11,16 +11,18 @@ import { PrismaService } from '../prisma.service.js';
 import { PostUpdateConflictError } from '../../../application/errors/update-post.errors.js';
 import { PostNotFoundError } from '../../../application/errors/base-post.errors.js';
 import { PostPrismaMapper } from '../mappers/post-prisma.mapper.js';
+import type { TransactionContext } from '../../../application/ports/unit-of-work.js';
 
 @Injectable()
 export class PrismaPostsRepository implements PostsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(params: CreatePostRepositoryParams): Promise<number> {
+  async create(params: CreatePostRepositoryParams, ctx?: TransactionContext): Promise<number> {
     const { authorId, description, imageIds } = params;
+    const client = this.getClient(ctx);
 
     try {
-      const post = await this.prisma.post.create({
+      const post = await client.post.create({
         data: {
           authorId,
           description,
@@ -42,6 +44,16 @@ export class PrismaPostsRepository implements PostsRepository {
       throw error;
     }
   }
+
+  async publish(id: number, ctx?: TransactionContext): Promise<void> {
+    const client = this.getClient(ctx);
+    await client.post.update({
+      where: { id, publishedAt: null, deletedAt: null },
+      data: { publishedAt: new Date() },
+      select: { id: true },
+    });
+  }
+
   async findByIdAndAuthorId(id: number, authorId: number): Promise<Post | null> {
     const post = await this.prisma.post.findUnique({
       where: { id: id, deletedAt: null, authorId: authorId },
@@ -114,5 +126,9 @@ export class PrismaPostsRepository implements PostsRepository {
       }
       throw error;
     }
+  }
+
+  private getClient(ctx?: TransactionContext): Prisma.TransactionClient | PrismaService {
+    return ctx ? (ctx as Prisma.TransactionClient) : this.prisma;
   }
 }

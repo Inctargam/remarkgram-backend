@@ -200,6 +200,23 @@ export type UuidNullableWithAggregatesFilter<$PrismaModel = never> = {
   _max?: Prisma.NestedStringNullableFilter<$PrismaModel>
 }
 
+export type EnumImageUploadOperationKindFilter<$PrismaModel = never> = {
+  equals?: $Enums.ImageUploadOperationKind | Prisma.EnumImageUploadOperationKindFieldRefInput<$PrismaModel>
+  in?: $Enums.ImageUploadOperationKind[] | Prisma.ListEnumImageUploadOperationKindFieldRefInput<$PrismaModel>
+  notIn?: $Enums.ImageUploadOperationKind[] | Prisma.ListEnumImageUploadOperationKindFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumImageUploadOperationKindFilter<$PrismaModel> | $Enums.ImageUploadOperationKind
+}
+
+export type EnumImageUploadOperationKindWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.ImageUploadOperationKind | Prisma.EnumImageUploadOperationKindFieldRefInput<$PrismaModel>
+  in?: $Enums.ImageUploadOperationKind[] | Prisma.ListEnumImageUploadOperationKindFieldRefInput<$PrismaModel>
+  notIn?: $Enums.ImageUploadOperationKind[] | Prisma.ListEnumImageUploadOperationKindFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumImageUploadOperationKindWithAggregatesFilter<$PrismaModel> | $Enums.ImageUploadOperationKind
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumImageUploadOperationKindFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumImageUploadOperationKindFilter<$PrismaModel>
+}
+
 export type NestedUuidFilter<$PrismaModel = never> = {
   equals?: string | Prisma.StringFieldRefInput<$PrismaModel>
   in?: string[] | Prisma.ListStringFieldRefInput<$PrismaModel>
@@ -409,6 +426,23 @@ export type NestedStringNullableFilter<$PrismaModel = never> = {
   startsWith?: string | Prisma.StringFieldRefInput<$PrismaModel>
   endsWith?: string | Prisma.StringFieldRefInput<$PrismaModel>
   not?: Prisma.NestedStringNullableFilter<$PrismaModel> | string | null
+}
+
+export type NestedEnumImageUploadOperationKindFilter<$PrismaModel = never> = {
+  equals?: $Enums.ImageUploadOperationKind | Prisma.EnumImageUploadOperationKindFieldRefInput<$PrismaModel>
+  in?: $Enums.ImageUploadOperationKind[] | Prisma.ListEnumImageUploadOperationKindFieldRefInput<$PrismaModel>
+  notIn?: $Enums.ImageUploadOperationKind[] | Prisma.ListEnumImageUploadOperationKindFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumImageUploadOperationKindFilter<$PrismaModel> | $Enums.ImageUploadOperationKind
+}
+
+export type NestedEnumImageUploadOperationKindWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.ImageUploadOperationKind | Prisma.EnumImageUploadOperationKindFieldRefInput<$PrismaModel>
+  in?: $Enums.ImageUploadOperationKind[] | Prisma.ListEnumImageUploadOperationKindFieldRefInput<$PrismaModel>
+  notIn?: $Enums.ImageUploadOperationKind[] | Prisma.ListEnumImageUploadOperationKindFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumImageUploadOperationKindWithAggregatesFilter<$PrismaModel> | $Enums.ImageUploadOperationKind
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumImageUploadOperationKindFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumImageUploadOperationKindFilter<$PrismaModel>
 }
 
 

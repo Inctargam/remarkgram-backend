@@ -385,6 +385,7 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 
 export const ModelName = {
   Post: 'Post',
+  PostCreationOperation: 'PostCreationOperation',
   PostImage: 'PostImage'
 } as const
 
@@ -401,7 +402,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "post" | "postImage"
+    modelProps: "post" | "postCreationOperation" | "postImage"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -476,6 +477,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.PostCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.PostCountAggregateOutputType> | number
+        }
+      }
+    }
+    PostCreationOperation: {
+      payload: Prisma.$PostCreationOperationPayload<ExtArgs>
+      fields: Prisma.PostCreationOperationFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.PostCreationOperationFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCreationOperationPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.PostCreationOperationFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCreationOperationPayload>
+        }
+        findFirst: {
+          args: Prisma.PostCreationOperationFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCreationOperationPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.PostCreationOperationFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCreationOperationPayload>
+        }
+        findMany: {
+          args: Prisma.PostCreationOperationFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCreationOperationPayload>[]
+        }
+        create: {
+          args: Prisma.PostCreationOperationCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCreationOperationPayload>
+        }
+        createMany: {
+          args: Prisma.PostCreationOperationCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.PostCreationOperationCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCreationOperationPayload>[]
+        }
+        delete: {
+          args: Prisma.PostCreationOperationDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCreationOperationPayload>
+        }
+        update: {
+          args: Prisma.PostCreationOperationUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCreationOperationPayload>
+        }
+        deleteMany: {
+          args: Prisma.PostCreationOperationDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.PostCreationOperationUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.PostCreationOperationUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCreationOperationPayload>[]
+        }
+        upsert: {
+          args: Prisma.PostCreationOperationUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PostCreationOperationPayload>
+        }
+        aggregate: {
+          args: Prisma.PostCreationOperationAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregatePostCreationOperation>
+        }
+        groupBy: {
+          args: Prisma.PostCreationOperationGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PostCreationOperationGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.PostCreationOperationCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PostCreationOperationCountAggregateOutputType> | number
         }
       }
     }
@@ -597,11 +672,32 @@ export const PostScalarFieldEnum = {
   authorId: 'authorId',
   description: 'description',
   createdAt: 'createdAt',
+  publishedAt: 'publishedAt',
   version: 'version',
   deletedAt: 'deletedAt'
 } as const
 
 export type PostScalarFieldEnum = (typeof PostScalarFieldEnum)[keyof typeof PostScalarFieldEnum]
+
+
+export const PostCreationOperationScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  idempotencyKey: 'idempotencyKey',
+  description: 'description',
+  imageIds: 'imageIds',
+  status: 'status',
+  version: 'version',
+  reserveOperationId: 'reserveOperationId',
+  attachOperationId: 'attachOperationId',
+  compensationOperationId: 'compensationOperationId',
+  failureCode: 'failureCode',
+  postId: 'postId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PostCreationOperationScalarFieldEnum = (typeof PostCreationOperationScalarFieldEnum)[keyof typeof PostCreationOperationScalarFieldEnum]
 
 
 export const PostImageScalarFieldEnum = {
@@ -683,6 +779,20 @@ export type DateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel
  */
 export type ListDateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime[]'>
     
+
+
+/**
+ * Reference to a field of type 'PostCreationOperationStatus'
+ */
+export type EnumPostCreationOperationStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'PostCreationOperationStatus'>
+
+
+
+/**
+ * Reference to a field of type 'PostCreationOperationStatus[]'
+ */
+export type ListEnumPostCreationOperationStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'PostCreationOperationStatus[]'>
+
 
 
 /**
@@ -809,6 +919,7 @@ export type PrismaClientOptions = ({
 }
 export type GlobalOmitConfig = {
   post?: Prisma.PostOmit
+  postCreationOperation?: Prisma.PostCreationOperationOmit
   postImage?: Prisma.PostImageOmit
 }
 
@@ -872,4 +983,3 @@ export type PrismaAction =
  * `PrismaClient` proxy available in interactive transactions.
  */
 export type TransactionClient = Omit<DefaultPrismaClient, runtime.ITXClientDenyList>
-

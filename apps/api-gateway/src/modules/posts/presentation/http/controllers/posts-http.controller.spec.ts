@@ -23,13 +23,17 @@ describe('PostsHttpController', () => {
       description: 'A new post',
       imageIds: ['11111111-1111-4111-8111-111111111111'],
     };
+    const idempotencyKey = '33333333-3333-4333-8333-333333333333';
 
-    await expect(firstValueFrom(controller.createPost(input, request))).resolves.toEqual({ id: 10 });
+    await expect(firstValueFrom(controller.createPost(input, request, idempotencyKey))).resolves.toEqual({
+      id: 10,
+    });
 
     expect(createPost).toHaveBeenCalledWith({
       userId: '42',
       description: 'A new post',
       imageIds: input.imageIds,
+      idempotencyKey,
     });
   });
 });

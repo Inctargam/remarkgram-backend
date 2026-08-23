@@ -384,7 +384,8 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 
 
 export const ModelName = {
-  File: 'File'
+  File: 'File',
+  ImageUploadOperationReceipt: 'ImageUploadOperationReceipt'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -400,7 +401,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "file"
+    modelProps: "file" | "imageUploadOperationReceipt"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -478,6 +479,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    ImageUploadOperationReceipt: {
+      payload: Prisma.$ImageUploadOperationReceiptPayload<ExtArgs>
+      fields: Prisma.ImageUploadOperationReceiptFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ImageUploadOperationReceiptFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadOperationReceiptPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ImageUploadOperationReceiptFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadOperationReceiptPayload>
+        }
+        findFirst: {
+          args: Prisma.ImageUploadOperationReceiptFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadOperationReceiptPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ImageUploadOperationReceiptFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadOperationReceiptPayload>
+        }
+        findMany: {
+          args: Prisma.ImageUploadOperationReceiptFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadOperationReceiptPayload>[]
+        }
+        create: {
+          args: Prisma.ImageUploadOperationReceiptCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadOperationReceiptPayload>
+        }
+        createMany: {
+          args: Prisma.ImageUploadOperationReceiptCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ImageUploadOperationReceiptCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadOperationReceiptPayload>[]
+        }
+        delete: {
+          args: Prisma.ImageUploadOperationReceiptDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadOperationReceiptPayload>
+        }
+        update: {
+          args: Prisma.ImageUploadOperationReceiptUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadOperationReceiptPayload>
+        }
+        deleteMany: {
+          args: Prisma.ImageUploadOperationReceiptDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ImageUploadOperationReceiptUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ImageUploadOperationReceiptUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadOperationReceiptPayload>[]
+        }
+        upsert: {
+          args: Prisma.ImageUploadOperationReceiptUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadOperationReceiptPayload>
+        }
+        aggregate: {
+          args: Prisma.ImageUploadOperationReceiptAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateImageUploadOperationReceipt>
+        }
+        groupBy: {
+          args: Prisma.ImageUploadOperationReceiptGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ImageUploadOperationReceiptGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ImageUploadOperationReceiptCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ImageUploadOperationReceiptCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -535,6 +610,18 @@ export const FileScalarFieldEnum = {
 } as const
 
 export type FileScalarFieldEnum = (typeof FileScalarFieldEnum)[keyof typeof FileScalarFieldEnum]
+
+
+export const ImageUploadOperationReceiptScalarFieldEnum = {
+  operationId: 'operationId',
+  kind: 'kind',
+  userId: 'userId',
+  reservationId: 'reservationId',
+  uploadIds: 'uploadIds',
+  createdAt: 'createdAt'
+} as const
+
+export type ImageUploadOperationReceiptScalarFieldEnum = (typeof ImageUploadOperationReceiptScalarFieldEnum)[keyof typeof ImageUploadOperationReceiptScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -621,6 +708,20 @@ export type DateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel
  */
 export type ListDateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime[]'>
     
+
+
+/**
+ * Reference to a field of type 'ImageUploadOperationKind'
+ */
+export type EnumImageUploadOperationKindFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ImageUploadOperationKind'>
+
+
+
+/**
+ * Reference to a field of type 'ImageUploadOperationKind[]'
+ */
+export type ListEnumImageUploadOperationKindFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ImageUploadOperationKind[]'>
+
 
 
 /**
@@ -747,6 +848,7 @@ export type PrismaClientOptions = ({
 }
 export type GlobalOmitConfig = {
   file?: Prisma.FileOmit
+  imageUploadOperationReceipt?: Prisma.ImageUploadOperationReceiptOmit
 }
 
 /* Types for Logging */
@@ -809,4 +911,3 @@ export type PrismaAction =
  * `PrismaClient` proxy available in interactive transactions.
  */
 export type TransactionClient = Omit<DefaultPrismaClient, runtime.ITXClientDenyList>
-

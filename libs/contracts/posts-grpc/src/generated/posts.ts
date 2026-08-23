@@ -14,6 +14,7 @@ export interface CreatePostRequest {
   userId: string;
   description?: string | undefined;
   imageIds: string[];
+  idempotencyKey: string;
 }
 
 export interface CreatePostResponse {

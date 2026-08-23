@@ -371,10 +371,6 @@ export type PostImageUncheckedUpdateManyWithoutPostNestedInput = {
   deleteMany?: Prisma.PostImageScalarWhereInput | Prisma.PostImageScalarWhereInput[]
 }
 
-export type StringFieldUpdateOperationsInput = {
-  set?: string
-}
-
 export type PostImageCreateWithoutPostInput = {
   fileId: string
   position: number

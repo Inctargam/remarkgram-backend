@@ -9,4 +9,5 @@
  * 🟢 You can import this file directly.
  */
 export type * from './models/File.ts'
+export type * from './models/ImageUploadOperationReceipt.ts'
 export type * from './commonInputTypes.ts'
