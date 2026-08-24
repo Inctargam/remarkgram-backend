@@ -24,12 +24,10 @@ import { PrismaTestingRepository } from './infrastructure/prisma/repositories/pr
 import { TestingGrpcController } from './presentation/grpc/testing-grpc.controller.js';
 import { ExpiredImageUploadsCleanupJob } from './infrastructure/scheduling/expired-image-uploads-cleanup.job.js';
 import { GetFileDownloadUrlQueryHandler } from './application/use-cases/get-public-file-url/get-public-file-url.query-handler.js';
-import { GetPublicFileUrlQueryHandler } from './application/use-cases/get-public-file-url/get-public-file-url.query-handler.js';
 import { PostDeletedEventConsumer } from './presentation/messaging/post-deleted-event.consumer.js';
 import { filesMessageBrokerConfig } from './config/message-broker.config.js';
 import { InboxEventsRepository } from './application/ports/inbox-events.repository.js';
 import { PrismaInboxEventsRepository } from './infrastructure/prisma/repositories/prisma-inbox-events.repository.js';
-import { ScheduleModule } from '@nestjs/schedule';
 import { PostDeletedInboxScheduler } from './infrastructure/scheduling/post-deleted-inbox.scheduler.js';
 import { PostDeletedInboxWorker } from './application/workers/post-deleted-inbox.worker.js';
 import { UnitOfWork } from './application/ports/unit-of-work.js';
@@ -71,7 +69,6 @@ import { FileDeletionJobsScheduler } from './infrastructure/scheduling/file-dele
     ReleaseReservedImageUploadsUseCase,
     ReserveImageUploadsUseCase,
     ExpiredImageUploadsCleanupJob,
-    GetPublicFileUrlQueryHandler,
     PostDeletedInboxScheduler,
     PostDeletedInboxWorker,
     FileDeletionJobsWorker,

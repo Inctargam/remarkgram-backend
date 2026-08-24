@@ -12,7 +12,6 @@ import { filesGrpcClientConfig } from './config/files-grpc-client.config.js';
 import { postsConfig } from './config/posts.config.js';
 import { GrpcImageUploadsGateway } from './infrastructure/grpc/grpc-image-uploads.gateway.js';
 import { postsMessageBrokerConfig } from './config/message-broker.config.js';
-import { FilesImageUploadsVerifier } from './infrastructure/grpc/files-image-uploads-verifier.js';
 import { PrismaService } from './infrastructure/prisma/prisma.service.js';
 import { PrismaPostsRepository } from './infrastructure/prisma/repositories/prisma-posts.repository.js';
 import { PostsGrpcController } from './presentation/grpc/posts-grpc.controller.js';
@@ -24,7 +23,6 @@ import { UpdatePostUseCase } from './application/use-cases/update-post/update-po
 import { PrismaPostsQueryRepository } from './infrastructure/prisma/repositories/prisma-posts-query.repository.js';
 import { PostsQueryRepository } from './application/ports/posts-query.repository.js';
 import { GetAuthorPostsQueryHandler } from './application/use-cases/get-author-posts/get-author-posts.query-handler.js';
-import { UpdatePostUseCase } from './application/use-cases/update-post/update-post.use-case.js';
 import { UnitOfWork } from './application/ports/unit-of-work.js';
 import { PrismaUnitOfWork } from './infrastructure/prisma/prisma-unit-of-work.js';
 import { OutboxEventsRepository } from './application/ports/outbox-events.repository.js';
