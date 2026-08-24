@@ -1,8 +1,8 @@
 import {
-  POSTS_SERVICE_NAME,
-  REMARKGRAM_POSTS_V1_PACKAGE_NAME,
   type CreatePostResponse,
+  POSTS_SERVICE_NAME,
   type PostsServiceClient,
+  REMARKGRAM_POSTS_V1_PACKAGE_NAME,
   type UpdatePostResponse,
 } from '@app/posts-grpc';
 import {
@@ -27,7 +27,6 @@ import { UpdatePostDto } from '../dto/input/update-post/update-post.dto.js';
 import { ApiCreatePost } from '../swagger/post/create-post.swagger.js';
 import { ApiPostsController } from '../swagger/posts-controller.swagger.js';
 import { ApiUpdatePost } from '../swagger/put/update-post.swagger.js';
-import { Public } from '../../../../../common/http/decorators/public.decorator.js';
 
 type AuthenticatedRequest = Request & { userId: string };
 
@@ -75,7 +74,6 @@ export class PostsHttpController implements OnModuleInit {
       }),
     );
   }
-  @Public()
   @Delete(':postId')
   @HttpCode(HttpStatus.NO_CONTENT)
   async deletePost(@Param('postId', ParseIntPipe) postId: number, @Req() request: AuthenticatedRequest) {
