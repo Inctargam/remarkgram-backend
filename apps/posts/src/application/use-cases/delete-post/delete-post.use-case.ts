@@ -8,6 +8,7 @@ import { OutboxEventsRepository } from '../../ports/outbox-events.repository.js'
 import { PostDeletedV1Factory } from '../../integration-events/post-deleted-v1/post-deleted-v1.factory.js';
 import { DeletedPostsPublisherWorker } from '../../workers/deleted-posts-publisher.worker.js';
 import { worker } from 'globals';
+import { Logger } from '@nestjs/common';
 
 type DeletePostParams = {
   postId: number;
@@ -22,6 +23,7 @@ export class DeletePostCommand extends Command<void> {
 
 @CommandHandler(DeletePostCommand)
 export class DeletePostUseCase implements ICommandHandler<DeletePostCommand> {
+  private readonly logger = new Logger(DeletePostUseCase.name);
   constructor(
     private readonly postsRepository: PostsRepository,
     private readonly unitOfWork: UnitOfWork,
@@ -69,7 +71,12 @@ export class DeletePostUseCase implements ICommandHandler<DeletePostCommand> {
       });
       await this.outbox.add(integrationEvent, ctx);
     });
-    this.worker.run().catch();
+    void this.worker.run().catch((error) =>
+      this.logger.warn(
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        `DeletePostUseCase: Failed to publish deleted post: ${error?.message ?? 'unknown error'}`,
+      ),
+    );
     return;
   }
 }

@@ -7,10 +7,12 @@ import { randomUUID } from 'node:crypto';
 import { POST_DELETED_V1_EVENT_NAME, type PostDeletedV1Event } from '@app/message-broker';
 import type { ApplicationOutboxEvent } from '../types/outbox.types.js';
 import { PostDeletedOutboxEventMapper } from './mappers/post-deleted-outbox-event.mapper.js';
-const MAX_EVENTS_PER_POLL = 25;
+
+const BATCH_SIZE = 100;
 const MAX_ATTEMPTS = 5;
 const systemTime = new Date(2026, 7, 19);
 const minutesToAdd = 2;
+
 const postDeletedPayload: PostDeletedV1Event['data'] = {
   postId: 1,
   authorId: 1,
@@ -36,12 +38,14 @@ describe('Deleted posts publisher worker', () => {
 
   const outbox = {
     add: vi.fn<OutboxEventsRepository['add']>(),
-    findClaimNextAvailableEvent: vi.fn<OutboxEventsRepository['findClaimNextAvailableEvent']>(),
+    findAvailableBatch: vi.fn<OutboxEventsRepository['findAvailableBatch']>(),
     ensurePublished: vi.fn<OutboxEventsRepository['ensurePublished']>(),
+    resolveFailedAttempt: vi.fn<OutboxEventsRepository['resolveFailedAttempt']>(),
   } satisfies OutboxEventsRepository;
   const publisher = {
     deletedPostEvent: vi.fn<PostsEventsPublisher['deletedPostEvent']>(),
   } satisfies PostsEventsPublisher;
+
   const worker = new DeletedPostsPublisherWorker(outbox, publisher);
 
   beforeAll(() => {
@@ -50,9 +54,9 @@ describe('Deleted posts publisher worker', () => {
     vi.setSystemTime(systemTime);
   });
   beforeEach(() => {
-    outbox.findClaimNextAvailableEvent.mockReset();
+    outbox.findAvailableBatch.mockReset();
     outbox.ensurePublished.mockReset();
-    publisher.publishPostDeleted.mockReset();
+    publisher.deletedPostEvent.mockReset();
     mapperSpy.mockReset();
   });
 
@@ -65,7 +69,7 @@ describe('Deleted posts publisher worker', () => {
       data: postDeletedPayload,
     };
 
-    outbox.findClaimNextAvailableEvent.mockResolvedValueOnce(outboxEvent).mockResolvedValueOnce(null);
+    outbox.findAvailableBatch.mockResolvedValueOnce([outboxEvent]);
 
     await worker.run();
 
@@ -73,61 +77,72 @@ describe('Deleted posts publisher worker', () => {
     expect(mapperSpy).toHaveBeenCalledWith(outboxEvent);
     expect(mapperSpy).toHaveReturnedWith(integrationEvent);
 
-    expect(publisher.publishPostDeleted).toHaveBeenCalledOnce();
-    expect(publisher.publishPostDeleted).toHaveBeenCalledWith(integrationEvent);
+    expect(publisher.deletedPostEvent).toHaveBeenCalledOnce();
+    expect(publisher.deletedPostEvent).toHaveBeenCalledWith(integrationEvent);
     expect(outbox.ensurePublished).toHaveBeenCalledWith(integrationEvent.eventId);
 
-    expect(outbox.findClaimNextAvailableEvent).toHaveBeenCalledTimes(2);
+    expect(outbox.findAvailableBatch).toHaveBeenCalledTimes(1);
+    expect(outbox.findAvailableBatch).toHaveBeenCalledWith(
+      POST_DELETED_V1_EVENT_NAME,
+      MAX_ATTEMPTS,
+      BATCH_SIZE,
+    );
   });
 
   it('does not publish an event if it is already published', async () => {
-    outbox.findClaimNextAvailableEvent.mockResolvedValueOnce(null);
+    outbox.findAvailableBatch.mockResolvedValueOnce(null);
 
     await worker.run();
 
-    expect(outbox.findClaimNextAvailableEvent).toHaveBeenCalledOnce();
+    expect(outbox.findAvailableBatch).toHaveBeenCalledOnce();
     expect(mapperSpy).toHaveBeenCalledTimes(0);
-    expect(publisher.publishPostDeleted).not.toHaveBeenCalledOnce();
+    expect(publisher.deletedPostEvent).not.toHaveBeenCalledOnce();
     expect(outbox.ensurePublished).not.toHaveBeenCalledOnce();
   });
 
-  it('returns an error if the mapper receives an event of an invalid', async () => {
-    outbox.findClaimNextAvailableEvent.mockResolvedValueOnce({
-      ...outboxEvent,
-      eventType: 'invalid-event-type',
+  it('returns an error if the mapper receives an event type of an invalid', async () => {
+    outbox.findAvailableBatch.mockImplementation(async () => {
+      return [
+        {
+          ...outboxEvent,
+          eventType: 'invalid-event-type',
+        },
+      ];
     });
 
     await worker.run();
     expect(mapperSpy).toThrow(Error);
-    expect(publisher.publishPostDeleted).not.toHaveBeenCalledOnce();
+    expect(publisher.deletedPostEvent).not.toHaveBeenCalledOnce();
     expect(outbox.ensurePublished).not.toHaveBeenCalledOnce();
   });
 
   it('does not mark the event as published if the broker returns an error', async () => {
-    outbox.findClaimNextAvailableEvent.mockResolvedValueOnce(outboxEvent).mockResolvedValueOnce(null);
-    publisher.publishPostDeleted.mockRejectedValueOnce(new Error('Failed to publish event'));
+    outbox.findAvailableBatch.mockResolvedValueOnce([outboxEvent]);
+    publisher.deletedPostEvent.mockRejectedValueOnce(new Error('Failed to publish event'));
     await worker.run();
     expect(mapperSpy).toHaveBeenCalledOnce();
-    expect(publisher.publishPostDeleted).toHaveBeenCalledOnce();
+    expect(publisher.deletedPostEvent).toHaveBeenCalledOnce();
     expect(outbox.ensurePublished).not.toHaveBeenCalledOnce();
 
-    expect(outbox.findClaimNextAvailableEvent).toHaveBeenCalledTimes(2);
+    expect(outbox.findAvailableBatch).toHaveBeenCalledTimes(1);
   });
 
   it('rescheduling an event with a limit of 5 attempts', async () => {
     let attempts = 0;
 
-    outbox.findClaimNextAvailableEvent.mockImplementation(async () => {
+    outbox.findAvailableBatch.mockImplementation(async () => {
       if (attempts >= MAX_ATTEMPTS) {
         return null;
       }
 
       attempts += 1;
 
-      return {
-        ...outboxEvent,
-        attempts,
-      };
+      return [
+        {
+          ...outboxEvent,
+          attempts,
+        },
+      ];
     });
 
     await worker.run();
@@ -138,53 +153,88 @@ describe('Deleted posts publisher worker', () => {
     await worker.run();
 
     expect(mapperSpy).toHaveBeenCalledTimes(5);
-    expect(publisher.publishPostDeleted).toHaveBeenCalledTimes(5);
+    expect(publisher.deletedPostEvent).toHaveBeenCalledTimes(5);
     expect(outbox.ensurePublished).toHaveBeenCalledTimes(5);
   });
-  it('processes no more than 25 events per poll', async () => {
-    outbox.findClaimNextAvailableEvent.mockImplementation(async () => {
-      return {
-        ...outboxEvent,
-        attempts: 1,
-      };
-    });
-    await worker.run();
-    expect(mapperSpy).toHaveBeenCalledTimes(MAX_EVENTS_PER_POLL);
-    expect(publisher.publishPostDeleted).toHaveBeenCalledTimes(MAX_EVENTS_PER_POLL);
-    expect(outbox.ensurePublished).toHaveBeenCalledTimes(MAX_EVENTS_PER_POLL);
-  });
+
   it('processes dose not break if ensurePublished throws an error ', async () => {
-    outbox.findClaimNextAvailableEvent
-      .mockResolvedValueOnce(outboxEvent)
-      .mockResolvedValueOnce(outboxEvent)
-      .mockResolvedValueOnce(null);
+    outbox.findAvailableBatch.mockResolvedValue([outboxEvent]);
 
     outbox.ensurePublished.mockRejectedValueOnce(new Error('Failed to publish event')).mockResolvedValue();
 
     await worker.run();
 
-    expect(mapperSpy).toHaveBeenCalledTimes(2);
-    expect(publisher.publishPostDeleted).toHaveBeenCalledTimes(2);
-    expect(outbox.ensurePublished).toHaveBeenCalledTimes(2);
+    expect(mapperSpy).toHaveBeenCalledTimes(1);
+    expect(publisher.deletedPostEvent).toHaveBeenCalledTimes(1);
+    expect(outbox.ensurePublished).toHaveBeenCalledTimes(1);
   });
 
   it('check the procedure for making a call', async () => {
-    outbox.findClaimNextAvailableEvent.mockResolvedValueOnce(outboxEvent).mockResolvedValueOnce(null);
+    outbox.findAvailableBatch.mockResolvedValueOnce([outboxEvent]);
+
     await worker.run();
 
     expect(mapperSpy).toHaveBeenCalledOnce();
-    expect(publisher.publishPostDeleted).toHaveBeenCalledOnce();
+    expect(publisher.deletedPostEvent).toHaveBeenCalledOnce();
     expect(outbox.ensurePublished).toHaveBeenCalledOnce();
 
-    expect(outbox.findClaimNextAvailableEvent.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(outbox.findAvailableBatch.mock.invocationCallOrder[0]).toBeLessThan(
       mapperSpy.mock.invocationCallOrder[0],
     );
     expect(mapperSpy.mock.invocationCallOrder[0]).toBeLessThan(
-      publisher.publishPostDeleted.mock.invocationCallOrder[0],
+      publisher.deletedPostEvent.mock.invocationCallOrder[0],
     );
 
-    expect(publisher.publishPostDeleted.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(publisher.deletedPostEvent.mock.invocationCallOrder[0]).toBeLessThan(
       outbox.ensurePublished.mock.invocationCallOrder[0],
     );
+  });
+
+  it('republishes and marks an event when the first worker loses its lease', async () => {
+    let finishFirstPublish!: () => void;
+    const firstPublishPending = new Promise<void>((resolve) => {
+      finishFirstPublish = resolve;
+    });
+
+    outbox.findAvailableBatch.mockResolvedValueOnce([outboxEvent]).mockResolvedValueOnce([
+      {
+        ...outboxEvent,
+        availableAt: new Date(systemTime.getTime() + 10 * 60_000),
+      },
+    ]);
+    console.log('finishFirstPublish', finishFirstPublish);
+    // Первый worker зависает во время отправки в брокер.
+    publisher.deletedPostEvent
+      .mockImplementationOnce(async () => firstPublishPending)
+      // Второй worker отправляет сообщение сразу.
+      .mockResolvedValueOnce(undefined);
+
+    // Запускам выполнение
+    const firstRun = worker.run();
+    await vi.waitFor(() => {
+      expect(publisher.deletedPostEvent).toHaveBeenCalledTimes(1);
+    });
+
+    const secondRun = worker.run();
+
+    await vi.waitFor(() => {
+      expect(publisher.deletedPostEvent).toHaveBeenCalledTimes(2);
+      expect(outbox.ensurePublished).toHaveBeenCalledTimes(1);
+    });
+    // Второй worker уже опубликовал и отметил событие,
+    // пока первый всё ещё обрабатывает его.
+
+    expect(outbox.ensurePublished).toHaveBeenCalledWith(outboxEvent.id);
+
+    //После выполнения промежуточных проверок тест разрешает первому worker-у продолжить
+    finishFirstPublish();
+
+    //Ожидает полного завершения обоих запусков
+    await Promise.all([firstRun, secondRun]);
+
+    expect(publisher.deletedPostEvent).toHaveBeenCalledTimes(2);
+    expect(outbox.ensurePublished).toHaveBeenCalledTimes(2);
+    expect(outbox.ensurePublished).toHaveBeenNthCalledWith(1, outboxEvent.id);
+    expect(outbox.ensurePublished).toHaveBeenNthCalledWith(2, outboxEvent.id);
   });
 });

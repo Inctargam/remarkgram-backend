@@ -3,7 +3,6 @@ import type { GetAuthorPostsDto } from '../dto/output/get-author-posts/get-autho
 
 export class GetAuthorPostsResponseMapper {
   static toResponse(source: GetAuthPostsPaginatedResponse, backendApiUrl: string): GetAuthorPostsDto {
-    console.log('source', source);
     return {
       items: source.items.map((post) => ({
         id: Number(post.id),

@@ -4,23 +4,39 @@ import { DeletePostCommand, DeletePostUseCase } from './delete-post.use-case.js'
 import { Post } from '../../../domain/entities/post.entity.js';
 import { InvalidPostIdError, PostAccessForbiddenError } from '../../errors/base-post.errors.js';
 import { InvalidUserIdError } from '../../errors/create-post.errors.js';
-import type { UnitOfWork } from '../../ports/unit-of-work.js';
+import type { TransactionContext, TransactionOptions, UnitOfWork } from '../../ports/unit-of-work.js';
 import type { OutboxEventsRepository } from '../../ports/outbox-events.repository.js';
+import { DeletedPostsPublisherWorker } from '../../workers/deleted-posts-publisher.worker.js';
 
 describe('UpdatePostHandler', () => {
   const postRepository = createPostsRepositoryMock();
   const transactionContext = {};
-  const unitOfWork = {
-    run: vi.fn<UnitOfWork['run']>(),
-  } satisfies UnitOfWork;
+  const unitOfWorkRunMock =
+    vi.fn<
+      (
+        handler: (ctx: TransactionContext) => Promise<unknown>,
+        options?: TransactionOptions,
+      ) => Promise<unknown>
+    >();
+
+  const unitOfWork: UnitOfWork = {
+    run: unitOfWorkRunMock as UnitOfWork['run'],
+  };
+
   const outbox = {
     add: vi.fn<OutboxEventsRepository['add']>(),
-    findAvailable: vi.fn<OutboxEventsRepository['findAvailable']>(),
+    findAvailableBatch: vi.fn<OutboxEventsRepository['findAvailableBatch']>(),
     ensurePublished: vi.fn<OutboxEventsRepository['ensurePublished']>(),
-    reschedule: vi.fn<OutboxEventsRepository['reschedule']>(),
-    markDead: vi.fn<OutboxEventsRepository['markDead']>(),
+    resolveFailedAttempt: vi.fn<OutboxEventsRepository['resolveFailedAttempt']>(),
   } satisfies OutboxEventsRepository;
-  const useCase = new DeletePostUseCase(postRepository, unitOfWork, outbox);
+
+  const workerRunMock = vi.fn<() => Promise<void>>();
+
+  const worker = {
+    run: workerRunMock,
+  } as unknown as DeletedPostsPublisherWorker;
+
+  const useCase = new DeletePostUseCase(postRepository, unitOfWork, outbox, worker);
 
   const post = Post.restore({
     id: 1,
@@ -41,9 +57,11 @@ describe('UpdatePostHandler', () => {
     postRepository.create.mockReset();
     postRepository.updateAuthorPost.mockReset();
     postRepository.softDeleteById.mockReset();
-    unitOfWork.run.mockReset();
-    unitOfWork.run.mockImplementation(async (handler) => handler(transactionContext));
+    unitOfWorkRunMock.mockReset();
+    unitOfWorkRunMock.mockImplementation(async (handler) => handler(transactionContext));
     outbox.add.mockReset();
+    workerRunMock.mockReset();
+    workerRunMock.mockResolvedValue(undefined);
   });
 
   it('success soft delete post', async () => {
@@ -72,6 +90,7 @@ describe('UpdatePostHandler', () => {
       transactionContext,
     );
     expect(outbox.add).toHaveBeenCalledTimes(1);
+    expect(workerRunMock).toHaveBeenCalledTimes(1);
   });
 
   it('repeat call delete to be idempotent', async () => {
@@ -87,8 +106,9 @@ describe('UpdatePostHandler', () => {
 
     expect(postRepository.findById).toHaveBeenCalledTimes(1);
     expect(postRepository.softDeleteById).not.toHaveBeenCalled();
-    expect(unitOfWork.run).not.toHaveBeenCalled();
+    expect(unitOfWorkRunMock).not.toHaveBeenCalled();
     expect(outbox.add).not.toHaveBeenCalled();
+    expect(workerRunMock).not.toHaveBeenCalled();
   });
 
   it('stays idempotent when post disappears before soft delete', async () => {
@@ -106,6 +126,7 @@ describe('UpdatePostHandler', () => {
 
     expect(postRepository.softDeleteById).toHaveBeenCalledTimes(1);
     expect(outbox.add).not.toHaveBeenCalled();
+    expect(workerRunMock).toHaveBeenCalledTimes(1);
   });
 
   it('throws access forbidden error', async () => {
@@ -121,6 +142,8 @@ describe('UpdatePostHandler', () => {
 
     expect(postRepository.findById).toHaveBeenCalledTimes(1);
     expect(postRepository.softDeleteById).not.toHaveBeenCalled();
+    expect(outbox.add).not.toHaveBeenCalled();
+    expect(workerRunMock).not.toHaveBeenCalled();
   });
 
   test.each([
@@ -143,5 +166,7 @@ describe('UpdatePostHandler', () => {
 
     expect(postRepository.findById).not.toHaveBeenCalled();
     expect(postRepository.softDeleteById).not.toHaveBeenCalled();
+    expect(outbox.add).not.toHaveBeenCalled();
+    expect(workerRunMock).not.toHaveBeenCalled();
   });
 });

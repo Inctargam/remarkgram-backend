@@ -4,6 +4,7 @@ import type { TransactionContext, UnitOfWork } from '../ports/unit-of-work.js';
 import { FileDeletionJobsWorker } from './file-deletion-jobs.worker.js';
 
 describe('FileDeletionJobsWorker', () => {
+  const MAX_ATTEMPTS = 5;
   const leaseUntil = new Date('2026-08-21T15:02:00.000Z');
   const job = {
     fileId: '0e80fbd6-b60b-4776-82af-5b568de1f600',
@@ -65,7 +66,12 @@ describe('FileDeletionJobsWorker', () => {
     await worker.run();
 
     expect(unitOfWork.run).not.toHaveBeenCalled();
-    expect(jobs.resolveFailedAttempt).toHaveBeenCalledWith(job.fileId, leaseUntil, 'S3 unavailable', 10);
+    expect(jobs.resolveFailedAttempt).toHaveBeenCalledWith(
+      job.fileId,
+      leaseUntil,
+      'S3 unavailable',
+      MAX_ATTEMPTS,
+    );
   });
 
   it('does not hard-delete the file when the lease was lost', async () => {
@@ -78,7 +84,7 @@ describe('FileDeletionJobsWorker', () => {
       job.fileId,
       leaseUntil,
       `Lease was lost for file deletion job ${job.fileId}`,
-      10,
+      MAX_ATTEMPTS,
     );
   });
 
