@@ -384,7 +384,9 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 
 
 export const ModelName = {
-  File: 'File'
+  File: 'File',
+  InboxEvents: 'InboxEvents',
+  FileDeletionJob: 'FileDeletionJob'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -400,7 +402,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "file"
+    modelProps: "file" | "inboxEvents" | "fileDeletionJob"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -478,6 +480,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    InboxEvents: {
+      payload: Prisma.$InboxEventsPayload<ExtArgs>
+      fields: Prisma.InboxEventsFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.InboxEventsFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InboxEventsPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.InboxEventsFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InboxEventsPayload>
+        }
+        findFirst: {
+          args: Prisma.InboxEventsFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InboxEventsPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.InboxEventsFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InboxEventsPayload>
+        }
+        findMany: {
+          args: Prisma.InboxEventsFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InboxEventsPayload>[]
+        }
+        create: {
+          args: Prisma.InboxEventsCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InboxEventsPayload>
+        }
+        createMany: {
+          args: Prisma.InboxEventsCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.InboxEventsCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InboxEventsPayload>[]
+        }
+        delete: {
+          args: Prisma.InboxEventsDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InboxEventsPayload>
+        }
+        update: {
+          args: Prisma.InboxEventsUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InboxEventsPayload>
+        }
+        deleteMany: {
+          args: Prisma.InboxEventsDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.InboxEventsUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.InboxEventsUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InboxEventsPayload>[]
+        }
+        upsert: {
+          args: Prisma.InboxEventsUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$InboxEventsPayload>
+        }
+        aggregate: {
+          args: Prisma.InboxEventsAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateInboxEvents>
+        }
+        groupBy: {
+          args: Prisma.InboxEventsGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.InboxEventsGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.InboxEventsCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.InboxEventsCountAggregateOutputType> | number
+        }
+      }
+    }
+    FileDeletionJob: {
+      payload: Prisma.$FileDeletionJobPayload<ExtArgs>
+      fields: Prisma.FileDeletionJobFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.FileDeletionJobFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FileDeletionJobPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.FileDeletionJobFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FileDeletionJobPayload>
+        }
+        findFirst: {
+          args: Prisma.FileDeletionJobFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FileDeletionJobPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.FileDeletionJobFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FileDeletionJobPayload>
+        }
+        findMany: {
+          args: Prisma.FileDeletionJobFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FileDeletionJobPayload>[]
+        }
+        create: {
+          args: Prisma.FileDeletionJobCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FileDeletionJobPayload>
+        }
+        createMany: {
+          args: Prisma.FileDeletionJobCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.FileDeletionJobCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FileDeletionJobPayload>[]
+        }
+        delete: {
+          args: Prisma.FileDeletionJobDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FileDeletionJobPayload>
+        }
+        update: {
+          args: Prisma.FileDeletionJobUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FileDeletionJobPayload>
+        }
+        deleteMany: {
+          args: Prisma.FileDeletionJobDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.FileDeletionJobUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.FileDeletionJobUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FileDeletionJobPayload>[]
+        }
+        upsert: {
+          args: Prisma.FileDeletionJobUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FileDeletionJobPayload>
+        }
+        aggregate: {
+          args: Prisma.FileDeletionJobAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateFileDeletionJob>
+        }
+        groupBy: {
+          args: Prisma.FileDeletionJobGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.FileDeletionJobGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.FileDeletionJobCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.FileDeletionJobCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -537,12 +687,50 @@ export const FileScalarFieldEnum = {
 export type FileScalarFieldEnum = (typeof FileScalarFieldEnum)[keyof typeof FileScalarFieldEnum]
 
 
+export const InboxEventsScalarFieldEnum = {
+  eventId: 'eventId',
+  eventType: 'eventType',
+  payload: 'payload',
+  status: 'status',
+  attempts: 'attempts',
+  receivedAt: 'receivedAt',
+  processedAt: 'processedAt',
+  availableAt: 'availableAt',
+  lastError: 'lastError'
+} as const
+
+export type InboxEventsScalarFieldEnum = (typeof InboxEventsScalarFieldEnum)[keyof typeof InboxEventsScalarFieldEnum]
+
+
+export const FileDeletionJobScalarFieldEnum = {
+  fileId: 'fileId',
+  objectKey: 'objectKey',
+  status: 'status',
+  attempts: 'attempts',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  doneAt: 'doneAt',
+  availableAt: 'availableAt',
+  leaseUntil: 'leaseUntil',
+  lastError: 'lastError'
+} as const
+
+export type FileDeletionJobScalarFieldEnum = (typeof FileDeletionJobScalarFieldEnum)[keyof typeof FileDeletionJobScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
 } as const
 
 export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder]
+
+
+export const JsonNullValueInput = {
+  JsonNull: JsonNull
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
 
 
 export const QueryMode = {
@@ -559,6 +747,15 @@ export const NullsOrder = {
 } as const
 
 export type NullsOrder = (typeof NullsOrder)[keyof typeof NullsOrder]
+
+
+export const JsonNullValueFilter = {
+  DbNull: DbNull,
+  JsonNull: JsonNull,
+  AnyNull: AnyNull
+} as const
+
+export type JsonNullValueFilter = (typeof JsonNullValueFilter)[keyof typeof JsonNullValueFilter]
 
 
 
@@ -620,6 +817,48 @@ export type DateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel
  * Reference to a field of type 'DateTime[]'
  */
 export type ListDateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime[]'>
+    
+
+
+/**
+ * Reference to a field of type 'Json'
+ */
+export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Json'>
+    
+
+
+/**
+ * Reference to a field of type 'QueryMode'
+ */
+export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'QueryMode'>
+    
+
+
+/**
+ * Reference to a field of type 'InboxStatus'
+ */
+export type EnumInboxStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'InboxStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'InboxStatus[]'
+ */
+export type ListEnumInboxStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'InboxStatus[]'>
+    
+
+
+/**
+ * Reference to a field of type 'FileDeletionJobStatus'
+ */
+export type EnumFileDeletionJobStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'FileDeletionJobStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'FileDeletionJobStatus[]'
+ */
+export type ListEnumFileDeletionJobStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'FileDeletionJobStatus[]'>
     
 
 
@@ -747,6 +986,8 @@ export type PrismaClientOptions = ({
 }
 export type GlobalOmitConfig = {
   file?: Prisma.FileOmit
+  inboxEvents?: Prisma.InboxEventsOmit
+  fileDeletionJob?: Prisma.FileDeletionJobOmit
 }
 
 /* Types for Logging */

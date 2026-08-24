@@ -50,3 +50,11 @@ export interface UpdateAuthorPostRepositoryParams {
     description: string;
   };
 }
+
+export type SoftDeletePostRepositoryParams = { id: number; authorId: number };
+export type SoftDeletePostResult = {
+  id: number;
+  authorId: number;
+  filedIds: string[];
+  deletedAt: Date;
+};

@@ -24,6 +24,20 @@ import { PrismaTestingRepository } from './infrastructure/prisma/repositories/pr
 import { TestingGrpcController } from './presentation/grpc/testing-grpc.controller.js';
 import { ExpiredImageUploadsCleanupJob } from './infrastructure/scheduling/expired-image-uploads-cleanup.job.js';
 import { GetFileDownloadUrlQueryHandler } from './application/use-cases/get-public-file-url/get-public-file-url.query-handler.js';
+import { GetPublicFileUrlQueryHandler } from './application/use-cases/get-public-file-url/get-public-file-url.query-handler.js';
+import { PostDeletedEventConsumer } from './presentation/messaging/post-deleted-event.consumer.js';
+import { filesMessageBrokerConfig } from './config/message-broker.config.js';
+import { InboxEventsRepository } from './application/ports/inbox-events.repository.js';
+import { PrismaInboxEventsRepository } from './infrastructure/prisma/repositories/prisma-inbox-events.repository.js';
+import { ScheduleModule } from '@nestjs/schedule';
+import { PostDeletedInboxScheduler } from './infrastructure/scheduling/post-deleted-inbox.scheduler.js';
+import { PostDeletedInboxWorker } from './application/workers/post-deleted-inbox.worker.js';
+import { UnitOfWork } from './application/ports/unit-of-work.js';
+import { PrismaUnitOfWork } from './infrastructure/prisma/prisma-unit-of-work.js';
+import { FileDeletionJobsRepository } from './application/ports/file-deletion-jobs.repository.js';
+import { PrismaFileDeletionJobsRepository } from './infrastructure/prisma/repositories/prisma-file-deletion-jobs.repository.js';
+import { FileDeletionJobsWorker } from './application/workers/file-deletion-jobs.worker.js';
+import { FileDeletionJobsScheduler } from './infrastructure/scheduling/file-deletion-jobs.scheduler.js';
 
 @Module({
   imports: [
@@ -42,11 +56,11 @@ import { GetFileDownloadUrlQueryHandler } from './application/use-cases/get-publ
         '.env.production',
         '.env',
       ],
-      load: [filesConfig, databaseConfig],
+      load: [filesConfig, databaseConfig, filesMessageBrokerConfig],
     }),
     PrismaModule,
   ],
-  controllers: [FilesGrpcController, TestingGrpcController],
+  controllers: [FilesGrpcController, TestingGrpcController, PostDeletedEventConsumer],
   providers: [
     AttachReservedImageUploadsUseCase,
     CleanupExpiredImageUploadsUseCase,
@@ -57,6 +71,11 @@ import { GetFileDownloadUrlQueryHandler } from './application/use-cases/get-publ
     ReleaseReservedImageUploadsUseCase,
     ReserveImageUploadsUseCase,
     ExpiredImageUploadsCleanupJob,
+    GetPublicFileUrlQueryHandler,
+    PostDeletedInboxScheduler,
+    PostDeletedInboxWorker,
+    FileDeletionJobsWorker,
+    FileDeletionJobsScheduler,
     {
       provide: FilesRepository,
       useClass: PrismaFilesRepository,
@@ -81,6 +100,18 @@ import { GetFileDownloadUrlQueryHandler } from './application/use-cases/get-publ
             secretAccessKey: config.s3.secretAccessKey,
           },
         }),
+    },
+    {
+      provide: InboxEventsRepository,
+      useClass: PrismaInboxEventsRepository,
+    },
+    {
+      provide: UnitOfWork,
+      useClass: PrismaUnitOfWork,
+    },
+    {
+      provide: FileDeletionJobsRepository,
+      useClass: PrismaFileDeletionJobsRepository,
     },
   ],
 })

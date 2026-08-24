@@ -18,3 +18,21 @@ export const FileUploadStatus = {
 } as const
 
 export type FileUploadStatus = (typeof FileUploadStatus)[keyof typeof FileUploadStatus]
+
+
+export const InboxStatus = {
+  RECEIVED: 'RECEIVED',
+  PROCESSED: 'PROCESSED',
+  DEAD: 'DEAD'
+} as const
+
+export type InboxStatus = (typeof InboxStatus)[keyof typeof InboxStatus]
+
+
+export const FileDeletionJobStatus = {
+  PENDING: 'PENDING',
+  DONE: 'DONE',
+  DEAD: 'DEAD'
+} as const
+
+export type FileDeletionJobStatus = (typeof FileDeletionJobStatus)[keyof typeof FileDeletionJobStatus]

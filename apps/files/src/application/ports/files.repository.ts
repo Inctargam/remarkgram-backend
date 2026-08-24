@@ -1,4 +1,5 @@
 import type { FileUploadStatus } from '../../domain/enums/file-upload-status.enum.js';
+import type { TransactionContext } from './unit-of-work.js';
 
 export type CreateFileRecord = {
   id: string;
@@ -72,6 +73,11 @@ export type FindAvailableByIdRepositoryResult = {
   objectKey: string;
 } | null;
 
+export type SoftDeleteFileIdsByUserRepositoryResult = {
+  id: string;
+  objectKey: string;
+  deletedAt: Date | null;
+}[];
 export abstract class FilesRepository {
   abstract createMany(fileRecords: readonly CreateFileRecord[]): Promise<void>;
 
@@ -93,4 +99,12 @@ export abstract class FilesRepository {
   abstract findAvailableById(
     params: FindAvailableByIdRepositoryParams,
   ): Promise<FindAvailableByIdRepositoryResult>;
+
+  abstract softDeleteFileIdsByUser(
+    fileIds: string[],
+    userId: number,
+    ctx?: TransactionContext,
+  ): Promise<SoftDeleteFileIdsByUserRepositoryResult>;
+
+  abstract hardDeleteSoftDeletedById(fileId: string, ctx?: TransactionContext): Promise<void>;
 }

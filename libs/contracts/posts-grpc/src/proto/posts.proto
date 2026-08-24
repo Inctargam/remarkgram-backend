@@ -6,6 +6,7 @@ service PostsService {
     rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
     rpc UpdatePost(UpdatePostRequest) returns (UpdatePostResponse);
     rpc GetAuthPostsPaginated(GetAuthPostsPaginatedRequest) returns (GetAuthPostsPaginatedResponse);
+    rpc DeletePost(DeletePostRequest) returns (DeletePostResponse);
 }
 
 service TestingService {
@@ -57,7 +58,11 @@ message GetAuthPostsPaginatedResponse {
 }
 
 
-
+message DeletePostRequest {
+    string user_id = 1;
+    string post_id = 2;
+}
+message DeletePostResponse {}
 
 
 

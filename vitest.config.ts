@@ -15,6 +15,10 @@ export default defineConfig({
         replacement: resolve(import.meta.dirname, 'libs/contracts/grpc/src/index.ts'),
       },
       {
+        find: '@app/message-broker',
+        replacement: resolve(import.meta.dirname, 'libs/contracts/message-broker/src/index.ts'),
+      },
+      {
         find: '@app/files-grpc',
         replacement: resolve(import.meta.dirname, 'libs/contracts/files-grpc/src/index.ts'),
       },

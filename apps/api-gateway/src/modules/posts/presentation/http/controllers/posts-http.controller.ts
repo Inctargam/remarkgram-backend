@@ -1,13 +1,14 @@
 import {
-  POSTS_SERVICE_NAME,
-  REMARKGRAM_POSTS_V1_PACKAGE_NAME,
   type CreatePostResponse,
+  POSTS_SERVICE_NAME,
   type PostsServiceClient,
+  REMARKGRAM_POSTS_V1_PACKAGE_NAME,
   type UpdatePostResponse,
 } from '@app/posts-grpc';
 import {
   Body,
   Controller,
+  Delete,
   HttpCode,
   HttpStatus,
   Inject,
@@ -72,5 +73,13 @@ export class PostsHttpController implements OnModuleInit {
         description: input.description,
       }),
     );
+  }
+  @Delete(':postId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deletePost(@Param('postId', ParseIntPipe) postId: number, @Req() request: AuthenticatedRequest) {
+    await firstValueFrom(
+      this.postsClient.deletePost({ userId: request.userId ?? 1, postId: String(postId) }),
+    );
+    return;
   }
 }

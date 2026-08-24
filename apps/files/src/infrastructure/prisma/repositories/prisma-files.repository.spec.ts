@@ -14,6 +14,7 @@ describe('PrismaFilesRepository', () => {
     findMany: vi.fn(),
     updateMany: vi.fn(),
     updateManyAndReturn: vi.fn(),
+    deleteMany: vi.fn(),
   };
   const transactionClient = { file };
   const transaction = vi.fn<
@@ -530,4 +531,17 @@ describe('PrismaFilesRepository', () => {
     });
   });
 
+
+  it('physically deletes only a soft-deleted file through the transaction client', async () => {
+    const fileId = '11111111-1111-4111-8111-111111111111';
+
+    await repository.hardDeleteSoftDeletedById(fileId, transactionClient);
+
+    expect(file.deleteMany).toHaveBeenCalledWith({
+      where: {
+        id: fileId,
+        deletedAt: { not: null },
+      },
+    });
+  });
 });

@@ -6,6 +6,8 @@ import {
   UpdatePostResponse,
   GetAuthPostsPaginatedRequest,
   GetAuthPostsPaginatedResponse,
+  DeletePostRequest,
+  DeletePostResponse,
 } from '@app/posts-grpc';
 import { Controller, UseFilters } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
@@ -13,6 +15,7 @@ import { CreatePostCommand } from '../../application/use-cases/create-post/creat
 import { PostsRpcExceptionFilter } from './filters/posts-rpc-exception.filter.js';
 import { UpdatePostCommand } from '../../application/use-cases/update-post/update-post.use-case.js';
 import { GetAuthorPostsQuery } from '../../application/use-cases/get-author-posts/get-author-posts.query-handler.js';
+import { DeletePostCommand } from '../../application/use-cases/delete-post/delete-post.use-case.js';
 
 @Controller()
 @PostsServiceControllerMethods()
@@ -51,5 +54,13 @@ export class PostsGrpcController {
         cursor: request?.cursor,
       }),
     );
+  }
+  async deletePost(request: DeletePostRequest): Promise<DeletePostResponse> {
+    const command = new DeletePostCommand({
+      authorId: Number(request.userId),
+      postId: Number(request.postId),
+    });
+    await this.commandBus.execute(command);
+    return {};
   }
 }

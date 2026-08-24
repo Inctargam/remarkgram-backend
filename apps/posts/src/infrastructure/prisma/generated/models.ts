@@ -10,4 +10,5 @@
  */
 export type * from './models/Post.ts'
 export type * from './models/PostImage.ts'
+export type * from './models/OutboxEvent.ts'
 export type * from './commonInputTypes.ts'

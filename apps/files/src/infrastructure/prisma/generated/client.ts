@@ -46,3 +46,13 @@ export { Prisma }
  * 
  */
 export type File = Prisma.FileModel
+/**
+ * Model InboxEvents
+ * 
+ */
+export type InboxEvents = Prisma.InboxEventsModel
+/**
+ * Model FileDeletionJob
+ * 
+ */
+export type FileDeletionJob = Prisma.FileDeletionJobModel

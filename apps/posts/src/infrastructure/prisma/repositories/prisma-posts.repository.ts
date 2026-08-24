@@ -2,20 +2,25 @@ import { Injectable } from '@nestjs/common';
 import { PostImageAlreadyAttachedError } from '../../../application/errors/create-post.errors.js';
 import { PostsRepository } from '../../../application/ports/posts.repository.js';
 import type { Post } from '../../../domain/entities/post.entity.js';
-import type {
+import {
   CreatePostRepositoryParams,
+  SoftDeletePostRepositoryParams,
+  SoftDeletePostResult,
   UpdateAuthorPostRepositoryParams,
 } from '../../../application/types/posts.types.js';
 import { Prisma } from '../generated/client.js';
 import { PrismaService } from '../prisma.service.js';
 import { PostUpdateConflictError } from '../../../application/errors/update-post.errors.js';
-import { PostNotFoundError } from '../../../application/errors/base-post.errors.js';
 import { PostPrismaMapper } from '../mappers/post-prisma.mapper.js';
+import { TransactionContext } from '../../../application/ports/unit-of-work.js';
 
 @Injectable()
 export class PrismaPostsRepository implements PostsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  getClient(ctx?: TransactionContext) {
+    return (ctx as Prisma.TransactionClient | undefined) ?? this.prisma;
+  }
   async create(params: CreatePostRepositoryParams): Promise<number> {
     const { authorId, description, imageIds } = params;
 
@@ -87,16 +92,13 @@ export class PrismaPostsRepository implements PostsRepository {
   }
 
   async softDeleteById(
-    id: number,
-    authorId: number,
-  ): Promise<{
-    id: number;
-    images: {
-      fileId: string;
-    }[];
-  }> {
+    params: SoftDeletePostRepositoryParams,
+    ctx?: TransactionContext,
+  ): Promise<SoftDeletePostResult | null> {
+    const client = this.getClient(ctx);
     try {
-      const result = await this.prisma.post.update({
+      const { authorId, id } = params;
+      const deleted = await client.post.update({
         where: { authorId: authorId, id: id, deletedAt: null },
         data: {
           version: {
@@ -104,13 +106,19 @@ export class PrismaPostsRepository implements PostsRepository {
           },
           deletedAt: new Date(), // Standard JS equivalent to SQL NOW()
         },
-        select: { id: true, images: { select: { fileId: true } } },
+        select: { id: true, authorId: true, deletedAt: true, images: { select: { fileId: true } } },
       });
-      return result;
+      return {
+        id: deleted.id,
+        authorId: deleted.authorId,
+        filedIds: deleted.images.map((image) => image.fileId),
+        deletedAt: deleted.deletedAt as Date,
+      };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        //::TODO определить тип ошибки
-        throw new PostNotFoundError();
+        // A conditional update misses when the post was concurrently removed or already
+        // soft-deleted. This is an expected outcome of an idempotent delete, not a failure.
+        return null;
       }
       throw error;
     }

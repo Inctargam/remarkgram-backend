@@ -61,6 +61,19 @@ $ pnpm run test:e2e
 $ pnpm run test:cov
 ```
 
+## Create posts programmatically
+
+With the Gateway, Files, Posts, PostgreSQL, and object storage running, use a real access token to
+upload a photo and create a post:
+
+```bash
+pnpm create:posts -- --image ./photo.jpg --token <access-token>
+```
+
+Pass `--image` more than once to create one post for each photo. The script generates `clientFileId`
+automatically; for a single image it can be set with `--client-file-id <uuid>`. The API base URL can
+be changed with `--api-url` or `REMARKGRAM_API_URL`.
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.

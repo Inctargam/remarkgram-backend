@@ -60,6 +60,14 @@ export interface GetAuthPostsPaginatedResponse {
   nextCursor?: string | undefined;
 }
 
+export interface DeletePostRequest {
+  userId: string;
+  postId: string;
+}
+
+export interface DeletePostResponse {
+}
+
 export const REMARKGRAM_POSTS_V1_PACKAGE_NAME = "remarkgram.posts.v1";
 
 export interface PostsServiceClient {
@@ -68,6 +76,8 @@ export interface PostsServiceClient {
   updatePost(request: UpdatePostRequest): Observable<UpdatePostResponse>;
 
   getAuthPostsPaginated(request: GetAuthPostsPaginatedRequest): Observable<GetAuthPostsPaginatedResponse>;
+
+  deletePost(request: DeletePostRequest): Observable<DeletePostResponse>;
 }
 
 export interface PostsServiceController {
@@ -82,11 +92,15 @@ export interface PostsServiceController {
   getAuthPostsPaginated(
     request: GetAuthPostsPaginatedRequest,
   ): Promise<GetAuthPostsPaginatedResponse> | Observable<GetAuthPostsPaginatedResponse> | GetAuthPostsPaginatedResponse;
+
+  deletePost(
+    request: DeletePostRequest,
+  ): Promise<DeletePostResponse> | Observable<DeletePostResponse> | DeletePostResponse;
 }
 
 export function PostsServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["createPost", "updatePost", "getAuthPostsPaginated"];
+    const grpcMethods: string[] = ["createPost", "updatePost", "getAuthPostsPaginated", "deletePost"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("PostsService", method)(constructor.prototype[method], method, descriptor);

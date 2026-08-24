@@ -14,6 +14,9 @@ import {
   type ReleaseReservedImageUploadsRepositoryParams,
   type ReserveImageUploadsRepositoryParams,
   type UpdateImageUploadsStatusParams,
+  FindAvailableByIdRepositoryParams,
+  FindAvailableByIdRepositoryResult,
+  SoftDeleteFileIdsByUserRepositoryResult,
 } from '../../../application/ports/files.repository.js';
 import {
   ImageUploadNotFoundError,
@@ -23,6 +26,8 @@ import {
 import { FileUploadStatus } from '../../../domain/enums/file-upload-status.enum.js';
 import { FileUploadStatus as PrismaFileUploadStatus } from '../generated/enums.js';
 import { PrismaService } from '../prisma.service.js';
+import type { TransactionContext } from '../../../application/ports/unit-of-work.js';
+import { Prisma } from '../generated/client.js';
 
 @Injectable()
 export class PrismaFilesRepository extends FilesRepository {
@@ -314,5 +319,39 @@ export class PrismaFilesRepository extends FilesRepository {
       userId: file.userId,
       objectKey: file.objectKey,
     };
+  }
+  async softDeleteFileIdsByUser(
+    fileIds: string[],
+    userId: number,
+    ctx?: TransactionContext,
+  ): Promise<SoftDeleteFileIdsByUserRepositoryResult> {
+    const client = (ctx as Prisma.TransactionClient | undefined) ?? this.prisma;
+
+    return client.file.updateManyAndReturn({
+      where: {
+        id: { in: [...fileIds] },
+        deletedAt: null,
+        userId: Number(userId),
+      },
+      data: {
+        deletedAt: new Date(),
+      },
+      select: {
+        id: true,
+        objectKey: true,
+        deletedAt: true,
+      },
+    });
+  }
+
+  async hardDeleteSoftDeletedById(fileId: string, ctx?: TransactionContext): Promise<void> {
+    const client = (ctx as Prisma.TransactionClient | undefined) ?? this.prisma;
+
+    await client.file.deleteMany({
+      where: {
+        id: fileId,
+        deletedAt: { not: null },
+      },
+    });
   }
 }
