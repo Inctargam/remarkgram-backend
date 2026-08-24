@@ -435,10 +435,6 @@ export type EnumInboxStatusFieldUpdateOperationsInput = {
   set?: $Enums.InboxStatus
 }
 
-export type NullableStringFieldUpdateOperationsInput = {
-  set?: string | null
-}
-
 
 
 export type InboxEventsSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
