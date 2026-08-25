@@ -20,6 +20,7 @@ flowchart LR
         UoW["PrismaUnitOfWork<br/><small>Компонент · Infrastructure</small><br/>Объединяет soft delete и outbox<br/>в одну транзакцию"]
         Worker["DeletedPostsPublisherWorker<br/><small>Компонент · Application</small><br/>Публикует доступные outbox-события,<br/>повторяет временные ошибки"]
         Scheduler["PublishDeletedPostEventScheduler<br/><small>Компонент · Infrastructure</small><br/>Резервный запуск каждые 6 часов"]
+        CleanupScheduler["ClearSoftDeletedPostsScheduler<br/><small>Компонент · Infrastructure</small><br/>Hard delete каждые 12 часов,<br/>до 500 постов за запуск"]
         Publisher["RmqPostsEventsPublisher<br/><small>Компонент · Infrastructure</small><br/>AMQP adapter"]
 
         GrpcController -->|"DeletePostCommand"| Handler
@@ -29,6 +30,7 @@ flowchart LR
         Handler -->|"add(event, transaction)"| OutboxRepo
         Handler -.->|"Запускает немедленно"| Worker
         Scheduler -.->|"Запускает для восстановления"| Worker
+        CleanupScheduler -->|"clearSoftDeleted(500)"| PostRepo
         Worker -->|"findAvailableBatch /<br/>ensurePublished / retry"| OutboxRepo
         Worker -->|"publish"| Publisher
     end
@@ -46,7 +48,7 @@ flowchart LR
     class Gateway,PostsDB,Broker external
     class GrpcController presentation
     class Handler,EventFactory,Worker application
-    class PostRepo,OutboxRepo,UoW,Scheduler,Publisher infrastructure
+    class PostRepo,OutboxRepo,UoW,Scheduler,CleanupScheduler,Publisher infrastructure
 ```
 
 ## Ключевая гарантия
@@ -54,3 +56,6 @@ flowchart LR
 Soft delete поста и сохранение интеграционного события выполняются в одной транзакции. HTTP/gRPC-ответ
 не зависит от успешной публикации в RabbitMQ: событие остаётся в outbox и будет обработано повторно.
 
+Физическая очистка не имеет отдельного retention-периода: каждые 12 часов удаляется пакет до 500
+soft-deleted постов. Из-за ограничения пакета и повторных попыток фактический срок может превышать
+12 часов.

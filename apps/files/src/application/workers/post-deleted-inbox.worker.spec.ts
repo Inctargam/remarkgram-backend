@@ -62,7 +62,7 @@ describe('PostDeletedInboxWorker', () => {
           {
             fileId: event.payload.fileIds[0],
             objectKey: 'object-key',
-            availableAt: new Date('2026-08-22T12:01:00.000Z'),
+            availableAt: new Date('2026-08-21T12:01:00.000Z'),
           },
         ],
       },
@@ -93,5 +93,105 @@ describe('PostDeletedInboxWorker', () => {
       `Lease was lost for post-deleted inbox event ${event.eventId}`,
       100,
     );
+  });
+
+  it('does nothing when no inbox events are available', async () => {
+    inbox.findAvailableBatch.mockResolvedValue(null);
+
+    await expect(worker.run()).resolves.toBeUndefined();
+
+    expect(unitOfWork.run).not.toHaveBeenCalled();
+    expect(files.softDeleteFileIdsByUser).not.toHaveBeenCalled();
+  });
+
+  it.each([new Error('Database unavailable'), 'Database unavailable'])(
+    'contains an inbox claim failure: %s',
+    async (error) => {
+      inbox.findAvailableBatch.mockRejectedValue(error);
+
+      await expect(worker.run()).resolves.toBeUndefined();
+
+      expect(unitOfWork.run).not.toHaveBeenCalled();
+      expect(inbox.resolveFailedAttempt).not.toHaveBeenCalled();
+    },
+  );
+
+  it('removes duplicate file IDs before soft deletion', async () => {
+    inbox.findAvailableBatch.mockResolvedValue([
+      {
+        ...event,
+        payload: {
+          ...event.payload,
+          fileIds: [event.payload.fileIds[0], event.payload.fileIds[0]],
+        },
+      },
+    ]);
+
+    await worker.run();
+
+    expect(files.softDeleteFileIdsByUser).toHaveBeenCalledWith([event.payload.fileIds[0]], 7, ctx);
+    expect(jobs.addMany).toHaveBeenCalledWith(
+      {
+        data: [
+          {
+            fileId: event.payload.fileIds[0],
+            objectKey: 'object-key',
+            availableAt: deletedAt,
+          },
+        ],
+      },
+      ctx,
+    );
+  });
+
+  it('records a failure when a soft-deleted file has no deletion timestamp', async () => {
+    files.softDeleteFileIdsByUser.mockResolvedValue([
+      { id: event.payload.fileIds[0], objectKey: 'object-key', deletedAt: null },
+    ]);
+
+    await worker.run();
+
+    expect(inbox.markAsProcessed).not.toHaveBeenCalled();
+    expect(inbox.resolveFailedAttempt).toHaveBeenCalledWith(
+      event.eventId,
+      event.availableAt,
+      `Soft-deleted file ${event.payload.fileIds[0]} was returned without deletedAt`,
+      100,
+    );
+  });
+
+  it('records a transactional processing failure', async () => {
+    jobs.addMany.mockRejectedValue(new Error('Jobs table unavailable'));
+
+    await worker.run();
+
+    expect(inbox.markAsProcessed).not.toHaveBeenCalled();
+    expect(inbox.resolveFailedAttempt).toHaveBeenCalledWith(
+      event.eventId,
+      event.availableAt,
+      'Jobs table unavailable',
+      100,
+    );
+  });
+
+  it.each([new Error('Status update failed'), 'Status update failed'])(
+    'does not reject when the failed attempt cannot be recorded: %s',
+    async (error) => {
+      jobs.addMany.mockRejectedValue(new Error('Processing failed'));
+      inbox.resolveFailedAttempt.mockRejectedValue(error);
+
+      await expect(worker.run()).resolves.toBeUndefined();
+
+      expect(inbox.resolveFailedAttempt).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('does not reject when the failed-attempt lease was already lost', async () => {
+    jobs.addMany.mockRejectedValue(new Error('Processing failed'));
+    inbox.resolveFailedAttempt.mockResolvedValue(false);
+
+    await expect(worker.run()).resolves.toBeUndefined();
+
+    expect(inbox.resolveFailedAttempt).toHaveBeenCalledOnce();
   });
 });

@@ -15,7 +15,7 @@ export class PostDeletedInboxScheduler {
    * необработанными после остановки или падения процесса, не создавая частый
    * polling и лишние пробуждения compute Neon.
    */
-  @Cron(CronExpression.EVERY_12_HOURS, {
+  @Cron(CronExpression.EVERY_6_HOURS, {
     waitForCompletion: true, //пока текущий handleCron() не завершился, следующий запуск не начинается (в рамках одного єкземпляра)
   })
   async handleCron() {

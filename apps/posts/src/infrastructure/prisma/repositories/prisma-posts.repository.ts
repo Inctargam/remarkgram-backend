@@ -111,7 +111,7 @@ export class PrismaPostsRepository implements PostsRepository {
       return {
         id: deleted.id,
         authorId: deleted.authorId,
-        filedIds: deleted.images.map((image) => image.fileId),
+        filedIds: deleted.images.map((image) => image.fileId.trim()),
         deletedAt: deleted.deletedAt as Date,
       };
     } catch (error) {

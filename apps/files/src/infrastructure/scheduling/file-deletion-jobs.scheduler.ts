@@ -8,7 +8,7 @@ export class FileDeletionJobsScheduler {
 
   constructor(private readonly worker: FileDeletionJobsWorker) {}
 
-  @Cron(CronExpression.EVERY_5_SECONDS, { waitForCompletion: true })
+  @Cron(CronExpression.EVERY_6_HOURS, { waitForCompletion: true })
   async handleCron(): Promise<void> {
     try {
       await this.worker.run();

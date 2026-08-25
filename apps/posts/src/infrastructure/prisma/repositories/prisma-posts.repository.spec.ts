@@ -4,13 +4,15 @@ import type { PrismaService } from '../prisma.service.js';
 import { PrismaPostsRepository } from './prisma-posts.repository.js';
 import { describe, expect } from 'vitest';
 import { PostUpdateConflictError } from '../../../application/errors/update-post.errors.js';
+import type { SoftDeletePostResult } from '../../../application/types/posts.types.js';
 
 describe('PrismaPostsRepository', () => {
   const create = vi.fn();
   const findUnique = vi.fn();
   const update = vi.fn();
+  const deleteMany = vi.fn();
   const prisma = {
-    post: { create, findUnique, update },
+    post: { create, findUnique, update, deleteMany },
   };
   const repository = new PrismaPostsRepository(prisma as unknown as PrismaService);
   const params = {
@@ -25,6 +27,7 @@ describe('PrismaPostsRepository', () => {
 
     findUnique.mockReset();
     update.mockReset();
+    deleteMany.mockReset();
   });
 
   it('atomically creates a post with ordered images', async () => {
@@ -151,5 +154,87 @@ describe('PrismaPostsRepository', () => {
       where: { id: 1, deletedAt: null },
       include: { images: { orderBy: { position: 'asc' } } },
     });
+  });
+
+  it('deletes soft-deleted posts with the provided limit', async () => {
+    const limit = 100;
+    deleteMany.mockResolvedValue({ count: 3 });
+
+    const result = await repository.clearSoftDeleted(limit);
+
+    expect(deleteMany).toHaveBeenCalledOnce();
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: {
+        deletedAt: { not: null },
+      },
+      limit,
+    });
+    expect(result).toBe(3);
+  });
+
+  it('soft deletes a post and returns the deleted post', async () => {
+    const deletedAt = new Date('2026-08-25T10:00:00.000Z');
+    update.mockResolvedValue({
+      id: 10,
+      authorId: 2,
+      deletedAt,
+      images: [{ fileId: ' 11111111-1111-4111-8111-111111111111 ' }],
+    });
+    const result = await repository.softDeleteById({ id: 1, authorId: 2 });
+    expect(update).toHaveBeenCalledOnce();
+    expect(update).toHaveBeenCalledWith({
+      where: {
+        authorId: 2,
+        deletedAt: null,
+        id: 1,
+      },
+      data: {
+        version: {
+          increment: 1,
+        },
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        deletedAt: expect.any(Date),
+      },
+      select: { id: true, authorId: true, deletedAt: true, images: { select: { fileId: true } } },
+    });
+    expect(result).toEqual<SoftDeletePostResult>({
+      id: 10,
+      authorId: 2,
+      filedIds: ['11111111-1111-4111-8111-111111111111'],
+      deletedAt,
+    });
+  });
+
+  it('returns null when an already deleted post is deleted again', async () => {
+    update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Record to update not found', {
+        code: 'P2025',
+        clientVersion: 'test',
+      }),
+    );
+
+    await expect(repository.softDeleteById({ id: 1, authorId: 2 })).resolves.toBeNull();
+  });
+
+  it('uses the transaction client when soft deleting a post', async () => {
+    const transactionUpdate = vi.fn().mockResolvedValue({
+      id: 1,
+      authorId: 2,
+      deletedAt: new Date('2026-08-25T10:00:00.000Z'),
+      images: [],
+    });
+    const transactionClient = { post: { update: transactionUpdate } };
+
+    await repository.softDeleteById({ id: 1, authorId: 2 }, transactionClient);
+
+    expect(transactionUpdate).toHaveBeenCalledOnce();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('does not hide an unexpected soft-delete persistence error', async () => {
+    const error = new Error('Database is unavailable');
+    update.mockRejectedValue(error);
+
+    await expect(repository.softDeleteById({ id: 1, authorId: 2 })).rejects.toBe(error);
   });
 });

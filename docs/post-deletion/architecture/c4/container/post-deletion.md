@@ -18,7 +18,7 @@ flowchart LR
 
         Gateway["API Gateway<br/><small>Контейнер · NestJS</small><br/>HTTP API, проверка JWT,<br/>маршрутизация запросов"]
         Posts["Posts Service<br/><small>Контейнер · NestJS</small><br/>Владение постами, soft delete,<br/>публикация событий"]
-        Files["Files Service<br/><small>Контейнер · NestJS</small><br/>Учёт файлов, retention,<br/>физическое удаление"]
+        Files["Files Service<br/><small>Контейнер · NestJS</small><br/>Учёт файлов, задания удаления,<br/>физическое удаление"]
         Accounts["User Accounts Service<br/><small>Контейнер · NestJS</small><br/>Пользователи, аутентификация,<br/>сессии и выпуск токенов"]
 
         PostsDB[("Posts DB<br/><small>Контейнер · PostgreSQL</small><br/>Posts, PostImage, OutboxEvent")]
@@ -30,7 +30,7 @@ flowchart LR
         Posts -->|"Soft delete + outbox<br/>транзакционно"| PostsDB
         Posts -->|"Публикует событие<br/>AMQP"| Broker
         Broker -->|"Доставляет событие<br/>AMQP"| Files
-        Files -->|"Inbox + soft delete +<br/>задание с задержкой 24 часа"| FilesDB
+        Files -->|"Inbox + soft delete +<br/>задание без retention-задержки"| FilesDB
 
         Gateway -.->|"Другие auth/account-сценарии<br/>gRPC; не вызывается при удалении"| Accounts
         Accounts -->|"Читает и изменяет"| AccountsDB
@@ -41,7 +41,7 @@ flowchart LR
     User -->|"Удаляет свой пост"| Client
     Client -->|"DELETE /posts/:postId<br/>HTTPS + Bearer JWT"| Gateway
     Gateway -->|"204 No Content"| Client
-    Files -->|"DeleteObject после 24 часов<br/>S3 API"| Storage
+    Files -->|"DeleteObject; проверка заданий<br/>каждые 6 часов · S3 API"| Storage
 
     classDef person fill:#fff3cd,stroke:#8a6d3b,color:#2f250d
     classDef external fill:#eeeeee,stroke:#666666,color:#1f1f1f
@@ -62,7 +62,7 @@ flowchart LR
 | --- | --- |
 | API Gateway | Проверяет access-токен, принимает HTTP-запрос и вызывает Posts Service по gRPC. |
 | Posts Service | Проверяет владельца, выполняет soft delete поста и сохраняет событие в outbox. |
-| Files Service | Принимает событие через inbox, помечает файлы удалёнными и удаляет их после retention-периода. |
+| Files Service | Принимает событие через inbox, помечает файлы удалёнными и сразу делает задания физического удаления доступными для воркера. |
 | User Accounts Service | В текущем запросе не участвует; ранее выпускает токен, проверяемый API Gateway локально. |
 
 ## Уровень ниже

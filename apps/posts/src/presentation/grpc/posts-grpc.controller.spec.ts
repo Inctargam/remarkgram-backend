@@ -4,6 +4,7 @@ import { PostsGrpcController } from './posts-grpc.controller.js';
 import { expect } from 'vitest';
 import { UpdatePostCommand } from '../../application/use-cases/update-post/update-post.use-case.js';
 import { GetAuthorPostsQuery } from '../../application/use-cases/get-author-posts/get-author-posts.query-handler.js';
+import { SoftDeletePostCommand } from '../../application/use-cases/soft-delete-post/soft-delete-post.use-case.js';
 
 describe('PostsGrpcController', () => {
   const commandBus = { execute: vi.fn() };
@@ -73,5 +74,21 @@ describe('PostsGrpcController', () => {
         cursor: undefined,
       }),
     );
+  });
+
+  it('delegates post deletion to the soft-delete use case', async () => {
+    commandBus.execute.mockResolvedValue(undefined);
+
+    await expect(controller.deletePost({ userId: '42', postId: '10' })).resolves.toEqual({});
+
+    expect(commandBus.execute).toHaveBeenCalledOnce();
+    expect(commandBus.execute).toHaveBeenCalledWith(new SoftDeletePostCommand({ authorId: 42, postId: 10 }));
+  });
+
+  it('propagates a post deletion failure to the RPC exception filter', async () => {
+    const error = new Error('Delete failed');
+    commandBus.execute.mockRejectedValue(error);
+
+    await expect(controller.deletePost({ userId: '42', postId: '10' })).rejects.toBe(error);
   });
 });

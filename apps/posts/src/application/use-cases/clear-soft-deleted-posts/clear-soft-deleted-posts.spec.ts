@@ -1,4 +1,4 @@
-import { PostsRepository } from '../../ports/posts.repository.js';
+import type { PostsRepository } from '../../ports/posts.repository.js';
 import { beforeEach, expect, vi } from 'vitest';
 import { ClearSorfDeletedPostsCommand, ClearSorfDeletedPostsUseCase } from './clear-soft-deleted-posts.js';
 import { clearSoftDeletedPostsPolicy } from './clear-soft-deleted-posts.policy.js';
@@ -23,7 +23,19 @@ describe('ClearSoftDeletedPosts', () => {
     respository.clearSoftDeleted.mockResolvedValue(1);
     await useCase.execute(new ClearSorfDeletedPostsCommand(5));
     expect(respository.clearSoftDeleted).toHaveBeenCalledOnce();
+    expect(respository.clearSoftDeleted).toHaveBeenCalledWith(5);
   });
+
+  it.each([clearSoftDeletedPostsPolicy.minLimit, clearSoftDeletedPostsPolicy.maxLimit])(
+    'accepts inclusive policy boundary %s',
+    async (limit) => {
+      respository.clearSoftDeleted.mockResolvedValue(0);
+
+      await expect(useCase.execute(new ClearSorfDeletedPostsCommand(limit))).resolves.toBeUndefined();
+
+      expect(respository.clearSoftDeleted).toHaveBeenCalledWith(limit);
+    },
+  );
 
   it('Boundary-case validation check BatchLimit', async () => {
     respository.clearSoftDeleted.mockResolvedValue(1);

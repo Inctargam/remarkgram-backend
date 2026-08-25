@@ -6,7 +6,8 @@ import { InvalidPostIdError, PostAccessForbiddenError } from '../../errors/base-
 import { InvalidUserIdError } from '../../errors/create-post.errors.js';
 import type { TransactionContext, TransactionOptions, UnitOfWork } from '../../ports/unit-of-work.js';
 import type { OutboxEventsRepository } from '../../ports/outbox-events.repository.js';
-import { DeletedPostsPublisherWorker } from '../../workers/deleted-posts-publisher.worker.js';
+import type { DeletedPostsPublisherWorker } from '../../workers/deleted-posts-publisher.worker.js';
+import { POST_DELETED_V1_EVENT_NAME } from '@app/message-broker';
 
 describe('UpdatePostHandler', () => {
   const postRepository = createPostsRepositoryMock();
@@ -90,6 +91,21 @@ describe('UpdatePostHandler', () => {
       transactionContext,
     );
     expect(outbox.add).toHaveBeenCalledTimes(1);
+    expect(outbox.add).toHaveBeenCalledWith(
+      {
+        eventId: expect.any(String) as string,
+        eventType: POST_DELETED_V1_EVENT_NAME,
+        aggregateType: 'post',
+        aggregateId: String(post.id),
+        data: {
+          postId: post.id,
+          authorId: post.authorId,
+          deletedAt: '2026-08-19T00:00:00.000Z',
+          fileIds: ['42b4c303-8cae-426d-90e0-d6de1879b1c8'],
+        },
+      },
+      transactionContext,
+    );
     expect(workerRunMock).toHaveBeenCalledTimes(1);
   });
 
@@ -127,6 +143,32 @@ describe('UpdatePostHandler', () => {
     expect(postRepository.softDeleteById).toHaveBeenCalledTimes(1);
     expect(outbox.add).not.toHaveBeenCalled();
     expect(workerRunMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not start publisher before the transaction has persisted the outbox event', async () => {
+    let finishTransaction!: () => void;
+    const transactionPending = new Promise<void>((resolve) => {
+      finishTransaction = resolve;
+    });
+    postRepository.findById.mockResolvedValue(post);
+    postRepository.softDeleteById.mockResolvedValue({
+      id: post.id,
+      authorId: post.authorId,
+      filedIds: [],
+      deletedAt: new Date('2026-08-19T00:00:00.000Z'),
+    });
+    outbox.add.mockImplementationOnce(async () => transactionPending);
+
+    const execution = useCase.execute(
+      new SoftDeletePostCommand({ postId: post.id, authorId: post.authorId }),
+    );
+    await vi.waitFor(() => expect(outbox.add).toHaveBeenCalledOnce());
+    expect(workerRunMock).not.toHaveBeenCalled();
+
+    finishTransaction();
+    await execution;
+
+    expect(workerRunMock).toHaveBeenCalledOnce();
   });
 
   it('throws access forbidden error', async () => {

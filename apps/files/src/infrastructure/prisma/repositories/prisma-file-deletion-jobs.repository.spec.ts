@@ -35,6 +35,28 @@ describe('PrismaFileDeletionJobsRepository', () => {
     expect(createMany).not.toHaveBeenCalled();
   });
 
+  it('creates jobs through the default Prisma client when no transaction is supplied', async () => {
+    const data = [
+      {
+        fileId: '0e80fbd6-b60b-4776-82af-5b568de1f600',
+        objectKey: 'object-key',
+        availableAt: new Date('2026-08-22T15:00:00.000Z'),
+      },
+    ];
+    createMany.mockResolvedValue({ count: 1 });
+
+    await repository.addMany({ data });
+
+    expect(createMany).toHaveBeenCalledOnce();
+    expect(createMany).toHaveBeenCalledWith({ data, skipDuplicates: true });
+  });
+
+  it('does not call Prisma when there are no deletion jobs', async () => {
+    await expect(repository.addMany({ data: [] })).resolves.toBeUndefined();
+
+    expect(createMany).not.toHaveBeenCalled();
+  });
+
   it('maps claimed database rows to application records', async () => {
     const leaseUntil = new Date('2026-08-21T15:02:00.000Z');
     queryRaw.mockResolvedValue([
@@ -84,6 +106,15 @@ describe('PrismaFileDeletionJobsRepository', () => {
       },
     });
     vi.useRealTimers();
+  });
+
+  it('returns false when the job lease no longer belongs to the worker', async () => {
+    const leaseUntil = new Date('2026-08-21T15:02:00.000Z');
+    updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(repository.markAsDone('0e80fbd6-b60b-4776-82af-5b568de1f600', leaseUntil)).resolves.toBe(
+      false,
+    );
   });
 
   it('reports whether a failed attempt was resolved by the current lease owner', async () => {

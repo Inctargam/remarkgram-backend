@@ -56,6 +56,8 @@ describe('Deleted posts publisher worker', () => {
   beforeEach(() => {
     outbox.findAvailableBatch.mockReset();
     outbox.ensurePublished.mockReset();
+    outbox.resolveFailedAttempt.mockReset();
+    outbox.resolveFailedAttempt.mockResolvedValue(true);
     publisher.deletedPostEvent.mockReset();
     mapperSpy.mockReset();
   });
@@ -101,14 +103,14 @@ describe('Deleted posts publisher worker', () => {
   });
 
   it('returns an error if the mapper receives an event type of an invalid', async () => {
-    outbox.findAvailableBatch.mockImplementation(async () => {
-      return [
+    outbox.findAvailableBatch.mockImplementation(() =>
+      Promise.resolve([
         {
           ...outboxEvent,
           eventType: 'invalid-event-type',
         },
-      ];
-    });
+      ]),
+    );
 
     await worker.run();
     expect(mapperSpy).toThrow(Error);
@@ -123,26 +125,66 @@ describe('Deleted posts publisher worker', () => {
     expect(mapperSpy).toHaveBeenCalledOnce();
     expect(publisher.deletedPostEvent).toHaveBeenCalledOnce();
     expect(outbox.ensurePublished).not.toHaveBeenCalledOnce();
+    expect(outbox.resolveFailedAttempt).toHaveBeenCalledWith(
+      outboxEvent.id,
+      outboxEvent.availableAt,
+      'Failed to publish event',
+      MAX_ATTEMPTS,
+    );
 
     expect(outbox.findAvailableBatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('continues processing the batch when one event fails', async () => {
+    const secondEvent = {
+      ...outboxEvent,
+      id: randomUUID(),
+      aggregateId: '2',
+      payload: { ...postDeletedPayload, postId: 2 },
+    };
+    outbox.findAvailableBatch.mockResolvedValueOnce([outboxEvent, secondEvent]);
+    publisher.deletedPostEvent
+      .mockRejectedValueOnce(new Error('Broker unavailable'))
+      .mockResolvedValueOnce(undefined);
+
+    await worker.run();
+
+    expect(publisher.deletedPostEvent).toHaveBeenCalledTimes(2);
+    expect(outbox.resolveFailedAttempt).toHaveBeenCalledWith(
+      outboxEvent.id,
+      outboxEvent.availableAt,
+      'Broker unavailable',
+      MAX_ATTEMPTS,
+    );
+    expect(outbox.ensurePublished).toHaveBeenCalledWith(secondEvent.id);
+  });
+
+  it('contains an outbox claim failure and does not attempt to publish', async () => {
+    outbox.findAvailableBatch.mockRejectedValueOnce(new Error('Database unavailable'));
+
+    await expect(worker.run()).resolves.toBeUndefined();
+
+    expect(publisher.deletedPostEvent).not.toHaveBeenCalled();
+    expect(outbox.ensurePublished).not.toHaveBeenCalled();
+    expect(outbox.resolveFailedAttempt).not.toHaveBeenCalled();
   });
 
   it('rescheduling an event with a limit of 5 attempts', async () => {
     let attempts = 0;
 
-    outbox.findAvailableBatch.mockImplementation(async () => {
+    outbox.findAvailableBatch.mockImplementation(() => {
       if (attempts >= MAX_ATTEMPTS) {
-        return null;
+        return Promise.resolve(null);
       }
 
       attempts += 1;
 
-      return [
+      return Promise.resolve([
         {
           ...outboxEvent,
           attempts,
         },
-      ];
+      ]);
     });
 
     await worker.run();

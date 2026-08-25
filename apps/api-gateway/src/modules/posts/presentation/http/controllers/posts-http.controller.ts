@@ -79,9 +79,7 @@ export class PostsHttpController implements OnModuleInit {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiDeletePost()
   async deletePost(@Param('postId', ParseIntPipe) postId: number, @Req() request: AuthenticatedRequest) {
-    await firstValueFrom(
-      this.postsClient.deletePost({ userId: request.userId ?? 1, postId: String(postId) }),
-    );
+    await firstValueFrom(this.postsClient.deletePost({ userId: request.userId, postId: String(postId) }));
     return;
   }
 }

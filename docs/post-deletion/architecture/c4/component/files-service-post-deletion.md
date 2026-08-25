@@ -13,10 +13,10 @@ flowchart LR
     subgraph Files["Files Service · NestJS"]
         direction LR
         Consumer["PostDeletedEventConsumer<br/><small>Компонент · Presentation</small><br/>Валидирует событие, сохраняет inbox,<br/>после commit отправляет ACK"]
-        InboxWorker["PostDeletedInboxWorker<br/><small>Компонент · Application</small><br/>Soft-delete файлов и создание<br/>заданий с retention 24 часа"]
+        InboxWorker["PostDeletedInboxWorker<br/><small>Компонент · Application</small><br/>Soft-delete файлов и создание<br/>заданий без retention-задержки"]
         InboxScheduler["PostDeletedInboxScheduler<br/><small>Компонент · Infrastructure</small><br/>Резервный запуск inbox worker"]
         DeletionWorker["FileDeletionJobsWorker<br/><small>Компонент · Application</small><br/>Удаляет объект, завершает задание<br/>и hard-delete запись файла"]
-        DeletionScheduler["FileDeletionJobsScheduler<br/><small>Компонент · Infrastructure</small><br/>Запуск каждые 5 секунд"]
+        DeletionScheduler["FileDeletionJobsScheduler<br/><small>Компонент · Infrastructure</small><br/>Запуск каждые 6 часов"]
         InboxRepo["PrismaInboxEventsRepository<br/><small>Компонент · Infrastructure</small><br/>Inbox, lease и retry"]
         FilesRepo["PrismaFilesRepository<br/><small>Компонент · Infrastructure</small><br/>Soft и hard delete файлов"]
         JobsRepo["PrismaFileDeletionJobsRepository<br/><small>Компонент · Infrastructure</small><br/>Отложенные задания, lease и retry"]
@@ -28,7 +28,7 @@ flowchart LR
         InboxScheduler -.->|"Резервный запуск"| InboxWorker
         InboxWorker -->|"claim / mark processed / retry"| InboxRepo
         InboxWorker -->|"softDeleteFileIdsByUser"| FilesRepo
-        InboxWorker -->|"addMany(availableAt + 24h)"| JobsRepo
+        InboxWorker -->|"addMany(availableAt = deletedAt)"| JobsRepo
         InboxWorker -->|"run(transaction)"| UoW
         DeletionScheduler -.->|"Запускает"| DeletionWorker
         DeletionWorker -->|"claim / done / retry"| JobsRepo
@@ -59,5 +59,6 @@ flowchart LR
 
 1. Inbox worker транзакционно помечает записи файлов удалёнными, создаёт отложенные задания и завершает
    inbox-событие.
-2. После 24 часов deletion worker идемпотентно удаляет объекты из S3, а затем завершает задание
-   и физически удаляет запись файла в транзакции с проверкой lease.
+2. Задание доступно сразу после soft delete. Планировщик запускается каждые 6 часов; deletion worker
+   идемпотентно удаляет объект из S3, а затем завершает задание и физически удаляет запись файла в
+   транзакции с проверкой lease. При ошибках фактическое удаление откладывается до успешной попытки.
