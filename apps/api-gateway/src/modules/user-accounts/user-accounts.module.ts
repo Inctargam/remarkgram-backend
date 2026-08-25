@@ -28,6 +28,9 @@ import { googleOidcConfigurationProvider } from './config/google-oidc-configurat
             package: REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
             protoPath: USER_ACCOUNTS_GRPC_PROTO_PATH,
             url: config.url,
+            loader: {
+              arrays: true,
+            },
           },
         }),
       },
