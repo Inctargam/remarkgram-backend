@@ -15,7 +15,7 @@ import { CreatePostCommand } from '../../application/use-cases/create-post/creat
 import { PostsRpcExceptionFilter } from './filters/posts-rpc-exception.filter.js';
 import { UpdatePostCommand } from '../../application/use-cases/update-post/update-post.use-case.js';
 import { GetAuthorPostsQuery } from '../../application/use-cases/get-author-posts/get-author-posts.query-handler.js';
-import { DeletePostCommand } from '../../application/use-cases/delete-post/delete-post.use-case.js';
+import { SoftDeletePostCommand } from '../../application/use-cases/soft-delete-post/soft-delete-post.use-case.js';
 
 @Controller()
 @PostsServiceControllerMethods()
@@ -56,7 +56,7 @@ export class PostsGrpcController {
     );
   }
   async deletePost(request: DeletePostRequest): Promise<DeletePostResponse> {
-    const command = new DeletePostCommand({
+    const command = new SoftDeletePostCommand({
       authorId: Number(request.userId),
       postId: Number(request.postId),
     });

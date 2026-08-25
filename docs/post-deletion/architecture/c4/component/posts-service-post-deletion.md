@@ -13,7 +13,7 @@ flowchart LR
     subgraph Posts["Posts Service · NestJS"]
         direction LR
         GrpcController["PostsGrpcController<br/><small>Компонент · Presentation</small><br/>Принимает DeletePost по gRPC"]
-        Handler["DeletePostUseCase<br/><small>Компонент · Application</small><br/>Валидирует IDs, проверяет владельца,<br/>обеспечивает идемпотентность"]
+        Handler["SoftDeletePostUseCase<br/><small>Компонент · Application</small><br/>Валидирует IDs, проверяет владельца,<br/>обеспечивает идемпотентность"]
         EventFactory["PostDeletedV1Factory<br/><small>Компонент · Application</small><br/>Создаёт posts.post-deleted.v1"]
         PostRepo["PrismaPostsRepository<br/><small>Компонент · Infrastructure</small><br/>Читает и soft-delete пост"]
         OutboxRepo["PrismaOutboxEventsRepository<br/><small>Компонент · Infrastructure</small><br/>Сохраняет и арендует outbox-события"]

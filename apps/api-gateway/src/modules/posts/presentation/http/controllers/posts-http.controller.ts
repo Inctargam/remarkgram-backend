@@ -24,6 +24,7 @@ import type { Request } from 'express';
 import { firstValueFrom, type Observable } from 'rxjs';
 import { CreatePostDto } from '../dto/input/create-post.dto.js';
 import { UpdatePostDto } from '../dto/input/update-post/update-post.dto.js';
+import { ApiDeletePost } from '../swagger/delete/delete-post.swagger.js';
 import { ApiCreatePost } from '../swagger/post/create-post.swagger.js';
 import { ApiPostsController } from '../swagger/posts-controller.swagger.js';
 import { ApiUpdatePost } from '../swagger/put/update-post.swagger.js';
@@ -76,6 +77,7 @@ export class PostsHttpController implements OnModuleInit {
   }
   @Delete(':postId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiDeletePost()
   async deletePost(@Param('postId', ParseIntPipe) postId: number, @Req() request: AuthenticatedRequest) {
     await firstValueFrom(
       this.postsClient.deletePost({ userId: request.userId ?? 1, postId: String(postId) }),

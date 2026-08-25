@@ -6,5 +6,6 @@ export function createPostsRepositoryMock() {
     findById: vi.fn<PostsRepository['findById']>(),
     updateAuthorPost: vi.fn<PostsRepository['updateAuthorPost']>(),
     softDeleteById: vi.fn<PostsRepository['softDeleteById']>(),
+    clearSoftDeleted: vi.fn<PostsRepository['clearSoftDeleted']>(),
   } satisfies PostsRepository;
 }

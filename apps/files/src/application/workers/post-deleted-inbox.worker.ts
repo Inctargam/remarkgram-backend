@@ -30,7 +30,8 @@ export class PostDeletedInboxWorker {
     batchSize: 100,
     concurrency: 10,
     maxAttempts: 100,
-    retentionMs: 24 * 60 * 60 * 1000, // 24 hours
+    retentionMs: 60 * 60 * 60 * 1000, // 1 hours
+    // retentionMs: 24 * 60 * 60 * 1000, // 24 hours
   };
   constructor(
     private readonly unitOfWork: UnitOfWork,

@@ -531,7 +531,6 @@ describe('PrismaFilesRepository', () => {
     });
   });
 
-
   it('physically deletes only a soft-deleted file through the transaction client', async () => {
     const fileId = '11111111-1111-4111-8111-111111111111';
 

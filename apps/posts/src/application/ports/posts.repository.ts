@@ -15,4 +15,5 @@ export abstract class PostsRepository {
     params: SoftDeletePostRepositoryParams,
     ctx?: TransactionContext,
   ): Promise<SoftDeletePostResult | null>;
+  abstract clearSoftDeleted(batchLimit: number): Promise<number>;
 }

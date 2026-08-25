@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect } from 'vitest';
 import { createPostsRepositoryMock } from '../../../../test/mocks/create-posts-repository.mock.js';
-import { DeletePostCommand, DeletePostUseCase } from './delete-post.use-case.js';
+import { SoftDeletePostCommand, SoftDeletePostUseCase } from './soft-delete-post.use-case.js';
 import { Post } from '../../../domain/entities/post.entity.js';
 import { InvalidPostIdError, PostAccessForbiddenError } from '../../errors/base-post.errors.js';
 import { InvalidUserIdError } from '../../errors/create-post.errors.js';
@@ -36,7 +36,7 @@ describe('UpdatePostHandler', () => {
     run: workerRunMock,
   } as unknown as DeletedPostsPublisherWorker;
 
-  const useCase = new DeletePostUseCase(postRepository, unitOfWork, outbox, worker);
+  const useCase = new SoftDeletePostUseCase(postRepository, unitOfWork, outbox, worker);
 
   const post = Post.restore({
     id: 1,
@@ -74,7 +74,7 @@ describe('UpdatePostHandler', () => {
     });
     await expect(
       useCase.execute(
-        new DeletePostCommand({
+        new SoftDeletePostCommand({
           postId: 1,
           authorId: 1,
         }),
@@ -97,7 +97,7 @@ describe('UpdatePostHandler', () => {
     postRepository.findById.mockResolvedValue(null);
     await expect(
       useCase.execute(
-        new DeletePostCommand({
+        new SoftDeletePostCommand({
           postId: 2,
           authorId: 1,
         }),
@@ -117,7 +117,7 @@ describe('UpdatePostHandler', () => {
 
     await expect(
       useCase.execute(
-        new DeletePostCommand({
+        new SoftDeletePostCommand({
           postId: post.id,
           authorId: post.authorId,
         }),
@@ -133,7 +133,7 @@ describe('UpdatePostHandler', () => {
     postRepository.findById.mockResolvedValue(post);
     await expect(
       useCase.execute(
-        new DeletePostCommand({
+        new SoftDeletePostCommand({
           postId: 1,
           authorId: 2,
         }),
@@ -148,14 +148,14 @@ describe('UpdatePostHandler', () => {
 
   test.each([
     [
-      new DeletePostCommand({
+      new SoftDeletePostCommand({
         postId: '1.5' as unknown as number,
         authorId: 1,
       }),
       InvalidPostIdError,
     ],
     [
-      new DeletePostCommand({
+      new SoftDeletePostCommand({
         postId: 1,
         authorId: '111-111-1111-' as unknown as number,
       }),

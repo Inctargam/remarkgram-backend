@@ -123,4 +123,12 @@ export class PrismaPostsRepository implements PostsRepository {
       throw error;
     }
   }
+
+  async clearSoftDeleted(batchLimit: number): Promise<number> {
+    const batchPayload = await this.prisma.post.deleteMany({
+      where: { deletedAt: { not: null } },
+      limit: batchLimit,
+    });
+    return batchPayload.count;
+  }
 }

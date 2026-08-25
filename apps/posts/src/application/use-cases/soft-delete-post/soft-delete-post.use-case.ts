@@ -7,30 +7,29 @@ import { UnitOfWork } from '../../ports/unit-of-work.js';
 import { OutboxEventsRepository } from '../../ports/outbox-events.repository.js';
 import { PostDeletedV1Factory } from '../../integration-events/post-deleted-v1/post-deleted-v1.factory.js';
 import { DeletedPostsPublisherWorker } from '../../workers/deleted-posts-publisher.worker.js';
-import { worker } from 'globals';
 import { Logger } from '@nestjs/common';
 
-type DeletePostParams = {
+type SoftDeletePostParams = {
   postId: number;
   authorId: number;
 };
 
-export class DeletePostCommand extends Command<void> {
-  constructor(public params: DeletePostParams) {
+export class SoftDeletePostCommand extends Command<void> {
+  constructor(public params: SoftDeletePostParams) {
     super();
   }
 }
 
-@CommandHandler(DeletePostCommand)
-export class DeletePostUseCase implements ICommandHandler<DeletePostCommand> {
-  private readonly logger = new Logger(DeletePostUseCase.name);
+@CommandHandler(SoftDeletePostCommand)
+export class SoftDeletePostUseCase implements ICommandHandler<SoftDeletePostCommand> {
+  private readonly logger = new Logger(SoftDeletePostUseCase.name);
   constructor(
     private readonly postsRepository: PostsRepository,
     private readonly unitOfWork: UnitOfWork,
     private readonly outbox: OutboxEventsRepository,
     private readonly worker: DeletedPostsPublisherWorker,
   ) {}
-  async execute(command: DeletePostCommand) {
+  async execute(command: SoftDeletePostCommand) {
     const { postId, authorId } = command.params;
 
     if (!isValidNumericEntityId(authorId)) {

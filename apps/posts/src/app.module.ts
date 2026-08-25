@@ -27,13 +27,15 @@ import { UnitOfWork } from './application/ports/unit-of-work.js';
 import { PrismaUnitOfWork } from './infrastructure/prisma/prisma-unit-of-work.js';
 import { OutboxEventsRepository } from './application/ports/outbox-events.repository.js';
 import { PrismaOutboxEventsRepository } from './infrastructure/prisma/repositories/prisma-outbox-events.repository.js';
-import { DeletePostUseCase } from './application/use-cases/delete-post/delete-post.use-case.js';
+import { SoftDeletePostUseCase } from './application/use-cases/soft-delete-post/soft-delete-post.use-case.js';
 import { PostsEventsPublisher } from './application/ports/posts-events.publisher.js';
 import { RmqPostsEventsPublisher } from './infrastructure/rmq/rmq-posts-events.publisher.js';
 import { POSTS_EVENTS_RMQ_CLIENT } from './infrastructure/rmq/rmq.constants.js';
 import { ScheduleModule } from '@nestjs/schedule';
 import { DeletedPostsPublisherWorker } from './application/workers/deleted-posts-publisher.worker.js';
 import { PublishDeletedPostEventScheduler } from './infrastructure/schedulers/publish-deleted-post-event.scheduler.js';
+import { ClearSoftDeletedPostsScheduler } from './infrastructure/schedulers/clear-soft-deleted-posts/clear-soft-deleted-posts.scheduler.js';
+import { ClearSorfDeletedPostsUseCase } from './application/use-cases/clear-soft-deleted-posts/clear-soft-deleted-posts.js';
 
 @Module({
   imports: [
@@ -95,9 +97,11 @@ import { PublishDeletedPostEventScheduler } from './infrastructure/schedulers/pu
     PrismaService,
     UpdatePostUseCase,
     GetAuthorPostsQueryHandler,
-    DeletePostUseCase,
+    SoftDeletePostUseCase,
     DeletedPostsPublisherWorker,
     PublishDeletedPostEventScheduler,
+    ClearSoftDeletedPostsScheduler,
+    ClearSorfDeletedPostsUseCase,
     {
       provide: PostsRepository,
       useClass: PrismaPostsRepository,
