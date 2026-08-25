@@ -30,6 +30,11 @@ spec:
                 secretKeyRef:
                   name: remarkgram-files-production-config-secret
                   key: DATABASE_URL
+            - name: AMQPS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: remarkgram-files-production-config-secret
+                  key: AMQPS_URL
             - name: FILES_S3_ENDPOINT
               valueFrom:
                 secretKeyRef:
