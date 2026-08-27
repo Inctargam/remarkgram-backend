@@ -7,6 +7,7 @@ import { PostUpdateConflictError } from '../../../application/errors/update-post
 import type { SoftDeletePostResult } from '../../../application/types/posts.types.js';
 
 describe('PrismaPostsRepository', () => {
+  const publishedAt = new Date('2030-01-01T00:00:00.000Z');
   const create = vi.fn();
   const findUnique = vi.fn();
   const update = vi.fn();
@@ -15,19 +16,25 @@ describe('PrismaPostsRepository', () => {
     post: { create, findUnique, update, deleteMany },
   };
   const repository = new PrismaPostsRepository(prisma as unknown as PrismaService);
+  const imageId = '11111111-1111-4111-8111-111111111111';
   const params = {
     authorId: 42,
     description: 'A new post',
-    imageIds: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
+    imageIds: [imageId, '22222222-2222-4222-8222-222222222222'],
   };
 
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(publishedAt);
     create.mockReset();
     create.mockResolvedValue({ id: 10 });
-
     findUnique.mockReset();
     update.mockReset();
     deleteMany.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('atomically creates a post with ordered images', async () => {
@@ -116,6 +123,7 @@ describe('PrismaPostsRepository', () => {
         authorId: 2,
         deletedAt: null,
         id: 1,
+        publishedAt: { not: null },
         version: 3,
       },
       data: {
@@ -139,19 +147,19 @@ describe('PrismaPostsRepository', () => {
       createdAt,
       version: 3,
       deletedAt: null,
-      images: [{ fileId: params.imageIds[0], postId: 1, position: 0 }],
+      images: [{ fileId: imageId, postId: 1, position: 0 }],
     });
 
     await expect(repository.findById(1)).resolves.toMatchObject({
       id: 1,
       authorId: 2,
       description: 'description',
-      images: [{ fileId: params.imageIds[0], position: 0 }],
+      images: [{ fileId: imageId, position: 0 }],
       version: 3,
     });
 
     expect(findUnique).toHaveBeenCalledWith({
-      where: { id: 1, deletedAt: null },
+      where: { id: 1, deletedAt: null, publishedAt: { not: null } },
       include: { images: { orderBy: { position: 'asc' } } },
     });
   });
@@ -187,6 +195,7 @@ describe('PrismaPostsRepository', () => {
         authorId: 2,
         deletedAt: null,
         id: 1,
+        publishedAt: { not: null },
       },
       data: {
         version: {
@@ -236,5 +245,15 @@ describe('PrismaPostsRepository', () => {
     update.mockRejectedValue(error);
 
     await expect(repository.softDeleteById({ id: 1, authorId: 2 })).rejects.toBe(error);
+  });
+
+  it('does not find an unpublished post for its author', async () => {
+    findUnique.mockResolvedValue(null);
+
+    await expect(repository.findByIdAndAuthorId(1, 2)).resolves.toBeNull();
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { id: 1, authorId: 2, deletedAt: null, publishedAt: { not: null } },
+      include: { images: { orderBy: { position: 'asc' } } },
+    });
   });
 });

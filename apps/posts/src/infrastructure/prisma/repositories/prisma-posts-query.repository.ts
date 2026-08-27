@@ -15,7 +15,7 @@ export class PrismaPostsQueryRepository implements PostsQueryRepository {
 
     const posts = await this.prisma.post.findMany({
       take: take,
-      where: { authorId: authorId, deletedAt: null },
+      where: { authorId: authorId, deletedAt: null, publishedAt: { not: null } },
       include: {
         images: {
           orderBy: { position: 'asc' },

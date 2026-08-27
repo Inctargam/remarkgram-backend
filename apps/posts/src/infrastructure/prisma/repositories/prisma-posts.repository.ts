@@ -49,7 +49,7 @@ export class PrismaPostsRepository implements PostsRepository {
   }
   async findByIdAndAuthorId(id: number, authorId: number): Promise<Post | null> {
     const post = await this.prisma.post.findUnique({
-      where: { id: id, deletedAt: null, authorId: authorId },
+      where: { id: id, deletedAt: null, publishedAt: { not: null }, authorId: authorId },
       include: { images: { orderBy: { position: 'asc' } } },
     });
     if (!post) {
@@ -60,7 +60,7 @@ export class PrismaPostsRepository implements PostsRepository {
 
   async findById(id: number): Promise<Post | null> {
     const post = await this.prisma.post.findUnique({
-      where: { id: id, deletedAt: null },
+      where: { id: id, deletedAt: null, publishedAt: { not: null } },
       include: { images: { orderBy: { position: 'asc' } } },
     });
     if (!post) {
@@ -73,7 +73,13 @@ export class PrismaPostsRepository implements PostsRepository {
     //При обновлении используем подход optimistic lock
     try {
       const result = await this.prisma.post.update({
-        where: { authorId: authorId, id: id, version: expectedVersion, deletedAt: null },
+        where: {
+          authorId: authorId,
+          id: id,
+          version: expectedVersion,
+          deletedAt: null,
+          publishedAt: { not: null },
+        },
         data: {
           description: fields.description,
           version: {
@@ -99,7 +105,7 @@ export class PrismaPostsRepository implements PostsRepository {
     try {
       const { authorId, id } = params;
       const deleted = await client.post.update({
-        where: { authorId: authorId, id: id, deletedAt: null },
+        where: { authorId: authorId, id: id, deletedAt: null, publishedAt: { not: null } },
         data: {
           version: {
             increment: 1,

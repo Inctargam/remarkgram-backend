@@ -13,6 +13,7 @@ model Post {
   authorId    Int         @map("author_id")
   description String?
   createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  publishedAt DateTime?   @map("published_at") @db.Timestamptz
   images      PostImage[]
   version     Int         @default(0)
   deletedAt   DateTime?   @map("deleted_at") @db.Timestamptz

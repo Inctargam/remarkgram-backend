@@ -10,6 +10,7 @@ describe('PostPrismaMapper', () => {
       authorId: 2,
       description: 'description',
       createdAt,
+      publishedAt: createdAt,
       version: 3,
       deletedAt: null,
       images: [{ fileId: '22222222-2222-4222-8222-222222222222', postId: 1, position: 0 }],
