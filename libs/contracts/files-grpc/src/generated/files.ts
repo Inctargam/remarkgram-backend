@@ -43,21 +43,46 @@ export interface CompleteImageUploadsRequest {
   uploadIds: string[];
 }
 
-export interface CompleteImageUploadsResponse {
-}
-
-export interface EnsureCompletedImageUploadsRequest {
+export interface ReserveImageUploadsRequest {
   userId: string;
-  imageIds: string[];
+  uploadIds: string[];
+  reservationId: string;
 }
 
-export interface EnsureCompletedImageUploadsResponse {
+export interface ReleaseReservedImageUploadsRequest {
+  userId: string;
+  reservationId: string;
+}
+
+export interface AttachReservedImageUploadsRequest {
+  userId: string;
+  reservationId: string;
+}
+
+export interface CompleteImageUploadsResponse {
 }
 
 export interface DeleteAllDataRequest {
 }
 
 export interface DeleteAllDataResponse {
+}
+
+export interface ReserveImageUploadsResponse {
+}
+
+export interface AttachReservedImageUploadsResponse {
+}
+
+export interface ReleaseReservedImageUploadsResponse {
+}
+
+export interface GetFileDownloadUrlRequest {
+  fileId: string;
+}
+
+export interface GetFileDownloadUrlResponse {
+  url: string;
 }
 
 export const REMARKGRAM_FILES_V1_PACKAGE_NAME = "remarkgram.files.v1";
@@ -67,9 +92,17 @@ export interface FilesServiceClient {
 
   completeImageUploads(request: CompleteImageUploadsRequest): Observable<CompleteImageUploadsResponse>;
 
-  ensureCompletedImageUploads(
-    request: EnsureCompletedImageUploadsRequest,
-  ): Observable<EnsureCompletedImageUploadsResponse>;
+  reserveImageUploads(request: ReserveImageUploadsRequest): Observable<ReserveImageUploadsResponse>;
+
+  attachReservedImageUploads(
+    request: AttachReservedImageUploadsRequest,
+  ): Observable<AttachReservedImageUploadsResponse>;
+
+  releaseReservedImageUploads(
+    request: ReleaseReservedImageUploadsRequest,
+  ): Observable<ReleaseReservedImageUploadsResponse>;
+
+  getFileDownloadUrl(request: GetFileDownloadUrlRequest): Observable<GetFileDownloadUrlResponse>;
 }
 
 export interface FilesServiceController {
@@ -81,17 +114,39 @@ export interface FilesServiceController {
     request: CompleteImageUploadsRequest,
   ): Promise<CompleteImageUploadsResponse> | Observable<CompleteImageUploadsResponse> | CompleteImageUploadsResponse;
 
-  ensureCompletedImageUploads(
-    request: EnsureCompletedImageUploadsRequest,
+  reserveImageUploads(
+    request: ReserveImageUploadsRequest,
+  ): Promise<ReserveImageUploadsResponse> | Observable<ReserveImageUploadsResponse> | ReserveImageUploadsResponse;
+
+  attachReservedImageUploads(
+    request: AttachReservedImageUploadsRequest,
   ):
-    | Promise<EnsureCompletedImageUploadsResponse>
-    | Observable<EnsureCompletedImageUploadsResponse>
-    | EnsureCompletedImageUploadsResponse;
+    | Promise<AttachReservedImageUploadsResponse>
+    | Observable<AttachReservedImageUploadsResponse>
+    | AttachReservedImageUploadsResponse;
+
+  releaseReservedImageUploads(
+    request: ReleaseReservedImageUploadsRequest,
+  ):
+    | Promise<ReleaseReservedImageUploadsResponse>
+    | Observable<ReleaseReservedImageUploadsResponse>
+    | ReleaseReservedImageUploadsResponse;
+
+  getFileDownloadUrl(
+    request: GetFileDownloadUrlRequest,
+  ): Promise<GetFileDownloadUrlResponse> | Observable<GetFileDownloadUrlResponse> | GetFileDownloadUrlResponse;
 }
 
 export function FilesServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["initiateImageUploads", "completeImageUploads", "ensureCompletedImageUploads"];
+    const grpcMethods: string[] = [
+      "initiateImageUploads",
+      "completeImageUploads",
+      "reserveImageUploads",
+      "attachReservedImageUploads",
+      "releaseReservedImageUploads",
+      "getFileDownloadUrl",
+    ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("FilesService", method)(constructor.prototype[method], method, descriptor);

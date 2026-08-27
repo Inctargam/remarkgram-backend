@@ -17,8 +17,8 @@
 
 import * as runtime from "@prisma/client/runtime/index-browser"
 
-export type * from '../models.js'
-export type * from './prismaNamespace.js'
+export type * from '../models.ts'
+export type * from './prismaNamespace.ts'
 
 export const Decimal = runtime.Decimal
 
@@ -51,7 +51,10 @@ export const AnyNull = runtime.AnyNull
 
 
 export const ModelName = {
-  File: 'File'
+  File: 'File',
+  ImageUploadReservation: 'ImageUploadReservation',
+  InboxEvents: 'InboxEvents',
+  FileDeletionJob: 'FileDeletionJob'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -80,6 +83,7 @@ export const FileScalarFieldEnum = {
   uploadStatus: 'uploadStatus',
   uploadExpiresAt: 'uploadExpiresAt',
   uploadedAt: 'uploadedAt',
+  reservationId: 'reservationId',
   deletedAt: 'deletedAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
@@ -88,12 +92,62 @@ export const FileScalarFieldEnum = {
 export type FileScalarFieldEnum = (typeof FileScalarFieldEnum)[keyof typeof FileScalarFieldEnum]
 
 
+export const ImageUploadReservationScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  uploadIds: 'uploadIds',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ImageUploadReservationScalarFieldEnum = (typeof ImageUploadReservationScalarFieldEnum)[keyof typeof ImageUploadReservationScalarFieldEnum]
+
+
+export const InboxEventsScalarFieldEnum = {
+  eventId: 'eventId',
+  eventType: 'eventType',
+  payload: 'payload',
+  status: 'status',
+  attempts: 'attempts',
+  receivedAt: 'receivedAt',
+  processedAt: 'processedAt',
+  availableAt: 'availableAt',
+  lastError: 'lastError'
+} as const
+
+export type InboxEventsScalarFieldEnum = (typeof InboxEventsScalarFieldEnum)[keyof typeof InboxEventsScalarFieldEnum]
+
+
+export const FileDeletionJobScalarFieldEnum = {
+  fileId: 'fileId',
+  objectKey: 'objectKey',
+  status: 'status',
+  attempts: 'attempts',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  doneAt: 'doneAt',
+  availableAt: 'availableAt',
+  leaseUntil: 'leaseUntil',
+  lastError: 'lastError'
+} as const
+
+export type FileDeletionJobScalarFieldEnum = (typeof FileDeletionJobScalarFieldEnum)[keyof typeof FileDeletionJobScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
 } as const
 
 export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder]
+
+
+export const JsonNullValueInput = {
+  JsonNull: JsonNull
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
 
 
 export const QueryMode = {
@@ -110,4 +164,13 @@ export const NullsOrder = {
 } as const
 
 export type NullsOrder = (typeof NullsOrder)[keyof typeof NullsOrder]
+
+
+export const JsonNullValueFilter = {
+  DbNull: DbNull,
+  JsonNull: JsonNull,
+  AnyNull: AnyNull
+} as const
+
+export type JsonNullValueFilter = (typeof JsonNullValueFilter)[keyof typeof JsonNullValueFilter]
 

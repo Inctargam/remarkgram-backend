@@ -36,6 +36,15 @@
         ]
       }
     },
+    "common": {
+      "type": "library",
+      "root": "libs/common",
+      "entryFile": "index",
+      "sourceRoot": "libs/common/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/common/tsconfig.lib.json"
+      }
+    },
     "config": {
       "type": "library",
       "root": "libs/config",
@@ -70,22 +79,22 @@
         "tsConfigPath": "libs/contracts/files-grpc/tsconfig.lib.json"
       }
     },
-    "posts-grpc": {
+    "grpc": {
       "type": "library",
-      "root": "libs/contracts/posts-grpc",
+      "root": "libs/contracts/grpc",
       "entryFile": "index",
-      "sourceRoot": "libs/contracts/posts-grpc/src",
+      "sourceRoot": "libs/contracts/grpc/src",
       "compilerOptions": {
-        "tsConfigPath": "libs/contracts/posts-grpc/tsconfig.lib.json"
+        "tsConfigPath": "libs/contracts/grpc/tsconfig.lib.json"
       }
     },
-    "user-accounts-grpc": {
+    "message-broker": {
       "type": "library",
-      "root": "libs/contracts/user-accounts-grpc",
+      "root": "libs/contracts/message-broker",
       "entryFile": "index",
-      "sourceRoot": "libs/contracts/user-accounts-grpc/src",
+      "sourceRoot": "libs/contracts/message-broker/src",
       "compilerOptions": {
-        "tsConfigPath": "libs/contracts/user-accounts-grpc/tsconfig.lib.json"
+        "tsConfigPath": "libs/contracts/message-broker/tsconfig.lib.json"
       }
     },
     "payments": {
@@ -117,6 +126,15 @@
         ]
       }
     },
+    "posts-grpc": {
+      "type": "library",
+      "root": "libs/contracts/posts-grpc",
+      "entryFile": "index",
+      "sourceRoot": "libs/contracts/posts-grpc/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/contracts/posts-grpc/tsconfig.lib.json"
+      }
+    },
     "user-accounts": {
       "type": "application",
       "root": "apps/user-accounts",
@@ -131,6 +149,24 @@
             "outDir": "dist/apps/user-accounts/libs/contracts/user-accounts-grpc"
           }
         ]
+      }
+    },
+    "user-accounts-grpc": {
+      "type": "library",
+      "root": "libs/contracts/user-accounts-grpc",
+      "entryFile": "index",
+      "sourceRoot": "libs/contracts/user-accounts-grpc/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/contracts/user-accounts-grpc/tsconfig.lib.json"
+      }
+    },
+    "validation": {
+      "type": "library",
+      "root": "libs/validation",
+      "entryFile": "index",
+      "sourceRoot": "libs/validation/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/validation/tsconfig.lib.json"
       }
     }
   }

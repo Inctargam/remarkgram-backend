@@ -99,6 +99,20 @@ export interface GetUsersResponse {
   users: User[];
 }
 
+export interface GetCurrentUserRequest {
+  userId: string;
+}
+
+export interface GetCurrentUserResponse {
+  id: number;
+  username: string;
+  email: string;
+  emailVerified: boolean;
+  hasPassword: boolean;
+  oauthProviders: OAuthProvider[];
+  createdAt: string;
+}
+
 export interface GetSessionsRequest {
   auth: VerifiedRefreshTokenClaims | undefined;
 }
@@ -254,17 +268,23 @@ export const REGISTRATION_SERVICE_NAME = "RegistrationService";
 
 export interface UsersServiceClient {
   getUsers(request: GetUsersRequest): Observable<GetUsersResponse>;
+
+  getCurrentUser(request: GetCurrentUserRequest): Observable<GetCurrentUserResponse>;
 }
 
 /** Users */
 
 export interface UsersServiceController {
   getUsers(request: GetUsersRequest): Promise<GetUsersResponse> | Observable<GetUsersResponse> | GetUsersResponse;
+
+  getCurrentUser(
+    request: GetCurrentUserRequest,
+  ): Promise<GetCurrentUserResponse> | Observable<GetCurrentUserResponse> | GetCurrentUserResponse;
 }
 
 export function UsersServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["getUsers"];
+    const grpcMethods: string[] = ["getUsers", "getCurrentUser"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("UsersService", method)(constructor.prototype[method], method, descriptor);

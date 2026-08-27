@@ -1,4 +1,6 @@
+import type { ConfigType } from '@nestjs/config';
 import { ImageContentType, MAX_IMAGE_SIZE_BYTES } from '@app/files-grpc';
+import type { filesConfig } from '../../../config/files.config.js';
 import {
   DuplicateClientFileIdError,
   InvalidImageSizeError,
@@ -18,13 +20,27 @@ describe('InitiateImageUploadsUseCase', () => {
     createMany: vi.fn<FilesRepository['createMany']>(),
     findImageUploads: vi.fn<FilesRepository['findImageUploads']>(),
     updateImageUploadsStatusIfAllPending: vi.fn<FilesRepository['updateImageUploadsStatusIfAllPending']>(),
+    reserveImageUploads: vi.fn<FilesRepository['reserveImageUploads']>(),
+    attachReservedImageUploads: vi.fn<FilesRepository['attachReservedImageUploads']>(),
+    releaseReservedImageUploads: vi.fn<FilesRepository['releaseReservedImageUploads']>(),
+    claimExpiredImageUploads: vi.fn<FilesRepository['claimExpiredImageUploads']>(),
+    deleteClaimedImageUpload: vi.fn<FilesRepository['deleteClaimedImageUpload']>(),
+    deleteRejectedImageUploads: vi.fn<FilesRepository['deleteRejectedImageUploads']>(),
+    findAvailableById: vi.fn<FilesRepository['findAvailableById']>(),
   };
   const objectStorage = {
     createPresignedUpload: vi.fn<ObjectStorage['createPresignedUpload']>(),
     getObjectMetadata: vi.fn<ObjectStorage['getObjectMetadata']>(),
+    deleteObject: vi.fn<ObjectStorage['deleteObject']>(),
+    createPresignedDownloadUrl: vi.fn<ObjectStorage['createPresignedDownloadUrl']>(),
   };
 
-  const createUseCase = () => new InitiateImageUploadsUseCase(objectStorage, filesRepository);
+  const config = {
+    s3: {
+      uploadUrlExpiresInSeconds: 600,
+    },
+  } as ConfigType<typeof filesConfig>;
+  const createUseCase = () => new InitiateImageUploadsUseCase(objectStorage, filesRepository, config);
 
   beforeEach(() => {
     filesRepository.createMany.mockReset();
@@ -77,23 +93,23 @@ describe('InitiateImageUploadsUseCase', () => {
     ]);
     expect(result.sessions.map(({ fields }) => fields.key)).toEqual(['object-key', 'object-key']);
     expect(objectStorage.createPresignedUpload).toHaveBeenNthCalledWith(1, {
-      objectKey: `user/42/images/${result.sessions[0]?.id}`,
+      objectKey: `users/42/images/${result.sessions[0]?.id}`,
       contentType: ImageContentType.JPEG,
       size: 1_024,
-      expiresInSeconds: 300,
+      expiresInSeconds: 600,
     });
     expect(objectStorage.createPresignedUpload).toHaveBeenNthCalledWith(2, {
-      objectKey: `user/42/images/${result.sessions[1]?.id}`,
+      objectKey: `users/42/images/${result.sessions[1]?.id}`,
       contentType: ImageContentType.PNG,
       size: 2_048,
-      expiresInSeconds: 300,
+      expiresInSeconds: 600,
     });
     expect(filesRepository.createMany).toHaveBeenCalledOnce();
     expect(filesRepository.createMany).toHaveBeenCalledWith([
       expect.objectContaining({
         id: result.sessions[0]?.id,
         userId: 42,
-        objectKey: `user/42/images/${result.sessions[0]?.id}`,
+        objectKey: `users/42/images/${result.sessions[0]?.id}`,
         originalFilename: 'first.jpg',
         contentType: ImageContentType.JPEG,
         size: 1_024,
@@ -102,7 +118,7 @@ describe('InitiateImageUploadsUseCase', () => {
       expect.objectContaining({
         id: result.sessions[1]?.id,
         userId: 42,
-        objectKey: `user/42/images/${result.sessions[1]?.id}`,
+        objectKey: `users/42/images/${result.sessions[1]?.id}`,
         originalFilename: 'second.png',
         contentType: ImageContentType.PNG,
         size: 2_048,
@@ -196,7 +212,7 @@ describe('InitiateImageUploadsUseCase', () => {
     expect(filesRepository.createMany).not.toHaveBeenCalled();
   });
 
-  it.each([Number.NaN, Number.POSITIVE_INFINITY, 0, -1, 1.5, 2_147_483_648])(
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, 0, -1, 1.5])(
     'rejects invalid user ID: %s',
     async (userId) => {
       const useCase = createUseCase();

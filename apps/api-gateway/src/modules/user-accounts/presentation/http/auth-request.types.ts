@@ -19,3 +19,7 @@ export type RequestWithOAuthIdentityClaims = Request & {
   user: OAuthIdentityClaims | null;
   // refreshTokenClaims?: VerifiedRefreshTokenClaims;
 };
+
+export type RequestWithUserId = Request & {
+  userId: string;
+};

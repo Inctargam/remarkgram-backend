@@ -11,6 +11,11 @@ export type PresignedUpload = {
   expiresAt: Date;
 };
 
+export type CreatePresignedDownloadUrlParams = {
+  objectKey: string;
+  expiresInSeconds: number;
+};
+
 export type ObjectMetadata = {
   size?: number;
   contentType?: string;
@@ -20,4 +25,8 @@ export abstract class ObjectStorage {
   abstract createPresignedUpload(params: CreatePresignedUploadParams): Promise<PresignedUpload>;
 
   abstract getObjectMetadata(objectKey: string): Promise<ObjectMetadata | null>;
+
+  abstract deleteObject(objectKey: string): Promise<void>;
+
+  abstract createPresignedDownloadUrl(params: CreatePresignedDownloadUrlParams): Promise<string>;
 }

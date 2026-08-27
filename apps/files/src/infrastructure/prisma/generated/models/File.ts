@@ -9,8 +9,8 @@
  * 🟢 You can import this file directly.
  */
 import type * as runtime from "@prisma/client/runtime/client"
-import type * as $Enums from "../enums.js"
-import type * as Prisma from "../internal/prismaNamespace.js"
+import type * as $Enums from "../enums.ts"
+import type * as Prisma from "../internal/prismaNamespace.ts"
 
 /**
  * Model File
@@ -46,6 +46,7 @@ export type FileMinAggregateOutputType = {
   uploadStatus: $Enums.FileUploadStatus | null
   uploadExpiresAt: Date | null
   uploadedAt: Date | null
+  reservationId: string | null
   deletedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -61,6 +62,7 @@ export type FileMaxAggregateOutputType = {
   uploadStatus: $Enums.FileUploadStatus | null
   uploadExpiresAt: Date | null
   uploadedAt: Date | null
+  reservationId: string | null
   deletedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -76,6 +78,7 @@ export type FileCountAggregateOutputType = {
   uploadStatus: number
   uploadExpiresAt: number
   uploadedAt: number
+  reservationId: number
   deletedAt: number
   createdAt: number
   updatedAt: number
@@ -103,6 +106,7 @@ export type FileMinAggregateInputType = {
   uploadStatus?: true
   uploadExpiresAt?: true
   uploadedAt?: true
+  reservationId?: true
   deletedAt?: true
   createdAt?: true
   updatedAt?: true
@@ -118,6 +122,7 @@ export type FileMaxAggregateInputType = {
   uploadStatus?: true
   uploadExpiresAt?: true
   uploadedAt?: true
+  reservationId?: true
   deletedAt?: true
   createdAt?: true
   updatedAt?: true
@@ -133,6 +138,7 @@ export type FileCountAggregateInputType = {
   uploadStatus?: true
   uploadExpiresAt?: true
   uploadedAt?: true
+  reservationId?: true
   deletedAt?: true
   createdAt?: true
   updatedAt?: true
@@ -235,6 +241,7 @@ export type FileGroupByOutputType = {
   uploadStatus: $Enums.FileUploadStatus
   uploadExpiresAt: Date
   uploadedAt: Date | null
+  reservationId: string | null
   deletedAt: Date | null
   createdAt: Date
   updatedAt: Date
@@ -273,9 +280,11 @@ export type FileWhereInput = {
   uploadStatus?: Prisma.EnumFileUploadStatusFilter<"File"> | $Enums.FileUploadStatus
   uploadExpiresAt?: Prisma.DateTimeFilter<"File"> | Date | string
   uploadedAt?: Prisma.DateTimeNullableFilter<"File"> | Date | string | null
+  reservationId?: Prisma.UuidNullableFilter<"File"> | string | null
   deletedAt?: Prisma.DateTimeNullableFilter<"File"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"File"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"File"> | Date | string
+  reservation?: Prisma.XOR<Prisma.ImageUploadReservationNullableScalarRelationFilter, Prisma.ImageUploadReservationWhereInput> | null
 }
 
 export type FileOrderByWithRelationInput = {
@@ -288,9 +297,11 @@ export type FileOrderByWithRelationInput = {
   uploadStatus?: Prisma.SortOrder
   uploadExpiresAt?: Prisma.SortOrder
   uploadedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  reservationId?: Prisma.SortOrderInput | Prisma.SortOrder
   deletedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  reservation?: Prisma.ImageUploadReservationOrderByWithRelationInput
 }
 
 export type FileWhereUniqueInput = Prisma.AtLeast<{
@@ -306,9 +317,11 @@ export type FileWhereUniqueInput = Prisma.AtLeast<{
   uploadStatus?: Prisma.EnumFileUploadStatusFilter<"File"> | $Enums.FileUploadStatus
   uploadExpiresAt?: Prisma.DateTimeFilter<"File"> | Date | string
   uploadedAt?: Prisma.DateTimeNullableFilter<"File"> | Date | string | null
+  reservationId?: Prisma.UuidNullableFilter<"File"> | string | null
   deletedAt?: Prisma.DateTimeNullableFilter<"File"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"File"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"File"> | Date | string
+  reservation?: Prisma.XOR<Prisma.ImageUploadReservationNullableScalarRelationFilter, Prisma.ImageUploadReservationWhereInput> | null
 }, "id" | "objectKey">
 
 export type FileOrderByWithAggregationInput = {
@@ -321,6 +334,7 @@ export type FileOrderByWithAggregationInput = {
   uploadStatus?: Prisma.SortOrder
   uploadExpiresAt?: Prisma.SortOrder
   uploadedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  reservationId?: Prisma.SortOrderInput | Prisma.SortOrder
   deletedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -344,6 +358,7 @@ export type FileScalarWhereWithAggregatesInput = {
   uploadStatus?: Prisma.EnumFileUploadStatusWithAggregatesFilter<"File"> | $Enums.FileUploadStatus
   uploadExpiresAt?: Prisma.DateTimeWithAggregatesFilter<"File"> | Date | string
   uploadedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"File"> | Date | string | null
+  reservationId?: Prisma.UuidNullableWithAggregatesFilter<"File"> | string | null
   deletedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"File"> | Date | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"File"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"File"> | Date | string
@@ -362,6 +377,7 @@ export type FileCreateInput = {
   deletedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  reservation?: Prisma.ImageUploadReservationCreateNestedOneWithoutFilesInput
 }
 
 export type FileUncheckedCreateInput = {
@@ -374,6 +390,7 @@ export type FileUncheckedCreateInput = {
   uploadStatus?: $Enums.FileUploadStatus
   uploadExpiresAt: Date | string
   uploadedAt?: Date | string | null
+  reservationId?: string | null
   deletedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -392,6 +409,7 @@ export type FileUpdateInput = {
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  reservation?: Prisma.ImageUploadReservationUpdateOneWithoutFilesNestedInput
 }
 
 export type FileUncheckedUpdateInput = {
@@ -404,6 +422,7 @@ export type FileUncheckedUpdateInput = {
   uploadStatus?: Prisma.EnumFileUploadStatusFieldUpdateOperationsInput | $Enums.FileUploadStatus
   uploadExpiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   uploadedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  reservationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -419,6 +438,7 @@ export type FileCreateManyInput = {
   uploadStatus?: $Enums.FileUploadStatus
   uploadExpiresAt: Date | string
   uploadedAt?: Date | string | null
+  reservationId?: string | null
   deletedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -449,6 +469,7 @@ export type FileUncheckedUpdateManyInput = {
   uploadStatus?: Prisma.EnumFileUploadStatusFieldUpdateOperationsInput | $Enums.FileUploadStatus
   uploadExpiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   uploadedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  reservationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -464,6 +485,7 @@ export type FileCountOrderByAggregateInput = {
   uploadStatus?: Prisma.SortOrder
   uploadExpiresAt?: Prisma.SortOrder
   uploadedAt?: Prisma.SortOrder
+  reservationId?: Prisma.SortOrder
   deletedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -484,6 +506,7 @@ export type FileMaxOrderByAggregateInput = {
   uploadStatus?: Prisma.SortOrder
   uploadExpiresAt?: Prisma.SortOrder
   uploadedAt?: Prisma.SortOrder
+  reservationId?: Prisma.SortOrder
   deletedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -499,6 +522,7 @@ export type FileMinOrderByAggregateInput = {
   uploadStatus?: Prisma.SortOrder
   uploadExpiresAt?: Prisma.SortOrder
   uploadedAt?: Prisma.SortOrder
+  reservationId?: Prisma.SortOrder
   deletedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -507,6 +531,16 @@ export type FileMinOrderByAggregateInput = {
 export type FileSumOrderByAggregateInput = {
   userId?: Prisma.SortOrder
   size?: Prisma.SortOrder
+}
+
+export type FileListRelationFilter = {
+  every?: Prisma.FileWhereInput
+  some?: Prisma.FileWhereInput
+  none?: Prisma.FileWhereInput
+}
+
+export type FileOrderByRelationAggregateInput = {
+  _count?: Prisma.SortOrder
 }
 
 export type StringFieldUpdateOperationsInput = {
@@ -533,6 +567,187 @@ export type NullableDateTimeFieldUpdateOperationsInput = {
   set?: Date | string | null
 }
 
+export type NullableStringFieldUpdateOperationsInput = {
+  set?: string | null
+}
+
+export type FileCreateNestedManyWithoutReservationInput = {
+  create?: Prisma.XOR<Prisma.FileCreateWithoutReservationInput, Prisma.FileUncheckedCreateWithoutReservationInput> | Prisma.FileCreateWithoutReservationInput[] | Prisma.FileUncheckedCreateWithoutReservationInput[]
+  connectOrCreate?: Prisma.FileCreateOrConnectWithoutReservationInput | Prisma.FileCreateOrConnectWithoutReservationInput[]
+  createMany?: Prisma.FileCreateManyReservationInputEnvelope
+  connect?: Prisma.FileWhereUniqueInput | Prisma.FileWhereUniqueInput[]
+}
+
+export type FileUncheckedCreateNestedManyWithoutReservationInput = {
+  create?: Prisma.XOR<Prisma.FileCreateWithoutReservationInput, Prisma.FileUncheckedCreateWithoutReservationInput> | Prisma.FileCreateWithoutReservationInput[] | Prisma.FileUncheckedCreateWithoutReservationInput[]
+  connectOrCreate?: Prisma.FileCreateOrConnectWithoutReservationInput | Prisma.FileCreateOrConnectWithoutReservationInput[]
+  createMany?: Prisma.FileCreateManyReservationInputEnvelope
+  connect?: Prisma.FileWhereUniqueInput | Prisma.FileWhereUniqueInput[]
+}
+
+export type FileUpdateManyWithoutReservationNestedInput = {
+  create?: Prisma.XOR<Prisma.FileCreateWithoutReservationInput, Prisma.FileUncheckedCreateWithoutReservationInput> | Prisma.FileCreateWithoutReservationInput[] | Prisma.FileUncheckedCreateWithoutReservationInput[]
+  connectOrCreate?: Prisma.FileCreateOrConnectWithoutReservationInput | Prisma.FileCreateOrConnectWithoutReservationInput[]
+  upsert?: Prisma.FileUpsertWithWhereUniqueWithoutReservationInput | Prisma.FileUpsertWithWhereUniqueWithoutReservationInput[]
+  createMany?: Prisma.FileCreateManyReservationInputEnvelope
+  set?: Prisma.FileWhereUniqueInput | Prisma.FileWhereUniqueInput[]
+  disconnect?: Prisma.FileWhereUniqueInput | Prisma.FileWhereUniqueInput[]
+  delete?: Prisma.FileWhereUniqueInput | Prisma.FileWhereUniqueInput[]
+  connect?: Prisma.FileWhereUniqueInput | Prisma.FileWhereUniqueInput[]
+  update?: Prisma.FileUpdateWithWhereUniqueWithoutReservationInput | Prisma.FileUpdateWithWhereUniqueWithoutReservationInput[]
+  updateMany?: Prisma.FileUpdateManyWithWhereWithoutReservationInput | Prisma.FileUpdateManyWithWhereWithoutReservationInput[]
+  deleteMany?: Prisma.FileScalarWhereInput | Prisma.FileScalarWhereInput[]
+}
+
+export type FileUncheckedUpdateManyWithoutReservationNestedInput = {
+  create?: Prisma.XOR<Prisma.FileCreateWithoutReservationInput, Prisma.FileUncheckedCreateWithoutReservationInput> | Prisma.FileCreateWithoutReservationInput[] | Prisma.FileUncheckedCreateWithoutReservationInput[]
+  connectOrCreate?: Prisma.FileCreateOrConnectWithoutReservationInput | Prisma.FileCreateOrConnectWithoutReservationInput[]
+  upsert?: Prisma.FileUpsertWithWhereUniqueWithoutReservationInput | Prisma.FileUpsertWithWhereUniqueWithoutReservationInput[]
+  createMany?: Prisma.FileCreateManyReservationInputEnvelope
+  set?: Prisma.FileWhereUniqueInput | Prisma.FileWhereUniqueInput[]
+  disconnect?: Prisma.FileWhereUniqueInput | Prisma.FileWhereUniqueInput[]
+  delete?: Prisma.FileWhereUniqueInput | Prisma.FileWhereUniqueInput[]
+  connect?: Prisma.FileWhereUniqueInput | Prisma.FileWhereUniqueInput[]
+  update?: Prisma.FileUpdateWithWhereUniqueWithoutReservationInput | Prisma.FileUpdateWithWhereUniqueWithoutReservationInput[]
+  updateMany?: Prisma.FileUpdateManyWithWhereWithoutReservationInput | Prisma.FileUpdateManyWithWhereWithoutReservationInput[]
+  deleteMany?: Prisma.FileScalarWhereInput | Prisma.FileScalarWhereInput[]
+}
+
+export type FileCreateWithoutReservationInput = {
+  id?: string
+  userId: number
+  objectKey: string
+  originalFilename: string
+  contentType: string
+  size: number
+  uploadStatus?: $Enums.FileUploadStatus
+  uploadExpiresAt: Date | string
+  uploadedAt?: Date | string | null
+  deletedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type FileUncheckedCreateWithoutReservationInput = {
+  id?: string
+  userId: number
+  objectKey: string
+  originalFilename: string
+  contentType: string
+  size: number
+  uploadStatus?: $Enums.FileUploadStatus
+  uploadExpiresAt: Date | string
+  uploadedAt?: Date | string | null
+  deletedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type FileCreateOrConnectWithoutReservationInput = {
+  where: Prisma.FileWhereUniqueInput
+  create: Prisma.XOR<Prisma.FileCreateWithoutReservationInput, Prisma.FileUncheckedCreateWithoutReservationInput>
+}
+
+export type FileCreateManyReservationInputEnvelope = {
+  data: Prisma.FileCreateManyReservationInput | Prisma.FileCreateManyReservationInput[]
+  skipDuplicates?: boolean
+}
+
+export type FileUpsertWithWhereUniqueWithoutReservationInput = {
+  where: Prisma.FileWhereUniqueInput
+  update: Prisma.XOR<Prisma.FileUpdateWithoutReservationInput, Prisma.FileUncheckedUpdateWithoutReservationInput>
+  create: Prisma.XOR<Prisma.FileCreateWithoutReservationInput, Prisma.FileUncheckedCreateWithoutReservationInput>
+}
+
+export type FileUpdateWithWhereUniqueWithoutReservationInput = {
+  where: Prisma.FileWhereUniqueInput
+  data: Prisma.XOR<Prisma.FileUpdateWithoutReservationInput, Prisma.FileUncheckedUpdateWithoutReservationInput>
+}
+
+export type FileUpdateManyWithWhereWithoutReservationInput = {
+  where: Prisma.FileScalarWhereInput
+  data: Prisma.XOR<Prisma.FileUpdateManyMutationInput, Prisma.FileUncheckedUpdateManyWithoutReservationInput>
+}
+
+export type FileScalarWhereInput = {
+  AND?: Prisma.FileScalarWhereInput | Prisma.FileScalarWhereInput[]
+  OR?: Prisma.FileScalarWhereInput[]
+  NOT?: Prisma.FileScalarWhereInput | Prisma.FileScalarWhereInput[]
+  id?: Prisma.UuidFilter<"File"> | string
+  userId?: Prisma.IntFilter<"File"> | number
+  objectKey?: Prisma.StringFilter<"File"> | string
+  originalFilename?: Prisma.StringFilter<"File"> | string
+  contentType?: Prisma.StringFilter<"File"> | string
+  size?: Prisma.IntFilter<"File"> | number
+  uploadStatus?: Prisma.EnumFileUploadStatusFilter<"File"> | $Enums.FileUploadStatus
+  uploadExpiresAt?: Prisma.DateTimeFilter<"File"> | Date | string
+  uploadedAt?: Prisma.DateTimeNullableFilter<"File"> | Date | string | null
+  reservationId?: Prisma.UuidNullableFilter<"File"> | string | null
+  deletedAt?: Prisma.DateTimeNullableFilter<"File"> | Date | string | null
+  createdAt?: Prisma.DateTimeFilter<"File"> | Date | string
+  updatedAt?: Prisma.DateTimeFilter<"File"> | Date | string
+}
+
+export type FileCreateManyReservationInput = {
+  id?: string
+  userId: number
+  objectKey: string
+  originalFilename: string
+  contentType: string
+  size: number
+  uploadStatus?: $Enums.FileUploadStatus
+  uploadExpiresAt: Date | string
+  uploadedAt?: Date | string | null
+  deletedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type FileUpdateWithoutReservationInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.IntFieldUpdateOperationsInput | number
+  objectKey?: Prisma.StringFieldUpdateOperationsInput | string
+  originalFilename?: Prisma.StringFieldUpdateOperationsInput | string
+  contentType?: Prisma.StringFieldUpdateOperationsInput | string
+  size?: Prisma.IntFieldUpdateOperationsInput | number
+  uploadStatus?: Prisma.EnumFileUploadStatusFieldUpdateOperationsInput | $Enums.FileUploadStatus
+  uploadExpiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  uploadedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type FileUncheckedUpdateWithoutReservationInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.IntFieldUpdateOperationsInput | number
+  objectKey?: Prisma.StringFieldUpdateOperationsInput | string
+  originalFilename?: Prisma.StringFieldUpdateOperationsInput | string
+  contentType?: Prisma.StringFieldUpdateOperationsInput | string
+  size?: Prisma.IntFieldUpdateOperationsInput | number
+  uploadStatus?: Prisma.EnumFileUploadStatusFieldUpdateOperationsInput | $Enums.FileUploadStatus
+  uploadExpiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  uploadedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type FileUncheckedUpdateManyWithoutReservationInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.IntFieldUpdateOperationsInput | number
+  objectKey?: Prisma.StringFieldUpdateOperationsInput | string
+  originalFilename?: Prisma.StringFieldUpdateOperationsInput | string
+  contentType?: Prisma.StringFieldUpdateOperationsInput | string
+  size?: Prisma.IntFieldUpdateOperationsInput | number
+  uploadStatus?: Prisma.EnumFileUploadStatusFieldUpdateOperationsInput | $Enums.FileUploadStatus
+  uploadExpiresAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  uploadedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
 
 
 export type FileSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -545,9 +760,11 @@ export type FileSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   uploadStatus?: boolean
   uploadExpiresAt?: boolean
   uploadedAt?: boolean
+  reservationId?: boolean
   deletedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  reservation?: boolean | Prisma.File$reservationArgs<ExtArgs>
 }, ExtArgs["result"]["file"]>
 
 export type FileSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -560,9 +777,11 @@ export type FileSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   uploadStatus?: boolean
   uploadExpiresAt?: boolean
   uploadedAt?: boolean
+  reservationId?: boolean
   deletedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  reservation?: boolean | Prisma.File$reservationArgs<ExtArgs>
 }, ExtArgs["result"]["file"]>
 
 export type FileSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -575,9 +794,11 @@ export type FileSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   uploadStatus?: boolean
   uploadExpiresAt?: boolean
   uploadedAt?: boolean
+  reservationId?: boolean
   deletedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  reservation?: boolean | Prisma.File$reservationArgs<ExtArgs>
 }, ExtArgs["result"]["file"]>
 
 export type FileSelectScalar = {
@@ -590,16 +811,28 @@ export type FileSelectScalar = {
   uploadStatus?: boolean
   uploadExpiresAt?: boolean
   uploadedAt?: boolean
+  reservationId?: boolean
   deletedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type FileOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "objectKey" | "originalFilename" | "contentType" | "size" | "uploadStatus" | "uploadExpiresAt" | "uploadedAt" | "deletedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["file"]>
+export type FileOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "objectKey" | "originalFilename" | "contentType" | "size" | "uploadStatus" | "uploadExpiresAt" | "uploadedAt" | "reservationId" | "deletedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["file"]>
+export type FileInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  reservation?: boolean | Prisma.File$reservationArgs<ExtArgs>
+}
+export type FileIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  reservation?: boolean | Prisma.File$reservationArgs<ExtArgs>
+}
+export type FileIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  reservation?: boolean | Prisma.File$reservationArgs<ExtArgs>
+}
 
 export type $FilePayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "File"
-  objects: {}
+  objects: {
+    reservation: Prisma.$ImageUploadReservationPayload<ExtArgs> | null
+  }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     userId: number
@@ -610,6 +843,7 @@ export type $FilePayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     uploadStatus: $Enums.FileUploadStatus
     uploadExpiresAt: Date
     uploadedAt: Date | null
+    reservationId: string | null
     deletedAt: Date | null
     createdAt: Date
     updatedAt: Date
@@ -1007,6 +1241,7 @@ readonly fields: FileFieldRefs;
  */
 export interface Prisma__FileClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
+  reservation<T extends Prisma.File$reservationArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.File$reservationArgs<ExtArgs>>): Prisma.Prisma__ImageUploadReservationClient<runtime.Types.Result.GetResult<Prisma.$ImageUploadReservationPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1045,6 +1280,7 @@ export interface FileFieldRefs {
   readonly uploadStatus: Prisma.FieldRef<"File", 'FileUploadStatus'>
   readonly uploadExpiresAt: Prisma.FieldRef<"File", 'DateTime'>
   readonly uploadedAt: Prisma.FieldRef<"File", 'DateTime'>
+  readonly reservationId: Prisma.FieldRef<"File", 'String'>
   readonly deletedAt: Prisma.FieldRef<"File", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"File", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"File", 'DateTime'>
@@ -1065,6 +1301,10 @@ export type FileFindUniqueArgs<ExtArgs extends runtime.Types.Extensions.Internal
    */
   omit?: Prisma.FileOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.FileInclude<ExtArgs> | null
+  /**
    * Filter, which File to fetch.
    */
   where: Prisma.FileWhereUniqueInput
@@ -1083,6 +1323,10 @@ export type FileFindUniqueOrThrowArgs<ExtArgs extends runtime.Types.Extensions.I
    */
   omit?: Prisma.FileOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.FileInclude<ExtArgs> | null
+  /**
    * Filter, which File to fetch.
    */
   where: Prisma.FileWhereUniqueInput
@@ -1100,6 +1344,10 @@ export type FileFindFirstArgs<ExtArgs extends runtime.Types.Extensions.InternalA
    * Omit specific fields from the File
    */
   omit?: Prisma.FileOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.FileInclude<ExtArgs> | null
   /**
    * Filter, which File to fetch.
    */
@@ -1149,6 +1397,10 @@ export type FileFindFirstOrThrowArgs<ExtArgs extends runtime.Types.Extensions.In
    */
   omit?: Prisma.FileOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.FileInclude<ExtArgs> | null
+  /**
    * Filter, which File to fetch.
    */
   where?: Prisma.FileWhereInput
@@ -1196,6 +1448,10 @@ export type FileFindManyArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
    * Omit specific fields from the File
    */
   omit?: Prisma.FileOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.FileInclude<ExtArgs> | null
   /**
    * Filter, which Files to fetch.
    */
@@ -1245,6 +1501,10 @@ export type FileCreateArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs
    */
   omit?: Prisma.FileOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.FileInclude<ExtArgs> | null
+  /**
    * The data needed to create a File.
    */
   data: Prisma.XOR<Prisma.FileCreateInput, Prisma.FileUncheckedCreateInput>
@@ -1278,6 +1538,10 @@ export type FileCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Extensions
    */
   data: Prisma.FileCreateManyInput | Prisma.FileCreateManyInput[]
   skipDuplicates?: boolean
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.FileIncludeCreateManyAndReturn<ExtArgs> | null
 }
 
 /**
@@ -1292,6 +1556,10 @@ export type FileUpdateArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs
    * Omit specific fields from the File
    */
   omit?: Prisma.FileOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.FileInclude<ExtArgs> | null
   /**
    * The data needed to update a File.
    */
@@ -1344,6 +1612,10 @@ export type FileUpdateManyAndReturnArgs<ExtArgs extends runtime.Types.Extensions
    * Limit how many Files to update.
    */
   limit?: number
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.FileIncludeUpdateManyAndReturn<ExtArgs> | null
 }
 
 /**
@@ -1358,6 +1630,10 @@ export type FileUpsertArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs
    * Omit specific fields from the File
    */
   omit?: Prisma.FileOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.FileInclude<ExtArgs> | null
   /**
    * The filter to search for the File to update in case it exists.
    */
@@ -1385,6 +1661,10 @@ export type FileDeleteArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs
    */
   omit?: Prisma.FileOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.FileInclude<ExtArgs> | null
+  /**
    * Filter which File to delete.
    */
   where: Prisma.FileWhereUniqueInput
@@ -1405,6 +1685,25 @@ export type FileDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.Internal
 }
 
 /**
+ * File.reservation
+ */
+export type File$reservationArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ImageUploadReservation
+   */
+  select?: Prisma.ImageUploadReservationSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ImageUploadReservation
+   */
+  omit?: Prisma.ImageUploadReservationOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ImageUploadReservationInclude<ExtArgs> | null
+  where?: Prisma.ImageUploadReservationWhereInput
+}
+
+/**
  * File without action
  */
 export type FileDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1416,4 +1715,8 @@ export type FileDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArg
    * Omit specific fields from the File
    */
   omit?: Prisma.FileOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.FileInclude<ExtArgs> | null
 }

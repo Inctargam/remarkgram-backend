@@ -40,3 +40,13 @@ spec:
                  secretKeyRef:
                    name: remarkgram-posts-production-config-secret
                    key: POSTS_DATABASE_URL
+             - name: AMQPS_URL
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-posts-production-config-secret
+                   key: AMQPS_URL
+             - name: POSTS_DBOS_SYSTEM_DATABASE_URL
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-posts-production-config-secret
+                   key: POSTS_DBOS_SYSTEM_DATABASE_URL

@@ -1,15 +1,17 @@
 import { FILES_GRPC_PROTO_PATH, REMARKGRAM_FILES_V1_PACKAGE_NAME } from '@app/files-grpc';
+import { FILES_POST_EVENTS_QUEUE, POST_DELETED_V1_EVENT_NAME, POSTS_EXCHANGE } from '@app/message-broker';
 import { Module } from '@nestjs/common';
 import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { ImageUploadsVerifier } from './application/ports/image-uploads-verifier.js';
+import { ImageUploadsGateway } from './application/ports/image-uploads.gateway.js';
 import { PostsRepository } from './application/ports/posts.repository.js';
 import { CreatePostUseCase } from './application/use-cases/create-post/create-post.use-case.js';
 import { databaseConfig } from './config/database.config.js';
 import { filesGrpcClientConfig } from './config/files-grpc-client.config.js';
 import { postsConfig } from './config/posts.config.js';
-import { FilesImageUploadsVerifier } from './infrastructure/grpc/files-image-uploads-verifier.js';
+import { GrpcImageUploadsGateway } from './infrastructure/grpc/grpc-image-uploads.gateway.js';
+import { postsMessageBrokerConfig } from './config/message-broker.config.js';
 import { PrismaService } from './infrastructure/prisma/prisma.service.js';
 import { PrismaPostsRepository } from './infrastructure/prisma/repositories/prisma-posts.repository.js';
 import { PostsGrpcController } from './presentation/grpc/posts-grpc.controller.js';
@@ -17,10 +19,33 @@ import { TestingRepository } from './application/ports/testing.repository.js';
 import { DeleteAllDataUseCase } from './application/use-cases/delete-all-data/delete-all-data.use-case.js';
 import { PrismaTestingRepository } from './infrastructure/prisma/repositories/prisma-testing.repository.js';
 import { TestingGrpcController } from './presentation/grpc/testing-grpc.controller.js';
+import { UpdatePostUseCase } from './application/use-cases/update-post/update-post.use-case.js';
+import { PrismaPostsQueryRepository } from './infrastructure/prisma/repositories/prisma-posts-query.repository.js';
+import { PostsQueryRepository } from './application/ports/posts-query.repository.js';
+import { GetAuthorPostsQueryHandler } from './application/use-cases/get-author-posts/get-author-posts.query-handler.js';
+import { UnitOfWork } from './application/ports/unit-of-work.js';
+import { PrismaUnitOfWork } from './infrastructure/prisma/prisma-unit-of-work.js';
+import { OutboxEventsRepository } from './application/ports/outbox-events.repository.js';
+import { PrismaOutboxEventsRepository } from './infrastructure/prisma/repositories/prisma-outbox-events.repository.js';
+import { SoftDeletePostUseCase } from './application/use-cases/soft-delete-post/soft-delete-post.use-case.js';
+import { PostsEventsPublisher } from './application/ports/posts-events.publisher.js';
+import { RmqPostsEventsPublisher } from './infrastructure/rmq/rmq-posts-events.publisher.js';
+import { POSTS_EVENTS_RMQ_CLIENT } from './infrastructure/rmq/rmq.constants.js';
+import { ScheduleModule } from '@nestjs/schedule';
+import { DeletedPostsPublisherWorker } from './application/workers/deleted-posts-publisher.worker.js';
+import { PublishDeletedPostEventScheduler } from './infrastructure/schedulers/publish-deleted-post-event.scheduler.js';
+import { ClearSoftDeletedPostsScheduler } from './infrastructure/schedulers/clear-soft-deleted-posts/clear-soft-deleted-posts.scheduler.js';
+import { ClearSorfDeletedPostsUseCase } from './application/use-cases/clear-soft-deleted-posts/clear-soft-deleted-posts.js';
+import { CreatePostWorkflow } from './application/ports/create-post.workflow.js';
+import { dbosConfig } from './config/dbos.config.js';
+import { DbosCreatePostWorkflow } from './infrastructure/dbos/dbos-create-post.workflow.js';
+import { DbosLifecycleService } from './infrastructure/dbos/dbos-lifecycle.service.js';
+import { PostsDbosDataSource } from './infrastructure/dbos/posts-dbos.datasource.js';
 
 @Module({
   imports: [
     CqrsModule,
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
@@ -34,7 +59,7 @@ import { TestingGrpcController } from './presentation/grpc/testing-grpc.controll
         '.env.production',
         '.env',
       ],
-      load: [postsConfig, databaseConfig, filesGrpcClientConfig],
+      load: [postsConfig, databaseConfig, dbosConfig, filesGrpcClientConfig, postsMessageBrokerConfig],
     }),
     ClientsModule.registerAsync([
       {
@@ -49,6 +74,25 @@ import { TestingGrpcController } from './presentation/grpc/testing-grpc.controll
           },
         }),
       },
+      {
+        name: POSTS_EVENTS_RMQ_CLIENT,
+        inject: [postsMessageBrokerConfig.KEY],
+        useFactory: (config: ConfigType<typeof postsMessageBrokerConfig>) => ({
+          transport: Transport.RMQ,
+          options: {
+            urls: [config.url],
+            queue: FILES_POST_EVENTS_QUEUE,
+            queueOptions: {
+              durable: true,
+            },
+            exchange: POSTS_EXCHANGE,
+            exchangeType: 'topic',
+            routingKey: POST_DELETED_V1_EVENT_NAME,
+            wildcards: true,
+            persistent: true,
+          },
+        }),
+      },
     ]),
   ],
   controllers: [PostsGrpcController, TestingGrpcController],
@@ -56,17 +100,47 @@ import { TestingGrpcController } from './presentation/grpc/testing-grpc.controll
     CreatePostUseCase,
     DeleteAllDataUseCase,
     PrismaService,
+    PostsDbosDataSource,
+    DbosCreatePostWorkflow,
+    DbosLifecycleService,
+    UpdatePostUseCase,
+    GetAuthorPostsQueryHandler,
+    SoftDeletePostUseCase,
+    DeletedPostsPublisherWorker,
+    PublishDeletedPostEventScheduler,
+    ClearSoftDeletedPostsScheduler,
+    ClearSorfDeletedPostsUseCase,
     {
       provide: PostsRepository,
       useClass: PrismaPostsRepository,
     },
     {
-      provide: ImageUploadsVerifier,
-      useClass: FilesImageUploadsVerifier,
+      provide: ImageUploadsGateway,
+      useClass: GrpcImageUploadsGateway,
+    },
+    {
+      provide: CreatePostWorkflow,
+      useExisting: DbosCreatePostWorkflow,
     },
     {
       provide: TestingRepository,
       useClass: PrismaTestingRepository,
+    },
+    {
+      provide: PostsQueryRepository,
+      useClass: PrismaPostsQueryRepository,
+    },
+    {
+      provide: UnitOfWork,
+      useClass: PrismaUnitOfWork,
+    },
+    {
+      provide: OutboxEventsRepository,
+      useClass: PrismaOutboxEventsRepository,
+    },
+    {
+      provide: PostsEventsPublisher,
+      useClass: RmqPostsEventsPublisher,
     },
   ],
 })

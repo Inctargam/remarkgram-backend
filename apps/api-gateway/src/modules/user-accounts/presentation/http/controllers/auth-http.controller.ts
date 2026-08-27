@@ -19,6 +19,7 @@ import { type ConfigType } from '@nestjs/config';
 import {
   AUTH_SERVICE_NAME,
   type AuthServiceClient,
+  OAuthProvider,
   PASSWORD_RESET_SERVICE_NAME,
   type PasswordResetServiceClient,
   REGISTRATION_SERVICE_NAME,
@@ -26,6 +27,8 @@ import {
   REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
   SESSIONS_SERVICE_NAME,
   type SessionsServiceClient,
+  USERS_SERVICE_NAME,
+  type UsersServiceClient,
 } from '@app/user-accounts-grpc';
 import type { ClientGrpc } from '@nestjs/microservices';
 import type { CookieOptions, Request, Response } from 'express';
@@ -44,6 +47,7 @@ import type {
   RequestWithOAuthIdentityClaims,
   RequestWithOptionalRefreshSession,
   RequestWithRefreshSession,
+  RequestWithUserId,
 } from '../auth-request.types.js';
 import { LoginDto } from '../dto/input/login.dto.js';
 import { AccessTokenResponseDto } from '../dto/output/access-token-response.dto.js';
@@ -82,6 +86,8 @@ import {
   GOOGLE_OIDC_CONFIGURATION_LOADER,
   type GoogleOidcConfigurationLoader,
 } from '../../../config/google-oidc-configuration.provider.js';
+import { CurrentUserResponseDto, type LoginMethod } from '../dto/output/current-user-response.dto.js';
+import { ApiGetCurrentUser } from '../swagger/auth/get/get-current-user.swagger.js';
 
 const GOOGLE_OIDC_TRANSACTION_COOKIE_MAX_AGE_MS = 5 * 60 * 1000;
 const GOOGLE_OIDC_STATE_COOKIE = 'googleOidcState';
@@ -95,6 +101,7 @@ export class AuthHttpController implements OnModuleInit {
   private registrationClient!: RegistrationServiceClient;
   private passResetClient!: PasswordResetServiceClient;
   private sessionsClient!: SessionsServiceClient;
+  private usersClient!: UsersServiceClient;
 
   constructor(
     @Inject(REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME)
@@ -117,6 +124,32 @@ export class AuthHttpController implements OnModuleInit {
     this.passResetClient =
       this.grpcClient.getService<PasswordResetServiceClient>(PASSWORD_RESET_SERVICE_NAME);
     this.sessionsClient = this.grpcClient.getService<SessionsServiceClient>(SESSIONS_SERVICE_NAME);
+    this.usersClient = this.grpcClient.getService<UsersServiceClient>(USERS_SERVICE_NAME);
+  }
+
+  @Get('me')
+  @ApiGetCurrentUser()
+  async getCurrentUser(@Req() request: RequestWithUserId): Promise<CurrentUserResponseDto> {
+    const user = await firstValueFrom(this.usersClient.getCurrentUser({ userId: request.userId }));
+    const loginMethods: LoginMethod[] = [];
+
+    if (user.hasPassword) loginMethods.push('password');
+    if (user.oauthProviders.includes(OAuthProvider.OAUTH_PROVIDER_GITHUB)) {
+      loginMethods.push('github');
+    }
+    if (user.oauthProviders.includes(OAuthProvider.OAUTH_PROVIDER_GOOGLE)) {
+      loginMethods.push('google');
+    }
+
+    return new CurrentUserResponseDto({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      avatarUrl: null,
+      emailVerified: user.emailVerified,
+      loginMethods,
+      createdAt: user.createdAt,
+    });
   }
 
   @Public()

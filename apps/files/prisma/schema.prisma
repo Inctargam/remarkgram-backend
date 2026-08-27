@@ -12,22 +12,90 @@ enum FileUploadStatus {
   PENDING
   COMPLETED
   REJECTED
+  RESERVED
+  ATTACHED
+}
+
+enum ImageUploadReservationStatus {
+  RESERVED
+  ATTACHED
+  RELEASED
 }
 
 model File {
-  id               String           @id @default(uuid()) @db.Uuid
+  id               String                  @id @default(uuid()) @db.Uuid
   userId           Int
-  objectKey        String           @unique
+  objectKey        String                  @unique
   originalFilename String
   contentType      String
   size             Int
-  uploadStatus     FileUploadStatus @default(PENDING)
-  uploadExpiresAt  DateTime         @db.Timestamptz
-  uploadedAt       DateTime?        @db.Timestamptz
-  deletedAt        DateTime?        @db.Timestamptz
-  createdAt        DateTime         @default(now()) @db.Timestamptz
-  updatedAt        DateTime         @updatedAt @db.Timestamptz
+  uploadStatus     FileUploadStatus        @default(PENDING)
+  uploadExpiresAt  DateTime                @db.Timestamptz
+  uploadedAt       DateTime?               @db.Timestamptz
+  reservationId    String?                 @db.Uuid
+  deletedAt        DateTime?               @db.Timestamptz
+  createdAt        DateTime                @default(now()) @db.Timestamptz
+  updatedAt        DateTime                @updatedAt @db.Timestamptz
+  reservation      ImageUploadReservation? @relation(fields: [reservationId], references: [id])
 
   @@index([uploadExpiresAt], where: { uploadStatus: "PENDING", deletedAt: null })
+  @@index([uploadedAt], where: { uploadStatus: "COMPLETED", reservationId: null, deletedAt: null })
+  @@index([updatedAt], where: { uploadStatus: "REJECTED", deletedAt: null })
+  @@index([userId, reservationId])
   @@map("files")
+}
+
+model ImageUploadReservation {
+  id         String                            @id @db.Uuid
+  userId     Int
+  uploadIds  String[]                          @db.Uuid
+  status     ImageUploadReservationStatus      @default(RESERVED)
+  createdAt  DateTime                          @default(now()) @db.Timestamptz
+  updatedAt  DateTime                          @updatedAt @db.Timestamptz
+  files      File[]
+
+  @@map("image_upload_reservations")
+}
+
+enum InboxStatus {
+  RECEIVED
+  PROCESSED
+  DEAD
+}
+
+model InboxEvents {
+  eventId     String      @id @map("event_id") @db.Uuid //защита идемпотентности
+  eventType   String      @map("event_type")
+  payload     Json
+  status      InboxStatus @default(RECEIVED)
+  attempts    Int         @default(0)
+  receivedAt  DateTime    @default(now()) @map("received_at") @db.Timestamptz
+  processedAt DateTime?   @map("processed_at") @db.Timestamptz
+  availableAt DateTime    @default(now()) @map("available_at") @db.Timestamptz
+  lastError   String?     @map("last_error")
+
+  @@index([status, availableAt])
+  @@map("inbox_events")
+}
+
+enum FileDeletionJobStatus {
+  PENDING
+  DONE
+  DEAD
+}
+
+model FileDeletionJob {
+  fileId      String                @id @map("file_id") @db.Uuid
+  objectKey   String                @map("object_key")
+  status      FileDeletionJobStatus @default(PENDING)
+  attempts    Int                   @default(0)
+  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime              @updatedAt @map("updated_at") @db.Timestamptz
+  doneAt      DateTime?             @map("done_at") @db.Timestamptz
+  availableAt DateTime              @map("available_at") @db.Timestamptz
+  leaseUntil  DateTime?             @map("lease_until") @db.Timestamptz
+  lastError   String?               @map("last_error")
+
+  @@index([status, availableAt])
+  @@map("file_deletion_jobs")
 }

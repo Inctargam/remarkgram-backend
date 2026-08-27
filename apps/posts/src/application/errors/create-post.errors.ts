@@ -5,7 +5,7 @@ export class InvalidUserIdError extends PostsError {
   readonly code = PostsErrorCode.INVALID_USER_ID;
 
   constructor() {
-    super('User ID must be a positive 32-bit integer');
+    super('User ID must be a positive integer');
   }
 }
 
@@ -33,6 +33,22 @@ export class DuplicatePostImageIdError extends PostsError {
   }
 }
 
+export class InvalidPostIdempotencyKeyError extends PostsError {
+  readonly code = PostsErrorCode.INVALID_POST_IDEMPOTENCY_KEY;
+
+  constructor() {
+    super('Idempotency-Key must be a UUID v4');
+  }
+}
+
+export class PostIdempotencyKeyConflictError extends PostsError {
+  readonly code = PostsErrorCode.POST_IDEMPOTENCY_KEY_CONFLICT;
+
+  constructor() {
+    super('Idempotency-Key has already been used for another post creation request');
+  }
+}
+
 export class PostImageNotFoundError extends PostsError {
   readonly code = PostsErrorCode.POST_IMAGE_NOT_FOUND;
 
@@ -41,11 +57,11 @@ export class PostImageNotFoundError extends PostsError {
   }
 }
 
-export class PostImageNotCompletedError extends PostsError {
-  readonly code = PostsErrorCode.POST_IMAGE_NOT_COMPLETED;
+export class PostImagesNotAvailableError extends PostsError {
+  readonly code = PostsErrorCode.POST_IMAGES_NOT_AVAILABLE;
 
   constructor() {
-    super('All post images must have completed uploads');
+    super('One or more post images are not available');
   }
 }
 

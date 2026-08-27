@@ -11,7 +11,7 @@ export class InvalidUserIdError extends FilesError {
   readonly code = FilesErrorCode.INVALID_USER_ID;
 
   constructor() {
-    super('User ID must be a positive 32-bit integer');
+    super('User ID must be a positive integer');
   }
 }
 
@@ -57,19 +57,27 @@ export class ImageUploadNotFoundError extends FilesError {
   }
 }
 
+export class ImageUploadsNotAvailableError extends FilesError {
+  readonly code = FilesErrorCode.IMAGE_UPLOADS_NOT_AVAILABLE;
+
+  constructor() {
+    super('One or more image uploads are not available for this operation');
+  }
+}
+
+export class ImageUploadReservationConflictError extends FilesError {
+  readonly code = FilesErrorCode.IMAGE_UPLOAD_RESERVATION_CONFLICT;
+
+  constructor() {
+    super('Image upload reservation conflicts with an existing reservation');
+  }
+}
+
 export class InvalidImageUploadStatusError extends FilesError {
   readonly code = FilesErrorCode.INVALID_IMAGE_UPLOAD_STATUS;
 
   constructor() {
     super('Image uploads must be either all pending or all completed');
-  }
-}
-
-export class ImageUploadsNotCompletedError extends FilesError {
-  readonly code = FilesErrorCode.IMAGE_UPLOADS_NOT_COMPLETED;
-
-  constructor() {
-    super('All image uploads must be completed');
   }
 }
 

@@ -9,6 +9,7 @@
     "types": ["node", "vitest/globals"],
     "resolvePackageJsonExports": true,
     "resolvePackageJsonImports": true,
+    "rewriteRelativeImportExtensions": true,
     "declaration": true,
     "sourceMap": true,
     "outDir": "./dist",
@@ -24,12 +25,18 @@
     "paths": {
       "@app/config": ["./libs/config/src/index.ts"],
       "@app/config/*": ["./libs/config/src/*"],
+      "@app/grpc": ["./libs/contracts/grpc/src/index.ts"],
+      "@app/grpc/*": ["./libs/contracts/grpc/src/*"],
+      "@app/message-broker": ["./libs/contracts/message-broker/src/index.ts"],
+      "@app/message-broker/*": ["./libs/contracts/message-broker/src/*"],
       "@app/files-grpc": ["./libs/contracts/files-grpc/src/index.ts"],
       "@app/files-grpc/*": ["./libs/contracts/files-grpc/src/*"],
       "@app/posts-grpc": ["./libs/contracts/posts-grpc/src/index.ts"],
       "@app/posts-grpc/*": ["./libs/contracts/posts-grpc/src/*"],
       "@app/user-accounts-grpc": ["./libs/contracts/user-accounts-grpc/src/index.ts"],
-      "@app/user-accounts-grpc/*": ["./libs/contracts/user-accounts-grpc/src/*"]
+      "@app/user-accounts-grpc/*": ["./libs/contracts/user-accounts-grpc/src/*"],
+      "@app/validation": ["./libs/validation/src/index.ts"],
+      "@app/validation/*": ["./libs/validation/src/*"]
     }
   }
 }

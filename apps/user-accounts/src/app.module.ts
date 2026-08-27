@@ -44,13 +44,16 @@ import { DeleteAllDataUseCase } from './features/testing/application/use-cases/d
 import { PrismaTestingRepository } from './features/testing/infrastructure/persistence/prisma-testing.repository.js';
 import { TestingGrpcController } from './features/testing/presentation/grpc/controllers/testing-grpc.controller.js';
 import { UsersRepository } from './features/users/application/ports/users.repository.js';
+import { UsersQueryRepository } from './features/users/application/ports/users-query.repository.js';
 import { CreateUserUseCase } from './features/users/application/use-cases/create-user.use-case.js';
 import { ConfirmRegistrationUseCase } from './features/users/application/use-cases/confirm-registration.use-case.js';
+import { GetCurrentUserUseCase } from './features/users/application/use-cases/get-current-user.use-case.js';
 import { GetUsersUseCase } from './features/users/application/use-cases/get-users.use-case.js';
 import { RegisterUserUseCase } from './features/users/application/use-cases/register-user.use-case.js';
 import { ResendRegistrationConfirmationUseCase } from './features/users/application/use-cases/resend-registration-confirmation.use-case.js';
 import { UsersService } from './features/users/application/users.service.js';
 import { PrismaUsersRepository } from './features/users/infrastructure/persistence/repositories/prisma-users.repository.js';
+import { PrismaUsersQueryRepository } from './features/users/infrastructure/persistence/repositories/prisma-users-query.repository.js';
 import { UsersGrpcController } from './features/users/presentation/grpc/controllers/users-grpc.controller.js';
 import { RegistrationGrpcController } from './features/users/presentation/grpc/controllers/registration-grpc.controller.js';
 import { AuthIdentitiesRepository } from './features/auth-identities/application/ports/auth-identities-repository.js';
@@ -105,6 +108,10 @@ import { AuthIdentityService } from './features/auth-identities/application/auth
       useClass: PrismaUsersRepository,
     },
     {
+      provide: UsersQueryRepository,
+      useClass: PrismaUsersQueryRepository,
+    },
+    {
       provide: SessionsRepository,
       useClass: PrismaSessionsRepository,
     },
@@ -156,6 +163,7 @@ import { AuthIdentityService } from './features/auth-identities/application/auth
     DeleteSessionUseCase,
     DeleteOtherSessionsUseCase,
     CreateUserUseCase,
+    GetCurrentUserUseCase,
     GetUsersUseCase,
     RegisterUserUseCase,
     ConfirmRegistrationUseCase,

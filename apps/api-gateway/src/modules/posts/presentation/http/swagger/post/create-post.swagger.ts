@@ -1,8 +1,16 @@
 import { applyDecorators } from '@nestjs/common';
-import { ApiBody, ApiCreatedResponse, ApiOperation, ApiResponse, getSchemaPath } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiCreatedResponse,
+  ApiHeader,
+  ApiOperation,
+  ApiResponse,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import { ApiErrorResponseDto } from '../../../../../../common/http/api-error-response.dto.js';
 import { ValidationErrorResponseDto } from '../../../../../../common/http/validation-error-response.dto.js';
 import { createApiErrorResponseExample } from '../../../../../../swagger/examples/api-error-response.example.js';
+import { IDEMPOTENCY_KEY_HEADER } from '../../decorators/idempotency-key.decorator.js';
 import { CreatePostDto } from '../../dto/input/create-post.dto.js';
 import { CreatePostResponseDto } from '../../dto/output/create-post-response.dto.js';
 
@@ -12,13 +20,27 @@ export const ApiCreatePost = () =>
       summary: 'Create a post with completed image uploads',
       description:
         'Final step of publication creation. Supply the IDs previously confirmed through ' +
-        'files/image-uploads/complete in their display order. Posts asks Files over gRPC to verify that every ' +
-        'image exists, belongs to the authenticated author, is not soft-deleted and has status COMPLETED. ' +
-        'The post and its ordered image relations are then created atomically.',
+        'files/image-uploads/complete in their display order. Posts asks Files over gRPC to reserve images ' +
+        'that exist, belong to the authenticated author, are not soft-deleted and have status COMPLETED. ' +
+        'The post and its ordered image relations are then created atomically, after which the reservation ' +
+        'is marked as attached. Retrying an identical request with the same Idempotency-Key resumes ' +
+        'the original creation workflow and returns the same post ID.',
     }),
     ApiBody({
       type: CreatePostDto,
       description: 'Post description and completed image IDs in the desired display order.',
+    }),
+    ApiHeader({
+      name: IDEMPOTENCY_KEY_HEADER,
+      required: true,
+      description:
+        'Required client-generated UUID v4 for one publication attempt. Reuse the same value only ' +
+        'when retrying an identical request.',
+      schema: {
+        type: 'string',
+        format: 'uuid',
+        example: '7b96a443-8b33-41cf-9bd9-2f57b720d39e',
+      },
     }),
     ApiCreatedResponse({
       description: 'The post and all ordered image relations were created.',
@@ -27,7 +49,7 @@ export const ApiCreatePost = () =>
     ApiResponse({
       status: 400,
       description:
-        'The request shape is invalid or a post invariant is violated: description length, image count or unique image IDs.',
+        'The Idempotency-Key or request shape is invalid, or a post invariant is violated: description length, image count or unique image IDs.',
       content: {
         'application/json': {
           schema: {
@@ -37,6 +59,14 @@ export const ApiCreatePost = () =>
             ],
           },
           examples: {
+            invalidIdempotencyKey: {
+              summary: 'Idempotency-Key is missing or is not a UUID v4',
+              value: {
+                statusCode: 400,
+                message: 'Idempotency-Key header must be a UUID v4',
+                error: 'Bad Request',
+              },
+            },
             validationError: {
               summary: 'An image ID is not a UUID v4',
               value: {
@@ -94,17 +124,18 @@ export const ApiCreatePost = () =>
     }),
     ApiResponse({
       status: 409,
-      description: 'At least one image is not COMPLETED or is already attached to another post.',
+      description:
+        'The Idempotency-Key conflicts with another payload, or at least one image cannot be reserved in its current state or is already attached to another post.',
       content: {
         'application/json': {
           schema: { $ref: getSchemaPath(ApiErrorResponseDto) },
           examples: {
-            imageNotCompleted: {
-              summary: 'At least one image upload is PENDING or REJECTED',
+            imagesNotAvailable: {
+              summary: 'At least one image cannot be reserved for this post',
               value: createApiErrorResponseExample(
                 409,
-                'POST_IMAGE_NOT_COMPLETED',
-                'All post images must have completed uploads',
+                'POST_IMAGES_NOT_AVAILABLE',
+                'One or more post images are not available',
               ),
             },
             imageAlreadyAttached: {
@@ -113,6 +144,14 @@ export const ApiCreatePost = () =>
                 409,
                 'POST_IMAGE_ALREADY_ATTACHED',
                 'One or more images are already attached to a post',
+              ),
+            },
+            idempotencyKeyConflict: {
+              summary: 'The key was previously used with another request body',
+              value: createApiErrorResponseExample(
+                409,
+                'POST_IDEMPOTENCY_KEY_CONFLICT',
+                'Idempotency-Key was already used with a different request',
               ),
             },
           },

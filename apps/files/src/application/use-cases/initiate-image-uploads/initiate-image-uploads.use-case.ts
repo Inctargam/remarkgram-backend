@@ -1,3 +1,5 @@
+import { Inject } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import { randomUUID } from 'node:crypto';
 import {
@@ -14,14 +16,12 @@ import {
   InvalidUserIdError,
   UnsupportedImageContentTypeError,
 } from '../../errors/image-upload.errors.js';
+import { filesConfig } from '../../../config/files.config.js';
 import { FileUploadStatus } from '../../../domain/enums/file-upload-status.enum.js';
 import { FilesRepository, type CreateFileRecord } from '../../ports/files.repository.js';
 import { ObjectStorage } from '../../ports/object-storage.js';
 
 const supportedImageContentTypes = new Set<string>(Object.values(ImageContentType));
-const IMAGE_UPLOAD_TTL_SECONDS = 300;
-const MAX_USER_ID = 2_147_483_647;
-
 export type ImageUploadMetadataInput = {
   clientFileId: string;
   originalFilename: string;
@@ -56,11 +56,14 @@ export class InitiateImageUploadsUseCase implements ICommandHandler<InitiateImag
   constructor(
     private readonly objectStorage: ObjectStorage,
     private readonly filesRepository: FilesRepository,
+    @Inject(filesConfig.KEY) private readonly config: ConfigType<typeof filesConfig>,
   ) {}
   async execute(command: InitiateImageUploadsCommand) {
     const { userId, images } = command.params;
 
-    if (!Number.isSafeInteger(userId) || userId <= 0 || userId > MAX_USER_ID) {
+    // После преобразования userId из транспортной строки application-слой принимает
+    // только положительное целое, независимо от используемого транспорта и хранилища.
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
       throw new InvalidUserIdError();
     }
 
@@ -96,13 +99,13 @@ export class InitiateImageUploadsUseCase implements ICommandHandler<InitiateImag
     for (const image of images) {
       const { originalFilename, contentType, size } = image;
       const id = randomUUID();
-      const objectKey = `user/${userId}/images/${id}`;
+      const objectKey = `users/${userId}/images/${id}`;
 
       const { url, fields, expiresAt } = await this.objectStorage.createPresignedUpload({
         objectKey,
         contentType,
         size,
-        expiresInSeconds: IMAGE_UPLOAD_TTL_SECONDS,
+        expiresInSeconds: this.config.s3.uploadUrlExpiresInSeconds,
       });
 
       const uploadSession = {

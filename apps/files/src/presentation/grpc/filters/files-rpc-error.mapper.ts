@@ -1,6 +1,7 @@
 import { Metadata, status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
-import { FILES_APP_ERROR_CODE_METADATA_KEY, FilesErrorCode } from '@app/files-grpc';
+import { FilesErrorCode } from '@app/files-grpc';
+import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import type { FilesError } from '../../../application/errors/files.error.js';
 
 const GRPC_STATUS_BY_APP_ERROR_CODE = {
@@ -10,10 +11,16 @@ const GRPC_STATUS_BY_APP_ERROR_CODE = {
   [FilesErrorCode.DUPLICATE_CLIENT_FILE_ID]: status.INVALID_ARGUMENT,
   [FilesErrorCode.DUPLICATE_IMAGE_UPLOAD_ID]: status.INVALID_ARGUMENT,
   [FilesErrorCode.IMAGE_UPLOAD_NOT_FOUND]: status.NOT_FOUND,
+  [FilesErrorCode.IMAGE_UPLOADS_NOT_AVAILABLE]: status.FAILED_PRECONDITION,
+  [FilesErrorCode.IMAGE_UPLOAD_RESERVATION_CONFLICT]: status.ALREADY_EXISTS,
   [FilesErrorCode.INVALID_IMAGE_UPLOAD_STATUS]: status.FAILED_PRECONDITION,
-  [FilesErrorCode.IMAGE_UPLOADS_NOT_COMPLETED]: status.FAILED_PRECONDITION,
   [FilesErrorCode.IMAGE_UPLOAD_METADATA_MISMATCH]: status.FAILED_PRECONDITION,
   [FilesErrorCode.UNSUPPORTED_IMAGE_CONTENT_TYPE]: status.INVALID_ARGUMENT,
+  [FilesErrorCode.FILE_DELETED]: status.NOT_FOUND,
+  [FilesErrorCode.FILE_NOT_FOUND]: status.NOT_FOUND,
+  [FilesErrorCode.FILE_UPLOAD_NOT_COMPLETED]: status.NOT_FOUND,
+  [FilesErrorCode.FILE_PUBLIC_ACCESS_DENIED]: status.PERMISSION_DENIED,
+  [FilesErrorCode.FILE_DOWNLOAD_URL_GENERATION_FAILED]: status.INTERNAL,
 } satisfies Record<FilesErrorCode, status>;
 
 export const mapFilesErrorToRpcException = (error: FilesError): RpcException => {
@@ -21,7 +28,7 @@ export const mapFilesErrorToRpcException = (error: FilesError): RpcException => 
   const grpcStatus = GRPC_STATUS_BY_APP_ERROR_CODE[appErrorCode];
 
   const metadata = new Metadata();
-  metadata.set(FILES_APP_ERROR_CODE_METADATA_KEY, appErrorCode);
+  metadata.set(APP_ERROR_CODE_METADATA_KEY, appErrorCode);
 
   return new RpcException({
     code: grpcStatus,

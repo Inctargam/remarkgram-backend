@@ -1,4 +1,5 @@
 import type { FileUploadStatus } from '../../domain/enums/file-upload-status.enum.js';
+import type { TransactionContext } from './unit-of-work.js';
 
 export type CreateFileRecord = {
   id: string;
@@ -29,10 +30,80 @@ export type UpdateImageUploadsStatusParams = FindImageUploadsParams & {
   uploadedAt: Date | null;
 };
 
+export type ReserveImageUploadsRepositoryParams = FindImageUploadsParams & {
+  reservationId: string;
+};
+
+export type ReleaseReservedImageUploadsRepositoryParams = {
+  userId: number;
+  reservationId: string;
+};
+
+export type AttachReservedImageUploadsRepositoryParams = ReleaseReservedImageUploadsRepositoryParams;
+
+export type ClaimExpiredImageUploadsParams = {
+  pendingExpiredBefore: Date;
+  completedBefore: Date;
+  rejectedBefore: Date;
+  retryBefore: Date;
+  claimedAt: Date;
+  limit: number;
+};
+
+export type ClaimedImageUpload = {
+  id: string;
+  objectKey: string;
+};
+
+export type DeleteClaimedImageUploadParams = {
+  uploadId: string;
+  claimedAt: Date;
+};
+
+export type DeleteRejectedImageUploadsParams = FindImageUploadsParams;
+
+export type FindAvailableByIdRepositoryParams = {
+  id: string;
+};
+
+export type FindAvailableByIdRepositoryResult = {
+  id: string;
+  userId: number;
+  objectKey: string;
+} | null;
+
+export type SoftDeleteFileIdsByUserRepositoryResult = {
+  id: string;
+  objectKey: string;
+  deletedAt: Date | null;
+}[];
 export abstract class FilesRepository {
   abstract createMany(fileRecords: readonly CreateFileRecord[]): Promise<void>;
 
   abstract findImageUploads(params: FindImageUploadsParams): Promise<ImageUploadRecord[]>;
 
   abstract updateImageUploadsStatusIfAllPending(params: UpdateImageUploadsStatusParams): Promise<void>;
+  abstract reserveImageUploads(params: ReserveImageUploadsRepositoryParams): Promise<void>;
+
+  abstract attachReservedImageUploads(params: AttachReservedImageUploadsRepositoryParams): Promise<void>;
+
+  abstract releaseReservedImageUploads(params: ReleaseReservedImageUploadsRepositoryParams): Promise<void>;
+
+  abstract claimExpiredImageUploads(params: ClaimExpiredImageUploadsParams): Promise<ClaimedImageUpload[]>;
+
+  abstract deleteClaimedImageUpload(params: DeleteClaimedImageUploadParams): Promise<boolean>;
+
+  abstract deleteRejectedImageUploads(params: DeleteRejectedImageUploadsParams): Promise<void>;
+
+  abstract findAvailableById(
+    params: FindAvailableByIdRepositoryParams,
+  ): Promise<FindAvailableByIdRepositoryResult>;
+
+  abstract softDeleteFileIdsByUser(
+    fileIds: string[],
+    userId: number,
+    ctx?: TransactionContext,
+  ): Promise<SoftDeleteFileIdsByUserRepositoryResult>;
+
+  abstract hardDeleteSoftDeletedById(fileId: string, ctx?: TransactionContext): Promise<void>;
 }

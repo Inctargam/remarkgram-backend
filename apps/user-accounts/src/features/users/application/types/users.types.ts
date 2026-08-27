@@ -1,4 +1,5 @@
 import type { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
+import type { AuthIdentityProvider } from '../../../auth-identities/domain/auth-identity.entity.js';
 
 export type CreateUserParams = {
   username: string;
@@ -36,4 +37,14 @@ export type UpdateConfirmationCodeParams = {
   expectedCode: string;
   newCode: string;
   expiration: Date;
+};
+
+export type CurrentUserView = {
+  id: number;
+  username: string;
+  email: string;
+  emailVerified: boolean;
+  hasPassword: boolean;
+  oauthProviders: AuthIdentityProvider[];
+  createdAt: Date;
 };

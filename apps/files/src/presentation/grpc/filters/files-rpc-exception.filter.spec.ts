@@ -1,13 +1,14 @@
 import { status } from '@grpc/grpc-js';
-import { FILES_APP_ERROR_CODE_METADATA_KEY } from '@app/files-grpc';
+import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import type { ArgumentsHost } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 import {
   DuplicateClientFileIdError,
   DuplicateImageUploadIdError,
   ImageUploadMetadataMismatchError,
+  ImageUploadReservationConflictError,
   ImageUploadNotFoundError,
-  ImageUploadsNotCompletedError,
+  ImageUploadsNotAvailableError,
   InvalidUserIdError,
   InvalidImageSizeError,
   InvalidImageCountError,
@@ -39,9 +40,7 @@ describe('FilesRpcExceptionFilter', () => {
       }),
     );
     expect(
-      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(
-        FILES_APP_ERROR_CODE_METADATA_KEY,
-      ),
+      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(APP_ERROR_CODE_METADATA_KEY),
     ).toEqual([error.code]);
   });
 
@@ -58,9 +57,7 @@ describe('FilesRpcExceptionFilter', () => {
       }),
     );
     expect(
-      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(
-        FILES_APP_ERROR_CODE_METADATA_KEY,
-      ),
+      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(APP_ERROR_CODE_METADATA_KEY),
     ).toEqual([error.code]);
   });
 
@@ -77,13 +74,11 @@ describe('FilesRpcExceptionFilter', () => {
       }),
     );
     expect(
-      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(
-        FILES_APP_ERROR_CODE_METADATA_KEY,
-      ),
+      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(APP_ERROR_CODE_METADATA_KEY),
     ).toEqual([error.code]);
   });
 
-  it.each([new InvalidImageUploadStatusError(), new ImageUploadsNotCompletedError()])(
+  it.each([new InvalidImageUploadStatusError(), new ImageUploadsNotAvailableError()])(
     'maps $code to FAILED_PRECONDITION',
     async (error) => {
       const rpcError: unknown = await firstValueFrom(filter.catch(error, host)).catch(
@@ -97,10 +92,25 @@ describe('FilesRpcExceptionFilter', () => {
         }),
       );
       expect(
-        (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(
-          FILES_APP_ERROR_CODE_METADATA_KEY,
-        ),
+        (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(APP_ERROR_CODE_METADATA_KEY),
       ).toEqual([error.code]);
     },
   );
+
+  it('maps a reservation conflict to ALREADY_EXISTS', async () => {
+    const error = new ImageUploadReservationConflictError();
+    const rpcError: unknown = await firstValueFrom(filter.catch(error, host)).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(rpcError).toEqual(
+      expect.objectContaining({
+        code: status.ALREADY_EXISTS,
+        message: error.message,
+      }),
+    );
+    expect(
+      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(APP_ERROR_CODE_METADATA_KEY),
+    ).toEqual([error.code]);
+  });
 });
