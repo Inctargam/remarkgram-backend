@@ -6,6 +6,7 @@ import {
   DuplicateClientFileIdError,
   DuplicateImageUploadIdError,
   ImageUploadMetadataMismatchError,
+  ImageUploadReservationConflictError,
   ImageUploadNotFoundError,
   ImageUploadsNotAvailableError,
   InvalidUserIdError,
@@ -95,4 +96,21 @@ describe('FilesRpcExceptionFilter', () => {
       ).toEqual([error.code]);
     },
   );
+
+  it('maps a reservation conflict to ALREADY_EXISTS', async () => {
+    const error = new ImageUploadReservationConflictError();
+    const rpcError: unknown = await firstValueFrom(filter.catch(error, host)).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(rpcError).toEqual(
+      expect.objectContaining({
+        code: status.ALREADY_EXISTS,
+        message: error.message,
+      }),
+    );
+    expect(
+      (rpcError as { metadata: { get(key: string): unknown[] } }).metadata.get(APP_ERROR_CODE_METADATA_KEY),
+    ).toEqual([error.code]);
+  });
 });

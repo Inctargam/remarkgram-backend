@@ -8,7 +8,7 @@ service FilesService {
   rpc ReserveImageUploads(ReserveImageUploadsRequest) returns (ReserveImageUploadsResponse);
   rpc AttachReservedImageUploads(AttachReservedImageUploadsRequest) returns (AttachReservedImageUploadsResponse);
   rpc ReleaseReservedImageUploads(ReleaseReservedImageUploadsRequest) returns (ReleaseReservedImageUploadsResponse);
-    rpc GetFileDownloadUrl(GetFileDownloadUrlRequest) returns (GetFileDownloadUrlResponse);
+  rpc GetFileDownloadUrl(GetFileDownloadUrlRequest) returns (GetFileDownloadUrlResponse);
 }
 
 service TestingService {

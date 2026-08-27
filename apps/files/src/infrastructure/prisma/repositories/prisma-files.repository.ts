@@ -18,14 +18,18 @@ import {
 } from '../../../application/ports/files.repository.js';
 import {
   ImageUploadNotFoundError,
+  ImageUploadReservationConflictError,
   ImageUploadsNotAvailableError,
   InvalidImageUploadStatusError,
 } from '../../../application/errors/image-upload.errors.js';
 import { FileUploadStatus } from '../../../domain/enums/file-upload-status.enum.js';
-import { FileUploadStatus as PrismaFileUploadStatus } from '../generated/enums.js';
+import { Prisma } from '../generated/client.js';
+import { ImageUploadReservationStatus } from '../generated/enums.js';
 import { PrismaService } from '../prisma.service.js';
 import type { TransactionContext } from '../../../application/ports/unit-of-work.js';
-import { Prisma } from '../generated/client.js';
+
+const haveSameUploadIds = (left: readonly string[], right: readonly string[]): boolean =>
+  left.length === right.length && left.every((uploadId, index) => uploadId === right[index]);
 
 @Injectable()
 export class PrismaFilesRepository extends FilesRepository {
@@ -86,91 +90,131 @@ export class PrismaFilesRepository extends FilesRepository {
     });
   }
   async reserveImageUploads(params: ReserveImageUploadsRepositoryParams): Promise<void> {
-    const { uploadIds, userId, reservationId, reservationExpiresAt } = params;
+    const { uploadIds, userId, reservationId } = params;
+    const canonicalUploadIds = [...uploadIds].sort();
 
-    await this.prisma.$transaction(async (tx) => {
-      // Условное обновление одновременно проверяет владельца и состояние записей.
-      // Если обновится только часть набора, последующая ошибка откатит эти изменения.
-      const result = await tx.file.updateMany({
-        where: {
-          id: { in: [...uploadIds] },
-          userId,
-          uploadStatus: FileUploadStatus.COMPLETED,
-          reservationId: null,
-          reservationExpiresAt: null,
-          deletedAt: null,
-        },
-        data: {
-          uploadStatus: FileUploadStatus.RESERVED,
-          reservationId,
-          reservationExpiresAt,
-        },
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const existingReservation = await tx.imageUploadReservation.findUnique({
+          where: { id: reservationId },
+        });
+
+        if (existingReservation) {
+          if (
+            existingReservation.userId === userId &&
+            haveSameUploadIds(existingReservation.uploadIds, canonicalUploadIds)
+          ) {
+            // Старый reserve не меняет уже ATTACHED/RELEASED резервацию обратно.
+            // Это точный повтор того же durable шага, поэтому он считается успешным.
+            return;
+          }
+
+          throw new ImageUploadReservationConflictError();
+        }
+
+        await tx.imageUploadReservation.create({
+          data: {
+            id: reservationId,
+            userId,
+            uploadIds: canonicalUploadIds,
+            status: ImageUploadReservationStatus.RESERVED,
+          },
+        });
+
+        // Агрегат и File меняются одной транзакцией. Несовпадение количества
+        // откатывает как частичное обновление файлов, так и саму резервацию.
+        const result = await tx.file.updateMany({
+          where: {
+            id: { in: canonicalUploadIds },
+            userId,
+            uploadStatus: FileUploadStatus.COMPLETED,
+            reservationId: null,
+            deletedAt: null,
+          },
+          data: {
+            uploadStatus: FileUploadStatus.RESERVED,
+            reservationId,
+          },
+        });
+
+        if (result.count === canonicalUploadIds.length) {
+          return;
+        }
+
+        const fileRecords = await tx.file.findMany({
+          where: {
+            id: { in: canonicalUploadIds },
+            userId,
+            deletedAt: null,
+          },
+          select: { id: true },
+        });
+
+        if (fileRecords.length !== canonicalUploadIds.length) {
+          throw new ImageUploadNotFoundError();
+        }
+
+        throw new ImageUploadsNotAvailableError();
+      });
+    } catch (error: unknown) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+        throw error;
+      }
+
+      // Конкурентные точные повторы одновременно создают один PK reservationId.
+      // После commit победителя принимаем только полностью совпавшую резервацию.
+      const reservation = await this.prisma.imageUploadReservation.findUnique({
+        where: { id: reservationId },
       });
 
-      if (result.count === uploadIds.length) {
-        return;
+      if (reservation?.userId !== userId || !haveSameUploadIds(reservation.uploadIds, canonicalUploadIds)) {
+        throw new ImageUploadReservationConflictError();
       }
-
-      // Отдельное чтение позволяет отличить отсутствующие, чужие и удалённые записи
-      // от существующих записей, которые нельзя резервировать в текущем состоянии.
-      const fileRecords = await tx.file.findMany({
-        where: {
-          id: { in: [...uploadIds] },
-          userId,
-          deletedAt: null,
-        },
-        select: {
-          uploadStatus: true,
-          reservationId: true,
-        },
-      });
-
-      if (fileRecords.length !== uploadIds.length) {
-        throw new ImageUploadNotFoundError();
-      }
-
-      // TODO: Вынести дедупликацию в отдельную ImageUploadReservation с сохранённым исходным
-      // набором uploadIds и состоянием операции. Текущая проверка только по File не позволяет
-      // отличить точный повтор от запроса с тем же reservationId, но меньшим набором файлов.
-      // Повтор того же запроса считается успешным. ATTACHED означает, что запоздавший
-      // повтор резервирования пришёл уже после следующего шага той же операции.
-      const isReservationRetry = fileRecords.every(
-        (fileRecord) =>
-          fileRecord.reservationId === reservationId &&
-          fileRecord.uploadStatus === PrismaFileUploadStatus.RESERVED,
-      );
-
-      const isAlreadyAttached = fileRecords.every(
-        (fileRecord) =>
-          fileRecord.reservationId === reservationId &&
-          fileRecord.uploadStatus === PrismaFileUploadStatus.ATTACHED,
-      );
-
-      if (result.count === 0 && (isReservationRetry || isAlreadyAttached)) {
-        return;
-      }
-
-      // Все записи существуют, но хотя бы одна имеет несовместимый статус либо
-      // принадлежит другой операции резервирования. Ошибка также откатывает частичное обновление.
-      throw new ImageUploadsNotAvailableError();
-    });
+    }
   }
 
   async releaseReservedImageUploads(params: ReleaseReservedImageUploadsRepositoryParams): Promise<void> {
     const { userId, reservationId } = params;
 
-    await this.prisma.file.updateMany({
-      where: {
-        userId,
-        uploadStatus: FileUploadStatus.RESERVED,
-        reservationId,
-        deletedAt: null,
-      },
-      data: {
-        uploadStatus: FileUploadStatus.COMPLETED,
-        reservationId: null,
-        reservationExpiresAt: null,
-      },
+    await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.imageUploadReservation.updateMany({
+        where: { id: reservationId, userId, status: ImageUploadReservationStatus.RESERVED },
+        data: { status: ImageUploadReservationStatus.RELEASED },
+      });
+
+      const reservation = await tx.imageUploadReservation.findUnique({
+        where: { id: reservationId },
+      });
+
+      if (claimed.count === 0) {
+        if (reservation?.userId === userId && reservation.status === ImageUploadReservationStatus.RELEASED) {
+          return;
+        }
+
+        throw new ImageUploadsNotAvailableError();
+      }
+
+      if (!reservation) {
+        throw new ImageUploadsNotAvailableError();
+      }
+
+      const filesResult = await tx.file.updateMany({
+        where: {
+          id: { in: reservation.uploadIds },
+          userId,
+          uploadStatus: FileUploadStatus.RESERVED,
+          reservationId,
+          deletedAt: null,
+        },
+        data: {
+          uploadStatus: FileUploadStatus.COMPLETED,
+          reservationId: null,
+        },
+      });
+
+      if (filesResult.count !== reservation.uploadIds.length) {
+        throw new ImageUploadsNotAvailableError();
+      }
     });
   }
 
@@ -178,42 +222,39 @@ export class PrismaFilesRepository extends FilesRepository {
     const { userId, reservationId } = params;
 
     await this.prisma.$transaction(async (tx) => {
-      // reservationId сохраняется после присоединения: по нему повтор того же шага
-      // можно отличить от попытки присоединить чужой или уже освобождённый резерв.
-      await tx.file.updateMany({
+      const claimed = await tx.imageUploadReservation.updateMany({
+        where: { id: reservationId, userId, status: ImageUploadReservationStatus.RESERVED },
+        data: { status: ImageUploadReservationStatus.ATTACHED },
+      });
+
+      const reservation = await tx.imageUploadReservation.findUnique({
+        where: { id: reservationId },
+      });
+
+      if (claimed.count === 0) {
+        if (reservation?.userId === userId && reservation.status === ImageUploadReservationStatus.ATTACHED) {
+          return;
+        }
+
+        throw new ImageUploadsNotAvailableError();
+      }
+
+      if (!reservation) {
+        throw new ImageUploadsNotAvailableError();
+      }
+
+      const filesResult = await tx.file.updateMany({
         where: {
+          id: { in: reservation.uploadIds },
           userId,
           uploadStatus: FileUploadStatus.RESERVED,
           reservationId,
           deletedAt: null,
         },
-        data: {
-          uploadStatus: FileUploadStatus.ATTACHED,
-          reservationExpiresAt: null,
-        },
+        data: { uploadStatus: FileUploadStatus.ATTACHED },
       });
 
-      // Проверка выполняется в той же транзакции. Пустой, удалённый или смешанный набор
-      // приводит к ошибке и откату, а полностью ATTACHED набор означает успешный повтор.
-      const fileRecords = await tx.file.findMany({
-        where: {
-          userId,
-          reservationId,
-        },
-        select: {
-          uploadStatus: true,
-          deletedAt: true,
-        },
-      });
-
-      const areAllAttached =
-        fileRecords.length > 0 &&
-        fileRecords.every(
-          (fileRecord) =>
-            fileRecord.uploadStatus === PrismaFileUploadStatus.ATTACHED && fileRecord.deletedAt === null,
-        );
-
-      if (!areAllAttached) {
+      if (filesResult.count !== reservation.uploadIds.length) {
         throw new ImageUploadsNotAvailableError();
       }
     });

@@ -385,6 +385,7 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 
 export const ModelName = {
   File: 'File',
+  ImageUploadReservation: 'ImageUploadReservation',
   InboxEvents: 'InboxEvents',
   FileDeletionJob: 'FileDeletionJob'
 } as const
@@ -402,7 +403,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "file" | "inboxEvents" | "fileDeletionJob"
+    modelProps: "file" | "imageUploadReservation" | "inboxEvents" | "fileDeletionJob"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -477,6 +478,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.FileCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.FileCountAggregateOutputType> | number
+        }
+      }
+    }
+    ImageUploadReservation: {
+      payload: Prisma.$ImageUploadReservationPayload<ExtArgs>
+      fields: Prisma.ImageUploadReservationFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ImageUploadReservationFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadReservationPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ImageUploadReservationFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadReservationPayload>
+        }
+        findFirst: {
+          args: Prisma.ImageUploadReservationFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadReservationPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ImageUploadReservationFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadReservationPayload>
+        }
+        findMany: {
+          args: Prisma.ImageUploadReservationFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadReservationPayload>[]
+        }
+        create: {
+          args: Prisma.ImageUploadReservationCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadReservationPayload>
+        }
+        createMany: {
+          args: Prisma.ImageUploadReservationCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ImageUploadReservationCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadReservationPayload>[]
+        }
+        delete: {
+          args: Prisma.ImageUploadReservationDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadReservationPayload>
+        }
+        update: {
+          args: Prisma.ImageUploadReservationUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadReservationPayload>
+        }
+        deleteMany: {
+          args: Prisma.ImageUploadReservationDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ImageUploadReservationUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ImageUploadReservationUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadReservationPayload>[]
+        }
+        upsert: {
+          args: Prisma.ImageUploadReservationUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ImageUploadReservationPayload>
+        }
+        aggregate: {
+          args: Prisma.ImageUploadReservationAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateImageUploadReservation>
+        }
+        groupBy: {
+          args: Prisma.ImageUploadReservationGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ImageUploadReservationGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ImageUploadReservationCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ImageUploadReservationCountAggregateOutputType> | number
         }
       }
     }
@@ -678,13 +753,24 @@ export const FileScalarFieldEnum = {
   uploadExpiresAt: 'uploadExpiresAt',
   uploadedAt: 'uploadedAt',
   reservationId: 'reservationId',
-  reservationExpiresAt: 'reservationExpiresAt',
   deletedAt: 'deletedAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type FileScalarFieldEnum = (typeof FileScalarFieldEnum)[keyof typeof FileScalarFieldEnum]
+
+
+export const ImageUploadReservationScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  uploadIds: 'uploadIds',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ImageUploadReservationScalarFieldEnum = (typeof ImageUploadReservationScalarFieldEnum)[keyof typeof ImageUploadReservationScalarFieldEnum]
 
 
 export const InboxEventsScalarFieldEnum = {
@@ -817,6 +903,20 @@ export type DateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel
  * Reference to a field of type 'DateTime[]'
  */
 export type ListDateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime[]'>
+    
+
+
+/**
+ * Reference to a field of type 'ImageUploadReservationStatus'
+ */
+export type EnumImageUploadReservationStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ImageUploadReservationStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'ImageUploadReservationStatus[]'
+ */
+export type ListEnumImageUploadReservationStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ImageUploadReservationStatus[]'>
     
 
 
@@ -986,6 +1086,7 @@ export type PrismaClientOptions = ({
 }
 export type GlobalOmitConfig = {
   file?: Prisma.FileOmit
+  imageUploadReservation?: Prisma.ImageUploadReservationOmit
   inboxEvents?: Prisma.InboxEventsOmit
   fileDeletionJob?: Prisma.FileDeletionJobOmit
 }

@@ -20,6 +20,15 @@ export const FileUploadStatus = {
 export type FileUploadStatus = (typeof FileUploadStatus)[keyof typeof FileUploadStatus]
 
 
+export const ImageUploadReservationStatus = {
+  RESERVED: 'RESERVED',
+  ATTACHED: 'ATTACHED',
+  RELEASED: 'RELEASED'
+} as const
+
+export type ImageUploadReservationStatus = (typeof ImageUploadReservationStatus)[keyof typeof ImageUploadReservationStatus]
+
+
 export const InboxStatus = {
   RECEIVED: 'RECEIVED',
   PROCESSED: 'PROCESSED',

@@ -32,7 +32,6 @@ export type UpdateImageUploadsStatusParams = FindImageUploadsParams & {
 
 export type ReserveImageUploadsRepositoryParams = FindImageUploadsParams & {
   reservationId: string;
-  reservationExpiresAt: Date;
 };
 
 export type ReleaseReservedImageUploadsRepositoryParams = {

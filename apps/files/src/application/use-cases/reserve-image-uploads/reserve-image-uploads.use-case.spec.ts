@@ -16,17 +16,10 @@ describe('ReserveImageUploadsUseCase', () => {
   const useCase = new ReserveImageUploadsUseCase(filesRepository as unknown as FilesRepository);
   const uploadId = '11111111-1111-4111-8111-111111111111';
   const reservationId = '22222222-2222-4222-8222-222222222222';
-  const now = new Date('2030-01-01T00:00:00Z');
 
   beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(now);
     filesRepository.reserveImageUploads.mockReset();
     filesRepository.reserveImageUploads.mockResolvedValue();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   it('reserves image uploads through the repository', async () => {
@@ -44,7 +37,6 @@ describe('ReserveImageUploadsUseCase', () => {
       userId: 42,
       uploadIds: [uploadId],
       reservationId,
-      reservationExpiresAt: new Date('2030-01-01T00:05:00Z'),
     });
   });
 

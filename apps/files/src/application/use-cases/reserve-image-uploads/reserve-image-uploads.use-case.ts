@@ -7,8 +7,6 @@ import {
 } from '../../errors/image-upload.errors.js';
 import { FilesRepository } from '../../ports/files.repository.js';
 
-const IMAGE_UPLOAD_RESERVATION_TTL_MS = 5 * 60 * 1_000;
-
 export type ReserveImageUploadsParams = {
   userId: number;
   uploadIds: readonly string[];
@@ -47,7 +45,6 @@ export class ReserveImageUploadsUseCase implements ICommandHandler<ReserveImageU
       userId,
       uploadIds,
       reservationId,
-      reservationExpiresAt: new Date(Date.now() + IMAGE_UPLOAD_RESERVATION_TTL_MS),
     });
   }
 }

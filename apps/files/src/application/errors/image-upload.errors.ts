@@ -65,6 +65,14 @@ export class ImageUploadsNotAvailableError extends FilesError {
   }
 }
 
+export class ImageUploadReservationConflictError extends FilesError {
+  readonly code = FilesErrorCode.IMAGE_UPLOAD_RESERVATION_CONFLICT;
+
+  constructor() {
+    super('Image upload reservation conflicts with an existing reservation');
+  }
+}
+
 export class InvalidImageUploadStatusError extends FilesError {
   readonly code = FilesErrorCode.INVALID_IMAGE_UPLOAD_STATUS;
 

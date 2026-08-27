@@ -52,6 +52,7 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   File: 'File',
+  ImageUploadReservation: 'ImageUploadReservation',
   InboxEvents: 'InboxEvents',
   FileDeletionJob: 'FileDeletionJob'
 } as const
@@ -83,13 +84,24 @@ export const FileScalarFieldEnum = {
   uploadExpiresAt: 'uploadExpiresAt',
   uploadedAt: 'uploadedAt',
   reservationId: 'reservationId',
-  reservationExpiresAt: 'reservationExpiresAt',
   deletedAt: 'deletedAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type FileScalarFieldEnum = (typeof FileScalarFieldEnum)[keyof typeof FileScalarFieldEnum]
+
+
+export const ImageUploadReservationScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  uploadIds: 'uploadIds',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ImageUploadReservationScalarFieldEnum = (typeof ImageUploadReservationScalarFieldEnum)[keyof typeof ImageUploadReservationScalarFieldEnum]
 
 
 export const InboxEventsScalarFieldEnum = {
