@@ -33,12 +33,6 @@ async function bootstrap() {
     runMigrations: durableExecutionConfig.runMigrations,
   });
 
-  // init() сначала вызывает lifecycle hooks gRPC-клиентов. Иначе recovery во время
-  // DBOS.launch() может обратиться к Files до инициализации GrpcImageUploadsGateway.
-  await app.init();
-
-  // gRPC начинает принимать новые запросы только после проверки DBOS-схемы и recovery.
-  await DBOS.launch();
   await app.listen();
   console.log('Server POSTS started on port', config.url);
 }
