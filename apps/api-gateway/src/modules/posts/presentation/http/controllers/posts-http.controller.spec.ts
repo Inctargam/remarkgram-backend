@@ -5,6 +5,7 @@ import { PostsHttpController } from './posts-http.controller.js';
 import { expect } from 'vitest';
 
 describe('PostsHttpController', () => {
+  const idempotencyKey = '7b96a443-8b33-41cf-9bd9-2f57b720d39e';
   const createPost = vi.fn();
   const updatePost = vi.fn();
   const deletePost = vi.fn();
@@ -28,12 +29,15 @@ describe('PostsHttpController', () => {
       imageIds: ['11111111-1111-4111-8111-111111111111'],
     };
 
-    await expect(firstValueFrom(controller.createPost(input, request))).resolves.toEqual({ id: 10 });
+    await expect(firstValueFrom(controller.createPost(input, request, idempotencyKey))).resolves.toEqual({
+      id: 10,
+    });
 
     expect(createPost).toHaveBeenCalledWith({
       userId: '42',
       description: 'A new post',
       imageIds: input.imageIds,
+      idempotencyKey,
     });
   });
 

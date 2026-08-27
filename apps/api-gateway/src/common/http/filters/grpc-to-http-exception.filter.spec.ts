@@ -48,4 +48,20 @@ describe('mapGrpcErrorToHttpException', () => {
       });
     },
   );
+
+  it('maps an idempotency-key conflict to HTTP 409 by its application error code', () => {
+    const metadata = new Metadata();
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, 'POST_IDEMPOTENCY_KEY_CONFLICT');
+
+    const exception = mapGrpcErrorToHttpException(
+      createServiceError(status.INVALID_ARGUMENT, 'Idempotency-Key conflict', metadata),
+    );
+
+    expect(exception.getStatus()).toBe(HttpStatus.CONFLICT);
+    expect(exception.getResponse()).toEqual({
+      statusCode: HttpStatus.CONFLICT,
+      code: 'POST_IDEMPOTENCY_KEY_CONFLICT',
+      message: 'Idempotency-Key conflict',
+    });
+  });
 });

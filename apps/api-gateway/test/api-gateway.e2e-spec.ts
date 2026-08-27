@@ -148,6 +148,7 @@ describe('ApiGateway (e2e)', () => {
     sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
     jti: 'current-jti',
   };
+  const postIdempotencyKey = '7b96a443-8b33-41cf-9bd9-2f57b720d39e';
 
   beforeEach(async () => {
     vi.stubEnv('NODE_ENV', 'testing');
@@ -428,11 +429,18 @@ describe('ApiGateway (e2e)', () => {
     );
     expect(createPost.post.summary).toBe('Create a post with completed image uploads');
     expect(createPost.post.parameters).toContainEqual(
-      expect.objectContaining({ name: 'Idempotency-Key', in: 'header', required: false }),
+      expect.objectContaining({ name: 'Idempotency-Key', in: 'header', required: true }),
     );
     expect(Object.keys(createPost.post.responses)).toEqual(
       expect.arrayContaining(['201', '400', '401', '404', '409', '502', '503']),
     );
+    expect(
+      createPost.post.responses['400'].content?.['application/json']?.examples?.invalidIdempotencyKey?.value,
+    ).toEqual({
+      statusCode: 400,
+      message: 'Idempotency-Key header must be a UUID v4',
+      error: 'Bad Request',
+    });
     expect(
       createPost.post.responses['409'].content?.['application/json']?.examples?.imagesNotAvailable?.value,
     ).toEqual({
@@ -446,6 +454,13 @@ describe('ApiGateway (e2e)', () => {
       statusCode: 409,
       code: 'POST_IMAGE_ALREADY_ATTACHED',
       message: 'One or more images are already attached to a post',
+    });
+    expect(
+      createPost.post.responses['409'].content?.['application/json']?.examples?.idempotencyKeyConflict?.value,
+    ).toEqual({
+      statusCode: 409,
+      code: 'POST_IDEMPOTENCY_KEY_CONFLICT',
+      message: 'Idempotency-Key was already used with a different request',
     });
     expect(
       createPost.post.responses['503'].content?.['application/json']?.examples?.imageUploadsServiceUnavailable
@@ -562,6 +577,7 @@ describe('ApiGateway (e2e)', () => {
     await request(app.getHttpServer() as SupertestApp)
       .post(apiPath('/posts'))
       .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', postIdempotencyKey)
       .send(input)
       .expect(201)
       .expect({ id: 10 });
@@ -569,14 +585,68 @@ describe('ApiGateway (e2e)', () => {
     expect(postsServiceClient.createPost).toHaveBeenCalledWith({
       userId: refreshTokenClaims.userId,
       ...input,
+      idempotencyKey: postIdempotencyKey,
     });
     expect(postsGrpcClient.getService).toHaveBeenCalledWith(POSTS_SERVICE_NAME);
+  });
+
+  it('POST /posts requires an Idempotency-Key header', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/posts'))
+      .set('Authorization', 'Bearer access-token')
+      .send({ imageIds: ['11111111-1111-4111-8111-111111111111'] })
+      .expect(400)
+      .expect({
+        statusCode: 400,
+        message: 'Idempotency-Key header must be a UUID v4',
+        error: 'Bad Request',
+      });
+
+    expect(postsServiceClient.createPost).not.toHaveBeenCalled();
+  });
+
+  it('POST /posts rejects a non-v4 Idempotency-Key', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/posts'))
+      .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', '6ba7b810-9dad-11d1-80b4-00c04fd430c8')
+      .send({ imageIds: ['11111111-1111-4111-8111-111111111111'] })
+      .expect(400);
+
+    expect(postsServiceClient.createPost).not.toHaveBeenCalled();
+  });
+
+  it('POST /posts maps an idempotency-key conflict to HTTP 409', async () => {
+    const metadata = new Metadata();
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, 'POST_IDEMPOTENCY_KEY_CONFLICT');
+    postsServiceClient.createPost.mockReturnValueOnce(
+      throwError(() =>
+        createServiceError(
+          status.INVALID_ARGUMENT,
+          'Idempotency-Key was already used with a different request',
+          metadata,
+        ),
+      ),
+    );
+
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/posts'))
+      .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', postIdempotencyKey)
+      .send({ imageIds: ['11111111-1111-4111-8111-111111111111'] })
+      .expect(409)
+      .expect({
+        statusCode: 409,
+        code: 'POST_IDEMPOTENCY_KEY_CONFLICT',
+        message: 'Idempotency-Key was already used with a different request',
+      });
   });
 
   it('POST /posts rejects a null description before calling posts', async () => {
     await request(app.getHttpServer() as SupertestApp)
       .post(apiPath('/posts'))
       .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', postIdempotencyKey)
       .send({
         description: null,
         imageIds: ['11111111-1111-4111-8111-111111111111'],
@@ -589,6 +659,7 @@ describe('ApiGateway (e2e)', () => {
   it('POST /posts requires an authenticated user', async () => {
     await request(app.getHttpServer() as SupertestApp)
       .post(apiPath('/posts'))
+      .set('Idempotency-Key', postIdempotencyKey)
       .send({ imageIds: ['11111111-1111-4111-8111-111111111111'] })
       .expect(401);
 

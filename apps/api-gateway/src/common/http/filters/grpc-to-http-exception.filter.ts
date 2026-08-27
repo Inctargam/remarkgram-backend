@@ -27,15 +27,22 @@ const HTTP_STATUS_BY_GRPC_STATUS: Partial<Record<status, HttpStatus>> = {
   [status.DEADLINE_EXCEEDED]: HttpStatus.GATEWAY_TIMEOUT,
 };
 
+const HTTP_STATUS_BY_APP_ERROR_CODE: Readonly<Record<string, HttpStatus>> = {
+  POST_IDEMPOTENCY_KEY_CONFLICT: HttpStatus.CONFLICT,
+};
+
 export const mapGrpcErrorToHttpException = (error: ServiceError): HttpException => {
   // grpc-js восстанавливает ServiceError на клиенте: code приходит из grpc-status,
   // details — из grpc-message, а точный application error code лежит в custom trailing metadata.
   const grpcStatus = error.code;
-  const httpStatus = HTTP_STATUS_BY_GRPC_STATUS[grpcStatus] ?? HttpStatus.BAD_GATEWAY;
   const appErrorCode =
     error.metadata?.get(APP_ERROR_CODE_METADATA_KEY).at(0)?.toString() ??
     status[grpcStatus] ??
     'UPSTREAM_ERROR';
+  const httpStatus =
+    HTTP_STATUS_BY_APP_ERROR_CODE[appErrorCode] ??
+    HTTP_STATUS_BY_GRPC_STATUS[grpcStatus] ??
+    HttpStatus.BAD_GATEWAY;
   const message = error.details || error.message || 'Upstream gRPC service is unavailable';
 
   return new HttpException(new ApiErrorResponseDto(httpStatus, appErrorCode, message), httpStatus);

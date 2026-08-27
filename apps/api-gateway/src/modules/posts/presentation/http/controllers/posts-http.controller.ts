@@ -22,6 +22,7 @@ import {
 import type { ClientGrpc } from '@nestjs/microservices';
 import type { Request } from 'express';
 import { firstValueFrom, type Observable } from 'rxjs';
+import { IdempotencyKey } from '../decorators/idempotency-key.decorator.js';
 import { CreatePostDto } from '../dto/input/create-post.dto.js';
 import { UpdatePostDto } from '../dto/input/update-post/update-post.dto.js';
 import { ApiDeletePost } from '../swagger/delete/delete-post.swagger.js';
@@ -51,11 +52,13 @@ export class PostsHttpController implements OnModuleInit {
   createPost(
     @Body() input: CreatePostDto,
     @Req() request: AuthenticatedRequest,
+    @IdempotencyKey() idempotencyKey: string,
   ): Observable<CreatePostResponse> {
     return this.postsClient.createPost({
       userId: request.userId,
       description: input.description,
       imageIds: input.imageIds,
+      idempotencyKey,
     });
   }
 
