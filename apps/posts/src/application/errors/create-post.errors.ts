@@ -33,6 +33,22 @@ export class DuplicatePostImageIdError extends PostsError {
   }
 }
 
+export class InvalidPostIdempotencyKeyError extends PostsError {
+  readonly code = PostsErrorCode.INVALID_POST_IDEMPOTENCY_KEY;
+
+  constructor() {
+    super('Idempotency-Key must be a UUID v4');
+  }
+}
+
+export class PostIdempotencyKeyConflictError extends PostsError {
+  readonly code = PostsErrorCode.POST_IDEMPOTENCY_KEY_CONFLICT;
+
+  constructor() {
+    super('Idempotency-Key has already been used for another post creation request');
+  }
+}
+
 export class PostImageNotFoundError extends PostsError {
   readonly code = PostsErrorCode.POST_IMAGE_NOT_FOUND;
 

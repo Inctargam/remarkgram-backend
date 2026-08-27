@@ -1,18 +1,21 @@
+import { createHash } from 'node:crypto';
 import { MAX_IMAGES_PER_POST, MAX_POST_DESCRIPTION_LENGTH, MIN_IMAGES_PER_POST } from '@app/posts-grpc';
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
-import { Logger } from '@nestjs/common';
 import {
   DuplicatePostImageIdError,
   InvalidPostDescriptionError,
+  InvalidPostIdempotencyKeyError,
   InvalidPostImageCountError,
   InvalidUserIdError,
 } from '../../errors/create-post.errors.js';
-import { ImageUploadsGateway } from '../../ports/image-uploads.gateway.js';
-import { PostsRepository } from '../../ports/posts.repository.js';
+import { CreatePostWorkflow } from '../../ports/create-post.workflow.js';
 import type { CreatePostResult } from '../../types/posts.types.js';
+
+const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type CreatePostParams = {
   userId: number;
+  idempotencyKey: string;
   description?: string;
   imageIds: readonly string[];
 };
@@ -25,20 +28,21 @@ export class CreatePostCommand extends Command<CreatePostResult> {
 
 @CommandHandler(CreatePostCommand)
 export class CreatePostUseCase implements ICommandHandler<CreatePostCommand> {
-  private readonly logger = new Logger(CreatePostUseCase.name);
+  constructor(private readonly createPostWorkflow: CreatePostWorkflow) {}
 
-  constructor(
-    private readonly postsRepository: PostsRepository,
-    private readonly imageUploadsGateway: ImageUploadsGateway,
-  ) {}
-
-  async execute(command: CreatePostCommand) {
+  async execute(command: CreatePostCommand): Promise<CreatePostResult> {
     const { userId, description, imageIds } = command.params;
+    const idempotencyKey = command.params.idempotencyKey.toLowerCase();
+    const canonicalImageIds = imageIds.map((imageId) => imageId.toLowerCase());
 
     // После преобразования userId из транспортной строки application-слой принимает
     // только положительное целое, независимо от используемого транспорта и хранилища.
     if (!Number.isSafeInteger(userId) || userId <= 0) {
       throw new InvalidUserIdError();
+    }
+
+    if (!UUID_V4_PATTERN.test(idempotencyKey)) {
+      throw new InvalidPostIdempotencyKeyError();
     }
 
     if (description !== undefined && description.length > MAX_POST_DESCRIPTION_LENGTH) {
@@ -49,38 +53,23 @@ export class CreatePostUseCase implements ICommandHandler<CreatePostCommand> {
       throw new InvalidPostImageCountError();
     }
 
-    if (new Set(imageIds).size !== imageIds.length) {
+    if (new Set(canonicalImageIds).size !== canonicalImageIds.length) {
       throw new DuplicatePostImageIdError();
     }
 
-    const reservationId = crypto.randomUUID();
-    await this.imageUploadsGateway.reserveImageUploads({ reservationId, imageIds, userId });
+    const postDescription = description ?? null;
+    // Хеш строится из канонического представления бизнес-запроса. Порядок imageIds
+    // сохраняется, потому что он определяет порядок изображений в публикации.
+    const requestHash = createHash('sha256')
+      .update(JSON.stringify({ description: postDescription, imageIds: canonicalImageIds }))
+      .digest('hex');
 
-    let postId: number;
-
-    try {
-      postId = await this.postsRepository.create({
-        authorId: userId,
-        description: description ?? null,
-        imageIds,
-      });
-    } catch (error) {
-      try {
-        await this.imageUploadsGateway.releaseReservedImageUploads({ userId, reservationId });
-      } catch (releaseError) {
-        // Compensation is best effort: an unavailable Files service must not hide
-        // the original post persistence error returned to the caller.
-        this.logger.error('Failed to release image upload reservation after post creation failed', {
-          reservationId,
-          error: releaseError,
-        });
-      }
-
-      throw error;
-    }
-
-    await this.imageUploadsGateway.attachReservedImageUploads({ userId, reservationId });
-
-    return { id: postId };
+    return this.createPostWorkflow.execute({
+      workflowId: `create-post:${userId}:${idempotencyKey}`,
+      requestHash,
+      userId,
+      description: postDescription,
+      imageIds: canonicalImageIds,
+    });
   }
 }

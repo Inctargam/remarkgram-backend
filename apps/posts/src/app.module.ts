@@ -36,6 +36,11 @@ import { DeletedPostsPublisherWorker } from './application/workers/deleted-posts
 import { PublishDeletedPostEventScheduler } from './infrastructure/schedulers/publish-deleted-post-event.scheduler.js';
 import { ClearSoftDeletedPostsScheduler } from './infrastructure/schedulers/clear-soft-deleted-posts/clear-soft-deleted-posts.scheduler.js';
 import { ClearSorfDeletedPostsUseCase } from './application/use-cases/clear-soft-deleted-posts/clear-soft-deleted-posts.js';
+import { CreatePostWorkflow } from './application/ports/create-post.workflow.js';
+import { dbosConfig } from './config/dbos.config.js';
+import { DbosCreatePostWorkflow } from './infrastructure/dbos/dbos-create-post.workflow.js';
+import { DbosLifecycleService } from './infrastructure/dbos/dbos-lifecycle.service.js';
+import { PostsDbosDataSource } from './infrastructure/dbos/posts-dbos.datasource.js';
 
 @Module({
   imports: [
@@ -54,7 +59,7 @@ import { ClearSorfDeletedPostsUseCase } from './application/use-cases/clear-soft
         '.env.production',
         '.env',
       ],
-      load: [postsConfig, databaseConfig, filesGrpcClientConfig, postsMessageBrokerConfig],
+      load: [postsConfig, databaseConfig, dbosConfig, filesGrpcClientConfig, postsMessageBrokerConfig],
     }),
     ClientsModule.registerAsync([
       {
@@ -95,6 +100,9 @@ import { ClearSorfDeletedPostsUseCase } from './application/use-cases/clear-soft
     CreatePostUseCase,
     DeleteAllDataUseCase,
     PrismaService,
+    PostsDbosDataSource,
+    DbosCreatePostWorkflow,
+    DbosLifecycleService,
     UpdatePostUseCase,
     GetAuthorPostsQueryHandler,
     SoftDeletePostUseCase,
@@ -109,6 +117,10 @@ import { ClearSorfDeletedPostsUseCase } from './application/use-cases/clear-soft
     {
       provide: ImageUploadsGateway,
       useClass: GrpcImageUploadsGateway,
+    },
+    {
+      provide: CreatePostWorkflow,
+      useExisting: DbosCreatePostWorkflow,
     },
     {
       provide: TestingRepository,

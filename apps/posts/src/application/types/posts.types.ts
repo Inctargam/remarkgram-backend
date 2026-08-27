@@ -10,6 +10,14 @@ export type CreatePostRepositoryParams = {
   imageIds: readonly string[];
 };
 
+export type CreatePostWorkflowParams = {
+  workflowId: string;
+  requestHash: string;
+  userId: number;
+  description: string | null;
+  imageIds: readonly string[];
+};
+
 export type ReserveImageUploadsParams = {
   userId: number;
   imageIds: readonly string[];

@@ -30,6 +30,7 @@ export class PostsGrpcController {
     return this.commandBus.execute(
       new CreatePostCommand({
         userId: Number(request.userId),
+        idempotencyKey: request.idempotencyKey,
         description: request.description,
         imageIds: request.imageIds,
       }),

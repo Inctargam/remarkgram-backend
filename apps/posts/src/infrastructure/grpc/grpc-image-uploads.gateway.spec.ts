@@ -116,6 +116,15 @@ describe('GrpcImageUploadsGateway', () => {
     },
   );
 
+  it('does not present an internal reservation conflict as a client idempotency conflict', async () => {
+    const error = createServiceError(status.ALREADY_EXISTS, FilesErrorCode.IMAGE_UPLOAD_RESERVATION_CONFLICT);
+    reserveImageUploads.mockReturnValue(throwError(() => error));
+
+    await expect(
+      gateway.reserveImageUploads({ userId: 42, imageIds: ['image-id'], reservationId }),
+    ).rejects.toBe(error);
+  });
+
   it.each([status.UNAVAILABLE, status.DEADLINE_EXCEEDED])(
     'maps transport status %s to service unavailable',
     async (grpcStatus) => {
