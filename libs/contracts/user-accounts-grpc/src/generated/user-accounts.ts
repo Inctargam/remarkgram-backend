@@ -86,6 +86,24 @@ export interface ResendRegistrationConfirmationRequest {
 export interface ResendRegistrationConfirmationResponse {
 }
 
+export interface PersonalInfo {
+  firstName: string;
+  lastName: string;
+  dateOfBirth?: string | undefined;
+  aboutMe?: string | undefined;
+  countryCode?: string | undefined;
+  city?: string | undefined;
+}
+
+export interface UpdateUserProfileRequest {
+  userId: string;
+  username: string;
+  personalInfo: PersonalInfo | undefined;
+}
+
+export interface UpdateUserProfileResponse {
+}
+
 export interface GetUsersRequest {
 }
 
@@ -270,6 +288,8 @@ export interface UsersServiceClient {
   getUsers(request: GetUsersRequest): Observable<GetUsersResponse>;
 
   getCurrentUser(request: GetCurrentUserRequest): Observable<GetCurrentUserResponse>;
+
+  updateUserProfile(request: UpdateUserProfileRequest): Observable<UpdateUserProfileResponse>;
 }
 
 /** Users */
@@ -280,11 +300,15 @@ export interface UsersServiceController {
   getCurrentUser(
     request: GetCurrentUserRequest,
   ): Promise<GetCurrentUserResponse> | Observable<GetCurrentUserResponse> | GetCurrentUserResponse;
+
+  updateUserProfile(
+    request: UpdateUserProfileRequest,
+  ): Promise<UpdateUserProfileResponse> | Observable<UpdateUserProfileResponse> | UpdateUserProfileResponse;
 }
 
 export function UsersServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["getUsers", "getCurrentUser"];
+    const grpcMethods: string[] = ["getUsers", "getCurrentUser", "updateUserProfile"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("UsersService", method)(constructor.prototype[method], method, descriptor);

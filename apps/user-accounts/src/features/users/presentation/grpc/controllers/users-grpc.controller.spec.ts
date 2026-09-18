@@ -1,11 +1,15 @@
 import { OAuthProvider } from '@app/user-accounts-grpc';
-import type { QueryBus } from '@nestjs/cqrs';
+import type { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { GetCurrentUserQuery } from '../../../application/use-cases/get-current-user.use-case.js';
 import { UsersGrpcController } from './users-grpc.controller.js';
+import { UpdateUserProfileCommand } from '../../../application/use-cases/update-user-profile.use-case.js';
 
 describe(UsersGrpcController.name, () => {
   const execute = vi.fn();
-  const controller = new UsersGrpcController({ execute } as unknown as QueryBus);
+  const controller = new UsersGrpcController(
+    { execute } as unknown as QueryBus,
+    { execute } as unknown as CommandBus,
+  );
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -33,5 +37,24 @@ describe(UsersGrpcController.name, () => {
     });
     expect(execute).toHaveBeenCalledWith(expect.any(GetCurrentUserQuery));
     expect((execute.mock.calls[0]?.[0] as GetCurrentUserQuery).userId).toBe('42');
+  });
+
+  it('should return an empty response after updating the user profile', async () => {
+    execute.mockResolvedValue({});
+    try {
+      const result = await controller.updateUserProfile({
+        userId: '1',
+        username: 'ivanovich',
+        personalInfo: {
+          firstName: 'Ivan',
+          lastName: 'Ivanovich',
+        },
+      });
+      expect(result).toEqual({});
+    } catch (err) {
+      console.dir(err);
+    }
+
+    expect(execute).toHaveBeenCalledWith(expect.any(UpdateUserProfileCommand));
   });
 });

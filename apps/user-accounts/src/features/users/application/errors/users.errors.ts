@@ -58,3 +58,9 @@ export class InvalidUserIdError extends UserAccountsError {
     super('Unauthorized');
   }
 }
+export class UserNotFoundError extends UserAccountsError {
+  readonly code = UserAccountsErrorCode.USER_NOT_FOUND;
+  constructor() {
+    super('User Not Found');
+  }
+}

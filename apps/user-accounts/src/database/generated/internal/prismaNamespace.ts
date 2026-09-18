@@ -387,7 +387,8 @@ export const ModelName = {
   User: 'User',
   DeviceSession: 'DeviceSession',
   PasswordResetToken: 'PasswordResetToken',
-  AuthIdentity: 'AuthIdentity'
+  AuthIdentity: 'AuthIdentity',
+  PersonalInfo: 'PersonalInfo'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -403,7 +404,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "deviceSession" | "passwordResetToken" | "authIdentity"
+    modelProps: "user" | "deviceSession" | "passwordResetToken" | "authIdentity" | "personalInfo"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -703,6 +704,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    PersonalInfo: {
+      payload: Prisma.$PersonalInfoPayload<ExtArgs>
+      fields: Prisma.PersonalInfoFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.PersonalInfoFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.PersonalInfoFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>
+        }
+        findFirst: {
+          args: Prisma.PersonalInfoFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.PersonalInfoFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>
+        }
+        findMany: {
+          args: Prisma.PersonalInfoFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>[]
+        }
+        create: {
+          args: Prisma.PersonalInfoCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>
+        }
+        createMany: {
+          args: Prisma.PersonalInfoCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.PersonalInfoCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>[]
+        }
+        delete: {
+          args: Prisma.PersonalInfoDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>
+        }
+        update: {
+          args: Prisma.PersonalInfoUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>
+        }
+        deleteMany: {
+          args: Prisma.PersonalInfoDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.PersonalInfoUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.PersonalInfoUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>[]
+        }
+        upsert: {
+          args: Prisma.PersonalInfoUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>
+        }
+        aggregate: {
+          args: Prisma.PersonalInfoAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregatePersonalInfo>
+        }
+        groupBy: {
+          args: Prisma.PersonalInfoGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PersonalInfoGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.PersonalInfoCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PersonalInfoCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -800,6 +875,17 @@ export const AuthIdentityScalarFieldEnum = {
 } as const
 
 export type AuthIdentityScalarFieldEnum = (typeof AuthIdentityScalarFieldEnum)[keyof typeof AuthIdentityScalarFieldEnum]
+
+
+export const PersonalInfoScalarFieldEnum = {
+  userId: 'userId',
+  firstName: 'firstName',
+  lastName: 'lastName',
+  dateOfBirth: 'dateOfBirth',
+  aboutMe: 'aboutMe'
+} as const
+
+export type PersonalInfoScalarFieldEnum = (typeof PersonalInfoScalarFieldEnum)[keyof typeof PersonalInfoScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1036,6 +1122,7 @@ export type GlobalOmitConfig = {
   deviceSession?: Prisma.DeviceSessionOmit
   passwordResetToken?: Prisma.PasswordResetTokenOmit
   authIdentity?: Prisma.AuthIdentityOmit
+  personalInfo?: Prisma.PersonalInfoOmit
 }
 
 /* Types for Logging */

@@ -1,10 +1,11 @@
 import type { User } from '../../domain/entities/user.entity.js';
-import type {
+import {
   CreateOAuthRepositoryParams,
   CreateUserRepositoryParams,
-  ReleaseExpiredRegistrationCredentialsParams,
   ReleaseExpiredRegistrationByEmailParams,
+  ReleaseExpiredRegistrationCredentialsParams,
   UpdateConfirmationCodeParams,
+  UpdateUserProfileRepositoryParams,
 } from '../types/users.types.js';
 import type { TransactionContext } from '../../../../common/application/unit-of-work.js';
 
@@ -26,4 +27,5 @@ export abstract class UsersRepository {
   ): Promise<void>;
   abstract confirmUser(code: string): Promise<boolean>;
   abstract updateConfirmationCode(params: UpdateConfirmationCodeParams): Promise<boolean>;
+  abstract updateProfile(params: UpdateUserProfileRepositoryParams): Promise<void>;
 }

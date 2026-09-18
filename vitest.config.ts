@@ -35,6 +35,10 @@ export default defineConfig({
         replacement: resolve(import.meta.dirname, 'libs/validation/src/index.ts'),
       },
       {
+        find: '@app/countries',
+        replacement: resolve(import.meta.dirname, 'libs/reference-data/countries/src/index.ts'),
+      },
+      {
         find: /^@libs\/(.+)\.js$/,
         replacement: `${resolve(import.meta.dirname, 'libs')}/$1.ts`,
       },

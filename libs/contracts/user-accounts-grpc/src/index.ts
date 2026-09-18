@@ -2,6 +2,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 export * from './generated/user-accounts.js';
+export * from './personal-info-policy.js';
+export * from './user-policy.js';
 
 // В production/build-сценарии Nest CLI копирует user-accounts.proto рядом со скомпилированной
 // contract library внутри dist. Этот путь должен совпадать с настройкой assets в nest-cli.json.

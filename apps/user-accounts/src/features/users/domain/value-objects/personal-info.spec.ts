@@ -1,0 +1,148 @@
+import { beforeEach, describe, expect, vi } from 'vitest';
+import { type CreatePersonalInfoProps, PersonalInfo } from './personal-info.js';
+import { BirthDate } from './birth-date.js';
+import {
+  PERSONAL_INFO_ABOUT_ME_MAX_LENGTH,
+  PERSONAL_INFO_FIRST_NAME_MAX_LENGTH,
+  PERSONAL_INFO_FIRST_NAME_MIN_LENGTH,
+  PERSONAL_INFO_LAST_NAME_MAX_LENGTH,
+  PERSONAL_INFO_LAST_NAME_MIN_LENGTH,
+} from '@app/user-accounts-grpc';
+import {
+  InvalidPersonalInfoAboutMeError,
+  InvalidPersonalInfoFirstNameError,
+  InvalidPersonalInfoLastNameError,
+} from '../../application/errors/personal-info.errors.js';
+
+describe('PersonalInfoVO', () => {
+  const birthDateSpy = vi.spyOn(BirthDate, 'create');
+
+  const personalInfo = {
+    firstName: 'Ivan',
+    lastName: 'Ivanov',
+    aboutMe: 'aboutMe',
+    dateOfBirth: '01.02.1980',
+    countryCode: null,
+    city: null,
+  } satisfies CreatePersonalInfoProps;
+  beforeEach(() => {
+    birthDateSpy.mockReset();
+  });
+
+  it('should be created  with required fields only', () => {
+    const personalInfo: PersonalInfo = PersonalInfo.create({
+      firstName: 'Ivan',
+      lastName: 'Ivanov',
+      dateOfBirth: null,
+      aboutMe: null,
+      countryCode: null,
+      city: null,
+    });
+
+    expect(personalInfo).toEqual({
+      firstName: 'Ivan',
+      lastName: 'Ivanov',
+      aboutMe: null,
+      dateOfBirth: null,
+      countryCode: null,
+      city: null,
+    });
+  });
+
+  it('should be created  with required and optional fields', () => {
+    const data = {
+      firstName: 'Ivan',
+      lastName: 'Ivanov',
+      aboutMe: 'lorem Ipsum',
+      dateOfBirth: '15.05.1975',
+      countryCode: null,
+      city: null,
+    };
+    const personalInfo: PersonalInfo = PersonalInfo.create(data);
+
+    expect(birthDateSpy).toHaveBeenCalledOnce();
+    expect(birthDateSpy).toHaveBeenCalledWith('15.05.1975');
+    expect(personalInfo).toEqual({
+      firstName: 'Ivan',
+      lastName: 'Ivanov',
+      aboutMe: 'lorem Ipsum',
+      dateOfBirth: BirthDate.restore(new Date(Date.UTC(1975, 4, 15))),
+      countryCode: null,
+      city: null,
+    });
+  });
+
+  it.each([
+    [
+      { ...personalInfo, firstName: new Array(PERSONAL_INFO_FIRST_NAME_MIN_LENGTH - 1).fill('a').join('') },
+      InvalidPersonalInfoFirstNameError,
+    ],
+    [
+      { ...personalInfo, firstName: new Array(PERSONAL_INFO_FIRST_NAME_MAX_LENGTH + 1).fill('a').join('') },
+      InvalidPersonalInfoFirstNameError,
+    ],
+  ])('returns an error if field the firstName violates the constraints [min, max] ', (props, domainError) => {
+    try {
+      PersonalInfo.create(props);
+    } catch (err) {
+      expect(err).toBeInstanceOf(domainError);
+    }
+  });
+
+  it.each([
+    [
+      { ...personalInfo, lastName: new Array(PERSONAL_INFO_LAST_NAME_MIN_LENGTH - 1).fill('a').join('') },
+      InvalidPersonalInfoLastNameError,
+    ],
+    [
+      { ...personalInfo, lastName: new Array(PERSONAL_INFO_LAST_NAME_MAX_LENGTH + 1).fill('a').join('') },
+      InvalidPersonalInfoLastNameError,
+    ],
+  ])('returns an error if field the lastName violates the constraints [min, max] ', (props, domainError) => {
+    try {
+      PersonalInfo.create(props);
+    } catch (err) {
+      expect(err).toBeInstanceOf(domainError);
+    }
+  });
+
+  it('return an error if filed aboutMe violates the constraint max length', () => {
+    const invalid = new Array(PERSONAL_INFO_ABOUT_ME_MAX_LENGTH + 1).fill('a').join('');
+    try {
+      PersonalInfo.create({
+        ...personalInfo,
+        aboutMe: invalid,
+        countryCode: null,
+        city: null,
+      });
+    } catch (err) {
+      expect(err).toBeInstanceOf(InvalidPersonalInfoAboutMeError);
+    }
+  });
+
+  it('normalizes country code', () => {
+    const personalInfo = PersonalInfo.create({
+      firstName: 'John',
+      lastName: 'Doe',
+      dateOfBirth: null,
+      aboutMe: null,
+      city: 'New York',
+      countryCode: ' us ',
+    });
+
+    expect(personalInfo.countryCode!.value).toBe('US');
+  });
+
+  it('rejects invalid country code', () => {
+    expect(() =>
+      PersonalInfo.create({
+        firstName: 'John',
+        lastName: 'Doe',
+        dateOfBirth: null,
+        aboutMe: null,
+        city: 'New York',
+        countryCode: 'Ukraine',
+      }),
+    ).toThrow();
+  });
+});

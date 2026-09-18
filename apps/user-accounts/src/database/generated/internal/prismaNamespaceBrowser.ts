@@ -54,7 +54,8 @@ export const ModelName = {
   User: 'User',
   DeviceSession: 'DeviceSession',
   PasswordResetToken: 'PasswordResetToken',
-  AuthIdentity: 'AuthIdentity'
+  AuthIdentity: 'AuthIdentity',
+  PersonalInfo: 'PersonalInfo'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -131,6 +132,17 @@ export const AuthIdentityScalarFieldEnum = {
 } as const
 
 export type AuthIdentityScalarFieldEnum = (typeof AuthIdentityScalarFieldEnum)[keyof typeof AuthIdentityScalarFieldEnum]
+
+
+export const PersonalInfoScalarFieldEnum = {
+  userId: 'userId',
+  firstName: 'firstName',
+  lastName: 'lastName',
+  dateOfBirth: 'dateOfBirth',
+  aboutMe: 'aboutMe'
+} as const
+
+export type PersonalInfoScalarFieldEnum = (typeof PersonalInfoScalarFieldEnum)[keyof typeof PersonalInfoScalarFieldEnum]
 
 
 export const SortOrder = {

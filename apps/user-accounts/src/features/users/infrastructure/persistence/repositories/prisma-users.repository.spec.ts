@@ -7,12 +7,14 @@ import {
 import type { CreateUserRepositoryParams } from '../../../application/types/users.types.js';
 import { ConfirmationInfo } from '../../../domain/value-objects/confirmation-info.js';
 import { PrismaUsersRepository } from './prisma-users.repository.js';
+import { expect } from 'vitest';
 
 describe('PrismaUsersRepository', () => {
   const create = vi.fn();
   const updateMany = vi.fn();
   const executeRaw = vi.fn();
-  const prisma = { user: { create, updateMany }, $executeRaw: executeRaw };
+  const update = vi.fn();
+  const prisma = { user: { create, updateMany, update }, $executeRaw: executeRaw };
   const repository = new PrismaUsersRepository(prisma as unknown as PrismaService);
   const params: CreateUserRepositoryParams = {
     username: 'user_123',
@@ -156,5 +158,52 @@ describe('PrismaUsersRepository', () => {
     create.mockRejectedValue(error);
 
     await expect(repository.create(params)).rejects.toBe(error);
+  });
+
+  it("an error occurs when updating a user's profile if the username already exists", async () => {
+    prisma.user.update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '7.8.0',
+      }),
+    );
+
+    const params = {
+      userId: 1,
+      username: 'ivanovich',
+      personalInfo: {
+        firstName: 'Ivan',
+        lastName: 'Ivanovich',
+        dateOfBirth: null,
+        aboutMe: null,
+      },
+    };
+
+    await expect(repository.updateProfile(params)).rejects.toBeInstanceOf(UsernameAlreadyExistsError);
+
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: {
+        id: 1,
+      },
+      data: {
+        username: params.username,
+        personal_info: {
+          upsert: {
+            create: {
+              firstName: params.personalInfo.firstName,
+              lastName: params.personalInfo.lastName,
+              dateOfBirth: params.personalInfo.dateOfBirth,
+              aboutMe: params.personalInfo.aboutMe,
+            },
+            update: {
+              firstName: params.personalInfo.firstName,
+              lastName: params.personalInfo.lastName,
+              dateOfBirth: params.personalInfo.dateOfBirth,
+              aboutMe: params.personalInfo.aboutMe,
+            },
+          },
+        },
+      },
+    });
   });
 });

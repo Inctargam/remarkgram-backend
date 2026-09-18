@@ -5,6 +5,7 @@ import {
   type UserAccountsError,
   UserAccountsErrorCode,
 } from '../../application/errors/user-accounts.error.js';
+import { Status } from '@grpc/grpc-js/build/src/constants.js';
 
 const GRPC_STATUS_BY_APP_ERROR_CODE = {
   [UserAccountsErrorCode.INCORRECT_CREDENTIALS]: status.UNAUTHENTICATED,
@@ -30,6 +31,15 @@ const GRPC_STATUS_BY_APP_ERROR_CODE = {
   [UserAccountsErrorCode.OAUTH_IDENTITY_LINKED_TO_ANOTHER_USER]: status.ALREADY_EXISTS,
   [UserAccountsErrorCode.OAUTH_PROVIDER_ALREADY_LINKED]: status.ALREADY_EXISTS,
   [UserAccountsErrorCode.OAUTH_IDENTITY_CONFLICT]: status.ABORTED,
+  [UserAccountsErrorCode.INVALID_USERNAME_PATTERN]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.INVALID_USERNAME_LENGTH]: Status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.INVALID_PERSONAL_INFO_ABOUT_ME]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.INVALID_PERSONAL_INFO_FIRST_NAME]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.INVALID_PERSONAL_INFO_LAST_NAME]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.BIRTH_DATE_MIN_ALLOWED_AGE]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.INVALID_BIRTH_DATE_FORMAT]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.NON_EXISTENT_CALENDAR_DATE]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.USER_NOT_FOUND]: status.NOT_FOUND,
 } satisfies Record<UserAccountsErrorCode, status>;
 
 export const mapUserAccountsErrorToRpcException = (error: UserAccountsError): RpcException => {

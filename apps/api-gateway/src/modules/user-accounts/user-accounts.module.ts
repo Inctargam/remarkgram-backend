@@ -15,6 +15,8 @@ import { RecaptchaVerifiersService } from './presentation/captcha/recaptcha-veri
 import { PassportModule } from '@nestjs/passport';
 import { GithubStrategy } from './presentation/http/guards/github/github.strategy.js';
 import { googleOidcConfigurationProvider } from './config/google-oidc-configuration.provider.js';
+import { UserProfileHttpController } from './presentation/http/controllers/user-profile.http-controller.js';
+import { CountriesReferenceModule } from '@app/countries';
 
 @Module({
   imports: [
@@ -36,8 +38,9 @@ import { googleOidcConfigurationProvider } from './config/google-oidc-configurat
       },
     ]),
     PassportModule.register({ defaultStrategy: 'github' }),
+    CountriesReferenceModule,
   ],
-  controllers: [AuthHttpController, SessionsHttpController, UsersHttpController],
+  controllers: [AuthHttpController, SessionsHttpController, UsersHttpController, UserProfileHttpController],
   providers: [
     OptionalRefreshTokenGuard,
     RefreshTokenGuard,

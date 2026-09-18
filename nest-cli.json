@@ -6,7 +6,9 @@
     "deleteOutDir": true,
     "webpack": false,
     "tsConfigPath": "apps/api-gateway/tsconfig.app.json",
-    "assets": ["**/*.proto"],
+    "assets": [
+      "**/*.proto"
+    ],
     "watchAssets": true
   },
   "monorepo": true,
@@ -133,6 +135,15 @@
       "sourceRoot": "libs/contracts/posts-grpc/src",
       "compilerOptions": {
         "tsConfigPath": "libs/contracts/posts-grpc/tsconfig.lib.json"
+      }
+    },
+    "countries": {
+      "type": "library",
+      "root": "libs/reference-data/countries",
+      "entryFile": "index",
+      "sourceRoot": "libs/reference-data/countries/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/reference-data/countries/tsconfig.lib.json"
       }
     },
     "user-accounts": {

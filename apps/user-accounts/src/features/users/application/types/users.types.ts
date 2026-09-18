@@ -1,5 +1,6 @@
 import type { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
 import type { AuthIdentityProvider } from '../../../auth-identities/domain/auth-identity.entity.js';
+import { PersonalInfo, type CreatePersonalInfoProps } from '../../domain/value-objects/personal-info.js';
 
 export type CreateUserParams = {
   username: string;
@@ -47,4 +48,16 @@ export type CurrentUserView = {
   hasPassword: boolean;
   oauthProviders: AuthIdentityProvider[];
   createdAt: Date;
+};
+
+export type UpdateUserProfileParams = {
+  userId: number;
+  username: string;
+  personalInfo: CreatePersonalInfoProps;
+};
+
+export type UpdateUserProfileRepositoryParams = {
+  userId: number;
+  username: string;
+  personalInfo: PersonalInfo;
 };

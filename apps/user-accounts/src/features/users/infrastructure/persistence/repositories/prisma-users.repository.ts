@@ -6,12 +6,13 @@ import {
   UsernameAlreadyExistsError,
 } from '../../../application/errors/users.errors.js';
 import { UsersRepository } from '../../../application/ports/users.repository.js';
-import type {
+import {
   CreateUserRepositoryParams,
   CreateOAuthRepositoryParams,
   ReleaseExpiredRegistrationCredentialsParams,
   ReleaseExpiredRegistrationByEmailParams,
   UpdateConfirmationCodeParams,
+  UpdateUserProfileRepositoryParams,
 } from '../../../application/types/users.types.js';
 import { User } from '../../../domain/entities/user.entity.js';
 import { UserPrismaMapper } from '../mappers/user-prisma.mapper.js';
@@ -226,5 +227,41 @@ export class PrismaUsersRepository implements UsersRepository {
     });
 
     return result.count > 0;
+  }
+
+  async updateProfile(params: UpdateUserProfileRepositoryParams): Promise<void> {
+    const personalInfoData = {
+      firstName: params.personalInfo.firstName,
+      lastName: params.personalInfo.lastName,
+      dateOfBirth: params.personalInfo.dateOfBirth?.value ?? null,
+      aboutMe: params.personalInfo.aboutMe,
+      countryCode: params.personalInfo.countryCode?.value ?? null,
+      city: params.personalInfo.city?.value ?? null,
+    };
+    try {
+      await this.prisma.user.update({
+        where: {
+          id: params.userId,
+        },
+        data: {
+          username: params.username,
+          personalInfo: {
+            upsert: {
+              create: personalInfoData,
+              update: personalInfoData,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      // Предварительные проверки в UpdateProfileUseCase не исключают конкурентную вставку. В таком случае
+      // уникальный индекс отклоняет второй Update username, а Prisma возвращает ошибку P2002.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new UsernameAlreadyExistsError();
+      }
+
+      // Неизвестное уникальное ограничение нельзя безопасно интерпретировать как username или email.
+      throw error;
+    }
   }
 }
