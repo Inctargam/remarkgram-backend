@@ -388,7 +388,7 @@ export const ModelName = {
   DeviceSession: 'DeviceSession',
   PasswordResetToken: 'PasswordResetToken',
   AuthIdentity: 'AuthIdentity',
-  PersonalInfo: 'PersonalInfo'
+  Profile: 'Profile'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -404,7 +404,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "deviceSession" | "passwordResetToken" | "authIdentity" | "personalInfo"
+    modelProps: "user" | "deviceSession" | "passwordResetToken" | "authIdentity" | "profile"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -704,77 +704,77 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
-    PersonalInfo: {
-      payload: Prisma.$PersonalInfoPayload<ExtArgs>
-      fields: Prisma.PersonalInfoFieldRefs
+    Profile: {
+      payload: Prisma.$ProfilePayload<ExtArgs>
+      fields: Prisma.ProfileFieldRefs
       operations: {
         findUnique: {
-          args: Prisma.PersonalInfoFindUniqueArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload> | null
+          args: Prisma.ProfileFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfilePayload> | null
         }
         findUniqueOrThrow: {
-          args: Prisma.PersonalInfoFindUniqueOrThrowArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>
+          args: Prisma.ProfileFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfilePayload>
         }
         findFirst: {
-          args: Prisma.PersonalInfoFindFirstArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload> | null
+          args: Prisma.ProfileFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfilePayload> | null
         }
         findFirstOrThrow: {
-          args: Prisma.PersonalInfoFindFirstOrThrowArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>
+          args: Prisma.ProfileFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfilePayload>
         }
         findMany: {
-          args: Prisma.PersonalInfoFindManyArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>[]
+          args: Prisma.ProfileFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfilePayload>[]
         }
         create: {
-          args: Prisma.PersonalInfoCreateArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>
+          args: Prisma.ProfileCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfilePayload>
         }
         createMany: {
-          args: Prisma.PersonalInfoCreateManyArgs<ExtArgs>
+          args: Prisma.ProfileCreateManyArgs<ExtArgs>
           result: BatchPayload
         }
         createManyAndReturn: {
-          args: Prisma.PersonalInfoCreateManyAndReturnArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>[]
+          args: Prisma.ProfileCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfilePayload>[]
         }
         delete: {
-          args: Prisma.PersonalInfoDeleteArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>
+          args: Prisma.ProfileDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfilePayload>
         }
         update: {
-          args: Prisma.PersonalInfoUpdateArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>
+          args: Prisma.ProfileUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfilePayload>
         }
         deleteMany: {
-          args: Prisma.PersonalInfoDeleteManyArgs<ExtArgs>
+          args: Prisma.ProfileDeleteManyArgs<ExtArgs>
           result: BatchPayload
         }
         updateMany: {
-          args: Prisma.PersonalInfoUpdateManyArgs<ExtArgs>
+          args: Prisma.ProfileUpdateManyArgs<ExtArgs>
           result: BatchPayload
         }
         updateManyAndReturn: {
-          args: Prisma.PersonalInfoUpdateManyAndReturnArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>[]
+          args: Prisma.ProfileUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfilePayload>[]
         }
         upsert: {
-          args: Prisma.PersonalInfoUpsertArgs<ExtArgs>
-          result: runtime.Types.Utils.PayloadToResult<Prisma.$PersonalInfoPayload>
+          args: Prisma.ProfileUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProfilePayload>
         }
         aggregate: {
-          args: Prisma.PersonalInfoAggregateArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.AggregatePersonalInfo>
+          args: Prisma.ProfileAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateProfile>
         }
         groupBy: {
-          args: Prisma.PersonalInfoGroupByArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.PersonalInfoGroupByOutputType>[]
+          args: Prisma.ProfileGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ProfileGroupByOutputType>[]
         }
         count: {
-          args: Prisma.PersonalInfoCountArgs<ExtArgs>
-          result: runtime.Types.Utils.Optional<Prisma.PersonalInfoCountAggregateOutputType> | number
+          args: Prisma.ProfileCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ProfileCountAggregateOutputType> | number
         }
       }
     }
@@ -877,15 +877,18 @@ export const AuthIdentityScalarFieldEnum = {
 export type AuthIdentityScalarFieldEnum = (typeof AuthIdentityScalarFieldEnum)[keyof typeof AuthIdentityScalarFieldEnum]
 
 
-export const PersonalInfoScalarFieldEnum = {
+export const ProfileScalarFieldEnum = {
   userId: 'userId',
   firstName: 'firstName',
   lastName: 'lastName',
+  avatarFileId: 'avatarFileId',
   dateOfBirth: 'dateOfBirth',
-  aboutMe: 'aboutMe'
+  aboutMe: 'aboutMe',
+  countryCode: 'countryCode',
+  city: 'city'
 } as const
 
-export type PersonalInfoScalarFieldEnum = (typeof PersonalInfoScalarFieldEnum)[keyof typeof PersonalInfoScalarFieldEnum]
+export type ProfileScalarFieldEnum = (typeof ProfileScalarFieldEnum)[keyof typeof ProfileScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1122,7 +1125,7 @@ export type GlobalOmitConfig = {
   deviceSession?: Prisma.DeviceSessionOmit
   passwordResetToken?: Prisma.PasswordResetTokenOmit
   authIdentity?: Prisma.AuthIdentityOmit
-  personalInfo?: Prisma.PersonalInfoOmit
+  profile?: Prisma.ProfileOmit
 }
 
 /* Types for Logging */

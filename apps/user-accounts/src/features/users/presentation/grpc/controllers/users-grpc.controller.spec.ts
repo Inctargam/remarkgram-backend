@@ -2,7 +2,7 @@ import { OAuthProvider } from '@app/user-accounts-grpc';
 import type { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { GetCurrentUserQuery } from '../../../application/use-cases/get-current-user.use-case.js';
 import { UsersGrpcController } from './users-grpc.controller.js';
-import { UpdateUserProfileCommand } from '../../../application/use-cases/update-user-profile.use-case.js';
+import { UpdateProfileInfoCommand } from '../../../application/use-cases/update-profile-info.use-case.js';
 
 describe(UsersGrpcController.name, () => {
   const execute = vi.fn();
@@ -41,20 +41,33 @@ describe(UsersGrpcController.name, () => {
 
   it('should return an empty response after updating the user profile', async () => {
     execute.mockResolvedValue({});
-    try {
-      const result = await controller.updateUserProfile({
-        userId: '1',
-        username: 'ivanovich',
-        personalInfo: {
-          firstName: 'Ivan',
-          lastName: 'Ivanovich',
-        },
-      });
-      expect(result).toEqual({});
-    } catch (err) {
-      console.dir(err);
-    }
+    const result = await controller.updateProfileInfo({
+      userId: '1',
+      username: 'ivanovich',
+      personalInfo: {
+        firstName: 'Ivan',
+        lastName: 'Ivanovich',
+        dateOfBirth: '1990-01-15',
+        aboutMe: 'Backend developer',
+        countryCode: 'UA',
+        city: 'Kyiv',
+      },
+    });
 
-    expect(execute).toHaveBeenCalledWith(expect.any(UpdateUserProfileCommand));
+    expect(result).toEqual({});
+
+    expect(execute).toHaveBeenCalledWith(expect.any(UpdateProfileInfoCommand));
+    expect((execute.mock.calls[0]?.[0] as UpdateProfileInfoCommand).props).toEqual({
+      userId: 1,
+      username: 'ivanovich',
+      personalInfo: {
+        firstName: 'Ivan',
+        lastName: 'Ivanovich',
+        dateOfBirth: '1990-01-15',
+        aboutMe: 'Backend developer',
+        countryCode: 'UA',
+        city: 'Kyiv',
+      },
+    });
   });
 });

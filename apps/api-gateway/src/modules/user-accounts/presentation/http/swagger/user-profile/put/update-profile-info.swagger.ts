@@ -4,7 +4,7 @@ import { ApiErrorResponseDto } from '../../../../../../../common/http/api-error-
 import { ValidationErrorResponseDto } from '../../../../../../../common/http/validation-error-response.dto.js';
 import { createApiErrorResponseExample } from '../../../../../../../swagger/examples/api-error-response.example.js';
 
-export const ApiUpdateProfile = () =>
+export const ApiUpdateProfileInfo = () =>
   applyDecorators(
     ApiBearerAuth('accessToken'),
     ApiOperation({
@@ -75,7 +75,7 @@ export const ApiUpdateProfile = () =>
               value: createApiErrorResponseExample(
                 HttpStatus.BAD_REQUEST,
                 'INVALID_BIRTH_DATE_FORMAT',
-                'Invalid date format; expected dd.mm.yyyy',
+                'Invalid date format; expected YYYY-MM-DD',
               ),
             },
             minimumAgeNotMet: {
@@ -84,6 +84,22 @@ export const ApiUpdateProfile = () =>
                 HttpStatus.BAD_REQUEST,
                 'BIRTH_DATE_MIN_ALLOWED_AGE',
                 'The minimum allowed age requirement is not met',
+              ),
+            },
+            invalidCountryCode: {
+              summary: 'The country code does not satisfy the domain rules',
+              value: createApiErrorResponseExample(
+                HttpStatus.BAD_REQUEST,
+                'INVALID_COUNTRY_CODE',
+                'Country code must be an ISO 3166-1 alpha-2 code',
+              ),
+            },
+            invalidCity: {
+              summary: 'The city does not satisfy the domain rules',
+              value: createApiErrorResponseExample(
+                HttpStatus.BAD_REQUEST,
+                'INVALID_CITY',
+                'City has an invalid length or format',
               ),
             },
           },

@@ -2,12 +2,12 @@ import {
   UserAccountsError,
   UserAccountsErrorCode,
 } from '../../../../common/application/errors/user-accounts.error.js';
-import { BIRTH_DATE_MIN_ALLOWED_AGE } from '@app/user-accounts-grpc';
+import { BIRTH_DATE_FORMAT, BIRTH_DATE_MIN_ALLOWED_AGE } from '@app/user-accounts-grpc';
 
 export class InvalidBirthDateFormatError extends UserAccountsError {
   code = UserAccountsErrorCode.INVALID_BIRTH_DATE_FORMAT;
   constructor() {
-    super('Invalid date format to be expect dd.mm.yyyy');
+    super(`Invalid date format; expected ${BIRTH_DATE_FORMAT}`);
   }
 }
 

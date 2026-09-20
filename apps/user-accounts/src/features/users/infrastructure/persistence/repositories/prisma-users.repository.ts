@@ -12,7 +12,7 @@ import {
   ReleaseExpiredRegistrationCredentialsParams,
   ReleaseExpiredRegistrationByEmailParams,
   UpdateConfirmationCodeParams,
-  UpdateUserProfileRepositoryParams,
+  UpdateProfileInfoRepositoryParams,
 } from '../../../application/types/users.types.js';
 import { User } from '../../../domain/entities/user.entity.js';
 import { UserPrismaMapper } from '../mappers/user-prisma.mapper.js';
@@ -229,7 +229,7 @@ export class PrismaUsersRepository implements UsersRepository {
     return result.count > 0;
   }
 
-  async updateProfile(params: UpdateUserProfileRepositoryParams): Promise<void> {
+  async updateProfileInfo(params: UpdateProfileInfoRepositoryParams): Promise<void> {
     const personalInfoData = {
       firstName: params.personalInfo.firstName,
       lastName: params.personalInfo.lastName,
@@ -245,7 +245,7 @@ export class PrismaUsersRepository implements UsersRepository {
         },
         data: {
           username: params.username,
-          personalInfo: {
+          profile: {
             upsert: {
               create: personalInfoData,
               update: personalInfoData,
@@ -254,7 +254,7 @@ export class PrismaUsersRepository implements UsersRepository {
         },
       });
     } catch (error) {
-      // Предварительные проверки в UpdateProfileUseCase не исключают конкурентную вставку. В таком случае
+      // Предварительные проверки в UpdateProfileInfoUseCase не исключают конкурентную вставку. В таком случае
       // уникальный индекс отклоняет второй Update username, а Prisma возвращает ошибку P2002.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new UsernameAlreadyExistsError();

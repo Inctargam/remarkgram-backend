@@ -21,7 +21,7 @@ describe('PersonalInfoVO', () => {
     firstName: 'Ivan',
     lastName: 'Ivanov',
     aboutMe: 'aboutMe',
-    dateOfBirth: '01.02.1980',
+    dateOfBirth: '1980-02-01',
     countryCode: null,
     city: null,
   } satisfies CreatePersonalInfoProps;
@@ -49,19 +49,63 @@ describe('PersonalInfoVO', () => {
     });
   });
 
+  it.each([
+    ['José', 'O’Connor'],
+    ['Іван', 'Петренко'],
+    ['Anne-Marie', 'van der Waals'],
+    ['李', '王'],
+  ])('accepts international personal names: %s %s', (firstName, lastName) => {
+    const result = PersonalInfo.create({
+      ...personalInfo,
+      firstName,
+      lastName,
+    });
+
+    expect(result.firstName).toBe(firstName);
+    expect(result.lastName).toBe(lastName);
+  });
+
+  it('trims and normalizes names to NFC', () => {
+    const result = PersonalInfo.create({
+      ...personalInfo,
+      firstName: ' Jose\u0301 ',
+      lastName: ' Ivanov ',
+    });
+
+    expect(result.firstName).toBe('José');
+    expect(result.lastName).toBe('Ivanov');
+  });
+
+  it.each([
+    ['Ivan123', 'Ivanov', InvalidPersonalInfoFirstNameError],
+    ['Ivan?', 'Ivanov', InvalidPersonalInfoFirstNameError],
+    ['Ivan  John', 'Ivanov', InvalidPersonalInfoFirstNameError],
+    ['Ivan', 'Ivanov123', InvalidPersonalInfoLastNameError],
+    ['Ivan', '@Ivanov', InvalidPersonalInfoLastNameError],
+    ['Ivan', 'Ivanov!', InvalidPersonalInfoLastNameError],
+  ])('rejects a name that violates the shared pattern', (firstName, lastName, error) => {
+    expect(() =>
+      PersonalInfo.create({
+        ...personalInfo,
+        firstName,
+        lastName,
+      }),
+    ).toThrow(error);
+  });
+
   it('should be created  with required and optional fields', () => {
     const data = {
       firstName: 'Ivan',
       lastName: 'Ivanov',
       aboutMe: 'lorem Ipsum',
-      dateOfBirth: '15.05.1975',
+      dateOfBirth: '1975-05-15',
       countryCode: null,
       city: null,
     };
     const personalInfo: PersonalInfo = PersonalInfo.create(data);
 
     expect(birthDateSpy).toHaveBeenCalledOnce();
-    expect(birthDateSpy).toHaveBeenCalledWith('15.05.1975');
+    expect(birthDateSpy).toHaveBeenCalledWith('1975-05-15');
     expect(personalInfo).toEqual({
       firstName: 'Ivan',
       lastName: 'Ivanov',

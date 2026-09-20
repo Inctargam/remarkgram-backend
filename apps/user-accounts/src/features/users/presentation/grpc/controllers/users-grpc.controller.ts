@@ -1,24 +1,31 @@
 import { Controller, UseFilters } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import type {
+  GeMyProfileRequest,
   GetCurrentUserRequest,
   GetCurrentUserResponse,
+  GetMyProfileResponse,
+  GetPublicProfileRequest,
+  GetPublicProfileResponse,
   GetUsersResponse,
 } from '@app/user-accounts-grpc';
 import {
   OAuthProvider,
-  UpdateUserProfileRequest,
-  UpdateUserProfileResponse,
+  UpdateProfileInfoRequest,
+  UpdateProfileInfoResponse,
   UsersServiceControllerMethods,
 } from '@app/user-accounts-grpc';
 import { UserAccountsRpcExceptionFilter } from '../../../../../common/grpc/filters/user-accounts-rpc-exception.filter.js';
 import { GetUsersQuery } from '../../../application/use-cases/get-users.use-case.js';
 import { GetCurrentUserQuery } from '../../../application/use-cases/get-current-user.use-case.js';
 import type { AuthIdentityProvider } from '../../../../auth-identities/domain/auth-identity.entity.js';
-import { UpdateUserProfileCommand } from '../../../application/use-cases/update-user-profile.use-case.js';
+import { UpdateProfileInfoCommand } from '../../../application/use-cases/update-profile-info.use-case.js';
 import { RpcException } from '@nestjs/microservices';
 import { status } from '@grpc/grpc-js';
 import { isValidNumericEntityId } from '@app/validation';
+import { GetPublicProfileQuery } from '../../../application/use-cases/get-public-profile.query-handler.js';
+import { GetMyProfileQuery } from '../../../application/use-cases/get-my-profile.query-handler.js';
+
 @Controller()
 @UsersServiceControllerMethods()
 @UseFilters(UserAccountsRpcExceptionFilter)
@@ -53,7 +60,7 @@ export class UsersGrpcController {
       createdAt: user.createdAt.toISOString(),
     };
   }
-  async updateUserProfile(request: UpdateUserProfileRequest): Promise<UpdateUserProfileResponse> {
+  async updateProfileInfo(request: UpdateProfileInfoRequest): Promise<UpdateProfileInfoResponse> {
     if (!request.personalInfo) {
       throw new RpcException({
         code: status.INVALID_ARGUMENT,
@@ -66,7 +73,7 @@ export class UsersGrpcController {
         message: 'Invalid userId',
       });
     }
-    const cmd = new UpdateUserProfileCommand({
+    const cmd = new UpdateProfileInfoCommand({
       userId: Number(request.userId),
       username: request.username,
       personalInfo: {
@@ -74,10 +81,49 @@ export class UsersGrpcController {
         lastName: request.personalInfo.lastName,
         dateOfBirth: request.personalInfo?.dateOfBirth ?? null,
         aboutMe: request.personalInfo?.aboutMe ?? null,
+        countryCode: request.personalInfo?.countryCode ?? null,
+        city: request.personalInfo?.city ?? null,
       },
     });
     await this.commandBus.execute(cmd);
     return {};
+  }
+
+  async getPublicProfile(request: GetPublicProfileRequest): Promise<GetPublicProfileResponse> {
+    if (!isValidNumericEntityId(+request.userId)) {
+      throw new RpcException({
+        code: status.INVALID_ARGUMENT,
+        message: 'Invalid userId',
+      });
+    }
+    const profile = await this.queryBus.execute(new GetPublicProfileQuery(Number(request.userId)));
+    return {
+      userId: profile.userId,
+      username: profile.username,
+      avatarFileId: profile?.avatarFileId ?? undefined,
+      aboutMe: profile?.aboutMe ?? undefined,
+    };
+  }
+
+  async getMyProfile(request: GeMyProfileRequest): Promise<GetMyProfileResponse> {
+    if (!isValidNumericEntityId(+request.userId)) {
+      throw new RpcException({
+        code: status.INVALID_ARGUMENT,
+        message: 'Invalid userId',
+      });
+    }
+    const profile = await this.queryBus.execute(new GetMyProfileQuery(Number(request.userId)));
+    return {
+      userId: profile.userId,
+      username: profile.username,
+      avatarFileId: profile?.avatarFileId ?? undefined,
+      aboutMe: profile?.aboutMe ?? undefined,
+      city: profile?.city ?? undefined,
+      countryCode: profile?.countryCode ?? undefined,
+      firstName: profile?.firstName ?? undefined,
+      lastName: profile?.lastName ?? undefined,
+      dateOfBirth: profile?.dateOfBirth ?? undefined,
+    };
   }
 
   private toGrpcOAuthProvider(provider: AuthIdentityProvider): OAuthProvider {

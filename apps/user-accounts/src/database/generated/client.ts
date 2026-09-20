@@ -62,7 +62,7 @@ export type PasswordResetToken = Prisma.PasswordResetTokenModel
  */
 export type AuthIdentity = Prisma.AuthIdentityModel
 /**
- * Model PersonalInfo
+ * Model Profile
  * 
  */
-export type PersonalInfo = Prisma.PersonalInfoModel
+export type Profile = Prisma.ProfileModel

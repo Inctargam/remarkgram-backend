@@ -70,4 +70,24 @@ describe(PrismaUsersQueryRepository.name, () => {
     await expect(repository.findCurrentById(42)).resolves.toBeNull();
     expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 42, deletedAt: null } }));
   });
+
+  it('maps the profile birth date to an ISO calendar date', async () => {
+    findFirst.mockResolvedValue({
+      id: 42,
+      username: 'client123',
+      profile: {
+        firstName: 'Ivan',
+        lastName: 'Ivanov',
+        aboutMe: null,
+        avatarFileId: null,
+        city: 'Kyiv',
+        countryCode: 'UA',
+        dateOfBirth: new Date('1990-01-15T00:00:00.000Z'),
+      },
+    });
+
+    await expect(repository.findMyProfileByUserId(42)).resolves.toEqual(
+      expect.objectContaining({ dateOfBirth: '1990-01-15' }),
+    );
+  });
 });

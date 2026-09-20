@@ -59,7 +59,9 @@ import { RegistrationGrpcController } from './features/users/presentation/grpc/c
 import { AuthIdentitiesRepository } from './features/auth-identities/application/ports/auth-identities-repository.js';
 import { PrismaAuthIdentitiesRepository } from './features/auth-identities/infrastucture/persistence/prisma-auth-identities.repository.js';
 import { AuthIdentityService } from './features/auth-identities/application/auth-identity.service.js';
-import { UpdateUserProfileUseCase } from './features/users/application/use-cases/update-user-profile.use-case.js';
+import { UpdateProfileInfoUseCase } from './features/users/application/use-cases/update-profile-info.use-case.js';
+import { GetMyProfileHandler } from './features/users/application/use-cases/get-my-profile.query-handler.js';
+import { GetPublicProfileHandler } from './features/users/application/use-cases/get-public-profile.query-handler.js';
 
 @Module({
   imports: [
@@ -172,7 +174,9 @@ import { UpdateUserProfileUseCase } from './features/users/application/use-cases
     RequestPasswordResetUseCase,
     ConfirmPasswordResetUseCase,
     DeleteAllDataUseCase,
-    UpdateUserProfileUseCase,
+    UpdateProfileInfoUseCase,
+    GetMyProfileHandler,
+    GetPublicProfileHandler,
   ],
 })
 export class UserAccountsModule {}

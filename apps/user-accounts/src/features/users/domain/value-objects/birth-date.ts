@@ -16,13 +16,11 @@ export class BirthDate {
 
     BirthDate.assertMismatchFormat(dateStr);
 
-    const [, dayStr, monthStr, yearStr] = dateStr.match(BIRTH_DATE_REGEX)!;
+    const [, yearStr, monthStr, dayStr] = dateStr.match(BIRTH_DATE_REGEX)!;
     const year = parseInt(yearStr, 10);
     const month = parseInt(monthStr, 10) - 1;
     const day = parseInt(dayStr, 10);
-
     const parsedDate = new Date(Date.UTC(year, month, day));
-
     if (
       parsedDate.getUTCFullYear() !== year ||
       parsedDate.getUTCMonth() !== month ||

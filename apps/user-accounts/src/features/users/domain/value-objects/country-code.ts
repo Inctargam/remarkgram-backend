@@ -1,4 +1,5 @@
-const COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/;
+import { PERSONAL_INFO_COUNTRY_CODE_PATTERN } from '@app/user-accounts-grpc';
+import { InvalidCountryCodeError } from '../../application/errors/location-info.errors.js';
 
 export class CountryCode {
   public readonly value: string;
@@ -8,8 +9,8 @@ export class CountryCode {
     Object.freeze(this);
   }
   private static assertValid(value: string): void {
-    if (!COUNTRY_CODE_PATTERN.test(value)) {
-      throw new Error('Country code must be an ISO 3166-1 alpha-2 code');
+    if (!PERSONAL_INFO_COUNTRY_CODE_PATTERN.test(value)) {
+      throw new InvalidCountryCodeError();
     }
   }
   public static create(value: string): CountryCode {

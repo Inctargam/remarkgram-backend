@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, vi } from 'vitest';
 import { type UsersRepository } from '../ports/users.repository.js';
-import { UpdateUserProfileCommand, UpdateUserProfileUseCase } from './update-user-profile.use-case.js';
+import { UpdateProfileInfoCommand, UpdateProfileInfoUseCase } from './update-profile-info.use-case.js';
 import { User } from '../../domain/entities/user.entity.js';
 import { randomUUID } from 'node:crypto';
 import { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
 import { Username } from '../../domain/value-objects/username.js';
 import { PersonalInfo } from '../../domain/value-objects/personal-info.js';
 import { BirthDate } from '../../domain/value-objects/birth-date.js';
-import type { UpdateUserProfileParams } from '../types/users.types.js';
+import type { UpdateProfileInfoParams } from '../types/users.types.js';
 import { UsernameAlreadyExistsError, UserNotFoundError } from '../errors/users.errors.js';
 import { InvalidUsernamePatternError } from '../errors/username.errors.js';
 import {
@@ -15,7 +15,7 @@ import {
   InvalidPersonalInfoLastNameError,
 } from '../errors/personal-info.errors.js';
 
-describe('UpdateUserProfileCommand', () => {
+describe('UpdateProfileInfoCommand', () => {
   const user = User.restore({
     id: 1,
     username: 'ivanovich',
@@ -28,18 +28,18 @@ describe('UpdateUserProfileCommand', () => {
 
   const repository = {
     findById: vi.fn<UsersRepository['findById']>(),
-    updateProfile: vi.fn<UsersRepository['updateProfile']>(),
+    updateProfileInfo: vi.fn<UsersRepository['updateProfileInfo']>(),
     isUsernameExists: vi.fn<UsersRepository['isUsernameExists']>(),
   };
   const UsernameSpy = vi.spyOn(Username, 'create');
   const PersonalInfoSpy = vi.spyOn(PersonalInfo, 'create');
   const BirthdaySpy = vi.spyOn(BirthDate, 'create');
 
-  const useCase = new UpdateUserProfileUseCase(repository as unknown as UsersRepository);
+  const useCase = new UpdateProfileInfoUseCase(repository as unknown as UsersRepository);
 
   beforeEach(() => {
     repository.findById.mockReset();
-    repository.updateProfile.mockReset();
+    repository.updateProfileInfo.mockReset();
     repository.isUsernameExists.mockReset();
 
     UsernameSpy.mockReset();
@@ -51,7 +51,7 @@ describe('UpdateUserProfileCommand', () => {
     const personalInfo = {
       firstName: 'Ivan',
       lastName: 'Ivanovich',
-      dateOfBirth: '02.06.1994',
+      dateOfBirth: '1994-06-02',
       aboutMe: 'Hello everyone! Welcome to me profile.',
       city: null,
       countryCode: null,
@@ -64,7 +64,7 @@ describe('UpdateUserProfileCommand', () => {
     repository.findById.mockResolvedValue(user);
     repository.isUsernameExists.mockResolvedValue(false);
 
-    const command = new UpdateUserProfileCommand(props);
+    const command = new UpdateProfileInfoCommand(props);
     await useCase.execute(command);
 
     expect(UsernameSpy).toHaveBeenCalledWith(props.username);
@@ -79,8 +79,8 @@ describe('UpdateUserProfileCommand', () => {
       countryCode: personalInfo.countryCode,
     });
     expect(PersonalInfoSpy).toHaveBeenCalledOnce();
-    expect(repository.updateProfile).toHaveBeenCalledOnce();
-    expect(repository.updateProfile).toHaveBeenCalledWith({
+    expect(repository.updateProfileInfo).toHaveBeenCalledOnce();
+    expect(repository.updateProfileInfo).toHaveBeenCalledWith({
       userId: props.userId,
       username: props.username,
       personalInfo: PersonalInfo.restore({
@@ -111,7 +111,7 @@ describe('UpdateUserProfileCommand', () => {
     repository.findById.mockResolvedValue(user);
     repository.isUsernameExists.mockResolvedValue(false);
 
-    const command = new UpdateUserProfileCommand(props);
+    const command = new UpdateProfileInfoCommand(props);
     await useCase.execute(command);
 
     expect(UsernameSpy).toHaveBeenCalledWith(props.username);
@@ -126,8 +126,8 @@ describe('UpdateUserProfileCommand', () => {
       countryCode: null,
     });
     expect(PersonalInfoSpy).toHaveBeenCalledOnce();
-    expect(repository.updateProfile).toHaveBeenCalledOnce();
-    expect(repository.updateProfile).toHaveBeenCalledWith({
+    expect(repository.updateProfileInfo).toHaveBeenCalledOnce();
+    expect(repository.updateProfileInfo).toHaveBeenCalledWith({
       userId: props.userId,
       username: props.username,
       personalInfo: PersonalInfo.restore({
@@ -143,10 +143,10 @@ describe('UpdateUserProfileCommand', () => {
 
   it('rejects when user does not exist', async () => {
     repository.findById.mockResolvedValue(null);
-    const props = { userId: 1 } as unknown as UpdateUserProfileParams;
+    const props = { userId: 1 } as unknown as UpdateProfileInfoParams;
 
     try {
-      await useCase.execute(new UpdateUserProfileCommand(props));
+      await useCase.execute(new UpdateProfileInfoCommand(props));
     } catch (err) {
       expect(err).toBeInstanceOf(UserNotFoundError);
     }
@@ -155,10 +155,10 @@ describe('UpdateUserProfileCommand', () => {
   it('returns an error if the specified username already exists in the system', async () => {
     repository.findById.mockResolvedValue(user);
     repository.isUsernameExists.mockResolvedValue(true);
-    const props = { userId: 1, username: 'username_taken' } as unknown as UpdateUserProfileParams;
+    const props = { userId: 1, username: 'username_taken' } as unknown as UpdateProfileInfoParams;
 
     try {
-      await useCase.execute(new UpdateUserProfileCommand(props));
+      await useCase.execute(new UpdateProfileInfoCommand(props));
     } catch (err) {
       expect(err).toBeInstanceOf(UsernameAlreadyExistsError);
     }
@@ -170,13 +170,13 @@ describe('UpdateUserProfileCommand', () => {
     repository.findById.mockResolvedValue(user);
 
     await expect(
-      useCase.execute(new UpdateUserProfileCommand(props as unknown as UpdateUserProfileParams)),
+      useCase.execute(new UpdateProfileInfoCommand(props as unknown as UpdateProfileInfoParams)),
     ).rejects.toBeInstanceOf(exeption);
 
     expect(repository.isUsernameExists).not.toHaveBeenCalledOnce();
     expect(PersonalInfoSpy).not.toHaveBeenCalledOnce();
     expect(BirthdaySpy).not.toHaveBeenCalledOnce();
-    expect(repository.updateProfile).not.toHaveBeenCalledOnce();
+    expect(repository.updateProfileInfo).not.toHaveBeenCalledOnce();
   });
   it.each([
     [
@@ -192,10 +192,10 @@ describe('UpdateUserProfileCommand', () => {
     repository.isUsernameExists.mockResolvedValue(false);
 
     await expect(
-      useCase.execute(new UpdateUserProfileCommand(props as unknown as UpdateUserProfileParams)),
+      useCase.execute(new UpdateProfileInfoCommand(props as unknown as UpdateProfileInfoParams)),
     ).rejects.toBeInstanceOf(exeption);
 
     expect(PersonalInfoSpy).toHaveBeenCalledOnce();
-    expect(repository.updateProfile).not.toHaveBeenCalledOnce();
+    expect(repository.updateProfileInfo).not.toHaveBeenCalledOnce();
   });
 });

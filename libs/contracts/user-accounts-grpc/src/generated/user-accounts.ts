@@ -86,6 +86,33 @@ export interface ResendRegistrationConfirmationRequest {
 export interface ResendRegistrationConfirmationResponse {
 }
 
+export interface GeMyProfileRequest {
+  userId: number;
+}
+
+export interface GetMyProfileResponse {
+  userId: number;
+  username: string;
+  firstName?: string | undefined;
+  lastName?: string | undefined;
+  dateOfBirth?: string | undefined;
+  aboutMe?: string | undefined;
+  countryCode?: string | undefined;
+  city?: string | undefined;
+  avatarFileId?: string | undefined;
+}
+
+export interface GetPublicProfileResponse {
+  userId: number;
+  username: string;
+  aboutMe?: string | undefined;
+  avatarFileId?: string | undefined;
+}
+
+export interface GetPublicProfileRequest {
+  userId: number;
+}
+
 export interface PersonalInfo {
   firstName: string;
   lastName: string;
@@ -95,13 +122,13 @@ export interface PersonalInfo {
   city?: string | undefined;
 }
 
-export interface UpdateUserProfileRequest {
-  userId: string;
+export interface UpdateProfileInfoRequest {
+  userId: number;
   username: string;
   personalInfo: PersonalInfo | undefined;
 }
 
-export interface UpdateUserProfileResponse {
+export interface UpdateProfileInfoResponse {
 }
 
 export interface GetUsersRequest {
@@ -289,7 +316,11 @@ export interface UsersServiceClient {
 
   getCurrentUser(request: GetCurrentUserRequest): Observable<GetCurrentUserResponse>;
 
-  updateUserProfile(request: UpdateUserProfileRequest): Observable<UpdateUserProfileResponse>;
+  updateProfileInfo(request: UpdateProfileInfoRequest): Observable<UpdateProfileInfoResponse>;
+
+  getPublicProfile(request: GetPublicProfileRequest): Observable<GetPublicProfileResponse>;
+
+  getMyProfile(request: GeMyProfileRequest): Observable<GetMyProfileResponse>;
 }
 
 /** Users */
@@ -301,14 +332,28 @@ export interface UsersServiceController {
     request: GetCurrentUserRequest,
   ): Promise<GetCurrentUserResponse> | Observable<GetCurrentUserResponse> | GetCurrentUserResponse;
 
-  updateUserProfile(
-    request: UpdateUserProfileRequest,
-  ): Promise<UpdateUserProfileResponse> | Observable<UpdateUserProfileResponse> | UpdateUserProfileResponse;
+  updateProfileInfo(
+    request: UpdateProfileInfoRequest,
+  ): Promise<UpdateProfileInfoResponse> | Observable<UpdateProfileInfoResponse> | UpdateProfileInfoResponse;
+
+  getPublicProfile(
+    request: GetPublicProfileRequest,
+  ): Promise<GetPublicProfileResponse> | Observable<GetPublicProfileResponse> | GetPublicProfileResponse;
+
+  getMyProfile(
+    request: GeMyProfileRequest,
+  ): Promise<GetMyProfileResponse> | Observable<GetMyProfileResponse> | GetMyProfileResponse;
 }
 
 export function UsersServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["getUsers", "getCurrentUser", "updateUserProfile"];
+    const grpcMethods: string[] = [
+      "getUsers",
+      "getCurrentUser",
+      "updateProfileInfo",
+      "getPublicProfile",
+      "getMyProfile",
+    ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("UsersService", method)(constructor.prototype[method], method, descriptor);

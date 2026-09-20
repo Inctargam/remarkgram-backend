@@ -1,21 +1,21 @@
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
-import type { UpdateUserProfileParams } from '../types/users.types.js';
+import type { UpdateProfileInfoParams } from '../types/users.types.js';
 import { UsersRepository } from '../ports/users.repository.js';
 import { UsernameAlreadyExistsError, UserNotFoundError } from '../errors/users.errors.js';
 import { PersonalInfo } from '../../domain/value-objects/personal-info.js';
 import { Username } from '../../domain/value-objects/username.js';
 
-export class UpdateUserProfileCommand extends Command<void> {
-  constructor(public props: UpdateUserProfileParams) {
+export class UpdateProfileInfoCommand extends Command<void> {
+  constructor(public props: UpdateProfileInfoParams) {
     super();
   }
 }
 
-@CommandHandler(UpdateUserProfileCommand)
-export class UpdateUserProfileUseCase implements ICommandHandler<UpdateUserProfileCommand> {
+@CommandHandler(UpdateProfileInfoCommand)
+export class UpdateProfileInfoUseCase implements ICommandHandler<UpdateProfileInfoCommand> {
   constructor(private repository: UsersRepository) {}
 
-  async execute({ props }: UpdateUserProfileCommand) {
+  async execute({ props }: UpdateProfileInfoCommand) {
     const { userId, username, personalInfo } = props;
     const user = await this.repository.findById(userId);
 
@@ -38,7 +38,7 @@ export class UpdateUserProfileUseCase implements ICommandHandler<UpdateUserProfi
       countryCode: personalInfo?.countryCode ?? null,
     });
 
-    await this.repository.updateProfile({
+    await this.repository.updateProfileInfo({
       userId: user.id,
       username: newUsername,
       personalInfo: personaInfoVo,

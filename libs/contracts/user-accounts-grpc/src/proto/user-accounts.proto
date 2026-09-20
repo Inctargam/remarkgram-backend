@@ -92,23 +92,50 @@ message ResendRegistrationConfirmationResponse {}
 service UsersService {
     rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
     rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse);
-    rpc UpdateUserProfile(UpdateUserProfileRequest) returns (UpdateUserProfileResponse);
+    rpc UpdateProfileInfo(UpdateProfileInfoRequest) returns (UpdateProfileInfoResponse);
+    rpc GetPublicProfile(GetPublicProfileRequest) returns (GetPublicProfileResponse);
+    rpc GetMyProfile(GeMyProfileRequest) returns (GetMyProfileResponse);
+}
+message GeMyProfileRequest{
+    int32 user_id = 1;
+}
+message GetMyProfileResponse {
+    int32 user_id = 1;
+    string username = 2;
+    optional string first_name = 3;
+    optional string last_name = 4;
+    // ISO 8601 calendar date in YYYY-MM-DD format.
+    optional string date_of_birth = 5;
+    optional string about_me = 6;
+    optional string country_code = 7;
+    optional string city = 8;
+    optional string avatar_file_id = 9;
+}
+message GetPublicProfileResponse  {
+    int32 user_id = 1;
+    string username = 2;
+    optional string about_me = 3;
+    optional string avatar_file_id = 4;
+}
+message GetPublicProfileRequest  {
+    int32 user_id = 1;
 }
 message PersonalInfo  {
     string firstName = 1;
     string lastName = 2;
-    optional string dateOfBirth = 3;
-    optional string aboutMe = 4;
-    optional string countryCode = 5;
+    // ISO 8601 calendar date in YYYY-MM-DD format.
+    optional string date_of_birth = 3;
+    optional string about_me = 4;
+    optional string country_code = 5;
     optional string city = 6;
 }
 
-message UpdateUserProfileRequest {
-    string userId = 1;
+message UpdateProfileInfoRequest {
+    int32 userId = 1;
     string username = 2;
     PersonalInfo personalInfo = 3;
 }
-message UpdateUserProfileResponse  {}
+message UpdateProfileInfoResponse  {}
 
 message GetUsersRequest {}
 

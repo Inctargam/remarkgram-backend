@@ -28,7 +28,7 @@ model User {
 
   providers AuthIdentity[]
 
-  personalInfo PersonalInfo?
+  profile Profile?
 
   @@unique([username], where: {deletedAt: null})
   @@unique([email], where: {deletedAt: null})
@@ -109,10 +109,11 @@ model AuthIdentity {
   @@map("auth_identities")
 }
 
-model PersonalInfo {
+model Profile {
   userId      Int       @id @map("user_id")
-  firstName   String    @map("first_name") @db.VarChar
-  lastName    String    @map("last_name") @db.VarChar
+  firstName   String?   @map("first_name") @db.VarChar
+  lastName    String?   @map("last_name") @db.VarChar
+  avatarFileId String?  @map("avatar_file_id") @db.Uuid
   dateOfBirth DateTime? @map("date_of_birth") @db.Date
   aboutMe     String?   @map("about_me") @db.VarChar
   countryCode String?   @map("country_code") @db.VarChar
@@ -120,5 +121,5 @@ model PersonalInfo {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("personal_info")
+  @@map("profiles")
 }

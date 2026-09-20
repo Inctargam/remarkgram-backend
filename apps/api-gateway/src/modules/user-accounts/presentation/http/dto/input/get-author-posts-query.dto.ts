@@ -1,11 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsBase64, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  DEFAULT_POSTS_PAGE_SIZE,
-  MAX_POSTS_PAGE_SIZE,
-  MIN_POSTS_PAGE_SIZE,
-} from '@app/posts-grpc';
+import { DEFAULT_POSTS_PAGE_SIZE, MAX_POSTS_PAGE_SIZE, MIN_POSTS_PAGE_SIZE } from '@app/posts-grpc';
 
 export class GetAuthorPostsQueryDto {
   @ApiPropertyOptional({

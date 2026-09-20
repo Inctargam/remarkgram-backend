@@ -179,7 +179,7 @@ describe('PrismaUsersRepository', () => {
       },
     };
 
-    await expect(repository.updateProfile(params)).rejects.toBeInstanceOf(UsernameAlreadyExistsError);
+    await expect(repository.updateProfileInfo(params)).rejects.toBeInstanceOf(UsernameAlreadyExistsError);
 
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: {
@@ -187,7 +187,7 @@ describe('PrismaUsersRepository', () => {
       },
       data: {
         username: params.username,
-        personal_info: {
+        profile: {
           upsert: {
             create: {
               firstName: params.personalInfo.firstName,

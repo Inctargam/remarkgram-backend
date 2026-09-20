@@ -50,14 +50,33 @@ export type CurrentUserView = {
   createdAt: Date;
 };
 
-export type UpdateUserProfileParams = {
+export type UpdateProfileInfoParams = {
   userId: number;
   username: string;
   personalInfo: CreatePersonalInfoProps;
 };
 
-export type UpdateUserProfileRepositoryParams = {
+export type UpdateProfileInfoRepositoryParams = {
   userId: number;
   username: string;
   personalInfo: PersonalInfo;
+};
+
+export type PublicUserProfileView = {
+  userId: number;
+  username: string;
+  aboutMe: string | null;
+  avatarFileId: string | null;
+};
+
+export type MyProfileView = {
+  userId: number;
+  username: string;
+  firstName: string | null;
+  lastName: string | null;
+  aboutMe: string | null;
+  avatarFileId: string | null;
+  city: string | null;
+  countryCode: string | null;
+  dateOfBirth: string | null;
 };

@@ -1,5 +1,9 @@
-const CITY_MAX_LENGTH = 100;
-const CITY_PATTERN = /^[\p{L}\s'’.-]+$/u;
+import {
+  PERSONAL_INFO_CITY_MAX_LENGTH,
+  PERSONAL_INFO_CITY_MIN_LENGTH,
+  PERSONAL_INFO_CITY_PATTERN,
+} from '@app/user-accounts-grpc';
+import { InvalidCityError } from '../../application/errors/location-info.errors.js';
 
 export class City {
   public readonly value: string;
@@ -9,16 +13,12 @@ export class City {
     Object.freeze(this);
   }
   private static assertValid(value: string): void {
-    if (!value) {
-      throw new Error('City cannot be empty');
-    }
-
-    if (value.length > CITY_MAX_LENGTH) {
-      throw new Error(`City must not exceed ${CITY_MAX_LENGTH} characters`);
-    }
-
-    if (!CITY_PATTERN.test(value)) {
-      throw new Error('City has an invalid format');
+    if (
+      value.length < PERSONAL_INFO_CITY_MIN_LENGTH ||
+      value.length > PERSONAL_INFO_CITY_MAX_LENGTH ||
+      !PERSONAL_INFO_CITY_PATTERN.test(value)
+    ) {
+      throw new InvalidCityError();
     }
   }
   public static create(value: string): City {

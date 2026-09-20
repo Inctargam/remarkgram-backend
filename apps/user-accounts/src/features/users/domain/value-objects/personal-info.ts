@@ -4,6 +4,7 @@ import {
   PERSONAL_INFO_FIRST_NAME_MIN_LENGTH,
   PERSONAL_INFO_LAST_NAME_MAX_LENGTH,
   PERSONAL_INFO_LAST_NAME_MIN_LENGTH,
+  PERSONAL_INFO_NAME_PATTERN,
 } from '@app/user-accounts-grpc';
 import { BirthDate } from './birth-date.js';
 import {
@@ -55,11 +56,11 @@ export class PersonalInfo {
     Object.freeze(this); // запрещаем модификацию объекта на уровне runtime
   }
   public static create(props: CreatePersonalInfoProps): PersonalInfo {
-    const firsName = props.firstName.trim();
-    const lastName = props.lastName.trim();
+    const firstName = props.firstName.trim().normalize('NFC');
+    const lastName = props.lastName.trim().normalize('NFC');
     const aboutMe = props.aboutMe?.trim() || null;
 
-    PersonalInfo.assertFirstName(firsName);
+    PersonalInfo.assertFirstName(firstName);
     PersonalInfo.assertLastName(lastName);
 
     if (typeof aboutMe === 'string' && aboutMe.length > PERSONAL_INFO_ABOUT_ME_MAX_LENGTH) {
@@ -79,7 +80,7 @@ export class PersonalInfo {
         : CountryCode.create(props.countryCode);
 
     return new PersonalInfo({
-      firstName: firsName,
+      firstName,
       lastName: lastName,
       aboutMe: aboutMe ?? null,
       dateOfBirth: dateOfBirth,
@@ -91,7 +92,8 @@ export class PersonalInfo {
   private static assertFirstName(value: string): void {
     if (
       value.length < PERSONAL_INFO_FIRST_NAME_MIN_LENGTH ||
-      value.length > PERSONAL_INFO_FIRST_NAME_MAX_LENGTH
+      value.length > PERSONAL_INFO_FIRST_NAME_MAX_LENGTH ||
+      !PERSONAL_INFO_NAME_PATTERN.test(value)
     ) {
       throw new InvalidPersonalInfoFirstNameError(
         PERSONAL_INFO_FIRST_NAME_MIN_LENGTH,
@@ -102,7 +104,8 @@ export class PersonalInfo {
   private static assertLastName(value: string): void {
     if (
       value.length < PERSONAL_INFO_LAST_NAME_MIN_LENGTH ||
-      value.length > PERSONAL_INFO_LAST_NAME_MAX_LENGTH
+      value.length > PERSONAL_INFO_LAST_NAME_MAX_LENGTH ||
+      !PERSONAL_INFO_NAME_PATTERN.test(value)
     ) {
       throw new InvalidPersonalInfoLastNameError(
         PERSONAL_INFO_LAST_NAME_MIN_LENGTH,

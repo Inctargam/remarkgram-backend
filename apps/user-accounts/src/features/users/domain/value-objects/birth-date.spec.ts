@@ -8,25 +8,25 @@ import {
 
 describe('BirthDateVO', () => {
   it('expect normalized dateSrt format yyyy.mm.dd ', () => {
-    const birthDate = BirthDate.create('10.09.2013');
+    const birthDate = BirthDate.create('2013-09-10');
     expect(birthDate.value.getUTCFullYear()).toBe(2013);
     expect(birthDate.value.getUTCMonth()).toBe(8);
     expect(birthDate.value.getUTCDate()).toBe(10);
   });
 
   it('return an error if dateStr does not match the template', () => {
-    expect(() => BirthDate.create('20-10-2012')).toThrow(InvalidBirthDateFormatError);
+    expect(() => BirthDate.create('20.10.2012')).toThrow(InvalidBirthDateFormatError);
   });
 
   it('return an error if dateStr include non-existing calendar date', () => {
-    expect(() => BirthDate.create('31.02.2012')).toThrow(NonExistentCalendarDateError);
+    expect(() => BirthDate.create('2012-02-31')).toThrow(NonExistentCalendarDateError);
   });
 
   it('return an error if dateStr is later than the current date', () => {
-    // expect(() => BirthDate.create('14.09.2026')).toThrow('A birth date cannot be in the future');
+    // expect(() => BirthDate.create('2026-09-14')).toThrow('A birth date cannot be in the future');
   });
 
   it('return an error if the age does not meet the minimum required value', () => {
-    expect(() => BirthDate.create('13.09.2014')).toThrow(BirthDateMinAllowedAgeError);
+    expect(() => BirthDate.create('2014-09-13')).toThrow(BirthDateMinAllowedAgeError);
   });
 });
