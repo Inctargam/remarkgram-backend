@@ -370,7 +370,7 @@ export class AuthHttpController implements OnModuleInit {
         pkceCodeVerifier: codeVerifier,
       });
 
-      // В прикладной слой передаются только claims уже проверенного ID token; mapper дополнительно
+      // В прикладной слой передаются только claims уже проверенного ID token; mappers дополнительно
       // проверяет обязательные поля и приводит профиль Google к общему OAuth-контракту.
       identity = normalizeGoogleIdentityClaims(googleTokens.claims());
     } finally {

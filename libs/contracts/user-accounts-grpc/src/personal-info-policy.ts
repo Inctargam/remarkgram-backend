@@ -5,8 +5,7 @@ export const PERSONAL_INFO_FIRST_NAME_MAX_LENGTH = 50;
 export const PERSONAL_INFO_LAST_NAME_MIN_LENGTH = 1;
 export const PERSONAL_INFO_LAST_NAME_MAX_LENGTH = 50;
 
-export const PERSONAL_INFO_NAME_PATTERN =
-  /^[\p{L}\p{M}]+(?:[ '\u2019\p{Pd}][\p{L}\p{M}]+)*$/u;
+export const PERSONAL_INFO_NAME_PATTERN = /^[\p{L}\p{M}]+(?:[ '\u2019\p{Pd}][\p{L}\p{M}]+)*$/u;
 
 export const PERSONAL_INFO_ABOUT_ME_MAX_LENGTH = 500;
 

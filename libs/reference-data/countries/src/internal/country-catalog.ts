@@ -55,7 +55,7 @@ export class CountryCatalog {
     const perLimit = this.isPositiveInteger(Number(options.limit)) ? Number(options.limit) : this.LIMIT;
     const limit = perLimit > this.MAX_LIMIT ? this.MAX_LIMIT : Number(perLimit);
 
-    return COUNTRIES.slice(limit);
+    return COUNTRIES.slice(0, limit);
   }
   search(term: string, options: SearchCountriesOptions): CountryRecord[] {
     const regex = /^[A-Za-zА-Яа-яЁё]+$/;
@@ -87,8 +87,6 @@ export class CountryCatalog {
         matches.set(country.alpha2, country);
       }
     }
-    const records = [...matches] as unknown as CountryRecord[];
-    console.dir(records);
-    return records;
+    return [...matches.values()];
   }
 }

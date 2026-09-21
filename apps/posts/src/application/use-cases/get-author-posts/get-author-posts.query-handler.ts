@@ -6,11 +6,7 @@ import { InvalidUserIdError } from '../../errors/create-post.errors.js';
 import type { AuthorPostsCursor } from '../../types/posts.types.js';
 import type { PostViewMapper } from '../../../infrastructure/prisma/mappers/post-view.mapper.js';
 import { InvalidPostsCursorError, InvalidPostsPageLimitError } from '../../errors/post-pagination.errors.js';
-import {
-  DEFAULT_POSTS_PAGE_SIZE,
-  MAX_POSTS_PAGE_SIZE,
-  MIN_POSTS_PAGE_SIZE,
-} from '@app/posts-grpc';
+import { DEFAULT_POSTS_PAGE_SIZE, MAX_POSTS_PAGE_SIZE, MIN_POSTS_PAGE_SIZE } from '@app/posts-grpc';
 
 type SerializedCursorPayload = {
   id: number;

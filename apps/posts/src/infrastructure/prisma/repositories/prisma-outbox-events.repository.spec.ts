@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, vi } from 'vitest';
 import { PrismaOutboxEventsRepository } from './prisma-outbox-events.repository.js';
-import { PrismaService } from '../prisma.service.js';
+import type { PrismaService } from '../prisma.service.js';
 import { randomUUID } from 'node:crypto';
-import { POST_DELETED_V1_EVENT_NAME, PostDeletedV1Event } from '@app/message-broker';
+import type { PostDeletedV1Event } from '@app/message-broker';
+import { POST_DELETED_V1_EVENT_NAME } from '@app/message-broker';
 import { OutboxStatus } from '../generated/enums.js';
 
 describe('PrismaOutboxEventsRepository', () => {
@@ -85,11 +86,7 @@ describe('PrismaOutboxEventsRepository', () => {
 
     prisma.$queryRaw.mockResolvedValueOnce([claimedRow]);
 
-    const eventRecords = await repository.findAvailableBatch(
-      POST_DELETED_V1_EVENT_NAME,
-      max_attempts,
-      100,
-    );
+    const eventRecords = await repository.findAvailableBatch(POST_DELETED_V1_EVENT_NAME, max_attempts, 100);
     expect(prisma.$queryRaw).toHaveBeenCalledOnce();
     expect(eventRecords).toEqual([claimedRow]);
 
@@ -125,5 +122,4 @@ describe('PrismaOutboxEventsRepository', () => {
     expect(executeRawCall).toContain(OutboxStatus.PUBLISHED);
     expect(executeRawCall).toContain(eventId);
   });
-
 });

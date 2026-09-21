@@ -1,5 +1,5 @@
 import { describe, expect } from 'vitest';
-import { CountryCatalog } from '@app/countries/internal/country-catalog.js';
+import { CountryCatalog } from './country-catalog.js';
 
 describe('Country Catalog logic ', () => {
   const catalog = new CountryCatalog();
@@ -24,11 +24,20 @@ describe('Country Catalog logic ', () => {
     expect(country).toBeNull();
   });
 
-  it('return an record country by search query', () => {
-    const records = catalog.search('ов', { limit: 10 });
-    // expect(records).toContainEqual([
-    //
-    // ])
-
+  it('maps result to search return', () => {
+    const records = catalog.search('ua', { limit: 10 });
+    expect(records).toBeInstanceOf(Array);
+    expect(records).toContainEqual({
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      alpha2: expect.any(String),
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      alpha3: expect.any(String),
+      names: {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        en: expect.any(String),
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        ru: expect.any(String),
+      },
+    });
   });
 });

@@ -17,8 +17,7 @@ export class AuthorPostImageDto {
 
   @ApiProperty({
     description: 'Absolute API Gateway URL that redirects to the public image.',
-    example:
-      'https://api.remark-gram.com/api/v1/files/images/550e8400-e29b-41d4-a716-446655440000',
+    example: 'https://api.remark-gram.com/api/v1/files/images/550e8400-e29b-41d4-a716-446655440000',
     format: 'uri',
   })
   declare url: string;

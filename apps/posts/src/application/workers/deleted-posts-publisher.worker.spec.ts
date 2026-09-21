@@ -102,7 +102,7 @@ describe('Deleted posts publisher worker', () => {
     expect(outbox.ensurePublished).not.toHaveBeenCalledOnce();
   });
 
-  it('returns an error if the mapper receives an event type of an invalid', async () => {
+  it('returns an error if the mappers receives an event type of an invalid', async () => {
     outbox.findAvailableBatch.mockImplementation(() =>
       Promise.resolve([
         {

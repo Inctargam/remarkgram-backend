@@ -52,8 +52,5 @@ export abstract class UnitOfWork {
    * @param handler Операция, получающая контекст текущей транзакции.
    * @param options Необязательные ограничения ожидания и выполнения транзакции.
    */
-  abstract run<T>(
-    handler: (ctx: TransactionContext) => Promise<T>,
-    options?: TransactionOptions,
-  ): Promise<T>;
+  abstract run<T>(handler: (ctx: TransactionContext) => Promise<T>, options?: TransactionOptions): Promise<T>;
 }

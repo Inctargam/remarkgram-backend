@@ -77,9 +77,7 @@ export class PrismaUsersQueryRepository implements UsersQueryRepository {
       avatarFileId: user.profile?.avatarFileId ?? null,
       city: user.profile?.city ?? null,
       countryCode: user.profile?.countryCode ?? null,
-      dateOfBirth: user.profile?.dateOfBirth
-        ? user.profile.dateOfBirth.toISOString().slice(0, 10)
-        : null,
+      dateOfBirth: user.profile?.dateOfBirth ? user.profile.dateOfBirth.toISOString().slice(0, 10) : null,
     };
   }
 }

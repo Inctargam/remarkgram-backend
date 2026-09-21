@@ -134,8 +134,7 @@ describe('DbosCreatePostWorkflow', () => {
     dbosMock.startWorkflow.mockReturnValueOnce({
       createPost: () =>
         Promise.resolve({
-          getStatus: () =>
-            Promise.resolve({ input: [{ ...params, requestHash: 'stored-request-hash' }] }),
+          getStatus: () => Promise.resolve({ input: [{ ...params, requestHash: 'stored-request-hash' }] }),
           getResult: () => Promise.resolve({ id: 10 }),
         }),
     });

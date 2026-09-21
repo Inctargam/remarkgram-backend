@@ -1,9 +1,5 @@
 import { DBOS } from '@dbos-inc/dbos-sdk';
-import {
-  Injectable,
-  type BeforeApplicationShutdown,
-  type OnApplicationBootstrap,
-} from '@nestjs/common';
+import { Injectable, type BeforeApplicationShutdown, type OnApplicationBootstrap } from '@nestjs/common';
 
 @Injectable()
 export class DbosLifecycleService implements OnApplicationBootstrap, BeforeApplicationShutdown {

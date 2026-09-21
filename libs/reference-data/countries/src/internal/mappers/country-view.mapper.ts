@@ -1,5 +1,5 @@
-import { type CountryRecord } from '@app/countries/internal/countries.data.js';
-import { type Country } from '@app/countries/application/country.types.js';
+import { type CountryRecord } from '../countries.data.js';
+import { type Country } from '../../application/country.types.js';
 
 export class CountryMapper {
   static toView(record: CountryRecord): Country {

@@ -1,6 +1,7 @@
 import type { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
 import type { AuthIdentityProvider } from '../../../auth-identities/domain/auth-identity.entity.js';
-import { PersonalInfo, type CreatePersonalInfoProps } from '../../domain/value-objects/personal-info.js';
+import type { PersonalInfo } from '../../domain/value-objects/personal-info.js';
+import { type CreatePersonalInfoProps } from '../../domain/value-objects/personal-info.js';
 
 export type CreateUserParams = {
   username: string;
