@@ -18,7 +18,6 @@ export class GetMyProfileHandler implements IQueryHandler<GetMyProfileQuery> {
     if (!profile) {
       throw new UserNotFoundError();
     }
-    console.dir(profile);
     return profile;
   }
 }
