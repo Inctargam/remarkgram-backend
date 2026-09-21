@@ -28,8 +28,8 @@ export class InvalidImageCountError extends FilesError {
 export class InvalidImageSizeError extends FilesError {
   readonly code = FilesErrorCode.INVALID_IMAGE_SIZE;
 
-  constructor() {
-    super(`Image size must be between ${MIN_IMAGE_SIZE_BYTES} and ${MAX_IMAGE_SIZE_BYTES} bytes`);
+  constructor(maxSizeBytes = MAX_IMAGE_SIZE_BYTES) {
+    super(`Image size must be between ${MIN_IMAGE_SIZE_BYTES} and ${maxSizeBytes} bytes`);
   }
 }
 

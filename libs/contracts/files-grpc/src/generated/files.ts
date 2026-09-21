@@ -15,6 +15,14 @@ export interface InitiateImageUploadsRequest {
   images: ImageUploadMetadata[];
 }
 
+export interface InitiateAvatarUploadRequest {
+  userId: string;
+  clientFileId: string;
+  originalFilename: string;
+  contentType: string;
+  size: number;
+}
+
 export interface ImageUploadMetadata {
   originalFilename: string;
   contentType: string;
@@ -88,6 +96,8 @@ export interface GetFileDownloadUrlResponse {
 export const REMARKGRAM_FILES_V1_PACKAGE_NAME = "remarkgram.files.v1";
 
 export interface FilesServiceClient {
+  initiateAvatarUpload(request: InitiateAvatarUploadRequest): Observable<ImageUploadSession>;
+
   initiateImageUploads(request: InitiateImageUploadsRequest): Observable<InitiateImageUploadsResponse>;
 
   completeImageUploads(request: CompleteImageUploadsRequest): Observable<CompleteImageUploadsResponse>;
@@ -106,6 +116,10 @@ export interface FilesServiceClient {
 }
 
 export interface FilesServiceController {
+  initiateAvatarUpload(
+    request: InitiateAvatarUploadRequest,
+  ): Promise<ImageUploadSession> | Observable<ImageUploadSession> | ImageUploadSession;
+
   initiateImageUploads(
     request: InitiateImageUploadsRequest,
   ): Promise<InitiateImageUploadsResponse> | Observable<InitiateImageUploadsResponse> | InitiateImageUploadsResponse;
@@ -140,6 +154,7 @@ export interface FilesServiceController {
 export function FilesServiceControllerMethods() {
   return function (constructor: Function) {
     const grpcMethods: string[] = [
+      "initiateAvatarUpload",
       "initiateImageUploads",
       "completeImageUploads",
       "reserveImageUploads",

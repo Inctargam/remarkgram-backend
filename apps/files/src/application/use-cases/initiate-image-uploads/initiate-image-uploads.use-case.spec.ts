@@ -1,5 +1,6 @@
 import type { ConfigType } from '@nestjs/config';
-import { ImageContentType, MAX_IMAGE_SIZE_BYTES } from '@app/files-grpc';
+import { ImageContentType, MAX_AVATAR_SIZE_BYTES, MAX_IMAGE_SIZE_BYTES } from '@app/files-grpc';
+import { ImageUploadSessionsService } from '../../services/image-upload-sessions.service.js';
 import type { filesConfig } from '../../../config/files.config.js';
 import {
   DuplicateClientFileIdError,
@@ -27,6 +28,7 @@ describe('InitiateImageUploadsUseCase', () => {
     deleteClaimedImageUpload: vi.fn<FilesRepository['deleteClaimedImageUpload']>(),
     deleteRejectedImageUploads: vi.fn<FilesRepository['deleteRejectedImageUploads']>(),
     findAvailableById: vi.fn<FilesRepository['findAvailableById']>(),
+    softDeleteFileIdsByUser: vi.fn<FilesRepository['softDeleteFileIdsByUser']>(),
   };
   const objectStorage = {
     createPresignedUpload: vi.fn<ObjectStorage['createPresignedUpload']>(),
@@ -40,7 +42,8 @@ describe('InitiateImageUploadsUseCase', () => {
       uploadUrlExpiresInSeconds: 600,
     },
   } as ConfigType<typeof filesConfig>;
-  const createUseCase = () => new InitiateImageUploadsUseCase(objectStorage, filesRepository, config);
+  const createUseCase = () =>
+    new InitiateImageUploadsUseCase(new ImageUploadSessionsService(objectStorage, filesRepository, config));
 
   beforeEach(() => {
     filesRepository.createMany.mockReset();
@@ -126,6 +129,27 @@ describe('InitiateImageUploadsUseCase', () => {
       }),
     ]);
   });
+
+  it.each([MAX_AVATAR_SIZE_BYTES + 1, MAX_IMAGE_SIZE_BYTES])(
+    'still accepts post images larger than the avatar limit: %s bytes',
+    async (size) => {
+      const result = await createUseCase().execute(
+        new InitiateImageUploadsCommand({
+          userId: 42,
+          images: [
+            {
+              clientFileId: '11111111-1111-4111-8111-111111111111',
+              originalFilename: 'post.jpg',
+              contentType: ImageContentType.JPEG,
+              size,
+            },
+          ],
+        }),
+      );
+      expect(result.sessions).toHaveLength(1);
+      expect(filesRepository.createMany).toHaveBeenCalledWith([expect.objectContaining({ size })]);
+    },
+  );
 
   it.each([
     {

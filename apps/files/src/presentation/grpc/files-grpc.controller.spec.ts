@@ -4,6 +4,7 @@ import type { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { AttachReservedImageUploadsCommand } from '../../application/use-cases/attach-reserved-image-uploads/attach-reserved-image-uploads.use-case.js';
 import { CompleteImageUploadsCommand } from '../../application/use-cases/complete-image-uploads/complete-image-uploads.use-case.js';
 import { InitiateImageUploadsCommand } from '../../application/use-cases/initiate-image-uploads/initiate-image-uploads.use-case.js';
+import { InitiateAvatarUploadCommand } from '../../application/use-cases/initiate-avatar-upload/initiate-avatar-upload.use-case.js';
 import { ReleaseReservedImageUploadsCommand } from '../../application/use-cases/release-reserved-image-uploads/release-reserved-image-uploads.use-case.js';
 import { ReserveImageUploadsCommand } from '../../application/use-cases/reserve-image-uploads/reserve-image-uploads.use-case.js';
 
@@ -17,6 +18,27 @@ describe('FilesGrpcController', () => {
   beforeEach(() => {
     commandBus.execute.mockReset();
     queryBus.execute.mockReset();
+  });
+
+  it('delegates avatar upload initiation with a numeric user ID and returns one session', async () => {
+    const request = {
+      userId: '42',
+      clientFileId: '11111111-1111-4111-8111-111111111111',
+      originalFilename: 'avatar.png',
+      contentType: ImageContentType.PNG,
+      size: 1024,
+    };
+    const session = {
+      id: 'upload-id',
+      clientFileId: request.clientFileId,
+      url: 'https://storage.example.com',
+      fields: {},
+    };
+    commandBus.execute.mockResolvedValue(session);
+    await expect(createController().initiateAvatarUpload(request)).resolves.toEqual(session);
+    expect(commandBus.execute).toHaveBeenCalledWith(
+      new InitiateAvatarUploadCommand({ ...request, userId: 42 }),
+    );
   });
 
   it('delegates image upload initiation to the use case', async () => {

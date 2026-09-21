@@ -9,6 +9,8 @@ import type {
   GetFileDownloadUrlResponse,
   InitiateImageUploadsRequest,
   InitiateImageUploadsResponse,
+  InitiateAvatarUploadRequest,
+  ImageUploadSession,
   ReleaseReservedImageUploadsRequest,
   ReleaseReservedImageUploadsResponse,
   ReserveImageUploadsRequest,
@@ -18,6 +20,7 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { AttachReservedImageUploadsCommand } from '../../application/use-cases/attach-reserved-image-uploads/attach-reserved-image-uploads.use-case.js';
 import { CompleteImageUploadsCommand } from '../../application/use-cases/complete-image-uploads/complete-image-uploads.use-case.js';
 import { InitiateImageUploadsCommand } from '../../application/use-cases/initiate-image-uploads/initiate-image-uploads.use-case.js';
+import { InitiateAvatarUploadCommand } from '../../application/use-cases/initiate-avatar-upload/initiate-avatar-upload.use-case.js';
 import { ReleaseReservedImageUploadsCommand } from '../../application/use-cases/release-reserved-image-uploads/release-reserved-image-uploads.use-case.js';
 import { ReserveImageUploadsCommand } from '../../application/use-cases/reserve-image-uploads/reserve-image-uploads.use-case.js';
 import { GetFileDownloadUrlQuery } from '../../application/use-cases/get-public-file-url/get-public-file-url.query-handler.js';
@@ -31,6 +34,12 @@ export class FilesGrpcController {
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
   ) {}
+
+  initiateAvatarUpload(request: InitiateAvatarUploadRequest): Promise<ImageUploadSession> {
+    return this.commandBus.execute(
+      new InitiateAvatarUploadCommand({ ...request, userId: Number(request.userId) }),
+    );
+  }
 
   initiateImageUploads(request: InitiateImageUploadsRequest): Promise<InitiateImageUploadsResponse> {
     return this.commandBus.execute(

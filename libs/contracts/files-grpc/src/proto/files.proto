@@ -3,6 +3,7 @@ syntax = "proto3";
 package remarkgram.files.v1;
 
 service FilesService {
+  rpc InitiateAvatarUpload(InitiateAvatarUploadRequest) returns (ImageUploadSession);
   rpc InitiateImageUploads(InitiateImageUploadsRequest) returns (InitiateImageUploadsResponse);
   rpc CompleteImageUploads(CompleteImageUploadsRequest) returns (CompleteImageUploadsResponse);
   rpc ReserveImageUploads(ReserveImageUploadsRequest) returns (ReserveImageUploadsResponse);
@@ -18,6 +19,14 @@ service TestingService {
 message InitiateImageUploadsRequest {
     string user_id = 1;
     repeated ImageUploadMetadata images = 2;
+}
+
+message InitiateAvatarUploadRequest {
+    string user_id = 1;
+    string client_file_id = 2;
+    string original_filename = 3;
+    string content_type = 4;
+    int32 size = 5;
 }
 
 message ImageUploadMetadata {

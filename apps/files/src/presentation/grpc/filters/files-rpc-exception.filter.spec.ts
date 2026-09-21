@@ -25,6 +25,7 @@ describe('FilesRpcExceptionFilter', () => {
     new InvalidUserIdError(),
     new InvalidImageCountError(),
     new InvalidImageSizeError(),
+    new InvalidImageSizeError(10 * 1024 * 1024),
     new DuplicateClientFileIdError('11111111-1111-4111-8111-111111111111'),
     new DuplicateImageUploadIdError(),
     new UnsupportedImageContentTypeError('image/gif'),
