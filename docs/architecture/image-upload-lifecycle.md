@@ -64,6 +64,51 @@ sequenceDiagram
     Gateway-->>Frontend: 204 No Content или HTTP-ошибка
 ```
 
+## Загрузка аватара без установки в профиль
+
+`POST /api/v1/files/avatar-upload` требует авторизации и принимает метаданные одного файла
+(один объект, не массив):
+
+```json
+{
+  "clientFileId": "11111111-1111-4111-8111-111111111111",
+  "originalFilename": "avatar.jpg",
+  "contentType": "image/jpeg",
+  "size": 1048576
+}
+```
+
+Files проверяет JPEG/PNG и размер от 1 до 10 МиБ включительно (`10485760` байт).
+Для изображений постов сохраняется прежний лимит 20 МиБ. Назначение файла (`purpose`)
+не хранится. Оба сценария используют общий сервис создания сессий и записей `File`.
+
+Ответ `201 Created` содержит одну сессию `{ id, clientFileId, url, fields }`.
+`id` — идентификатор файла в Files и `uploadId` для подтверждения. Фронтенд отправляет
+файл непосредственно в Object Storage:
+
+```js
+const form = new FormData();
+for (const [key, value] of Object.entries(session.fields)) {
+  form.append(key, value);
+}
+form.append('file', file);
+const response = await fetch(session.url, { method: 'POST', body: form });
+if (!response.ok) throw new Error('Upload failed');
+// После успешной загрузки:
+// POST /api/v1/files/image-uploads/complete
+// Authorization: Bearer <accessToken>
+// { "uploadIds": [session.id] }
+```
+
+Существующее подтверждение проверяет владельца, состояние и совпадение размера и MIME-типа
+с метаданными S3, затем переводит файл из `PENDING` в `COMPLETED`.
+Это не устанавливает аватар профиля: `SetAvatar` и заглушка профиля пока не реализованы.
+Получение файла через `/files/images/:fileId` доступно только после прикрепления (`ATTACHED`).
+Для превью до установки используется локальный файл на фронтенде.
+
+Неприкреплённый `COMPLETED` становится доступным для фоновой очистки через 24 часа после
+подтверждения. Неоконченные загрузки очищаются по существующим правилам `PENDING`/`REJECTED`.
+
 ## Создание поста с DBOS
 
 ```mermaid
