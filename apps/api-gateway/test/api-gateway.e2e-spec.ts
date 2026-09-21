@@ -6,6 +6,7 @@ import { Metadata, type ServiceError, status } from '@grpc/grpc-js';
 import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import {
   FILES_SERVICE_NAME,
+  MAX_AVATAR_SIZE_BYTES,
   REMARKGRAM_FILES_V1_PACKAGE_NAME,
   TESTING_SERVICE_NAME as FILES_TESTING_SERVICE_NAME,
   type FilesServiceClient,
@@ -57,6 +58,7 @@ describe('ApiGateway (e2e)', () => {
   const testingEndpointKey = 'testing-key-with-at-least-32-characters';
   let app: INestApplication;
   const filesServiceClient = {
+    initiateAvatarUpload: vi.fn<FilesServiceClient['initiateAvatarUpload']>(),
     initiateImageUploads: vi.fn<FilesServiceClient['initiateImageUploads']>(),
     completeImageUploads: vi.fn<FilesServiceClient['completeImageUploads']>(),
   };
@@ -170,6 +172,14 @@ describe('ApiGateway (e2e)', () => {
     vi.stubEnv('GITHUB_CALLBACK_URL', 'https://api.example.com/api/v1/auth/github/callback');
     vi.stubEnv('GITHUB_API_VERSION', '2026-03-10');
     vi.stubEnv('GITHUB_USER_AGENT', 'remark-gram-tests');
+    filesServiceClient.initiateAvatarUpload.mockReturnValue(
+      of({
+        id: '22222222-2222-4222-8222-222222222222',
+        clientFileId: '11111111-1111-4111-8111-111111111111',
+        url: 'https://storage.example.com',
+        fields: { key: 'avatar-object-key' },
+      }),
+    );
     filesServiceClient.initiateImageUploads.mockReturnValue(
       of({
         sessions: [
@@ -311,6 +321,7 @@ describe('ApiGateway (e2e)', () => {
       '/auth/password-reset/request',
       '/auth/password-reset/confirm',
       '/files/image-uploads',
+      '/files/avatar-upload',
       '/files/image-uploads/complete',
       '/posts',
       '/security/sessions',
@@ -373,6 +384,9 @@ describe('ApiGateway (e2e)', () => {
     const initiateImageUploads = document.paths[apiPath('/files/image-uploads')] as {
       post: OpenApiOperation;
     };
+    const initiateAvatarUpload = document.paths[apiPath('/files/avatar-upload')] as {
+      post: OpenApiOperation;
+    };
     const completeImageUploads = document.paths[apiPath('/files/image-uploads/complete')] as {
       post: OpenApiOperation;
     };
@@ -409,6 +423,27 @@ describe('ApiGateway (e2e)', () => {
     expect(document.tags).toContainEqual({
       name: 'Posts',
       description: 'Post creation with completed image uploads.',
+    });
+    expect(initiateAvatarUpload.post.summary).toBe('Create an avatar upload session');
+    expect(initiateAvatarUpload.post.description).toContain('24 hours');
+    expect(initiateAvatarUpload.post.description).toContain('/files/image-uploads/complete');
+    expect(Object.keys(initiateAvatarUpload.post.responses)).toEqual(
+      expect.arrayContaining(['201', '400', '401', '502', '503']),
+    );
+    expect(document.components.schemas.InitiateAvatarUploadDto?.properties?.size).toMatchObject({
+      minimum: 1,
+      maximum: MAX_AVATAR_SIZE_BYTES,
+    });
+    expect(Object.keys(document.components.schemas.InitiateAvatarUploadDto?.properties ?? {})).toEqual(
+      expect.arrayContaining(['clientFileId', 'originalFilename', 'contentType', 'size']),
+    );
+    expect(
+      initiateAvatarUpload.post.responses['400'].content?.['application/json']?.examples?.invalidImageSize
+        ?.value,
+    ).toEqual({
+      statusCode: 400,
+      code: 'INVALID_IMAGE_SIZE',
+      message: 'Image size must be between 1 and 10485760 bytes',
     });
     expect(initiateImageUploads.post.summary).toBe('Create image upload sessions');
     expect(initiateImageUploads.post.description).toContain('presigned POST');
@@ -481,6 +516,114 @@ describe('ApiGateway (e2e)', () => {
     expect(filesTestingServiceClient.deleteAllData).toHaveBeenCalledWith({});
     expect(postsTestingServiceClient.deleteAllData).toHaveBeenCalledWith({});
     expect(userAccountsTestingServiceClient.deleteAllData).toHaveBeenCalledWith({});
+  });
+
+  const avatarInput = {
+    clientFileId: '11111111-1111-4111-8111-111111111111',
+    originalFilename: 'avatar.jpg',
+    contentType: 'image/jpeg',
+    size: 1_048_576,
+  };
+
+  it('POST /files/avatar-upload returns one session for the authenticated user and supports confirmation', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/files/avatar-upload'))
+      .set('Authorization', 'Bearer access-token')
+      .send({ ...avatarInput, userId: '999' })
+      .expect(201)
+      .expect({
+        id: '22222222-2222-4222-8222-222222222222',
+        clientFileId: avatarInput.clientFileId,
+        url: 'https://storage.example.com',
+        fields: { key: 'avatar-object-key' },
+      });
+    expect(filesServiceClient.initiateAvatarUpload).toHaveBeenCalledExactlyOnceWith({
+      ...avatarInput,
+      userId: refreshTokenClaims.userId,
+    });
+
+    const uploadIds = ['22222222-2222-4222-8222-222222222222'];
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/files/image-uploads/complete'))
+      .set('Authorization', 'Bearer access-token')
+      .send({ uploadIds })
+      .expect(204);
+    expect(filesServiceClient.completeImageUploads).toHaveBeenCalledWith({
+      userId: refreshTokenClaims.userId,
+      uploadIds,
+    });
+  });
+
+  it('POST /files/avatar-upload requires authentication', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/files/avatar-upload'))
+      .send(avatarInput)
+      .expect(401);
+    expect(filesServiceClient.initiateAvatarUpload).not.toHaveBeenCalled();
+  });
+
+  it.each(['clientFileId', 'originalFilename', 'contentType', 'size'] as const)(
+    'POST /files/avatar-upload requires %s',
+    async (field) => {
+      const input: Partial<typeof avatarInput> = { ...avatarInput };
+      delete input[field];
+      await request(app.getHttpServer() as SupertestApp)
+        .post(apiPath('/files/avatar-upload'))
+        .set('Authorization', 'Bearer access-token')
+        .send(input)
+        .expect(400);
+      expect(filesServiceClient.initiateAvatarUpload).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(
+    [
+      [avatarInput],
+      [avatarInput, avatarInput],
+      { images: [avatarInput] },
+      { ...avatarInput, clientFileId: 'not-a-uuid' },
+      { ...avatarInput, originalFilename: '' },
+      { ...avatarInput, contentType: '' },
+      { ...avatarInput, size: '1024' },
+      { ...avatarInput, size: 1.5 },
+      { ...avatarInput, size: 4_294_967_297 },
+    ].map((input) => ({ input })),
+  )('POST /files/avatar-upload rejects malformed metadata: $input', async ({ input }) => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/files/avatar-upload'))
+      .set('Authorization', 'Bearer access-token')
+      .send(input)
+      .expect(400);
+    expect(filesServiceClient.initiateAvatarUpload).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      code: 'INVALID_IMAGE_SIZE',
+      message: 'Image size must be between 1 and 10485760 bytes',
+      input: { ...avatarInput, size: MAX_AVATAR_SIZE_BYTES + 1 },
+    },
+    {
+      code: 'UNSUPPORTED_IMAGE_CONTENT_TYPE',
+      message: 'Unsupported image content type: image/webp',
+      input: { ...avatarInput, contentType: 'image/webp' },
+    },
+  ])('POST /files/avatar-upload preserves the Files error $code', async ({ code, message, input }) => {
+    const metadata = new Metadata();
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, code);
+    filesServiceClient.initiateAvatarUpload.mockReturnValueOnce(
+      throwError(() => createServiceError(status.INVALID_ARGUMENT, message, metadata)),
+    );
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/files/avatar-upload'))
+      .set('Authorization', 'Bearer access-token')
+      .send(input)
+      .expect(400)
+      .expect({ statusCode: 400, code, message });
+    expect(filesServiceClient.initiateAvatarUpload).toHaveBeenCalledWith({
+      ...input,
+      userId: refreshTokenClaims.userId,
+    });
   });
 
   it('POST /files/image-uploads initiates authenticated image uploads', async () => {
