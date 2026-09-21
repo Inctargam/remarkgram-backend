@@ -7,11 +7,19 @@ describe('CountryCode VO', () => {
     expect(CountryCode.create(' ua ').value).toBe('UA');
   });
 
+  it.each(['UA', 'US', 'GB'])('accepts alpha-2 code %s', (value) => {
+    expect(CountryCode.create(value).value).toBe(value);
+  });
+
   it.each(['U', 'UKR', 'U1', 'Україна', ''])('rejects invalid country code %j', (value) => {
     expect(() => CountryCode.create(value)).toThrow(InvalidCountryCodeError);
   });
 
   it('rejects an invalid restored value with a domain error', () => {
     expect(() => CountryCode.restore('ua')).toThrow(InvalidCountryCodeError);
+  });
+
+  it('restores a valid persisted value without normalization', () => {
+    expect(CountryCode.restore('UA').value).toBe('UA');
   });
 });

@@ -4,6 +4,7 @@ import { PrismaService } from '../../../../../database/prisma.service.js';
 import {
   EmailAlreadyExistsError,
   UsernameAlreadyExistsError,
+  UserNotFoundError,
 } from '../../../application/errors/users.errors.js';
 import { UsersRepository } from '../../../application/ports/users.repository.js';
 import {
@@ -242,6 +243,7 @@ export class PrismaUsersRepository implements UsersRepository {
       await this.prisma.user.update({
         where: {
           id: params.userId,
+          deletedAt: null,
         },
         data: {
           username: params.username,
@@ -257,10 +259,20 @@ export class PrismaUsersRepository implements UsersRepository {
       // Предварительные проверки в UpdateProfileInfoUseCase не исключают конкурентную вставку. В таком случае
       // уникальный индекс отклоняет второй Update username, а Prisma возвращает ошибку P2002.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const meta = error.meta as UniqueConstraintMeta | undefined;
+        const fields = meta?.driverAdapterError?.cause?.constraint?.fields ?? [];
+
+        if (!fields.includes('username')) {
+          throw error;
+        }
+
         throw new UsernameAlreadyExistsError();
       }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new UserNotFoundError();
+      }
 
-      // Неизвестное уникальное ограничение нельзя безопасно интерпретировать как username или email.
+      // Неизвестную инфраструктурную ошибку нельзя безопасно преобразовать в доменную.
       throw error;
     }
   }

@@ -18,11 +18,9 @@ export class UpdateProfileInfoUseCase implements ICommandHandler<UpdateProfileIn
   async execute({ props }: UpdateProfileInfoCommand) {
     const { userId, username, personalInfo } = props;
     const user = await this.repository.findById(userId);
-
     if (!user) {
       throw new UserNotFoundError();
     }
-
     const newUsername = Username.create(username).value;
 
     if (user.username !== newUsername && (await this.repository.isUsernameExists(newUsername))) {

@@ -1,7 +1,7 @@
 import { Controller, UseFilters } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import type {
-  GeMyProfileRequest,
+  GetMyProfileRequest,
   GetCurrentUserRequest,
   GetCurrentUserResponse,
   GetMyProfileResponse,
@@ -105,7 +105,7 @@ export class UsersGrpcController {
     };
   }
 
-  async getMyProfile(request: GeMyProfileRequest): Promise<GetMyProfileResponse> {
+  async getMyProfile(request: GetMyProfileRequest): Promise<GetMyProfileResponse> {
     if (!isValidNumericEntityId(+request.userId)) {
       throw new RpcException({
         code: status.INVALID_ARGUMENT,

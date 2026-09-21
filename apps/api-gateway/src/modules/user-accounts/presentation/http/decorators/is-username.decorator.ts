@@ -18,7 +18,7 @@ export function IsUsername(validationOptions?: ValidationOptions): PropertyDecor
           );
         },
         defaultMessage(): string {
-          return `$property must contain ${USERNAME_MIN_LENGTH}–${USERNAME_MAZ_LENGTH} letters, numbers, or underscores`;
+          return `$property must contain ${USERNAME_MIN_LENGTH}–${USERNAME_MAZ_LENGTH} and available symbols 0-9, A-Z, a-z, _, -`;
         },
       },
     });

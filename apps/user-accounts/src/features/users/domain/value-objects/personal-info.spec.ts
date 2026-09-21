@@ -13,6 +13,7 @@ import {
   InvalidPersonalInfoFirstNameError,
   InvalidPersonalInfoLastNameError,
 } from '../../application/errors/personal-info.errors.js';
+import { InvalidCityError, InvalidCountryCodeError } from '../../application/errors/location-info.errors.js';
 
 describe('PersonalInfoVO', () => {
   const birthDateSpy = vi.spyOn(BirthDate, 'create');
@@ -74,6 +75,34 @@ describe('PersonalInfoVO', () => {
 
     expect(result.firstName).toBe('José');
     expect(result.lastName).toBe('Ivanov');
+  });
+
+  it('trims aboutMe and converts empty optional strings to null', () => {
+    const result = PersonalInfo.create({
+      ...personalInfo,
+      aboutMe: '   ',
+      dateOfBirth: '   ',
+      countryCode: '   ',
+      city: '   ',
+    });
+
+    expect(result.aboutMe).toBeNull();
+    expect(result.dateOfBirth).toBeNull();
+    expect(result.countryCode).toBeNull();
+    expect(result.city).toBeNull();
+  });
+
+  it('accepts names and aboutMe at configured length boundaries', () => {
+    const result = PersonalInfo.create({
+      ...personalInfo,
+      firstName: 'A'.repeat(PERSONAL_INFO_FIRST_NAME_MAX_LENGTH),
+      lastName: 'B'.repeat(PERSONAL_INFO_LAST_NAME_MAX_LENGTH),
+      aboutMe: 'c'.repeat(PERSONAL_INFO_ABOUT_ME_MAX_LENGTH),
+    });
+
+    expect(result.firstName).toHaveLength(PERSONAL_INFO_FIRST_NAME_MAX_LENGTH);
+    expect(result.lastName).toHaveLength(PERSONAL_INFO_LAST_NAME_MAX_LENGTH);
+    expect(result.aboutMe).toHaveLength(PERSONAL_INFO_ABOUT_ME_MAX_LENGTH);
   });
 
   it.each([
@@ -188,5 +217,71 @@ describe('PersonalInfoVO', () => {
         countryCode: 'Ukraine',
       }),
     ).toThrow();
+  });
+
+  describe('restore', () => {
+    it('restores all persisted fields through nested value objects', () => {
+      const dateOfBirth = new Date(Date.UTC(1990, 0, 2));
+
+      const result = PersonalInfo.restore({
+        firstName: 'John',
+        lastName: 'Doe',
+        aboutMe: 'About me',
+        dateOfBirth,
+        countryCode: 'UA',
+        city: 'Kyiv',
+      });
+
+      expect(result).toEqual({
+        firstName: 'John',
+        lastName: 'Doe',
+        aboutMe: 'About me',
+        dateOfBirth: BirthDate.restore(dateOfBirth),
+        countryCode: result.countryCode,
+        city: result.city,
+      });
+      expect(result.countryCode?.value).toBe('UA');
+      expect(result.city?.value).toBe('Kyiv');
+    });
+
+    it('restores nullable persisted fields', () => {
+      expect(
+        PersonalInfo.restore({
+          firstName: 'John',
+          lastName: 'Doe',
+          aboutMe: null,
+          dateOfBirth: null,
+          countryCode: null,
+          city: null,
+        }),
+      ).toEqual({
+        firstName: 'John',
+        lastName: 'Doe',
+        aboutMe: null,
+        dateOfBirth: null,
+        countryCode: null,
+        city: null,
+      });
+    });
+
+    it.each([
+      [{ firstName: '' }, InvalidPersonalInfoFirstNameError],
+      [{ lastName: 'Doe123' }, InvalidPersonalInfoLastNameError],
+      [{ aboutMe: 'a'.repeat(PERSONAL_INFO_ABOUT_ME_MAX_LENGTH + 1) }, InvalidPersonalInfoAboutMeError],
+      [{ countryCode: 'ua' }, InvalidCountryCodeError],
+      [{ city: 'Kyiv123' }, InvalidCityError],
+    ])('rejects invalid persisted nested data %#', (override, error) => {
+      expect(() =>
+        PersonalInfo.restore({
+          firstName: 'John',
+          lastName: 'Doe',
+          aboutMe: null,
+          dateOfBirth: null,
+          countryCode: null,
+          city: null,
+          ...override,
+        }),
+      ).toThrow(error);
+    });
   });
 });

@@ -94,9 +94,9 @@ service UsersService {
     rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse);
     rpc UpdateProfileInfo(UpdateProfileInfoRequest) returns (UpdateProfileInfoResponse);
     rpc GetPublicProfile(GetPublicProfileRequest) returns (GetPublicProfileResponse);
-    rpc GetMyProfile(GeMyProfileRequest) returns (GetMyProfileResponse);
+    rpc GetMyProfile(GetMyProfileRequest) returns (GetMyProfileResponse);
 }
-message GeMyProfileRequest{
+message GetMyProfileRequest{
     int32 user_id = 1;
 }
 message GetMyProfileResponse {

@@ -58,14 +58,12 @@ export class CountryCatalog {
     return COUNTRIES.slice(0, limit);
   }
   search(term: string, options: SearchCountriesOptions): CountryRecord[] {
-    const regex = /^[A-Za-zА-Яа-яЁё]+$/;
+    const regex = /\p{L}/u;
     if (typeof term !== 'string') {
       throw new TypeError('Search term must be a string.');
     }
     if (!regex.test(term)) {
-      throw new Error(
-        `Search term "${term}" must contain only Latin (A-Z, a-z) or Cyrillic (А-Я, а-я, Ё, ё) letters.`,
-      );
+      throw new Error(`Search term "${term}" must contain only Unicode-variant.`);
     }
     const matches = new Map<string, CountryRecord>();
     const searchTerm = normalizeSearchText(term ?? '');
@@ -74,14 +72,14 @@ export class CountryCatalog {
     if (!searchTerm) {
       return [];
     }
+    const exactCodeMatch = this.byAlpha2.get(searchTerm) ?? this.byAlpha3.get(searchTerm);
+    if (exactCodeMatch) {
+      return [exactCodeMatch];
+    }
     for (const entry of this.searchEntries) {
       const { normalizedTerm: normalizedTerm, country } = entry;
       if (matches.size >= limit) {
         break;
-      }
-      if (this.byAlpha2.has(searchTerm) || this.byAlpha3.has(searchTerm)) {
-        matches.set(country.alpha2, country);
-        continue;
       }
       if (normalizedTerm.includes(searchTerm)) {
         matches.set(country.alpha2, country);

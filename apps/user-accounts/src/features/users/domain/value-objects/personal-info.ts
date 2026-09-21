@@ -63,9 +63,7 @@ export class PersonalInfo {
     PersonalInfo.assertFirstName(firstName);
     PersonalInfo.assertLastName(lastName);
 
-    if (typeof aboutMe === 'string' && aboutMe.length > PERSONAL_INFO_ABOUT_ME_MAX_LENGTH) {
-      throw new InvalidPersonalInfoAboutMeError(PERSONAL_INFO_ABOUT_ME_MAX_LENGTH);
-    }
+    PersonalInfo.assertAboutMe(aboutMe);
 
     const dateOfBirth =
       props.dateOfBirth == null || props.dateOfBirth.trim() === ''
@@ -113,9 +111,15 @@ export class PersonalInfo {
       );
     }
   }
+  private static assertAboutMe(value: string | null): void {
+    if (typeof value === 'string' && value.length > PERSONAL_INFO_ABOUT_ME_MAX_LENGTH) {
+      throw new InvalidPersonalInfoAboutMeError(PERSONAL_INFO_ABOUT_ME_MAX_LENGTH);
+    }
+  }
   public static restore(props: RestorePersonalInfoProps): PersonalInfo {
     PersonalInfo.assertFirstName(props.firstName);
     PersonalInfo.assertLastName(props.lastName);
+    PersonalInfo.assertAboutMe(props.aboutMe);
     return new PersonalInfo({
       firstName: props.firstName,
       lastName: props.lastName,

@@ -90,4 +90,114 @@ describe(PrismaUsersQueryRepository.name, () => {
       expect.objectContaining({ dateOfBirth: '1990-01-15' }),
     );
   });
+
+  it('maps every private profile field and filters out soft-deleted users', async () => {
+    findFirst.mockResolvedValue({
+      id: 42,
+      username: 'client123',
+      profile: {
+        firstName: 'Ivan',
+        lastName: 'Ivanov',
+        aboutMe: 'About me',
+        avatarFileId: 'avatar-id',
+        city: 'Kyiv',
+        countryCode: 'UA',
+        dateOfBirth: new Date('1990-01-15T00:00:00.000Z'),
+      },
+    });
+
+    await expect(repository.findMyProfileByUserId(42)).resolves.toEqual({
+      userId: 42,
+      username: 'client123',
+      firstName: 'Ivan',
+      lastName: 'Ivanov',
+      aboutMe: 'About me',
+      avatarFileId: 'avatar-id',
+      city: 'Kyiv',
+      countryCode: 'UA',
+      dateOfBirth: '1990-01-15',
+    });
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { id: 42, deletedAt: null },
+      select: { id: true, username: true, profile: true },
+    });
+  });
+
+  it('returns a private view with null optionals when the user has no Profile row', async () => {
+    findFirst.mockResolvedValue({ id: 7, username: 'client7', profile: null });
+
+    await expect(repository.findMyProfileByUserId(7)).resolves.toEqual({
+      userId: 7,
+      username: 'client7',
+      firstName: null,
+      lastName: null,
+      aboutMe: null,
+      avatarFileId: null,
+      city: null,
+      countryCode: null,
+      dateOfBirth: null,
+    });
+  });
+
+  it('returns a public view without private profile fields', async () => {
+    findFirst.mockResolvedValue({
+      id: 42,
+      username: 'client123',
+      profile: {
+        firstName: 'Private',
+        lastName: 'Name',
+        dateOfBirth: new Date('1990-01-15T00:00:00.000Z'),
+        city: 'Kyiv',
+        countryCode: 'UA',
+        aboutMe: 'Public bio',
+        avatarFileId: 'avatar-id',
+      },
+    });
+
+    const result = await repository.findPublicProfileByUserId(42);
+
+    expect(result).toEqual({
+      userId: 42,
+      username: 'client123',
+      aboutMe: 'Public bio',
+      avatarFileId: 'avatar-id',
+    });
+    expect(result).not.toHaveProperty('firstName');
+    expect(result).not.toHaveProperty('lastName');
+    expect(result).not.toHaveProperty('dateOfBirth');
+    expect(result).not.toHaveProperty('city');
+    expect(result).not.toHaveProperty('countryCode');
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { id: 42, deletedAt: null },
+      select: { id: true, username: true, profile: true },
+    });
+  });
+
+  it('returns public null optionals when the user has no Profile row', async () => {
+    findFirst.mockResolvedValue({ id: 7, username: 'client7', profile: null });
+
+    await expect(repository.findPublicProfileByUserId(7)).resolves.toEqual({
+      userId: 7,
+      username: 'client7',
+      aboutMe: null,
+      avatarFileId: null,
+    });
+  });
+
+  it.each(['findMyProfileByUserId', 'findPublicProfileByUserId'] as const)(
+    'returns null from %s when the active user is unknown or soft-deleted',
+    async (method) => {
+      findFirst.mockResolvedValue(null);
+
+      await expect(repository[method](42)).resolves.toBeNull();
+      expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 42, deletedAt: null } }));
+    },
+  );
+
+  it('propagates a profile query persistence error', async () => {
+    const error = new Error('database unavailable');
+    findFirst.mockRejectedValue(error);
+
+    await expect(repository.findMyProfileByUserId(42)).rejects.toBe(error);
+  });
 });

@@ -86,7 +86,7 @@ export interface ResendRegistrationConfirmationRequest {
 export interface ResendRegistrationConfirmationResponse {
 }
 
-export interface GeMyProfileRequest {
+export interface GetMyProfileRequest {
   userId: number;
 }
 
@@ -94,7 +94,10 @@ export interface GetMyProfileResponse {
   userId: number;
   username: string;
   firstName?: string | undefined;
-  lastName?: string | undefined;
+  lastName?:
+    | string
+    | undefined;
+  /** ISO 8601 calendar date in YYYY-MM-DD format. */
   dateOfBirth?: string | undefined;
   aboutMe?: string | undefined;
   countryCode?: string | undefined;
@@ -116,6 +119,7 @@ export interface GetPublicProfileRequest {
 export interface PersonalInfo {
   firstName: string;
   lastName: string;
+  /** ISO 8601 calendar date in YYYY-MM-DD format. */
   dateOfBirth?: string | undefined;
   aboutMe?: string | undefined;
   countryCode?: string | undefined;
@@ -320,7 +324,7 @@ export interface UsersServiceClient {
 
   getPublicProfile(request: GetPublicProfileRequest): Observable<GetPublicProfileResponse>;
 
-  getMyProfile(request: GeMyProfileRequest): Observable<GetMyProfileResponse>;
+  getMyProfile(request: GetMyProfileRequest): Observable<GetMyProfileResponse>;
 }
 
 /** Users */
@@ -341,7 +345,7 @@ export interface UsersServiceController {
   ): Promise<GetPublicProfileResponse> | Observable<GetPublicProfileResponse> | GetPublicProfileResponse;
 
   getMyProfile(
-    request: GeMyProfileRequest,
+    request: GetMyProfileRequest,
   ): Promise<GetMyProfileResponse> | Observable<GetMyProfileResponse> | GetMyProfileResponse;
 }
 

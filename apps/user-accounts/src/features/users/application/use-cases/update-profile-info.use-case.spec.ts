@@ -1,201 +1,183 @@
-import { beforeEach, describe, expect, vi } from 'vitest';
-import { type UsersRepository } from '../ports/users.repository.js';
-import { UpdateProfileInfoCommand, UpdateProfileInfoUseCase } from './update-profile-info.use-case.js';
-import { User } from '../../domain/entities/user.entity.js';
 import { randomUUID } from 'node:crypto';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { User } from '../../domain/entities/user.entity.js';
 import { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
-import { Username } from '../../domain/value-objects/username.js';
 import { PersonalInfo } from '../../domain/value-objects/personal-info.js';
-import { BirthDate } from '../../domain/value-objects/birth-date.js';
-import type { UpdateProfileInfoParams } from '../types/users.types.js';
+import { InvalidPersonalInfoFirstNameError } from '../errors/personal-info.errors.js';
 import { UsernameAlreadyExistsError, UserNotFoundError } from '../errors/users.errors.js';
 import { InvalidUsernamePatternError } from '../errors/username.errors.js';
-import {
-  InvalidPersonalInfoFirstNameError,
-  InvalidPersonalInfoLastNameError,
-} from '../errors/personal-info.errors.js';
+import { type UsersRepository } from '../ports/users.repository.js';
+import type { UpdateProfileInfoParams } from '../types/users.types.js';
+import { UpdateProfileInfoCommand, UpdateProfileInfoUseCase } from './update-profile-info.use-case.js';
 
-describe('UpdateProfileInfoCommand', () => {
-  const user = User.restore({
-    id: 1,
-    username: 'ivanovich',
-    hash: randomUUID(),
-    deletedAt: null,
-    createdAt: new Date('2026-09-12'),
-    confirmation: ConfirmationInfo.confirmed(),
-    email: 'ivan@gmail.com',
-  });
+const user = User.restore({
+  id: 1,
+  username: 'ivanovich',
+  hash: randomUUID(),
+  deletedAt: null,
+  createdAt: new Date('2026-09-12'),
+  confirmation: ConfirmationInfo.confirmed(),
+  email: 'ivan@gmail.com',
+});
 
+const requiredPersonalInfo: UpdateProfileInfoParams['personalInfo'] = {
+  firstName: 'Ivan',
+  lastName: 'Ivanov',
+  dateOfBirth: null,
+  aboutMe: null,
+  countryCode: null,
+  city: null,
+};
+
+const createProps = (override: Partial<UpdateProfileInfoParams> = {}): UpdateProfileInfoParams => ({
+  userId: user.id,
+  username: user.username,
+  personalInfo: requiredPersonalInfo,
+  ...override,
+});
+
+describe('UpdateProfileInfoUseCase', () => {
   const repository = {
     findById: vi.fn<UsersRepository['findById']>(),
     updateProfileInfo: vi.fn<UsersRepository['updateProfileInfo']>(),
     isUsernameExists: vi.fn<UsersRepository['isUsernameExists']>(),
   };
-  const UsernameSpy = vi.spyOn(Username, 'create');
-  const PersonalInfoSpy = vi.spyOn(PersonalInfo, 'create');
-  const BirthdaySpy = vi.spyOn(BirthDate, 'create');
-
   const useCase = new UpdateProfileInfoUseCase(repository as unknown as UsersRepository);
 
   beforeEach(() => {
-    repository.findById.mockReset();
-    repository.updateProfileInfo.mockReset();
-    repository.isUsernameExists.mockReset();
-
-    UsernameSpy.mockReset();
-    PersonalInfoSpy.mockReset();
-    BirthdaySpy.mockReset();
-  });
-
-  it('should update the profile successfully when all fields are provided ', async () => {
-    const personalInfo = {
-      firstName: 'Ivan',
-      lastName: 'Ivanovich',
-      dateOfBirth: '1994-06-02',
-      aboutMe: 'Hello everyone! Welcome to me profile.',
-      city: null,
-      countryCode: null,
-    };
-    const props = {
-      userId: user.id,
-      username: user.username,
-      personalInfo: personalInfo,
-    };
+    vi.clearAllMocks();
     repository.findById.mockResolvedValue(user);
     repository.isUsernameExists.mockResolvedValue(false);
+    repository.updateProfileInfo.mockResolvedValue(undefined);
+  });
 
-    const command = new UpdateProfileInfoCommand(props);
-    await useCase.execute(command);
-
-    expect(UsernameSpy).toHaveBeenCalledWith(props.username);
-    expect(UsernameSpy).toHaveBeenCalledOnce();
-
-    expect(PersonalInfoSpy).toHaveBeenCalledWith({
-      firstName: personalInfo.firstName,
-      lastName: personalInfo.lastName,
-      dateOfBirth: personalInfo.dateOfBirth,
-      aboutMe: personalInfo.aboutMe,
-      city: personalInfo.city,
-      countryCode: personalInfo.countryCode,
+  it('updates all profile fields with normalized domain values', async () => {
+    const props = createProps({
+      username: '  NEW_User-01  ',
+      personalInfo: {
+        firstName: ' José ',
+        lastName: ' Doe ',
+        dateOfBirth: '1994-06-02',
+        aboutMe: ' About me ',
+        countryCode: ' ua ',
+        city: ' Kyiv ',
+      },
     });
-    expect(PersonalInfoSpy).toHaveBeenCalledOnce();
+
+    await useCase.execute(new UpdateProfileInfoCommand(props));
+
+    expect(repository.findById).toHaveBeenCalledOnce();
+    expect(repository.findById).toHaveBeenCalledWith(user.id);
+    expect(repository.isUsernameExists).toHaveBeenCalledOnce();
+    expect(repository.isUsernameExists).toHaveBeenCalledWith('new_user-01');
     expect(repository.updateProfileInfo).toHaveBeenCalledOnce();
-    expect(repository.updateProfileInfo).toHaveBeenCalledWith({
-      userId: props.userId,
-      username: props.username,
-      personalInfo: PersonalInfo.restore({
-        firstName: personalInfo.firstName,
-        lastName: personalInfo.lastName,
-        dateOfBirth: new Date(Date.UTC(1994, 5, 2)),
-        aboutMe: personalInfo.aboutMe,
-        countryCode: null,
-        city: null,
-      }),
+
+    const [update] = repository.updateProfileInfo.mock.calls[0];
+    expect(update.userId).toBe(user.id);
+    expect(update.username).toBe('new_user-01');
+    expect(update.personalInfo).toBeInstanceOf(PersonalInfo);
+    expect(update.personalInfo.firstName).toBe('José');
+    expect(update.personalInfo.lastName).toBe('Doe');
+    expect(update.personalInfo.dateOfBirth?.value).toEqual(new Date(Date.UTC(1994, 5, 2)));
+    expect(update.personalInfo.aboutMe).toBe('About me');
+    expect(update.personalInfo.countryCode?.value).toBe('UA');
+    expect(update.personalInfo.city?.value).toBe('Kyiv');
+  });
+
+  it('updates only mandatory profile fields and preserves null optionals', async () => {
+    await useCase.execute(new UpdateProfileInfoCommand(createProps()));
+
+    expect(repository.isUsernameExists).not.toHaveBeenCalled();
+    expect(repository.updateProfileInfo).toHaveBeenCalledOnce();
+    const [update] = repository.updateProfileInfo.mock.calls[0];
+    expect(update).toMatchObject({ userId: user.id, username: user.username });
+    expect(update.personalInfo).toEqual({
+      firstName: 'Ivan',
+      lastName: 'Ivanov',
+      dateOfBirth: null,
+      aboutMe: null,
+      countryCode: null,
+      city: null,
     });
   });
 
-  it('should update the  profile successfully when only required fields are provided', async () => {
-    const personalInfo = {
-      firstName: 'Ivan',
-      lastName: 'Ivanovich',
-      dateOfBirth: null,
-      aboutMe: null,
-      city: null,
-      countryCode: null,
-    };
-    const props = {
-      userId: user.id,
-      username: user.username,
-      personalInfo: personalInfo,
-    };
-    repository.findById.mockResolvedValue(user);
+  it('does not check uniqueness when normalized username is unchanged', async () => {
+    await useCase.execute(new UpdateProfileInfoCommand(createProps({ username: ' IVANOVICH ' })));
+
+    expect(repository.isUsernameExists).not.toHaveBeenCalled();
+    expect(repository.updateProfileInfo).toHaveBeenCalledWith(
+      expect.objectContaining({ username: 'ivanovich' }),
+    );
+  });
+
+  it('checks a changed normalized username and updates when it is free', async () => {
     repository.isUsernameExists.mockResolvedValue(false);
 
-    const command = new UpdateProfileInfoCommand(props);
-    await useCase.execute(command);
+    await useCase.execute(new UpdateProfileInfoCommand(createProps({ username: ' Free_Name ' })));
 
-    expect(UsernameSpy).toHaveBeenCalledWith(props.username);
-    expect(UsernameSpy).toHaveBeenCalledOnce();
-
-    expect(PersonalInfoSpy).toHaveBeenCalledWith({
-      firstName: personalInfo.firstName,
-      lastName: personalInfo.lastName,
-      dateOfBirth: null,
-      aboutMe: null,
-      city: null,
-      countryCode: null,
-    });
-    expect(PersonalInfoSpy).toHaveBeenCalledOnce();
-    expect(repository.updateProfileInfo).toHaveBeenCalledOnce();
-    expect(repository.updateProfileInfo).toHaveBeenCalledWith({
-      userId: props.userId,
-      username: props.username,
-      personalInfo: PersonalInfo.restore({
-        firstName: personalInfo.firstName,
-        lastName: personalInfo.lastName,
-        dateOfBirth: null,
-        aboutMe: null,
-        city: null,
-        countryCode: null,
-      }),
-    });
+    expect(repository.isUsernameExists).toHaveBeenCalledWith('free_name');
+    expect(repository.updateProfileInfo).toHaveBeenCalledWith(
+      expect.objectContaining({ username: 'free_name' }),
+    );
   });
 
-  it('rejects when user does not exist', async () => {
-    repository.findById.mockResolvedValue(null);
-    const props = { userId: 1 } as unknown as UpdateProfileInfoParams;
-
-    try {
-      await useCase.execute(new UpdateProfileInfoCommand(props));
-    } catch (err) {
-      expect(err).toBeInstanceOf(UserNotFoundError);
-    }
-  });
-
-  it('returns an error if the specified username already exists in the system', async () => {
-    repository.findById.mockResolvedValue(user);
+  it('rejects a changed username when its normalized value is taken', async () => {
     repository.isUsernameExists.mockResolvedValue(true);
-    const props = { userId: 1, username: 'username_taken' } as unknown as UpdateProfileInfoParams;
-
-    try {
-      await useCase.execute(new UpdateProfileInfoCommand(props));
-    } catch (err) {
-      expect(err).toBeInstanceOf(UsernameAlreadyExistsError);
-    }
-  });
-  it.each([
-    [{ userId: 1, username: 'uSer@name' }, InvalidUsernamePatternError],
-    [{ userId: 1, username: '  user12&0)jj) ' }, InvalidUsernamePatternError],
-  ])('returns an error if username invalid', async (props, exeption) => {
-    repository.findById.mockResolvedValue(user);
 
     await expect(
-      useCase.execute(new UpdateProfileInfoCommand(props as unknown as UpdateProfileInfoParams)),
-    ).rejects.toBeInstanceOf(exeption);
+      useCase.execute(new UpdateProfileInfoCommand(createProps({ username: ' Taken_Name ' }))),
+    ).rejects.toBeInstanceOf(UsernameAlreadyExistsError);
 
-    expect(repository.isUsernameExists).not.toHaveBeenCalledOnce();
-    expect(PersonalInfoSpy).not.toHaveBeenCalledOnce();
-    expect(BirthdaySpy).not.toHaveBeenCalledOnce();
-    expect(repository.updateProfileInfo).not.toHaveBeenCalledOnce();
+    expect(repository.isUsernameExists).toHaveBeenCalledWith('taken_name');
+    expect(repository.updateProfileInfo).not.toHaveBeenCalled();
   });
+
+  it('stops immediately when the user does not exist', async () => {
+    repository.findById.mockResolvedValue(null);
+
+    await expect(useCase.execute(new UpdateProfileInfoCommand(createProps()))).rejects.toBeInstanceOf(
+      UserNotFoundError,
+    );
+
+    expect(repository.isUsernameExists).not.toHaveBeenCalled();
+    expect(repository.updateProfileInfo).not.toHaveBeenCalled();
+  });
+
   it.each([
+    ['invalid username', createProps({ username: 'invalid.name' }), InvalidUsernamePatternError],
     [
-      { username: 'ivanovich', personalInfo: { firstName: '   ', lastName: 'Ivanovich' } },
+      'invalid personal info',
+      createProps({ personalInfo: { ...requiredPersonalInfo, firstName: '   ' } }),
       InvalidPersonalInfoFirstNameError,
     ],
-    [
-      { username: 'ivanovich', personalInfo: { firstName: 'Ivan', lastName: '   ' } },
-      InvalidPersonalInfoLastNameError,
-    ],
-  ])('returns an error if required fields personal info are provided empty', async (props, exeption) => {
-    repository.findById.mockResolvedValue(user);
-    repository.isUsernameExists.mockResolvedValue(false);
+  ])('does not update for %s', async (_case, props, error) => {
+    await expect(useCase.execute(new UpdateProfileInfoCommand(props))).rejects.toBeInstanceOf(error);
+    expect(repository.updateProfileInfo).not.toHaveBeenCalled();
+  });
 
+  it('does not check username uniqueness when username validation fails', async () => {
     await expect(
-      useCase.execute(new UpdateProfileInfoCommand(props as unknown as UpdateProfileInfoParams)),
-    ).rejects.toBeInstanceOf(exeption);
+      useCase.execute(new UpdateProfileInfoCommand(createProps({ username: 'invalid.name' }))),
+    ).rejects.toBeInstanceOf(InvalidUsernamePatternError);
 
-    expect(PersonalInfoSpy).toHaveBeenCalledOnce();
-    expect(repository.updateProfileInfo).not.toHaveBeenCalledOnce();
+    expect(repository.isUsernameExists).not.toHaveBeenCalled();
+  });
+
+  it('propagates a repository update error', async () => {
+    const error = new Error('database unavailable');
+    repository.updateProfileInfo.mockRejectedValue(error);
+
+    await expect(useCase.execute(new UpdateProfileInfoCommand(createProps()))).rejects.toBe(error);
+    expect(repository.updateProfileInfo).toHaveBeenCalledOnce();
+  });
+
+  it('executes repository operations in the required order', async () => {
+    await useCase.execute(new UpdateProfileInfoCommand(createProps({ username: 'new_name' })));
+
+    const findOrder = repository.findById.mock.invocationCallOrder[0];
+    const uniquenessOrder = repository.isUsernameExists.mock.invocationCallOrder[0];
+    const updateOrder = repository.updateProfileInfo.mock.invocationCallOrder[0];
+    expect(findOrder).toBeLessThan(uniquenessOrder);
+    expect(uniquenessOrder).toBeLessThan(updateOrder);
   });
 });
