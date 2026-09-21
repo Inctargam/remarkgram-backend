@@ -81,7 +81,7 @@ describe(UserProfileHttpController.name, () => {
           firstName: 'John',
           lastName: 'Doe',
           countryCode,
-        },
+        } as unknown as UpdateProfileInfoDto,
         { userId: '1' } as RequestWithUserId,
       );
 
@@ -95,7 +95,12 @@ describe(UserProfileHttpController.name, () => {
 
     await expect(
       controller.updateProfileInfo(
-        { username: 'username', firstName: 'John', lastName: 'Doe', countryCode: 'ZZ' },
+        {
+          username: 'username',
+          firstName: 'John',
+          lastName: 'Doe',
+          countryCode: 'ZZ',
+        } as unknown as UpdateProfileInfoDto,
         { userId: '1' } as RequestWithUserId,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -110,7 +115,12 @@ describe(UserProfileHttpController.name, () => {
 
     await expect(
       controller.updateProfileInfo(
-        { username: 'username', firstName: 'John', lastName: 'Doe', countryCode: 'UA' },
+        {
+          username: 'username',
+          firstName: 'John',
+          lastName: 'Doe',
+          countryCode: 'UA',
+        } as unknown as UpdateProfileInfoDto,
         { userId: '1' } as RequestWithUserId,
       ),
     ).rejects.toBe(error);
@@ -122,9 +132,12 @@ describe(UserProfileHttpController.name, () => {
     updateProfileInfo.mockReturnValue(throwError(() => error));
 
     await expect(
-      controller.updateProfileInfo({ username: 'username', firstName: 'John', lastName: 'Doe' }, {
-        userId: '1',
-      } as RequestWithUserId),
+      controller.updateProfileInfo(
+        { username: 'username', firstName: 'John', lastName: 'Doe' } as unknown as UpdateProfileInfoDto,
+        {
+          userId: '1',
+        } as RequestWithUserId,
+      ),
     ).rejects.toBe(error);
     expect(updateProfileInfo).toHaveBeenCalledOnce();
   });
