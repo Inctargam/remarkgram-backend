@@ -90,12 +90,19 @@ message ResendRegistrationConfirmationResponse {}
 
 // Users
 service UsersService {
+    rpc SetAvatar(SetAvatarRequest) returns (SetAvatarResponse);
     rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
     rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse);
     rpc UpdateProfileInfo(UpdateProfileInfoRequest) returns (UpdateProfileInfoResponse);
     rpc GetPublicProfile(GetPublicProfileRequest) returns (GetPublicProfileResponse);
     rpc GetMyProfile(GetMyProfileRequest) returns (GetMyProfileResponse);
 }
+message SetAvatarRequest {
+    int32 user_id = 1;
+    string file_id = 2;
+    string idempotency_key = 3;
+}
+message SetAvatarResponse {}
 message GetMyProfileRequest{
     int32 user_id = 1;
 }

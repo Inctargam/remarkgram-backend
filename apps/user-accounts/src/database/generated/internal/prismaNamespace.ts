@@ -882,6 +882,7 @@ export const ProfileScalarFieldEnum = {
   firstName: 'firstName',
   lastName: 'lastName',
   avatarFileId: 'avatarFileId',
+  avatarUpdateId: 'avatarUpdateId',
   dateOfBirth: 'dateOfBirth',
   aboutMe: 'aboutMe',
   countryCode: 'countryCode',

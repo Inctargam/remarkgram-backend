@@ -158,6 +158,10 @@
           {
             "include": "../../../libs/contracts/user-accounts-grpc/src/proto/*.proto",
             "outDir": "dist/apps/user-accounts/libs/contracts/user-accounts-grpc"
+          },
+          {
+            "include": "../../../libs/contracts/files-grpc/src/proto/*.proto",
+            "outDir": "dist/apps/user-accounts/libs/contracts/files-grpc"
           }
         ]
       }

@@ -114,6 +114,7 @@ model Profile {
   firstName   String?   @map("first_name") @db.VarChar
   lastName    String?   @map("last_name") @db.VarChar
   avatarFileId String?  @map("avatar_file_id") @db.Uuid
+  avatarUpdateId String? @map("avatar_update_id") @db.Uuid
   dateOfBirth DateTime? @map("date_of_birth") @db.Date
   aboutMe     String?   @map("about_me") @db.VarChar
   countryCode String?   @map("country_code") @db.VarChar

@@ -26,6 +26,8 @@ describe('UserAccountsModule', () => {
     vi.stubEnv('SMTP_PORT', '465');
     vi.stubEnv('SMTP_SECURE', 'true');
     vi.stubEnv('USER_ACCOUNTS_GRPC_URL', 'localhost:50052');
+    vi.stubEnv('FILES_GRPC_URL', 'localhost:50051');
+    vi.stubEnv('USER_ACCOUNTS_DBOS_SYSTEM_DATABASE_URL', 'postgresql://user:password@localhost:5432/dbos');
 
     const module = await Test.createTestingModule({ imports: [UserAccountsModule] }).compile();
 

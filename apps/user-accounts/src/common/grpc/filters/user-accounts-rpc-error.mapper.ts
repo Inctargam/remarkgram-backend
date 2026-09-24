@@ -8,6 +8,15 @@ import {
 import { Status } from '@grpc/grpc-js/build/src/constants.js';
 
 const GRPC_STATUS_BY_APP_ERROR_CODE = {
+  [UserAccountsErrorCode.INVALID_AVATAR_FILE_ID]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.INVALID_IDEMPOTENCY_KEY]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.AVATAR_UPDATE_CONFLICT]: status.FAILED_PRECONDITION,
+  [UserAccountsErrorCode.AVATAR_IDEMPOTENCY_KEY_CONFLICT]: status.ALREADY_EXISTS,
+  [UserAccountsErrorCode.AVATAR_FILE_NOT_FOUND]: status.NOT_FOUND,
+  [UserAccountsErrorCode.AVATAR_FILE_STATE_CONFLICT]: status.FAILED_PRECONDITION,
+  [UserAccountsErrorCode.INVALID_AVATAR_IMAGE]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.AVATAR_FILES_UNAVAILABLE]: status.UNAVAILABLE,
+
   [UserAccountsErrorCode.INCORRECT_CREDENTIALS]: status.UNAUTHENTICATED,
   [UserAccountsErrorCode.INVALID_REFRESH_TOKEN]: status.UNAUTHENTICATED,
   [UserAccountsErrorCode.NO_ACTIVE_SESSION]: status.UNAUTHENTICATED,

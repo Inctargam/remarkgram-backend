@@ -1,3 +1,4 @@
+import { SetAvatarCommand } from '../../../application/use-cases/set-avatar.use-case.js';
 import { status } from '@grpc/grpc-js';
 import type { UpdateProfileInfoRequest } from '@app/user-accounts-grpc';
 import { OAuthProvider } from '@app/user-accounts-grpc';
@@ -32,6 +33,17 @@ describe(UsersGrpcController.name, () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('delegates avatar installation to the command bus', async () => {
+    commandExecute.mockResolvedValue(undefined);
+    const request = {
+      userId: 42,
+      fileId: '11111111-1111-4111-8111-111111111111',
+      idempotencyKey: '22222222-2222-4222-8222-222222222222',
+    };
+    await expect(controller.setAvatar(request)).resolves.toEqual({});
+    expect(commandExecute).toHaveBeenCalledWith(new SetAvatarCommand(request));
   });
 
   it('maps the current user view to the gRPC response', async () => {

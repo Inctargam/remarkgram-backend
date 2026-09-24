@@ -110,3 +110,13 @@ spec:
                  secretKeyRef:
                    name: remarkgram-user-accounts-production-config-secret
                    key: DATABASE_URL
+             - name: FILES_GRPC_URL
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: FILES_GRPC_URL
+             - name: USER_ACCOUNTS_DBOS_SYSTEM_DATABASE_URL
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: USER_ACCOUNTS_DBOS_SYSTEM_DATABASE_URL

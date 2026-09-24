@@ -1,4 +1,6 @@
 import { Controller, UseFilters } from '@nestjs/common';
+import type { SetAvatarRequest, SetAvatarResponse } from '@app/user-accounts-grpc';
+import { SetAvatarCommand } from '../../../application/use-cases/set-avatar.use-case.js';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import type {
   GetMyProfileRequest,
@@ -34,6 +36,11 @@ export class UsersGrpcController {
     private readonly queryBus: QueryBus,
     private commandBus: CommandBus,
   ) {}
+
+  async setAvatar(request: SetAvatarRequest): Promise<SetAvatarResponse> {
+    await this.commandBus.execute(new SetAvatarCommand(request));
+    return {};
+  }
 
   async getUsers(): Promise<GetUsersResponse> {
     const users = await this.queryBus.execute(new GetUsersQuery());

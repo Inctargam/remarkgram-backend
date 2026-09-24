@@ -1,3 +1,14 @@
+import { FILES_GRPC_PROTO_PATH, REMARKGRAM_FILES_V1_PACKAGE_NAME } from '@app/files-grpc';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { dbosConfig } from './config/dbos.config.js';
+import { filesGrpcClientConfig } from './config/files-grpc-client.config.js';
+import { AvatarFilesGateway } from './features/users/application/ports/avatar-files.gateway.js';
+import { SetAvatarWorkflow } from './features/users/application/ports/set-avatar.workflow.js';
+import { SetAvatarUseCase } from './features/users/application/use-cases/set-avatar.use-case.js';
+import { DbosSetAvatarWorkflow } from './features/users/infrastructure/dbos/dbos-set-avatar.workflow.js';
+import { DbosLifecycleService } from './features/users/infrastructure/dbos/dbos-lifecycle.service.js';
+import { UserAccountsDbosDataSource } from './features/users/infrastructure/dbos/user-accounts-dbos.datasource.js';
+import { GrpcAvatarFilesGateway } from './features/users/infrastructure/grpc/grpc-avatar-files.gateway.js';
 import { Module } from '@nestjs/common';
 import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
@@ -78,6 +89,8 @@ import { GetPublicProfileHandler } from './features/users/application/use-cases/
         '.env',
       ],
       load: [
+        dbosConfig,
+        filesGrpcClientConfig,
         authConfig,
         databaseConfig,
         emailConfig,
@@ -86,6 +99,20 @@ import { GetPublicProfileHandler } from './features/users/application/use-cases/
         userAccountsGrpcConfig,
       ],
     }),
+    ClientsModule.registerAsync([
+      {
+        name: REMARKGRAM_FILES_V1_PACKAGE_NAME,
+        inject: [filesGrpcClientConfig.KEY],
+        useFactory: (config: ConfigType<typeof filesGrpcClientConfig>) => ({
+          transport: Transport.GRPC,
+          options: {
+            package: REMARKGRAM_FILES_V1_PACKAGE_NAME,
+            protoPath: FILES_GRPC_PROTO_PATH,
+            url: config.url,
+          },
+        }),
+      },
+    ]),
     CqrsModule,
     PrismaModule,
     NotificationsModule,
@@ -106,6 +133,12 @@ import { GetPublicProfileHandler } from './features/users/application/use-cases/
     TestingGrpcController,
   ],
   providers: [
+    SetAvatarUseCase,
+    UserAccountsDbosDataSource,
+    DbosSetAvatarWorkflow,
+    DbosLifecycleService,
+    { provide: SetAvatarWorkflow, useExisting: DbosSetAvatarWorkflow },
+    { provide: AvatarFilesGateway, useClass: GrpcAvatarFilesGateway },
     {
       provide: UsersRepository,
       useClass: PrismaUsersRepository,

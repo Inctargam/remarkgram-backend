@@ -86,6 +86,15 @@ export interface ResendRegistrationConfirmationRequest {
 export interface ResendRegistrationConfirmationResponse {
 }
 
+export interface SetAvatarRequest {
+  userId: number;
+  fileId: string;
+  idempotencyKey: string;
+}
+
+export interface SetAvatarResponse {
+}
+
 export interface GetMyProfileRequest {
   userId: number;
 }
@@ -316,6 +325,8 @@ export const REGISTRATION_SERVICE_NAME = "RegistrationService";
 /** Users */
 
 export interface UsersServiceClient {
+  setAvatar(request: SetAvatarRequest): Observable<SetAvatarResponse>;
+
   getUsers(request: GetUsersRequest): Observable<GetUsersResponse>;
 
   getCurrentUser(request: GetCurrentUserRequest): Observable<GetCurrentUserResponse>;
@@ -330,6 +341,8 @@ export interface UsersServiceClient {
 /** Users */
 
 export interface UsersServiceController {
+  setAvatar(request: SetAvatarRequest): Promise<SetAvatarResponse> | Observable<SetAvatarResponse> | SetAvatarResponse;
+
   getUsers(request: GetUsersRequest): Promise<GetUsersResponse> | Observable<GetUsersResponse> | GetUsersResponse;
 
   getCurrentUser(
@@ -352,6 +365,7 @@ export interface UsersServiceController {
 export function UsersServiceControllerMethods() {
   return function (constructor: Function) {
     const grpcMethods: string[] = [
+      "setAvatar",
       "getUsers",
       "getCurrentUser",
       "updateProfileInfo",
