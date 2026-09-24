@@ -9,4 +9,7 @@ export type PostDeletedV1Event = IntegrationEvent<
     fileIds: string[];
     deletedAt: string;
   }
->;
+> & {
+  aggregateType: string;
+  aggregateId: string;
+};

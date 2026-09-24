@@ -2,7 +2,7 @@ import {
   FindAvailableBatchRepositoryResult,
   OutboxEventsRepository,
 } from '../../../application/ports/outbox-events.repository.js';
-import type { IntegrationEvent } from '@app/message-broker';
+import type { PostDeletedV1Event } from '@app/message-broker';
 import type { Prisma } from '../generated/client.js';
 import { PrismaService } from '../prisma.service.js';
 import type { TransactionContext } from '../../../application/ports/unit-of-work.js';
@@ -19,7 +19,7 @@ export class PrismaOutboxEventsRepository implements OutboxEventsRepository {
     return (ctx as Prisma.TransactionClient | undefined) ?? this.prisma;
   }
 
-  async add(event: IntegrationEvent, ctx?: TransactionContext): Promise<void> {
+  async add(event: PostDeletedV1Event, ctx?: TransactionContext): Promise<void> {
     const client = this.getClient(ctx);
     await client.outboxEvent.create({
       data: {

@@ -1,10 +1,10 @@
-import type { IntegrationEvent } from '@app/message-broker';
+import type { PostDeletedV1Event } from '@app/message-broker';
 import type { TransactionContext } from './unit-of-work.js';
 import type { ApplicationOutboxEvent } from '../types/outbox.types.js';
 
 export type FindAvailableBatchRepositoryResult = ApplicationOutboxEvent[] | null;
 export abstract class OutboxEventsRepository {
-  abstract add(event: IntegrationEvent, ctx?: TransactionContext): Promise<void>;
+  abstract add(event: PostDeletedV1Event, ctx?: TransactionContext): Promise<void>;
   abstract findAvailableBatch(
     eventType: string,
     maxAttempts: number,
