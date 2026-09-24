@@ -10,7 +10,7 @@ import {
 import { ApiErrorResponseDto } from '../../../../../../common/http/api-error-response.dto.js';
 import { ValidationErrorResponseDto } from '../../../../../../common/http/validation-error-response.dto.js';
 import { createApiErrorResponseExample } from '../../../../../../swagger/examples/api-error-response.example.js';
-import { IDEMPOTENCY_KEY_HEADER } from '../../decorators/idempotency-key.decorator.js';
+import { IDEMPOTENCY_KEY_HEADER } from '../../../../../../common/http/decorators/idempotency-key.decorator.js';
 import { CreatePostDto } from '../../dto/input/create-post.dto.js';
 import { CreatePostResponseDto } from '../../dto/output/create-post-response.dto.js';
 

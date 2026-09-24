@@ -22,7 +22,7 @@ import {
 import type { ClientGrpc } from '@nestjs/microservices';
 import type { Request } from 'express';
 import { firstValueFrom, type Observable } from 'rxjs';
-import { IdempotencyKey } from '../decorators/idempotency-key.decorator.js';
+import { IdempotencyKey } from '../../../../../common/http/decorators/idempotency-key.decorator.js';
 import { CreatePostDto } from '../dto/input/create-post.dto.js';
 import { UpdatePostDto } from '../dto/input/update-post/update-post.dto.js';
 import { ApiDeletePost } from '../swagger/delete/delete-post.swagger.js';

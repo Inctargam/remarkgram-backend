@@ -4,7 +4,7 @@ import type { Request } from 'express';
 
 export const IDEMPOTENCY_KEY_HEADER = 'Idempotency-Key';
 
-/** Извлекает обязательный ключ одной попытки создания поста из HTTP-заголовка. */
+/** Извлекает обязательный ключ одной операции из HTTP-заголовка. */
 export const IdempotencyKey = createParamDecorator((_data: unknown, context: ExecutionContext): string => {
   const request = context.switchToHttp().getRequest<Request>();
   const idempotencyKey = request.get(IDEMPOTENCY_KEY_HEADER);

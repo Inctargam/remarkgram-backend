@@ -1,3 +1,6 @@
+import { IdempotencyKey } from '../../../../../common/http/decorators/idempotency-key.decorator.js';
+import { SetAvatarDto } from '../dto/input/set-avatar.dto.js';
+import { ApiSetAvatar } from '../swagger/user-profile/put/set-avatar.swagger.js';
 import {
   BadRequestException,
   Body,
@@ -41,6 +44,23 @@ export class UserProfileHttpController implements OnModuleInit {
   ) {}
   onModuleInit() {
     this.usersGrpcClient = this.grpcClient.getService<UsersServiceClient>(USERS_SERVICE_NAME);
+  }
+
+  @Put('me/profile/avatar')
+  @ApiSetAvatar()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async setAvatar(
+    @Body() dto: SetAvatarDto,
+    @Req() request: RequestWithUserId,
+    @IdempotencyKey() idempotencyKey: string,
+  ): Promise<void> {
+    await firstValueFrom(
+      this.usersGrpcClient.setAvatar({
+        userId: Number(request.userId),
+        fileId: dto.fileId.toLowerCase(),
+        idempotencyKey: idempotencyKey.toLowerCase(),
+      }),
+    );
   }
 
   @Put('me/profile')
