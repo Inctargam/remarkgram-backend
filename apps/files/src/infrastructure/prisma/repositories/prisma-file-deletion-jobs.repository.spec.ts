@@ -67,7 +67,7 @@ describe('PrismaFileDeletionJobsRepository', () => {
       },
     ]);
 
-    await expect(repository.findAvailableBatch({ batchSize: 100, maxAttempts: 10 })).resolves.toEqual([
+    await expect(repository.claimBatch({ batchSize: 100, maxAttempts: 10 })).resolves.toEqual([
       {
         fileId: '0e80fbd6-b60b-4776-82af-5b568de1f600',
         objectKey: 'object-key',
@@ -76,10 +76,10 @@ describe('PrismaFileDeletionJobsRepository', () => {
     ]);
   });
 
-  it('returns null when no jobs were claimed', async () => {
+  it('returns an empty array when no jobs were claimed', async () => {
     queryRaw.mockResolvedValue([]);
 
-    await expect(repository.findAvailableBatch({ batchSize: 100, maxAttempts: 10 })).resolves.toBeNull();
+    await expect(repository.claimBatch({ batchSize: 100, maxAttempts: 10 })).resolves.toEqual([]);
   });
 
   it('marks a job done only when the lease matches', async () => {
@@ -122,20 +122,10 @@ describe('PrismaFileDeletionJobsRepository', () => {
     const leaseUntil = new Date('2026-08-21T15:02:00.000Z');
 
     await expect(
-      repository.resolveFailedAttempt(
-        '0e80fbd6-b60b-4776-82af-5b568de1f600',
-        leaseUntil,
-        'S3 unavailable',
-        10,
-      ),
+      repository.recordFailure('0e80fbd6-b60b-4776-82af-5b568de1f600', leaseUntil, 'S3 unavailable', 10),
     ).resolves.toBe(true);
     await expect(
-      repository.resolveFailedAttempt(
-        '0e80fbd6-b60b-4776-82af-5b568de1f600',
-        leaseUntil,
-        'S3 unavailable',
-        10,
-      ),
+      repository.recordFailure('0e80fbd6-b60b-4776-82af-5b568de1f600', leaseUntil, 'S3 unavailable', 10),
     ).resolves.toBe(false);
   });
 });

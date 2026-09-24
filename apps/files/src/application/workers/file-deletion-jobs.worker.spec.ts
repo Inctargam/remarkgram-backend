@@ -15,9 +15,9 @@ describe('FileDeletionJobsWorker', () => {
 
   const jobs = {
     addMany: vi.fn(),
-    findAvailableBatch: vi.fn(),
+    claimBatch: vi.fn(),
     markAsDone: vi.fn(),
-    resolveFailedAttempt: vi.fn(),
+    recordFailure: vi.fn(),
   };
   const files = {
     hardDeleteSoftDeletedById: vi.fn(),
@@ -38,9 +38,9 @@ describe('FileDeletionJobsWorker', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    jobs.findAvailableBatch.mockResolvedValue([job]);
+    jobs.claimBatch.mockResolvedValue([job]);
     jobs.markAsDone.mockResolvedValue(true);
-    jobs.resolveFailedAttempt.mockResolvedValue(true);
+    jobs.recordFailure.mockResolvedValue(true);
     objectStorage.deleteObject.mockResolvedValue(undefined);
     files.hardDeleteSoftDeletedById.mockResolvedValue(undefined);
   });
@@ -51,7 +51,7 @@ describe('FileDeletionJobsWorker', () => {
     expect(objectStorage.deleteObject).toHaveBeenCalledWith(job.objectKey);
     expect(jobs.markAsDone).toHaveBeenCalledWith(job.fileId, leaseUntil, ctx);
     expect(files.hardDeleteSoftDeletedById).toHaveBeenCalledWith(job.fileId, ctx);
-    expect(jobs.resolveFailedAttempt).not.toHaveBeenCalled();
+    expect(jobs.recordFailure).not.toHaveBeenCalled();
     expect(objectStorage.deleteObject.mock.invocationCallOrder[0]).toBeLessThan(
       jobs.markAsDone.mock.invocationCallOrder[0],
     );
@@ -66,34 +66,45 @@ describe('FileDeletionJobsWorker', () => {
     await worker.run();
 
     expect(unitOfWork.run).not.toHaveBeenCalled();
-    expect(jobs.resolveFailedAttempt).toHaveBeenCalledWith(
-      job.fileId,
-      leaseUntil,
-      'S3 unavailable',
-      MAX_ATTEMPTS,
-    );
+    expect(jobs.recordFailure).toHaveBeenCalledWith(job.fileId, leaseUntil, 'S3 unavailable', MAX_ATTEMPTS);
   });
 
-  it('does not hard-delete the file when the lease was lost', async () => {
+  it('does not hard-delete the file or record failure when the lease was lost', async () => {
     jobs.markAsDone.mockResolvedValue(false);
 
     await worker.run();
 
     expect(files.hardDeleteSoftDeletedById).not.toHaveBeenCalled();
-    expect(jobs.resolveFailedAttempt).toHaveBeenCalledWith(
-      job.fileId,
-      leaseUntil,
-      `Lease was lost for file deletion job ${job.fileId}`,
-      MAX_ATTEMPTS,
-    );
+    expect(jobs.recordFailure).not.toHaveBeenCalled();
   });
 
   it('does nothing when there are no available jobs', async () => {
-    jobs.findAvailableBatch.mockResolvedValue(null);
+    jobs.claimBatch.mockResolvedValue([]);
 
     await worker.run();
 
     expect(objectStorage.deleteObject).not.toHaveBeenCalled();
     expect(unitOfWork.run).not.toHaveBeenCalled();
+  });
+
+  it('propagates a claim failure to the scheduler without processing files', async () => {
+    const error = new Error('Database unavailable');
+    jobs.claimBatch.mockRejectedValueOnce(error);
+
+    await expect(worker.run()).rejects.toBe(error);
+
+    expect(objectStorage.deleteObject).not.toHaveBeenCalled();
+    expect(jobs.recordFailure).not.toHaveBeenCalled();
+  });
+
+  it('continues processing other jobs after losing a lease', async () => {
+    const nextJob = { ...job, fileId: 'another-file', objectKey: 'another-key' };
+    jobs.claimBatch.mockResolvedValue([job, nextJob]);
+    jobs.markAsDone.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    await worker.run();
+
+    expect(files.hardDeleteSoftDeletedById).toHaveBeenCalledExactlyOnceWith(nextJob.fileId, ctx);
+    expect(jobs.recordFailure).not.toHaveBeenCalled();
   });
 });

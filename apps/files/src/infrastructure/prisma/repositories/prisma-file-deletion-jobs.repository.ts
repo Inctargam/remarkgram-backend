@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import {
   type AddFileDeletionJobRepositoryParams,
   FileDeletionJobsRepository,
-  type FindAvailableFileDeletionJobRepositoryParams,
-  type FindAvailableFileDeletionJobRepositoryResult,
+  type ClaimFileDeletionJobsParams,
+  type ClaimedFileDeletionJob,
 } from '../../../application/ports/file-deletion-jobs.repository.js';
 import type { TransactionContext } from '../../../application/ports/unit-of-work.js';
 import { FileDeletionJobStatus } from '../../../domain/enums/file-deletion-job-status.enum.js';
@@ -36,14 +36,12 @@ export class PrismaFileDeletionJobsRepository extends FileDeletionJobsRepository
     });
   }
 
-  async findAvailableBatch(
-    params: FindAvailableFileDeletionJobRepositoryParams,
-  ): Promise<FindAvailableFileDeletionJobRepositoryResult> {
+  async claimBatch(params: ClaimFileDeletionJobsParams): Promise<ClaimedFileDeletionJob[]> {
     /*
      * exhausted_jobs восстанавливает корректное состояние после аварийного
      * завершения worker. Количество attempts увеличивается во время claim,
      * поэтому процесс может получить последнюю разрешённую попытку и упасть до
-     * вызова resolveFailedAttempt. После истечения lease такая задача осталась
+     * вызова recordFailure. После истечения lease такая задача осталась
      * бы в PENDING навсегда: attempts уже достиг maxAttempts, а основной claim
      * выбирает только задачи с attempts < maxAttempts. Перед новым claim
      * переводим эти больше никем не обрабатываемые задачи в DEAD.
@@ -82,8 +80,6 @@ export class PrismaFileDeletionJobsRepository extends FileDeletionJobsRepository
       RETURNING job.file_id, job.object_key, job.lease_until;
     `;
 
-    if (jobs.length === 0) return null;
-
     return jobs.map((job) => ({
       fileId: job.file_id,
       objectKey: job.object_key,
@@ -110,7 +106,7 @@ export class PrismaFileDeletionJobsRepository extends FileDeletionJobsRepository
     return result.count === 1;
   }
 
-  async resolveFailedAttempt(
+  async recordFailure(
     fileId: string,
     leaseUntil: Date,
     lastError: string,

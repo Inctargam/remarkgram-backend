@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { FileDeletionJobsRepository } from '../ports/file-deletion-jobs.repository.js';
+import {
+  FileDeletionJobsRepository,
+  type ClaimedFileDeletionJob,
+} from '../ports/file-deletion-jobs.repository.js';
 import { FilesRepository } from '../ports/files.repository.js';
 import { ObjectStorage } from '../ports/object-storage.js';
 import { UnitOfWork } from '../ports/unit-of-work.js';
@@ -8,12 +11,6 @@ export type FileDeletionJobsWorkerOptions = {
   batchSize: number;
   concurrency: number;
   maxAttempts: number;
-};
-
-type ClaimedFileDeletionJob = {
-  fileId: string;
-  objectKey: string;
-  leaseUntil: Date;
 };
 
 class FileDeletionJobLeaseLostError extends Error {
@@ -39,21 +36,12 @@ export class FileDeletionJobsWorker {
   ) {}
 
   async run(): Promise<void> {
-    try {
-      const jobs = await this.jobs.findAvailableBatch({
-        batchSize: this.options.batchSize,
-        maxAttempts: this.options.maxAttempts,
-      });
+    const jobs = await this.jobs.claimBatch({
+      batchSize: this.options.batchSize,
+      maxAttempts: this.options.maxAttempts,
+    });
 
-      if (!jobs) return;
-
-      await this.processWithConcurrency(jobs, this.options.concurrency, (job) => this.processOne(job));
-    } catch (error) {
-      this.logger.error(
-        `Failed to claim file deletion jobs: ${this.errorMessage(error)}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-    }
+    await this.processWithConcurrency(jobs, this.options.concurrency, (job) => this.processOne(job));
   }
 
   private async processOne(job: ClaimedFileDeletionJob): Promise<void> {
@@ -71,18 +59,23 @@ export class FileDeletionJobsWorker {
         await this.files.hardDeleteSoftDeletedById(job.fileId, ctx);
       });
     } catch (error) {
+      if (error instanceof FileDeletionJobLeaseLostError) {
+        this.logger.warn(error.message);
+        return;
+      }
+
       const message = this.errorMessage(error);
       this.logger.error(`Failed to delete file ${job.fileId}: ${message}`);
 
       try {
-        const resolved = await this.jobs.resolveFailedAttempt(
+        const recorded = await this.jobs.recordFailure(
           job.fileId,
           job.leaseUntil,
           message,
           this.options.maxAttempts,
         );
 
-        if (!resolved) {
+        if (!recorded) {
           this.logger.warn(`Failed deletion attempt was not recorded for file ${job.fileId}: lease was lost`);
         }
       } catch (statusError) {
