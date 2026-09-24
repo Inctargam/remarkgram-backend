@@ -1,3 +1,4 @@
+import { AvatarDeletionEventConsumer } from './presentation/messaging/avatar-deletion-event.consumer.js';
 import { S3Client } from '@aws-sdk/client-s3';
 import { AttachAvatarUploadUseCase } from './application/use-cases/attach-avatar-upload/attach-avatar-upload.use-case.js';
 import { ScheduleAttachedFileDeletionUseCase } from './application/use-cases/schedule-attached-file-deletion/schedule-attached-file-deletion.use-case.js';
@@ -62,7 +63,12 @@ import { FileDeletionJobsScheduler } from './infrastructure/scheduling/file-dele
     }),
     PrismaModule,
   ],
-  controllers: [FilesGrpcController, TestingGrpcController, PostDeletedEventConsumer],
+  controllers: [
+    FilesGrpcController,
+    TestingGrpcController,
+    PostDeletedEventConsumer,
+    AvatarDeletionEventConsumer,
+  ],
   providers: [
     AttachAvatarUploadUseCase,
     ScheduleAttachedFileDeletionUseCase,
