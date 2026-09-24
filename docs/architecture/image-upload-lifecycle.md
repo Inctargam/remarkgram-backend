@@ -1,6 +1,6 @@
-# Жизненный цикл изображений и создание поста
+# Жизненный цикл изображений, постов и аватаров
 
-Документ описывает текущие сценарии загрузки изображений и создания поста через DBOS.
+Документ описывает загрузку изображений, создание поста и установку аватара через DBOS.
 Диаграммы отражают состояние кода, а не целевую архитектуру.
 
 ## Загрузка и подтверждение изображений
@@ -64,7 +64,7 @@ sequenceDiagram
     Gateway-->>Frontend: 204 No Content или HTTP-ошибка
 ```
 
-## Загрузка аватара без установки в профиль
+## Загрузка аватара
 
 `POST /api/v1/files/avatar-upload` требует авторизации и принимает метаданные одного файла
 (один объект, не массив):
@@ -102,7 +102,9 @@ if (!response.ok) throw new Error('Upload failed');
 
 Существующее подтверждение проверяет владельца, состояние и совпадение размера и MIME-типа
 с метаданными S3, затем переводит файл из `PENDING` в `COMPLETED`.
-Это не устанавливает аватар профиля: `SetAvatar` и заглушка профиля пока не реализованы.
+Для установки в профиль после подтверждения вызывается `PUT /api/v1/users/me/profile/avatar`
+с `{ "fileId": "<session.id>" }` и заголовком `Idempotency-Key: <UUID v4>`.
+Подробности: [установка и замена аватара](set-avatar.md).
 Получение файла через `/files/images/:fileId` доступно только после прикрепления (`ATTACHED`).
 Для превью до установки используется локальный файл на фронтенде.
 
@@ -197,6 +199,7 @@ stateDiagram-v2
     PENDING --> COMPLETED: CompleteImageUploads<br/>объект найден, метаданные совпали
     PENDING --> REJECTED: CompleteImageUploads<br/>объект отсутствует или метаданные не совпали
 
+    COMPLETED --> ATTACHED: AttachAvatarUpload<br/>аватар: проверка и прикрепление атомарно
     COMPLETED --> RESERVED: ReserveImageUploads<br/>создана ImageUploadReservation
     RESERVED --> ATTACHED: AttachReservedImageUploads
     RESERVED --> COMPLETED: ReleaseReservedImageUploads<br/>reservationId очищен
@@ -207,7 +210,7 @@ stateDiagram-v2
     REJECTED --> [*]: Успешная немедленная очистка
     REJECTED --> DELETION_CLAIMED: Немедленная очистка не удалась<br/>и истёк grace period
     COMPLETED --> DELETION_CLAIMED: Не использован 24 часа
-    ATTACHED --> DELETION_CLAIMED: Получено событие удаления поста<br/>и выполнен soft delete файла
+    ATTACHED --> DELETION_CLAIMED: Удаление поста или замена аватара<br/>и soft delete файла
 
     DELETION_CLAIMED --> [*]: DeleteObject выполнен<br/>запись File удалена
     DELETION_CLAIMED --> DELETION_CLAIMED: Ошибка удаления<br/>повтор после timeout
@@ -221,12 +224,18 @@ stateDiagram-v2
     note right of ATTACHED
         ATTACHED не участвует в очистке
         неиспользованных загрузок.
-        Удаление начинается после события
-        об удалении опубликованного поста.
+        Удаление начинается после удаления поста
+        либо замены аватара.
     end note
 ```
 
 ## Связь File и ImageUploadReservation
+
+Для аватара идентификатор прикрепления хранится в `File.attachmentOperationId` (nullable UUID
+с уникальным индексом). Повтор распознаётся по файлу, владельцу и этому идентификатору, пока
+запись файла существует. После её физического удаления повтор RPC возвращает ошибку отсутствия файла.
+
+Для изображений постов сохраняется схема резервирования:
 
 - `ImageUploadReservation.id` — стабильный `reservationId`, созданный внутри DBOS workflow.
 - Резервация хранит владельца и полный отсортированный набор `uploadIds`.
