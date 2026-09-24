@@ -2,7 +2,7 @@ import { MAX_IMAGES_PER_UPLOAD_REQUEST } from '@app/files-grpc';
 import {
   DuplicateImageUploadIdError,
   ImageUploadNotFoundError,
-  ImageUploadsNotAvailableError,
+  ImageUploadStateConflictError,
   InvalidImageCountError,
   InvalidUserIdError,
 } from '../../errors/image-upload.errors.js';
@@ -49,11 +49,11 @@ describe('ReserveImageUploadsUseCase', () => {
   });
 
   it('reports image uploads unavailable for reservation', async () => {
-    filesRepository.reserveImageUploads.mockRejectedValue(new ImageUploadsNotAvailableError());
+    filesRepository.reserveImageUploads.mockRejectedValue(new ImageUploadStateConflictError());
 
     await expect(
       useCase.execute(new ReserveImageUploadsCommand({ userId: 42, uploadIds: [uploadId], reservationId })),
-    ).rejects.toThrow(ImageUploadsNotAvailableError);
+    ).rejects.toThrow(ImageUploadStateConflictError);
   });
 
   it.each([0, -1, 1.5, Number.NaN])('rejects an invalid user ID: %s', async (userId) => {

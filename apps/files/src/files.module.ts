@@ -1,4 +1,6 @@
 import { S3Client } from '@aws-sdk/client-s3';
+import { AttachAvatarUploadUseCase } from './application/use-cases/attach-avatar-upload/attach-avatar-upload.use-case.js';
+import { ScheduleAttachedFileDeletionUseCase } from './application/use-cases/schedule-attached-file-deletion/schedule-attached-file-deletion.use-case.js';
 import { Module } from '@nestjs/common';
 import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
@@ -62,6 +64,8 @@ import { FileDeletionJobsScheduler } from './infrastructure/scheduling/file-dele
   ],
   controllers: [FilesGrpcController, TestingGrpcController, PostDeletedEventConsumer],
   providers: [
+    AttachAvatarUploadUseCase,
+    ScheduleAttachedFileDeletionUseCase,
     AttachReservedImageUploadsUseCase,
     CleanupExpiredImageUploadsUseCase,
     CompleteImageUploadsUseCase,

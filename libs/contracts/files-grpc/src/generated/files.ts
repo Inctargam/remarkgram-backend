@@ -10,6 +10,23 @@ import { Observable } from "rxjs";
 
 export const protobufPackage = "remarkgram.files.v1";
 
+export interface AttachAvatarUploadRequest {
+  userId: string;
+  fileId: string;
+  operationId: string;
+}
+
+export interface AttachAvatarUploadResponse {
+}
+
+export interface ScheduleAttachedFileDeletionRequest {
+  userId: string;
+  fileId: string;
+}
+
+export interface ScheduleAttachedFileDeletionResponse {
+}
+
 export interface InitiateImageUploadsRequest {
   userId: string;
   images: ImageUploadMetadata[];
@@ -96,6 +113,12 @@ export interface GetFileDownloadUrlResponse {
 export const REMARKGRAM_FILES_V1_PACKAGE_NAME = "remarkgram.files.v1";
 
 export interface FilesServiceClient {
+  attachAvatarUpload(request: AttachAvatarUploadRequest): Observable<AttachAvatarUploadResponse>;
+
+  scheduleAttachedFileDeletion(
+    request: ScheduleAttachedFileDeletionRequest,
+  ): Observable<ScheduleAttachedFileDeletionResponse>;
+
   initiateAvatarUpload(request: InitiateAvatarUploadRequest): Observable<ImageUploadSession>;
 
   initiateImageUploads(request: InitiateImageUploadsRequest): Observable<InitiateImageUploadsResponse>;
@@ -116,6 +139,17 @@ export interface FilesServiceClient {
 }
 
 export interface FilesServiceController {
+  attachAvatarUpload(
+    request: AttachAvatarUploadRequest,
+  ): Promise<AttachAvatarUploadResponse> | Observable<AttachAvatarUploadResponse> | AttachAvatarUploadResponse;
+
+  scheduleAttachedFileDeletion(
+    request: ScheduleAttachedFileDeletionRequest,
+  ):
+    | Promise<ScheduleAttachedFileDeletionResponse>
+    | Observable<ScheduleAttachedFileDeletionResponse>
+    | ScheduleAttachedFileDeletionResponse;
+
   initiateAvatarUpload(
     request: InitiateAvatarUploadRequest,
   ): Promise<ImageUploadSession> | Observable<ImageUploadSession> | ImageUploadSession;
@@ -154,6 +188,8 @@ export interface FilesServiceController {
 export function FilesServiceControllerMethods() {
   return function (constructor: Function) {
     const grpcMethods: string[] = [
+      "attachAvatarUpload",
+      "scheduleAttachedFileDeletion",
       "initiateAvatarUpload",
       "initiateImageUploads",
       "completeImageUploads",

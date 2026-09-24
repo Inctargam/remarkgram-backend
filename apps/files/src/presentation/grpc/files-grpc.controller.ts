@@ -1,4 +1,14 @@
 import { Controller, UseFilters } from '@nestjs/common';
+import { isUUID } from 'class-validator';
+import { RpcException } from '@nestjs/microservices';
+import { status } from '@grpc/grpc-js';
+import type {
+  AttachAvatarUploadResponse,
+  AttachAvatarUploadRequest,
+  ScheduleAttachedFileDeletionRequest,
+} from '@app/files-grpc';
+import { AttachAvatarUploadCommand } from '../../application/use-cases/attach-avatar-upload/attach-avatar-upload.use-case.js';
+import { ScheduleAttachedFileDeletionCommand } from '../../application/use-cases/schedule-attached-file-deletion/schedule-attached-file-deletion.use-case.js';
 import { FilesServiceControllerMethods } from '@app/files-grpc';
 import type {
   AttachReservedImageUploadsRequest,
@@ -34,6 +44,38 @@ export class FilesGrpcController {
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
   ) {}
+
+  async attachAvatarUpload(request: AttachAvatarUploadRequest): Promise<AttachAvatarUploadResponse> {
+    if (!isUUID(request.fileId, '4') || !isUUID(request.operationId, '4')) {
+      throw new RpcException({
+        code: status.INVALID_ARGUMENT,
+        message: 'fileId and operationId must be UUID v4',
+      });
+    }
+    await this.commandBus.execute(
+      new AttachAvatarUploadCommand({
+        userId: Number(request.userId),
+        fileId: request.fileId.toLowerCase(),
+        operationId: request.operationId.toLowerCase(),
+      }),
+    );
+    return {};
+  }
+
+  async scheduleAttachedFileDeletion(
+    request: ScheduleAttachedFileDeletionRequest,
+  ): Promise<Record<string, never>> {
+    if (!isUUID(request.fileId, '4')) {
+      throw new RpcException({ code: status.INVALID_ARGUMENT, message: 'fileId must be a UUID v4' });
+    }
+    await this.commandBus.execute(
+      new ScheduleAttachedFileDeletionCommand({
+        userId: Number(request.userId),
+        fileId: request.fileId.toLowerCase(),
+      }),
+    );
+    return {};
+  }
 
   initiateAvatarUpload(request: InitiateAvatarUploadRequest): Promise<ImageUploadSession> {
     return this.commandBus.execute(

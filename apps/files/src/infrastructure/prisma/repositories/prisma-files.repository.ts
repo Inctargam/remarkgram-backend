@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   FilesRepository,
+  type AttachImageUploadRepositoryParams,
   type AttachReservedImageUploadsRepositoryParams,
   type ClaimExpiredImageUploadsParams,
   type ClaimedImageUpload,
@@ -19,13 +20,14 @@ import {
 import {
   ImageUploadNotFoundError,
   ImageUploadReservationConflictError,
-  ImageUploadsNotAvailableError,
+  ImageUploadStateConflictError,
   InvalidImageUploadStatusError,
 } from '../../../application/errors/image-upload.errors.js';
 import { FileUploadStatus } from '../../../domain/enums/file-upload-status.enum.js';
 import { Prisma } from '../generated/client.js';
 import { ImageUploadReservationStatus } from '../generated/enums.js';
 import { PrismaService } from '../prisma.service.js';
+import type { ImageUploadMetadata } from '../../../application/types/image-upload.types.js';
 import type { TransactionContext } from '../../../application/ports/unit-of-work.js';
 
 const haveSameUploadIds = (left: readonly string[], right: readonly string[]): boolean =>
@@ -41,6 +43,52 @@ export class PrismaFilesRepository extends FilesRepository {
     await this.prisma.file.createMany({
       data: [...fileRecords],
     });
+  }
+
+  async attachImageUpload(
+    { userId, fileId, operationId }: AttachImageUploadRepositoryParams,
+    ctx: TransactionContext,
+  ): Promise<ImageUploadMetadata | null> {
+    const tx = ctx as Prisma.TransactionClient;
+    try {
+      // Первое прикрепление: атомарно занимаем подтверждённый, свободный файл владельца.
+      const [file] = await tx.file.updateManyAndReturn({
+        where: {
+          id: fileId,
+          userId,
+          uploadStatus: FileUploadStatus.COMPLETED,
+          reservationId: null,
+          attachmentOperationId: null,
+          deletedAt: null,
+        },
+        data: { uploadStatus: FileUploadStatus.ATTACHED, attachmentOperationId: operationId },
+        select: { size: true, contentType: true },
+      });
+      // Метаданные проверит use case до фиксации этой же транзакции.
+      if (file) return file;
+    } catch (error) {
+      // Уникальный attachmentOperationId не позволяет прикрепить другой файл тем же ключом.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ImageUploadReservationConflictError();
+      }
+      throw error;
+    }
+
+    // Обновления не было: отличаем точный повтор от отсутствия файла или конфликта состояния.
+    const file = await tx.file.findFirst({
+      where: { id: fileId, userId },
+      select: { uploadStatus: true, attachmentOperationId: true, deletedAt: true },
+    });
+
+    // Точный повтор успешен и после soft delete, пока запись файла ещё существует.
+    if (file?.uploadStatus === FileUploadStatus.ATTACHED && file.attachmentOperationId === operationId) {
+      return null;
+    }
+
+    // Отсутствующий, чужой или удалённый файл недоступен владельцу запроса.
+    if (!file || file.deletedAt) throw new ImageUploadNotFoundError();
+    // Файл найден, но не подтверждён либо занят другой операцией.
+    throw new ImageUploadStateConflictError();
   }
 
   async findImageUploads(params: FindImageUploadsParams): Promise<ImageUploadRecord[]> {
@@ -154,7 +202,7 @@ export class PrismaFilesRepository extends FilesRepository {
           throw new ImageUploadNotFoundError();
         }
 
-        throw new ImageUploadsNotAvailableError();
+        throw new ImageUploadStateConflictError();
       });
     } catch (error: unknown) {
       if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
@@ -191,11 +239,11 @@ export class PrismaFilesRepository extends FilesRepository {
           return;
         }
 
-        throw new ImageUploadsNotAvailableError();
+        throw new ImageUploadStateConflictError();
       }
 
       if (!reservation) {
-        throw new ImageUploadsNotAvailableError();
+        throw new ImageUploadStateConflictError();
       }
 
       const filesResult = await tx.file.updateMany({
@@ -213,7 +261,7 @@ export class PrismaFilesRepository extends FilesRepository {
       });
 
       if (filesResult.count !== reservation.uploadIds.length) {
-        throw new ImageUploadsNotAvailableError();
+        throw new ImageUploadStateConflictError();
       }
     });
   }
@@ -236,11 +284,11 @@ export class PrismaFilesRepository extends FilesRepository {
           return;
         }
 
-        throw new ImageUploadsNotAvailableError();
+        throw new ImageUploadStateConflictError();
       }
 
       if (!reservation) {
-        throw new ImageUploadsNotAvailableError();
+        throw new ImageUploadStateConflictError();
       }
 
       const filesResult = await tx.file.updateMany({
@@ -255,7 +303,7 @@ export class PrismaFilesRepository extends FilesRepository {
       });
 
       if (filesResult.count !== reservation.uploadIds.length) {
-        throw new ImageUploadsNotAvailableError();
+        throw new ImageUploadStateConflictError();
       }
     });
   }
@@ -263,44 +311,76 @@ export class PrismaFilesRepository extends FilesRepository {
   async claimExpiredImageUploads(params: ClaimExpiredImageUploadsParams): Promise<ClaimedImageUpload[]> {
     const { pendingExpiredBefore, completedBefore, rejectedBefore, retryBefore, claimedAt, limit } = params;
 
-    // updateManyAndReturn одновременно выбирает и помечает записи. Поэтому другая реплика
-    // не сможет получить те же записи, а старые незавершённые попытки можно забрать повторно.
-    // RESERVED здесь намеренно отсутствует: без состояния саги нельзя определить, нужно ли
-    // освободить резерв или завершить присоединение к уже созданному посту.
-    return this.prisma.file.updateManyAndReturn({
-      where: {
-        AND: [
-          {
-            OR: [
-              {
-                uploadStatus: FileUploadStatus.PENDING,
-                uploadExpiresAt: { lte: pendingExpiredBefore },
-              },
-              {
-                uploadStatus: FileUploadStatus.REJECTED,
-                updatedAt: { lte: rejectedBefore },
-              },
-              {
-                uploadStatus: FileUploadStatus.COMPLETED,
-                uploadedAt: { lte: completedBefore },
-                reservationId: null,
-              },
-            ],
-          },
-          {
-            OR: [{ deletedAt: null }, { deletedAt: { lte: retryBefore } }],
-          },
-        ],
-      },
-      data: {
-        deletedAt: claimedAt,
-      },
-      limit,
-      select: {
-        id: true,
-        objectKey: true,
-      },
-    });
+    /*
+     * Прежний Prisma-запрос:
+     *
+     * return this.prisma.file.updateManyAndReturn({
+     *   where: {
+     *     AND: [
+     *       {
+     *         OR: [
+     *           {
+     *             uploadStatus: FileUploadStatus.PENDING,
+     *             uploadExpiresAt: { lte: pendingExpiredBefore },
+     *           },
+     *           {
+     *             uploadStatus: FileUploadStatus.REJECTED,
+     *             updatedAt: { lte: rejectedBefore },
+     *           },
+     *           {
+     *             uploadStatus: FileUploadStatus.COMPLETED,
+     *             uploadedAt: { lte: completedBefore },
+     *             reservationId: null,
+     *           },
+     *         ],
+     *       },
+     *       {
+     *         OR: [{ deletedAt: null }, { deletedAt: { lte: retryBefore } }],
+     *       },
+     *     ],
+     *   },
+     *   data: {
+     *     deletedAt: claimedAt,
+     *   },
+     *   limit,
+     *   select: {
+     *     id: true,
+     *     objectKey: true,
+     *   },
+     * });
+     *
+     * С limit Prisma генерирует UPDATE ... WHERE id IN (SELECT id ... LIMIT ...).
+     * Фильтр статуса находится только в подзапросе, читающем снимок начала запроса.
+     * Если UPDATE ждёт конкурентное прикрепление, после ожидания строка уже может
+     * быть ATTACHED, но её id всё ещё удовлетворяет внешнему WHERE. Очистка тогда
+     * помечает прикреплённый файл удалённым. Атомарность UPDATE эту гонку не исключает.
+     *
+     * FOR UPDATE в подзапросе удерживает блокировки выбранных строк до конца
+     * транзакции: между выбором и UPDATE их нельзя прикрепить. SKIP LOCKED
+     * пропускает строки, занятые прикреплением или другим запуском очистки.
+     */
+    return this.prisma.$queryRaw<ClaimedImageUpload[]>`
+      UPDATE files AS file
+      SET "deletedAt" = ${claimedAt}, "updatedAt" = CURRENT_TIMESTAMP
+      WHERE file.id IN (
+        SELECT id
+        FROM files
+        WHERE (
+          ("uploadStatus" = ${FileUploadStatus.PENDING}::"FileUploadStatus"
+            AND "uploadExpiresAt" <= ${pendingExpiredBefore})
+          OR ("uploadStatus" = ${FileUploadStatus.REJECTED}::"FileUploadStatus"
+            AND "updatedAt" <= ${rejectedBefore})
+          OR ("uploadStatus" = ${FileUploadStatus.COMPLETED}::"FileUploadStatus"
+            AND "uploadedAt" <= ${completedBefore}
+            AND "reservationId" IS NULL)
+        )
+          AND ("deletedAt" IS NULL OR "deletedAt" <= ${retryBefore})
+        ORDER BY id
+        LIMIT ${limit}
+        FOR UPDATE SKIP LOCKED
+      )
+      RETURNING file.id, file."objectKey";
+    `;
   }
 
   async deleteClaimedImageUpload(params: DeleteClaimedImageUploadParams): Promise<boolean> {
@@ -392,5 +472,23 @@ export class PrismaFilesRepository extends FilesRepository {
         deletedAt: { not: null },
       },
     });
+  }
+
+  async softDeleteAttachedFile(
+    fileId: string,
+    userId: number,
+    ctx: TransactionContext,
+  ): Promise<SoftDeleteFileIdsByUserRepositoryResult> {
+    const client = ctx as Prisma.TransactionClient;
+    const files = await client.file.updateManyAndReturn({
+      where: { id: fileId, userId, deletedAt: null, uploadStatus: FileUploadStatus.ATTACHED },
+      data: { deletedAt: new Date() },
+      select: { id: true, objectKey: true, deletedAt: true },
+    });
+    if (files.length === 0) {
+      const existing = await client.file.findFirst({ where: { id: fileId, userId, deletedAt: null } });
+      if (existing) throw new ImageUploadStateConflictError();
+    }
+    return files;
   }
 }

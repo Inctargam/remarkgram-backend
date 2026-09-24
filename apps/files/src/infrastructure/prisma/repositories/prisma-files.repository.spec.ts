@@ -2,7 +2,7 @@ import type { PrismaService } from '../prisma.service.js';
 import {
   ImageUploadNotFoundError,
   ImageUploadReservationConflictError,
-  ImageUploadsNotAvailableError,
+  ImageUploadStateConflictError,
   InvalidImageUploadStatusError,
 } from '../../../application/errors/image-upload.errors.js';
 import { FileUploadStatus } from '../../../domain/enums/file-upload-status.enum.js';
@@ -32,6 +32,7 @@ describe('PrismaFilesRepository', () => {
     file,
     imageUploadReservation,
     $transaction: transaction,
+    $queryRaw: vi.fn(),
   };
   const repository = new PrismaFilesRepository(prisma as unknown as PrismaService);
 
@@ -52,6 +53,7 @@ describe('PrismaFilesRepository', () => {
     imageUploadReservation.updateMany.mockReset();
     imageUploadReservation.updateMany.mockResolvedValue({ count: 1 });
     transaction.mockClear();
+    prisma.$queryRaw.mockReset();
   });
 
   it('creates file records in one query', async () => {
@@ -296,7 +298,7 @@ describe('PrismaFilesRepository', () => {
         userId: 42,
         reservationId,
       }),
-    ).rejects.toThrow(ImageUploadsNotAvailableError);
+    ).rejects.toThrow(ImageUploadStateConflictError);
   });
 
   it('atomically attaches exactly the files recorded by the reservation', async () => {
@@ -340,7 +342,7 @@ describe('PrismaFilesRepository', () => {
     file.updateMany.mockResolvedValue({ count: 1 });
 
     await expect(repository.attachReservedImageUploads({ userId: 42, reservationId })).rejects.toThrow(
-      ImageUploadsNotAvailableError,
+      ImageUploadStateConflictError,
     );
   });
 
@@ -352,7 +354,7 @@ describe('PrismaFilesRepository', () => {
     });
 
     await expect(repository.attachReservedImageUploads({ userId: 42, reservationId })).rejects.toThrow(
-      ImageUploadsNotAvailableError,
+      ImageUploadStateConflictError,
     );
   });
 
@@ -400,15 +402,11 @@ describe('PrismaFilesRepository', () => {
     });
 
     await expect(repository.releaseReservedImageUploads({ userId: 42, reservationId })).rejects.toThrow(
-      ImageUploadsNotAvailableError,
+      ImageUploadStateConflictError,
     );
   });
 
-  it('atomically claims image uploads eligible for cleanup', async () => {
-    const pendingExpiredBefore = new Date('2030-01-01T00:45:00Z');
-    const rejectedBefore = new Date('2030-01-01T00:45:00Z');
-    const completedBefore = new Date('2029-12-31T01:00:00Z');
-    const retryBefore = new Date('2030-01-01T00:00:00Z');
+  it('returns the uploads atomically claimed by the database', async () => {
     const claimedAt = new Date('2030-01-01T01:00:00Z');
     const claimedImageUploads = [
       {
@@ -416,52 +414,19 @@ describe('PrismaFilesRepository', () => {
         objectKey: 'users/42/images/first',
       },
     ];
-    file.updateManyAndReturn.mockResolvedValue(claimedImageUploads);
-
+    prisma.$queryRaw.mockResolvedValue(claimedImageUploads);
     await expect(
       repository.claimExpiredImageUploads({
-        pendingExpiredBefore,
-        rejectedBefore,
-        completedBefore,
-        retryBefore,
+        pendingExpiredBefore: claimedAt,
+        rejectedBefore: claimedAt,
+        completedBefore: claimedAt,
+        retryBefore: claimedAt,
         claimedAt,
         limit: 100,
       }),
     ).resolves.toEqual(claimedImageUploads);
-    expect(file.updateManyAndReturn).toHaveBeenCalledWith({
-      where: {
-        AND: [
-          {
-            OR: [
-              {
-                uploadStatus: FileUploadStatus.PENDING,
-                uploadExpiresAt: { lte: pendingExpiredBefore },
-              },
-              {
-                uploadStatus: FileUploadStatus.REJECTED,
-                updatedAt: { lte: rejectedBefore },
-              },
-              {
-                uploadStatus: FileUploadStatus.COMPLETED,
-                uploadedAt: { lte: completedBefore },
-                reservationId: null,
-              },
-            ],
-          },
-          {
-            OR: [{ deletedAt: null }, { deletedAt: { lte: retryBefore } }],
-          },
-        ],
-      },
-      data: {
-        deletedAt: claimedAt,
-      },
-      limit: 100,
-      select: {
-        id: true,
-        objectKey: true,
-      },
-    });
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(file.findMany).not.toHaveBeenCalled();
   });
 
   it('hard-deletes an image upload only while the cleanup claim is still owned', async () => {

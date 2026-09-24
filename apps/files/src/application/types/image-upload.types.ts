@@ -1,8 +1,11 @@
-export type ImageUploadMetadataInput = {
-  clientFileId: string;
-  originalFilename: string;
+export type ImageUploadMetadata = {
   contentType: string;
   size: number;
+};
+
+export type ImageUploadMetadataInput = ImageUploadMetadata & {
+  clientFileId: string;
+  originalFilename: string;
 };
 
 export type ImageUploadSession = {

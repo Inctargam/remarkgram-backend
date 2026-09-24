@@ -1,4 +1,5 @@
 import type { FileUploadStatus } from '../../domain/enums/file-upload-status.enum.js';
+import type { ImageUploadMetadata } from '../types/image-upload.types.js';
 import type { TransactionContext } from './unit-of-work.js';
 
 export type CreateFileRecord = {
@@ -41,6 +42,12 @@ export type ReleaseReservedImageUploadsRepositoryParams = {
 
 export type AttachReservedImageUploadsRepositoryParams = ReleaseReservedImageUploadsRepositoryParams;
 
+export type AttachImageUploadRepositoryParams = {
+  userId: number;
+  fileId: string;
+  operationId: string;
+};
+
 export type ClaimExpiredImageUploadsParams = {
   pendingExpiredBefore: Date;
   completedBefore: Date;
@@ -78,6 +85,12 @@ export type SoftDeleteFileIdsByUserRepositoryResult = {
   deletedAt: Date | null;
 }[];
 export abstract class FilesRepository {
+  /** Прикрепляет COMPLETED-файл в текущей транзакции. null — точный повтор операции. */
+  abstract attachImageUpload(
+    params: AttachImageUploadRepositoryParams,
+    ctx: TransactionContext,
+  ): Promise<ImageUploadMetadata | null>;
+
   abstract createMany(fileRecords: readonly CreateFileRecord[]): Promise<void>;
 
   abstract findImageUploads(params: FindImageUploadsParams): Promise<ImageUploadRecord[]>;
@@ -106,4 +119,10 @@ export abstract class FilesRepository {
   ): Promise<SoftDeleteFileIdsByUserRepositoryResult>;
 
   abstract hardDeleteSoftDeletedById(fileId: string, ctx?: TransactionContext): Promise<void>;
+
+  abstract softDeleteAttachedFile(
+    fileId: string,
+    userId: number,
+    ctx: TransactionContext,
+  ): Promise<SoftDeleteFileIdsByUserRepositoryResult>;
 }

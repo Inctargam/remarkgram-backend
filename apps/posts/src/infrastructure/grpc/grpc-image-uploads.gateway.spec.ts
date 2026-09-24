@@ -104,7 +104,7 @@ describe('GrpcImageUploadsGateway', () => {
 
   it.each([
     [status.NOT_FOUND, FilesErrorCode.IMAGE_UPLOAD_NOT_FOUND, PostImageNotFoundError],
-    [status.FAILED_PRECONDITION, FilesErrorCode.IMAGE_UPLOADS_NOT_AVAILABLE, PostImagesNotAvailableError],
+    [status.FAILED_PRECONDITION, FilesErrorCode.IMAGE_UPLOAD_STATE_CONFLICT, PostImagesNotAvailableError],
   ] as const)(
     'maps Files error %s/%s to a Posts application error',
     async (grpcStatus, filesErrorCode, ErrorType) => {

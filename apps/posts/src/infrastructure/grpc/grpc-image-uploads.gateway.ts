@@ -132,7 +132,7 @@ export class GrpcImageUploadsGateway extends ImageUploadsGateway implements OnMo
 
       if (
         error.code === status.FAILED_PRECONDITION &&
-        filesErrorCode === FilesErrorCode.IMAGE_UPLOADS_NOT_AVAILABLE
+        filesErrorCode === FilesErrorCode.IMAGE_UPLOAD_STATE_CONFLICT
       ) {
         throw new PostImagesNotAvailableError();
       }

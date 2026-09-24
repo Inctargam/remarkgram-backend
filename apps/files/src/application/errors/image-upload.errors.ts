@@ -57,11 +57,11 @@ export class ImageUploadNotFoundError extends FilesError {
   }
 }
 
-export class ImageUploadsNotAvailableError extends FilesError {
-  readonly code = FilesErrorCode.IMAGE_UPLOADS_NOT_AVAILABLE;
+export class ImageUploadStateConflictError extends FilesError {
+  readonly code = FilesErrorCode.IMAGE_UPLOAD_STATE_CONFLICT;
 
   constructor() {
-    super('One or more image uploads are not available for this operation');
+    super('One or more image uploads are in a state that does not allow this operation');
   }
 }
 

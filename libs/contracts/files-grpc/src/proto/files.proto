@@ -3,6 +3,8 @@ syntax = "proto3";
 package remarkgram.files.v1;
 
 service FilesService {
+  rpc AttachAvatarUpload(AttachAvatarUploadRequest) returns (AttachAvatarUploadResponse);
+  rpc ScheduleAttachedFileDeletion(ScheduleAttachedFileDeletionRequest) returns (ScheduleAttachedFileDeletionResponse);
   rpc InitiateAvatarUpload(InitiateAvatarUploadRequest) returns (ImageUploadSession);
   rpc InitiateImageUploads(InitiateImageUploadsRequest) returns (InitiateImageUploadsResponse);
   rpc CompleteImageUploads(CompleteImageUploadsRequest) returns (CompleteImageUploadsResponse);
@@ -11,6 +13,21 @@ service FilesService {
   rpc ReleaseReservedImageUploads(ReleaseReservedImageUploadsRequest) returns (ReleaseReservedImageUploadsResponse);
   rpc GetFileDownloadUrl(GetFileDownloadUrlRequest) returns (GetFileDownloadUrlResponse);
 }
+
+message AttachAvatarUploadRequest {
+  string user_id = 1;
+  string file_id = 2;
+  string operation_id = 3;
+}
+
+message AttachAvatarUploadResponse {}
+
+message ScheduleAttachedFileDeletionRequest {
+  string user_id = 1;
+  string file_id = 2;
+}
+
+message ScheduleAttachedFileDeletionResponse {}
 
 service TestingService {
     rpc DeleteAllData(DeleteAllDataRequest) returns (DeleteAllDataResponse);

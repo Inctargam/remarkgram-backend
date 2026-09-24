@@ -1,3 +1,6 @@
+import { RpcException } from '@nestjs/microservices';
+import { AttachAvatarUploadCommand } from '../../application/use-cases/attach-avatar-upload/attach-avatar-upload.use-case.js';
+import { ScheduleAttachedFileDeletionCommand } from '../../application/use-cases/schedule-attached-file-deletion/schedule-attached-file-deletion.use-case.js';
 import { FilesGrpcController } from './files-grpc.controller.js';
 import { ImageContentType } from '@app/files-grpc';
 import type { CommandBus, QueryBus } from '@nestjs/cqrs';
@@ -18,6 +21,35 @@ describe('FilesGrpcController', () => {
   beforeEach(() => {
     commandBus.execute.mockReset();
     queryBus.execute.mockReset();
+  });
+
+  it('maps avatar attachment and deletion RPCs to commands', async () => {
+    const fileId = 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA';
+    const operationId = 'BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB';
+    const controller = createController();
+    await expect(controller.attachAvatarUpload({ userId: '42', fileId, operationId })).resolves.toEqual({});
+    expect(commandBus.execute).toHaveBeenCalledWith(
+      new AttachAvatarUploadCommand({
+        userId: 42,
+        fileId: fileId.toLowerCase(),
+        operationId: operationId.toLowerCase(),
+      }),
+    );
+    await expect(controller.scheduleAttachedFileDeletion({ userId: '42', fileId })).resolves.toEqual({});
+    expect(commandBus.execute).toHaveBeenCalledWith(
+      new ScheduleAttachedFileDeletionCommand({ userId: 42, fileId: fileId.toLowerCase() }),
+    );
+  });
+
+  it('rejects invalid UUIDs before dispatching new Files commands', async () => {
+    const controller = createController();
+    await expect(
+      controller.attachAvatarUpload({ userId: '42', fileId: 'bad', operationId: 'bad' }),
+    ).rejects.toBeInstanceOf(RpcException);
+    await expect(
+      controller.scheduleAttachedFileDeletion({ userId: '42', fileId: 'bad' }),
+    ).rejects.toBeInstanceOf(RpcException);
+    expect(commandBus.execute).not.toHaveBeenCalled();
   });
 
   it('delegates avatar upload initiation with a numeric user ID and returns one session', async () => {
