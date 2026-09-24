@@ -1,3 +1,5 @@
+import { AvatarDeletionOutbox } from '../../application/ports/avatar-deletion.outbox.js';
+import { createAvatarDeletionEvent } from '../../application/integration-events/avatar-deletion-requested.event.js';
 import { ConfiguredInstance, DBOS } from '@dbos-inc/dbos-sdk';
 import { Injectable } from '@nestjs/common';
 import {
@@ -34,6 +36,7 @@ export class DbosSetAvatarWorkflow extends ConfiguredInstance implements SetAvat
   constructor(
     private readonly dataSource: UserAccountsDbosDataSource,
     private readonly filesGateway: AvatarFilesGateway,
+    private readonly avatarDeletionOutbox: AvatarDeletionOutbox,
   ) {
     super('set-avatar-workflow');
   }
@@ -113,11 +116,23 @@ export class DbosSetAvatarWorkflow extends ConfiguredInstance implements SetAvat
     await this.filesGateway.attachAvatarUpload(params);
   }
 
-  @DBOS.step({ name: 'scheduleFileDeletion' })
   private async scheduleFileDeletion(params: AvatarFileParams): Promise<void> {
-    // Через gRPC ставим файл на удаление: прежний после замены или новый при компенсации.
-    // Ждём сохранения FileDeletionJob; физическое удаление выполняет worker.
-    await this.filesGateway.scheduleAttachedFileDeletion(params);
+    // Сохраняем запрос удаления вместе с checkpoint. Брокер не участвует в транзакции.
+    await this.dataSource.runTransaction(
+      async () => {
+        const event = createAvatarDeletionEvent(params.userId, params.fileId);
+        await this.avatarDeletionOutbox.enqueue(event, this.dataSource.client);
+      },
+      { name: 'scheduleFileDeletion' },
+    );
+    await this.startFileDeletionPublication();
+  }
+
+  @DBOS.step()
+  private startFileDeletionPublication(): Promise<void> {
+    // Падение до пробуждения worker покроет резервный опрос pg-boss.
+    this.avatarDeletionOutbox.wake();
+    return Promise.resolve();
   }
 
   private acquireAvatarUpdate(input: WorkflowInput, operationId: string): Promise<AvatarUpdateLockResult> {

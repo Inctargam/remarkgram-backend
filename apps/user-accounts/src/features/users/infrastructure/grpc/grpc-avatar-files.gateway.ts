@@ -6,11 +6,7 @@ import {
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import type { ClientGrpc } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
-import {
-  AvatarFilesGateway,
-  type AvatarFileParams,
-  type AttachAvatarParams,
-} from '../../application/ports/avatar-files.gateway.js';
+import { AvatarFilesGateway, type AttachAvatarParams } from '../../application/ports/avatar-files.gateway.js';
 import { mapFilesError } from './files-error.mapper.js';
 
 @Injectable()
@@ -31,22 +27,6 @@ export class GrpcAvatarFilesGateway extends AvatarFilesGateway implements OnModu
           userId: String(params.userId),
           fileId: params.fileId,
           operationId: params.operationId,
-        }),
-      );
-    } catch (error) {
-      throw mapFilesError(error);
-    }
-  }
-
-  async scheduleAttachedFileDeletion(params: AvatarFileParams): Promise<void> {
-    // TODO(rabbitmq): заменить синхронный gRPC-запрос командой удаления через RabbitMQ.
-    // Обеспечить надёжную публикацию и идемпотентную обработку повторных доставок.
-    // Сейчас ждём сохранения FileDeletionJob в Files; физическое удаление выполняет worker.
-    try {
-      await firstValueFrom(
-        this.filesClient.scheduleAttachedFileDeletion({
-          userId: String(params.userId),
-          fileId: params.fileId,
         }),
       );
     } catch (error) {

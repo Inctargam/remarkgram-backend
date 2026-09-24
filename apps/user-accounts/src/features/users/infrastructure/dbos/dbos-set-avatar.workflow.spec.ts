@@ -27,12 +27,15 @@ describe('DbosSetAvatarWorkflow', () => {
     client: { profile, $queryRaw: vi.fn() },
     runTransaction: vi.fn((callback: () => Promise<unknown>) => callback()),
   };
-  const files = { attachAvatarUpload: vi.fn(), scheduleAttachedFileDeletion: vi.fn() };
-  const workflow = new DbosSetAvatarWorkflow(source as unknown as UserAccountsDbosDataSource, files);
+  const files = { attachAvatarUpload: vi.fn() };
+  const queue = { enqueue: vi.fn(), wake: vi.fn() };
+  const workflow = new DbosSetAvatarWorkflow(source as unknown as UserAccountsDbosDataSource, files, queue);
 
   beforeEach(() => {
     vi.clearAllMocks();
     dbos.randomUUID.mockResolvedValue(operationId);
+    queue.enqueue.mockResolvedValue(undefined);
+    queue.wake.mockResolvedValue(undefined);
     source.client.$queryRaw.mockResolvedValue([{ id: 42 }]);
     profile.findUnique.mockResolvedValue({ avatarFileId: previousFileId, avatarUpdateId: null });
     profile.upsert.mockResolvedValue({});
@@ -68,20 +71,38 @@ describe('DbosSetAvatarWorkflow', () => {
     expect(files.attachAvatarUpload.mock.invocationCallOrder[0]).toBeLessThan(
       profile.update.mock.invocationCallOrder[0],
     );
-    expect(files.scheduleAttachedFileDeletion).toHaveBeenCalledWith({ userId: 42, fileId: previousFileId });
-    expect(profile.update.mock.invocationCallOrder[0]).toBeLessThan(
-      files.scheduleAttachedFileDeletion.mock.invocationCallOrder[0],
+    expect(queue.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { userId: 42, fileId: previousFileId } }),
+      source.client,
     );
-    expect(files.scheduleAttachedFileDeletion.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(queue.wake).toHaveBeenCalledWith();
+    expect(profile.update.mock.invocationCallOrder[0]).toBeLessThan(
+      queue.enqueue.mock.invocationCallOrder[0],
+    );
+    expect(queue.enqueue.mock.invocationCallOrder[0]).toBeLessThan(
       profile.updateMany.mock.invocationCallOrder[0],
     );
+  });
+
+  it('does not wait for broker publication before releasing the profile lock', async () => {
+    queue.wake.mockReturnValueOnce(new Promise(() => {}));
+    await workflow.setAvatar(input);
+    expect(queue.enqueue).toHaveBeenCalledOnce();
+    expect(profile.updateMany).toHaveBeenCalledOnce();
+  });
+
+  it('retains the lock if persisting the deletion request fails', async () => {
+    queue.enqueue.mockRejectedValueOnce(new Error('database unavailable'));
+    await expect(workflow.setAvatar(input)).rejects.toThrow('database unavailable');
+    expect(queue.wake).not.toHaveBeenCalled();
+    expect(profile.updateMany).not.toHaveBeenCalled();
   });
 
   it('creates a profile before personal information exists', async () => {
     profile.findUnique.mockResolvedValue(null);
     await workflow.setAvatar(input);
     expect(profile.upsert).toHaveBeenCalled();
-    expect(files.scheduleAttachedFileDeletion).not.toHaveBeenCalled();
+    expect(queue.enqueue).not.toHaveBeenCalled();
   });
 
   it('returns without Files calls for the current avatar', async () => {
@@ -107,7 +128,7 @@ describe('DbosSetAvatarWorkflow', () => {
         where: { userId: 42, avatarUpdateId: operationId },
         data: { avatarUpdateId: null },
       });
-      expect(files.scheduleAttachedFileDeletion).not.toHaveBeenCalled();
+      expect(queue.enqueue).not.toHaveBeenCalled();
     },
   );
 
@@ -128,7 +149,7 @@ describe('DbosSetAvatarWorkflow', () => {
       data: { avatarUpdateId: null },
     });
     expect(profile.update).not.toHaveBeenCalled();
-    expect(files.scheduleAttachedFileDeletion).not.toHaveBeenCalled();
+    expect(queue.enqueue).not.toHaveBeenCalled();
   });
 
   it('does not compensate an unknown code even when the name matches a business error', async () => {
@@ -141,7 +162,7 @@ describe('DbosSetAvatarWorkflow', () => {
     await expect(workflow.setAvatar(input)).rejects.toBe(error);
 
     expect(profile.updateMany).not.toHaveBeenCalled();
-    expect(files.scheduleAttachedFileDeletion).not.toHaveBeenCalled();
+    expect(queue.enqueue).not.toHaveBeenCalled();
   });
 
   it('accepts an already released lock without another profile read', async () => {
@@ -164,7 +185,7 @@ describe('DbosSetAvatarWorkflow', () => {
 
     await expect(workflow.setAvatar(input)).rejects.toBe(error);
 
-    expect(files.scheduleAttachedFileDeletion).not.toHaveBeenCalled();
+    expect(queue.enqueue).not.toHaveBeenCalled();
     expect(profile.update).toHaveBeenCalledTimes(1);
     expect(profile.updateMany).not.toHaveBeenCalled();
   });
@@ -178,10 +199,10 @@ describe('DbosSetAvatarWorkflow', () => {
     await workflow.setAvatar(input);
 
     expect(profile.upsert).not.toHaveBeenCalled();
-    expect(files.scheduleAttachedFileDeletion).toHaveBeenCalledExactlyOnceWith({
-      userId: input.userId,
-      fileId: previousFileId,
-    });
+    expect(queue.enqueue).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ data: { userId: input.userId, fileId: previousFileId } }),
+      source.client,
+    );
   });
 
   it('replays an unchanged avatar from the transaction checkpoint', async () => {
@@ -190,18 +211,21 @@ describe('DbosSetAvatarWorkflow', () => {
     await workflow.setAvatar(input);
 
     expect(files.attachAvatarUpload).not.toHaveBeenCalled();
-    expect(files.scheduleAttachedFileDeletion).not.toHaveBeenCalled();
+    expect(queue.enqueue).not.toHaveBeenCalled();
     expect(profile.updateMany).not.toHaveBeenCalled();
   });
 
   it('deletes the new attached file if the user was deleted before commit', async () => {
     source.client.$queryRaw.mockResolvedValueOnce([{ id: 42 }]).mockResolvedValueOnce([]);
     await expect(workflow.setAvatar(input)).rejects.toMatchObject({ code: Code.USER_NOT_FOUND });
-    expect(files.scheduleAttachedFileDeletion).toHaveBeenCalledExactlyOnceWith(input);
+    expect(queue.enqueue).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ data: input }),
+      source.client,
+    );
     expect(profile.updateMany).toHaveBeenCalledTimes(1);
   });
 
-  it.each(['attachAvatarUpload', 'scheduleAttachedFileDeletion'] as const)(
+  it.each(['attachAvatarUpload'] as const)(
     'does not retry a lost %s response or compensate an unknown outcome',
     async (method) => {
       files[method].mockRejectedValueOnce(new AvatarFilesUnavailableError());
@@ -221,7 +245,10 @@ describe('DbosSetAvatarWorkflow', () => {
 
     await expect(workflow.setAvatar(input)).rejects.toBe(replay);
 
-    expect(files.scheduleAttachedFileDeletion).toHaveBeenCalledExactlyOnceWith(input);
+    expect(queue.enqueue).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ data: input }),
+      source.client,
+    );
     expect(profile.updateMany).toHaveBeenLastCalledWith({
       where: { userId: 42, avatarUpdateId: operationId },
       data: { avatarUpdateId: null },
@@ -283,7 +310,7 @@ describe('DbosSetAvatarWorkflow', () => {
     expect(profile.update).toHaveBeenCalledTimes(1);
     expect(profile.updateMany).not.toHaveBeenCalled();
     expect(files.attachAvatarUpload).toHaveBeenCalledTimes(1);
-    expect(files.scheduleAttachedFileDeletion).not.toHaveBeenCalled();
+    expect(queue.enqueue).not.toHaveBeenCalled();
   });
 
   it('retains the lock and logs unexpected failures for recovery', async () => {

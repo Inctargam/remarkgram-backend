@@ -1,3 +1,5 @@
+import type { DeleteAvatarRequest, DeleteAvatarResponse } from '@app/user-accounts-grpc';
+import { DeleteAvatarCommand } from '../../../application/use-cases/delete-avatar.use-case.js';
 import { Controller, UseFilters } from '@nestjs/common';
 import type { SetAvatarRequest, SetAvatarResponse } from '@app/user-accounts-grpc';
 import { SetAvatarCommand } from '../../../application/use-cases/set-avatar.use-case.js';
@@ -36,6 +38,11 @@ export class UsersGrpcController {
     private readonly queryBus: QueryBus,
     private commandBus: CommandBus,
   ) {}
+
+  async deleteAvatar(request: DeleteAvatarRequest): Promise<DeleteAvatarResponse> {
+    await this.commandBus.execute(new DeleteAvatarCommand(request));
+    return {};
+  }
 
   async setAvatar(request: SetAvatarRequest): Promise<SetAvatarResponse> {
     await this.commandBus.execute(new SetAvatarCommand(request));

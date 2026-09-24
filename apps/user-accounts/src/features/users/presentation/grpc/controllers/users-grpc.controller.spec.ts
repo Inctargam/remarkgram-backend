@@ -1,3 +1,4 @@
+import { DeleteAvatarCommand } from '../../../application/use-cases/delete-avatar.use-case.js';
 import { SetAvatarCommand } from '../../../application/use-cases/set-avatar.use-case.js';
 import { status } from '@grpc/grpc-js';
 import type { UpdateProfileInfoRequest } from '@app/user-accounts-grpc';
@@ -33,6 +34,13 @@ describe(UsersGrpcController.name, () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('delegates avatar deletion to the command bus', async () => {
+    const request = { userId: 42, idempotencyKey: '22222222-2222-4222-8222-222222222222' };
+    commandExecute.mockResolvedValue(undefined);
+    await expect(controller.deleteAvatar(request)).resolves.toEqual({});
+    expect(commandExecute).toHaveBeenCalledExactlyOnceWith(new DeleteAvatarCommand(request));
   });
 
   it('delegates avatar installation to the command bus', async () => {

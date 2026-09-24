@@ -15,7 +15,6 @@ import { UserAccountsErrorCode as Code } from '../../../../common/application/er
 describe('GrpcAvatarFilesGateway', () => {
   const client = {
     attachAvatarUpload: vi.fn(),
-    scheduleAttachedFileDeletion: vi.fn(),
   };
   const gateway = new GrpcAvatarFilesGateway({ getService: () => client } as unknown as ClientGrpc);
   const params = {
@@ -32,11 +31,6 @@ describe('GrpcAvatarFilesGateway', () => {
   it('forwards avatar attachment to Files', async () => {
     await gateway.attachAvatarUpload(params);
     expect(client.attachAvatarUpload).toHaveBeenCalledWith({ ...params, userId: '42' });
-  });
-
-  it('schedules deletion through Files', async () => {
-    await gateway.scheduleAttachedFileDeletion({ userId: 42, fileId: params.fileId });
-    expect(client.scheduleAttachedFileDeletion).toHaveBeenCalledWith({ userId: '42', fileId: params.fileId });
   });
 
   it.each([
@@ -87,14 +81,10 @@ describe('GrpcAvatarFilesGateway', () => {
     metadata.set(APP_ERROR_CODE_METADATA_KEY, fileCode);
     const error = Object.assign(new Error('Files error'), { code: grpcCode, metadata });
     client.attachAvatarUpload.mockReturnValueOnce(throwError(() => error));
-    client.scheduleAttachedFileDeletion.mockReturnValueOnce(throwError(() => error));
 
     const attach = gateway.attachAvatarUpload(params);
     await expect(attach).rejects.toBeInstanceOf(ErrorType);
     await expect(attach).rejects.toMatchObject({ code });
-    const deletion = gateway.scheduleAttachedFileDeletion(params);
-    await expect(deletion).rejects.toBeInstanceOf(ErrorType);
-    await expect(deletion).rejects.toMatchObject({ code });
   });
 
   it.each([
@@ -111,10 +101,8 @@ describe('GrpcAvatarFilesGateway', () => {
     metadata.set(APP_ERROR_CODE_METADATA_KEY, fileCode);
     const error = Object.assign(new Error('Files error'), { code: grpcCode, metadata });
     client.attachAvatarUpload.mockReturnValueOnce(throwError(() => error));
-    client.scheduleAttachedFileDeletion.mockReturnValueOnce(throwError(() => error));
 
     await expect(gateway.attachAvatarUpload(params)).rejects.toBe(error);
-    await expect(gateway.scheduleAttachedFileDeletion(params)).rejects.toBe(error);
   });
 
   it.each([

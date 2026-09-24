@@ -86,6 +86,14 @@ export interface ResendRegistrationConfirmationRequest {
 export interface ResendRegistrationConfirmationResponse {
 }
 
+export interface DeleteAvatarRequest {
+  userId: number;
+  idempotencyKey: string;
+}
+
+export interface DeleteAvatarResponse {
+}
+
 export interface SetAvatarRequest {
   userId: number;
   fileId: string;
@@ -325,6 +333,8 @@ export const REGISTRATION_SERVICE_NAME = "RegistrationService";
 /** Users */
 
 export interface UsersServiceClient {
+  deleteAvatar(request: DeleteAvatarRequest): Observable<DeleteAvatarResponse>;
+
   setAvatar(request: SetAvatarRequest): Observable<SetAvatarResponse>;
 
   getUsers(request: GetUsersRequest): Observable<GetUsersResponse>;
@@ -341,6 +351,10 @@ export interface UsersServiceClient {
 /** Users */
 
 export interface UsersServiceController {
+  deleteAvatar(
+    request: DeleteAvatarRequest,
+  ): Promise<DeleteAvatarResponse> | Observable<DeleteAvatarResponse> | DeleteAvatarResponse;
+
   setAvatar(request: SetAvatarRequest): Promise<SetAvatarResponse> | Observable<SetAvatarResponse> | SetAvatarResponse;
 
   getUsers(request: GetUsersRequest): Promise<GetUsersResponse> | Observable<GetUsersResponse> | GetUsersResponse;
@@ -365,6 +379,7 @@ export interface UsersServiceController {
 export function UsersServiceControllerMethods() {
   return function (constructor: Function) {
     const grpcMethods: string[] = [
+      "deleteAvatar",
       "setAvatar",
       "getUsers",
       "getCurrentUser",

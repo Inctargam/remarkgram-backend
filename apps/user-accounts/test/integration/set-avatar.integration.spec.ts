@@ -1,3 +1,17 @@
+import { PgBoss, type JobWithMetadata } from 'pg-boss';
+import { PgBossAvatarDeletionOutbox } from '../../src/features/users/infrastructure/pg-boss/pg-boss-avatar-deletion.outbox.js';
+import {
+  AVATAR_DELETION_QUEUE,
+  avatarDeletionBossOptions,
+} from '../../src/features/users/infrastructure/pg-boss/avatar-deletion-queue.options.js';
+import { PrismaAvatarDeletionRequestsRepository } from '../../src/features/users/infrastructure/persistence/repositories/prisma-avatar-deletion-requests.repository.js';
+import { PrismaUsersRepository } from '../../src/features/users/infrastructure/persistence/repositories/prisma-users.repository.js';
+import { PrismaUnitOfWork as UsersUnitOfWork } from '../../src/database/prisma-unit-of-work.js';
+import {
+  DeleteAvatarUseCase,
+  DeleteAvatarCommand,
+} from '../../src/features/users/application/use-cases/delete-avatar.use-case.js';
+import type { IntegrationEvent } from '@app/message-broker';
 import { randomUUID } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -20,7 +34,6 @@ import {
 } from '../../../files/src/application/use-cases/schedule-attached-file-deletion/schedule-attached-file-deletion.use-case.js';
 import {
   AvatarFilesGateway,
-  type AvatarFileParams,
   type AttachAvatarParams,
 } from '../../src/features/users/application/ports/avatar-files.gateway.js';
 import { DbosSetAvatarWorkflow } from '../../src/features/users/infrastructure/dbos/dbos-set-avatar.workflow.js';
@@ -44,7 +57,6 @@ class FilesGateway extends AvatarFilesGateway {
   pauseAttach: (() => Promise<void>) | null = null;
   constructor(
     private readonly repository: PrismaFilesRepository,
-    private readonly deletion: ScheduleAttachedFileDeletionUseCase,
     private readonly unitOfWork: PrismaUnitOfWork,
   ) {
     super();
@@ -71,10 +83,6 @@ class FilesGateway extends AvatarFilesGateway {
     }
     this.maybeLose('attach');
   }
-  async scheduleAttachedFileDeletion(params: AvatarFileParams) {
-    await this.deletion.execute(new ScheduleAttachedFileDeletionCommand(params));
-    this.maybeLose('delete');
-  }
   private maybeLose(operation: string) {
     if (this.loseNext === operation) {
       this.loseNext = null;
@@ -94,6 +102,21 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
   let deletion: ScheduleAttachedFileDeletionUseCase;
   let gateway: FilesGateway;
   let workflow: DbosSetAvatarWorkflow;
+  let boss: PgBoss;
+  let queue: PgBossAvatarDeletionOutbox;
+  const jobs = () => boss.findJobs(AVATAR_DELETION_QUEUE);
+  const pendingJobs = async () => (await jobs()).filter((job) => job.state !== 'completed');
+  async function waitForJobs(check: (jobs: JobWithMetadata[]) => void) {
+    await vi.waitFor(
+      async () => {
+        queue.wake();
+        check(await jobs());
+      },
+      { timeout: 5000 },
+    );
+  }
+  let deleteAvatar: DeleteAvatarUseCase;
+  const publisher = { publish: vi.fn<(event: IntegrationEvent) => Promise<void>>() };
 
   async function createDatabase(app: string): Promise<string> {
     const name = `avatar_${app.replace('-', '_')}_${randomUUID().replaceAll('-', '')}`;
@@ -130,8 +153,18 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
       new PrismaFileDeletionJobsRepository(files),
       new PrismaUnitOfWork(files),
     );
-    gateway = new FilesGateway(repository, deletion, new PrismaUnitOfWork(files));
-    workflow = new DbosSetAvatarWorkflow(new UserAccountsDbosDataSource(prisma), gateway);
+    gateway = new FilesGateway(repository, new PrismaUnitOfWork(files));
+    boss = new PgBoss({ ...avatarDeletionBossOptions, connectionString: usersUrl });
+    queue = new PgBossAvatarDeletionOutbox(boss, publisher);
+    await queue.start();
+    await boss.updateQueue(AVATAR_DELETION_QUEUE, { retryDelay: 1 });
+    deleteAvatar = new DeleteAvatarUseCase(
+      new UsersUnitOfWork(prisma),
+      new PrismaUsersRepository(prisma),
+      new PrismaAvatarDeletionRequestsRepository(),
+      queue,
+    );
+    workflow = new DbosSetAvatarWorkflow(new UserAccountsDbosDataSource(prisma), gateway, queue);
     DBOS.setConfig({
       name: 'avatar-integration',
       applicationVersion: 'set-avatar-v1-test',
@@ -145,6 +178,17 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
   }, 60_000);
 
   beforeEach(async () => {
+    publisher.publish.mockReset();
+    publisher.publish.mockImplementation(async (event) => {
+      await deletion.execute(
+        new ScheduleAttachedFileDeletionCommand({
+          userId: Number(event.data.userId),
+          fileId: event.data.fileId as string,
+        }),
+      );
+    });
+    await boss.deleteAllJobs(AVATAR_DELETION_QUEUE);
+    await prisma.avatarDeletionRequest.deleteMany();
     gateway.loseNext = null;
     gateway.pauseAttach = null;
     await files.fileDeletionJob.deleteMany();
@@ -165,6 +209,7 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
 
   afterAll(async () => {
     if (DBOS.isInitialized()) await DBOS.shutdown({ deregister: true });
+    await queue?.stop();
     await prisma?.$disconnect();
     await files?.$disconnect();
     for (const name of names) await admin.query(`DROP DATABASE "${name}" WITH (FORCE)`);
@@ -190,6 +235,123 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
   }
   const params = (fileId: string) => ({ userId, fileId, workflowId: `set-avatar:${userId}:${randomUUID()}` });
 
+  it('deletes atomically, keeps personal fields, and does not delete a new avatar on an old key replay', async () => {
+    const old = await newFile({ uploadStatus: 'ATTACHED' });
+    await prisma.profile.create({ data: { userId, avatarFileId: old.id, firstName: 'Kept' } });
+    const command = new DeleteAvatarCommand({ userId, idempotencyKey: randomUUID() });
+    publisher.publish.mockRejectedValue(new Error('broker offline'));
+    await Promise.all([deleteAvatar.execute(command), deleteAvatar.execute(command)]);
+    expect(await prisma.profile.findUnique({ where: { userId } })).toMatchObject({
+      avatarFileId: null,
+      avatarUpdateId: null,
+      firstName: 'Kept',
+    });
+    expect((await jobs()).length).toBe(1);
+    expect(await prisma.avatarDeletionRequest.count()).toBe(1);
+    await waitForJobs((jobs) => expect(jobs[0].output).toMatchObject({ message: 'broker offline' }));
+    const next = await newFile();
+    await workflow.execute(params(next.id));
+    await deleteAvatar.execute(command);
+    expect((await prisma.profile.findUniqueOrThrow({ where: { userId } })).avatarFileId).toBe(next.id);
+    publisher.publish.mockImplementation(async (event) => {
+      await deletion.execute(
+        new ScheduleAttachedFileDeletionCommand({
+          userId: Number(event.data.userId),
+          fileId: event.data.fileId as string,
+        }),
+      );
+    });
+    await waitForJobs((jobs) => expect(jobs[0].state).toBe('completed'));
+    expect(await files.fileDeletionJob.count({ where: { fileId: old.id } })).toBe(1);
+    expect(await files.file.findUnique({ where: { id: next.id } })).toMatchObject({ deletedAt: null });
+  });
+
+  it('records a no-avatar deletion without creating a profile or message', async () => {
+    const command = new DeleteAvatarCommand({ userId, idempotencyKey: randomUUID() });
+    await deleteAvatar.execute(command);
+    expect(await prisma.profile.count()).toBe(0);
+    expect((await jobs()).length).toBe(0);
+    expect(await prisma.avatarDeletionRequest.count()).toBe(1);
+    const file = await newFile();
+    await workflow.execute(params(file.id));
+    await deleteAvatar.execute(command);
+    expect((await prisma.profile.findUniqueOrThrow({ where: { userId } })).avatarFileId).toBe(file.id);
+  });
+
+  it('rejects a missing user and active semantic lock without persisting a request', async () => {
+    await expect(
+      deleteAvatar.execute(new DeleteAvatarCommand({ userId: 999, idempotencyKey: randomUUID() })),
+    ).rejects.toMatchObject({ code: Code.USER_NOT_FOUND });
+    await prisma.profile.create({ data: { userId, avatarUpdateId: randomUUID() } });
+    await expect(
+      deleteAvatar.execute(new DeleteAvatarCommand({ userId, idempotencyKey: randomUUID() })),
+    ).rejects.toMatchObject({ code: Code.AVATAR_UPDATE_CONFLICT });
+    expect(await prisma.avatarDeletionRequest.count()).toBe(0);
+    expect((await jobs()).length).toBe(0);
+  });
+
+  it('rolls back the profile and request journal if queue insertion fails', async () => {
+    const file = await newFile({ uploadStatus: 'ATTACHED' });
+    await prisma.profile.create({ data: { userId, avatarFileId: file.id } });
+    const failing = new DeleteAvatarUseCase(
+      new UsersUnitOfWork(prisma),
+      new PrismaUsersRepository(prisma),
+      new PrismaAvatarDeletionRequestsRepository(),
+      { enqueue: () => Promise.reject(new Error('enqueue failed')), wake: vi.fn() },
+    );
+    await expect(
+      failing.execute(new DeleteAvatarCommand({ userId, idempotencyKey: randomUUID() })),
+    ).rejects.toThrow('enqueue failed');
+    expect((await prisma.profile.findUniqueOrThrow({ where: { userId } })).avatarFileId).toBe(file.id);
+    expect(await prisma.avatarDeletionRequest.count()).toBe(0);
+    expect((await jobs()).length).toBe(0);
+  });
+
+  it('continues SetAvatar after losing publication acknowledgement and safely publishes again', async () => {
+    const old = await newFile({ uploadStatus: 'ATTACHED' });
+    await prisma.profile.create({ data: { userId, avatarFileId: old.id } });
+    const next = await newFile();
+    publisher.publish.mockImplementationOnce(async (event) => {
+      await deletion.execute(
+        new ScheduleAttachedFileDeletionCommand({ userId, fileId: event.data.fileId as string }),
+      );
+      throw new Error('confirmation lost');
+    });
+    await workflow.execute(params(next.id));
+    expect(await prisma.profile.findUnique({ where: { userId } })).toMatchObject({
+      avatarFileId: next.id,
+      avatarUpdateId: null,
+    });
+    await waitForJobs((jobs) => expect(jobs[0].output).toMatchObject({ message: 'confirmation lost' }));
+    const eventId = (await jobs())[0].id;
+    await waitForJobs((jobs) => expect(jobs[0].state).toBe('completed'));
+    expect(publisher.publish.mock.calls.map(([event]) => event.eventId)).toEqual([eventId, eventId]);
+    expect(await files.fileDeletionJob.count()).toBe(1);
+  });
+
+  it('rolls back an enqueued job together with the profile and request journal', async () => {
+    const file = await newFile({ uploadStatus: 'ATTACHED' });
+    await prisma.profile.create({ data: { userId, avatarFileId: file.id } });
+    const failing = new DeleteAvatarUseCase(
+      new UsersUnitOfWork(prisma),
+      new PrismaUsersRepository(prisma),
+      new PrismaAvatarDeletionRequestsRepository(),
+      {
+        enqueue: async (event, tx) => {
+          await queue.enqueue(event, tx);
+          throw new Error('commit failed');
+        },
+        wake: vi.fn(),
+      },
+    );
+    await expect(
+      failing.execute(new DeleteAvatarCommand({ userId, idempotencyKey: randomUUID() })),
+    ).rejects.toThrow('commit failed');
+    expect((await prisma.profile.findUniqueOrThrow({ where: { userId } })).avatarFileId).toBe(file.id);
+    expect(await prisma.avatarDeletionRequest.count()).toBe(0);
+    expect(await jobs()).toHaveLength(0);
+  });
+
   it('installs before profile completion, replaces, preserves personal fields and replays old keys', async () => {
     const first = await newFile();
     const firstParams = params(first.id);
@@ -210,6 +372,7 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
       deletedAt: null,
     });
     expect(await repository.findAvailableById({ id: second.id })).toMatchObject({ id: second.id });
+    await vi.waitFor(async () => expect((await pendingJobs()).length).toBe(0));
     expect(await files.fileDeletionJob.count({ where: { fileId: first.id } })).toBe(1);
     await deletion.execute(new ScheduleAttachedFileDeletionCommand({ userId, fileId: first.id }));
     expect(await files.fileDeletionJob.count()).toBe(1);
@@ -263,6 +426,9 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
     const running = workflow.execute(params(first.id));
     try {
       await attached;
+      await expect(
+        deleteAvatar.execute(new DeleteAvatarCommand({ userId, idempotencyKey: randomUUID() })),
+      ).rejects.toMatchObject({ code: Code.AVATAR_UPDATE_CONFLICT });
       await expect(workflow.execute(params(second.id))).rejects.toMatchObject({
         code: Code.AVATAR_UPDATE_CONFLICT,
       });
@@ -328,7 +494,7 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
     },
   );
 
-  it.each(['attach', 'delete'])(
+  it.each(['attach'])(
     'records a lost %s response without retrying or compensating an unknown result',
     async (operation) => {
       const old = await newFile({ uploadStatus: 'ATTACHED' });
@@ -388,6 +554,7 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
       await prisma.user.update({ where: { id: userId }, data: { deletedAt: new Date() } });
     };
     await expect(workflow.execute(params(file.id))).rejects.toMatchObject({ code: Code.USER_NOT_FOUND });
+    await vi.waitFor(async () => expect((await pendingJobs()).length).toBe(0));
     expect(await files.fileDeletionJob.count({ where: { fileId: file.id } })).toBe(1);
     expect(await prisma.profile.findUnique({ where: { userId } })).toMatchObject({
       avatarFileId: null,
@@ -672,7 +839,7 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
     expect(await repository.deleteClaimedImageUpload({ uploadId: claimed.id, claimedAt: now })).toBe(true);
   });
 
-  it.each(['after-attach', 'after-commit'])(
+  it.each(['after-attach', 'after-commit', 'after-enqueue'])(
     'recovers after process death %s using the original operation and checkpoints',
     async (crashAt) => {
       const old = await newFile({ uploadStatus: 'ATTACHED' });
@@ -728,6 +895,7 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
       expect(await files.file.count({ where: { attachmentOperationId: { not: null } } })).toBe(1);
       expect(await files.imageUploadReservation.count()).toBe(0);
       expect(await files.fileDeletionJob.count({ where: { fileId: old.id } })).toBe(1);
+      expect(await jobs()).toHaveLength(1);
     },
     60_000,
   );

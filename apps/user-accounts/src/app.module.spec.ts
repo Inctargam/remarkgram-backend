@@ -9,6 +9,7 @@ describe('UserAccountsModule', () => {
 
   it('resolves auth, users and sessions without circular module dependencies', async () => {
     vi.stubEnv('NODE_ENV', 'testing');
+    vi.stubEnv('AMQPS_URL', 'amqp://guest:guest@localhost:5672');
     vi.stubEnv('JWT_PRIVATE_KEY', 'private-key');
     vi.stubEnv('ACCESS_TOKEN_EXPIRES_IN', '10m');
     vi.stubEnv('REFRESH_TOKEN_EXPIRES_IN', '20m');

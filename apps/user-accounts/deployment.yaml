@@ -120,3 +120,8 @@ spec:
                  secretKeyRef:
                    name: remarkgram-user-accounts-production-config-secret
                    key: USER_ACCOUNTS_DBOS_SYSTEM_DATABASE_URL
+             - name: AMQPS_URL
+               valueFrom:
+                 secretKeyRef:
+                   name: remarkgram-user-accounts-production-config-secret
+                   key: AMQPS_URL

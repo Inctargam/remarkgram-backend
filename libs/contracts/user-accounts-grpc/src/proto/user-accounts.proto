@@ -90,6 +90,7 @@ message ResendRegistrationConfirmationResponse {}
 
 // Users
 service UsersService {
+    rpc DeleteAvatar(DeleteAvatarRequest) returns (DeleteAvatarResponse);
     rpc SetAvatar(SetAvatarRequest) returns (SetAvatarResponse);
     rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
     rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse);
@@ -97,6 +98,12 @@ service UsersService {
     rpc GetPublicProfile(GetPublicProfileRequest) returns (GetPublicProfileResponse);
     rpc GetMyProfile(GetMyProfileRequest) returns (GetMyProfileResponse);
 }
+message DeleteAvatarRequest {
+    int32 userId = 1;
+    string idempotencyKey = 2;
+}
+message DeleteAvatarResponse {}
+
 message SetAvatarRequest {
     int32 user_id = 1;
     string file_id = 2;

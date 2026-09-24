@@ -1,3 +1,9 @@
+import { PgBoss } from 'pg-boss';
+import { PgBossAvatarDeletionOutbox } from '../../../../dist/apps/user-accounts/apps/user-accounts/src/features/users/infrastructure/pg-boss/pg-boss-avatar-deletion.outbox.js';
+import {
+  AVATAR_DELETION_QUEUE,
+  avatarDeletionBossOptions,
+} from '../../../../dist/apps/user-accounts/apps/user-accounts/src/features/users/infrastructure/pg-boss/avatar-deletion-queue.options.js';
 // Run only against disposable databases created by set-avatar.integration.spec.ts.
 // Build Files and user-accounts before this test so a real Node process can be killed/restarted.
 import { DBOS } from '@dbos-inc/dbos-sdk';
@@ -27,15 +33,25 @@ dataSource.runTransaction = async (callback, config) => {
   const result = await transaction(callback, config);
   if (config.name === 'updateProfileAvatar' && process.env.AVATAR_CRASH_AT === 'after-commit')
     process.kill(process.pid, 'SIGKILL');
+  if (config.name === 'scheduleFileDeletion' && process.env.AVATAR_CRASH_AT === 'after-enqueue')
+    process.kill(process.pid, 'SIGKILL');
   return result;
 };
-const workflow = new DbosSetAvatarWorkflow(dataSource, {
-  attachAvatarUpload: async (params) => {
-    await new AttachAvatarUploadUseCase(repository, new PrismaUnitOfWork(files)).execute({ params });
-    if (process.env.AVATAR_CRASH_AT === 'after-attach') process.kill(process.pid, 'SIGKILL');
-  },
-  scheduleAttachedFileDeletion: (params) => deletion.execute({ params }),
+const boss = new PgBoss({ ...avatarDeletionBossOptions, connectionString: process.env.AVATAR_USERS_URL });
+const queue = new PgBossAvatarDeletionOutbox(boss, {
+  publish: (event) => deletion.execute({ params: event.data }),
 });
+await queue.start();
+const workflow = new DbosSetAvatarWorkflow(
+  dataSource,
+  {
+    attachAvatarUpload: async (params) => {
+      await new AttachAvatarUploadUseCase(repository, new PrismaUnitOfWork(files)).execute({ params });
+      if (process.env.AVATAR_CRASH_AT === 'after-attach') process.kill(process.pid, 'SIGKILL');
+    },
+  },
+  queue,
+);
 await PrismaDataSource.initializeDBOSSchema(prisma);
 DBOS.setConfig({
   name: 'avatar-integration',
@@ -49,8 +65,15 @@ DBOS.setConfig({
 try {
   await DBOS.launch();
   await workflow.execute(input);
+  const deadline = Date.now() + 10000;
+  while ((await boss.findJobs(AVATAR_DELETION_QUEUE)).some((job) => job.state !== 'completed')) {
+    if (Date.now() > deadline) throw new Error('Publication did not complete');
+    queue.wake();
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
 } finally {
   await DBOS.shutdown();
+  await queue.stop();
   await prisma.$disconnect();
   await files.$disconnect();
 }
