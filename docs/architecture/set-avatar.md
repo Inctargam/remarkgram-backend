@@ -21,7 +21,7 @@ Content-Type: application/json
 `GET /api/v1/users/me/profile` и `GET /api/v1/users/{userId}/profile` возвращают `avatarFileId`;
 `GET /api/v1/files/images/{fileId}` перенаправляет на подписанный URL изображения.
 `/auth/me` не изменён. Профиль создаётся при первой установке, даже если персональные поля
-ещё не заполнены. Отдельное удаление аватара в этот сценарий не входит.
+ещё не заполнены. Отдельное удаление описано в [delete-avatar.md](delete-avatar.md).
 
 ## Идемпотентность и ошибки
 
@@ -56,7 +56,8 @@ sequenceDiagram
     UA->>Profile: Проверить User, занять avatarUpdateId, сохранить прежний fileId
     UA->>Files: AttachAvatarUpload: проверить метаданные и COMPLETED → ATTACHED
     UA->>Profile: Записать avatarFileId при совпадении avatarUpdateId
-    UA->>Files: ScheduleAttachedFileDeletion для прежнего файла
+    UA->>Profile: Сохранить задачу pg-boss для прежнего файла вместе с checkpoint
+    UA-->>Files: Фоновая доставка через RabbitMQ
     UA->>Profile: Очистить avatarUpdateId
     Note over UA: Вернуть 204
 ```
@@ -67,13 +68,12 @@ sequenceDiagram
 редактирование остальных полей разрешено. До переключения ссылки читатели видят старый аватар.
 Изменения Profile и checkpoint DBOS фиксируются одной транзакцией прикладной БД.
 
-Вызовы Files оформлены двумя `@DBOS.step()` методами: `attachAvatar` и `scheduleFileDeletion`
-(последний используется также для компенсации). `acquireAvatarUpdate`, `updateProfileAvatar`
-и `releaseAvatarUpdate`
-выполняются через `PrismaDataSource.runTransaction`: это отдельные durable-транзакции DBOS,
-сохраняющие изменение данных вместе с checkpoint. Вложенный `@DBOS.step()` им не нужен.
-Подготовка возвращает `alreadyCurrent` и `previousAvatarFileId`; эти же поля сохраняются
-в checkpoint транзакции. Имена шагов в истории совпадают с названиями методов.
+Вызов Files `attachAvatar` оформлен как `@DBOS.step()`. Методы `acquireAvatarUpdate`,
+`updateProfileAvatar`, постановка задачи pg-boss в `scheduleFileDeletion` и `releaseAvatarUpdate`
+используют `PrismaDataSource.runTransaction`: изменения данных и checkpoint фиксируются вместе.
+`startFileDeletionPublication` — отдельный `@DBOS.step()`, который запускает отправку сохранённого
+сообщения в фоне. Завершение отправки не блокирует workflow; ошибки сохраняет pg-boss.
+Захват блокировки возвращает `alreadyCurrent` и `previousAvatarFileId`, сохранённые в checkpoint.
 
 `AttachAvatarUpload(userId, fileId, operationId)` атомарно прикрепляет файл и проверяет его
 размер/формат в одной транзакции Files. Ошибка откатывает все изменения. Условное обновление
@@ -106,7 +106,7 @@ Files уже откатила прикрепление. Отдельного р�
 или недопустимых метаданных; остальные ошибки сохраняются без компенсации.
 Если файл уже прикреплён, но пользователя удалили до записи профиля, новый файл ставится
 на удаление. После успешного переключения новый аватар сохраняется, даже если постановка
-старого файла на удаление временно не удаётся. Блокировка освобождается после постановки.
+старого файла на удаление временно не удаётся. Блокировка освобождается после сохранения задачи pg-boss.
 
 Files атомарно выполняет soft delete принадлежащего пользователю `ATTACHED`-файла и создаёт
 `FileDeletionJob`. Повтор для удалённого/отсутствующего файла безопасен; чужой файл не изменяется.
@@ -114,20 +114,24 @@ Files атомарно выполняет soft delete принадлежащег
 Ожидания физического удаления в SetAvatar нет. До установки `COMPLETED` по-прежнему
 подлежит очистке через 24 часа; `RESERVED` и `ATTACHED` этой очисткой не затрагиваются.
 
-TODO(rabbitmq): перевести отправку команды удаления конкретного файла на RabbitMQ,
-обеспечив надёжную публикацию и идемпотентную обработку повторных доставок. Пока
-user-accounts синхронно вызывает `ScheduleAttachedFileDeletion(userId, fileId)` по gRPC
-и ожидает сохранения задачи в Files. Физическое удаление остаётся за существующим worker.
+Запрос удаления теперь сохраняется в pg-boss в БД user-accounts. После commit выполняется немедленная
+фоновая отправка через RabbitMQ; резервный проход — раз в 6 часов. Недоступность брокера
+не удерживает блокировку профиля: для завершения workflow достаточно сохранённой задачи pg-boss.
+При ошибке самой транзакции постановки задачи блокировка остаётся для восстановления DBOS.
+Подробности доставки и настройка панели: [delete-avatar.md](delete-avatar.md).
 
 ## Настройка и развёртывание
 
-1. Подготовить `FILES_GRPC_URL` и `USER_ACCOUNTS_DBOS_SYSTEM_DATABASE_URL` в окружении
+Перед обновлением завершить активные workflow: шаг удаления теперь сохраняет задачу pg-boss.
+
+1. Подготовить `AMQPS_URL`, `FILES_GRPC_URL` и `USER_ACCOUNTS_DBOS_SYSTEM_DATABASE_URL` в окружении
    user-accounts / secret `remarkgram-user-accounts-production-config-secret`.
    Системное подключение DBOS должно быть прямым либо session-pooled.
 2. Применить миграции Files (`pnpm prisma:files:migrate:deploy`) и user-accounts
    (`pnpm prisma:user-accounts:migrate:deploy`) до запуска обновлённых сервисов.
    Они добавляют nullable `files.attachmentOperationId` с уникальным индексом и
-   `profiles.avatar_update_id`; существующие значения — `NULL`.
+   `profiles.avatar_update_id`; существующие значения — `NULL`. Миграция удаления аватара
+   создаёт `avatar_deletion_requests` в user-accounts. Схему `pgboss` создаёт библиотека при запуске.
 3. Развернуть Files с новыми RPC, затем user-accounts, затем Gateway.
 4. Проверить установку, замену, чтение профиля и редирект изображения.
 
