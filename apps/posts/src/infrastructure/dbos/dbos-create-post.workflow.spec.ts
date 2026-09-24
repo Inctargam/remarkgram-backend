@@ -165,6 +165,49 @@ describe('DbosCreatePostWorkflow', () => {
     });
   });
 
+  it('releases the reservation after replaying a transaction conflict without code', async () => {
+    const replay = Object.assign(new Error('Stored image conflict'), {
+      name: 'PostImageAlreadyAttachedError',
+    });
+    dataSource.runTransaction.mockRejectedValueOnce(replay);
+
+    await expect(workflow.execute(params)).rejects.toBeInstanceOf(PostImageAlreadyAttachedError);
+
+    expect(post.create).not.toHaveBeenCalled();
+    expect(imageUploadsGateway.releaseReservedImageUploads).toHaveBeenCalledExactlyOnceWith({
+      userId: 42,
+      reservationId,
+    });
+    expect(imageUploadsGateway.attachReservedImageUploads).not.toHaveBeenCalled();
+  });
+
+  it.each([PostImageNotFoundError, PostImagesNotAvailableError])(
+    'compensates a replayed attach rejection: %s',
+    async (ErrorType) => {
+      const replay = Object.assign(new Error('Stored attach rejection'), { name: ErrorType.name });
+      imageUploadsGateway.attachReservedImageUploads.mockRejectedValueOnce(replay);
+
+      await expect(workflow.execute(params)).rejects.toBeInstanceOf(ErrorType);
+
+      expect(imageUploadsGateway.releaseReservedImageUploads).toHaveBeenCalledOnce();
+      expect(post.deleteMany).toHaveBeenCalledWith({ where: { id: 10, publishedAt: null } });
+      expect(post.updateMany).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not compensate Files unavailability replayed without code', async () => {
+    const replay = Object.assign(new Error('Stored transport failure'), {
+      name: 'ImageUploadsServiceUnavailableError',
+    });
+    imageUploadsGateway.attachReservedImageUploads.mockRejectedValueOnce(replay);
+
+    await expect(workflow.execute(params)).rejects.toBeInstanceOf(ImageUploadsServiceUnavailableError);
+
+    expect(imageUploadsGateway.releaseReservedImageUploads).not.toHaveBeenCalled();
+    expect(post.deleteMany).not.toHaveBeenCalled();
+    expect(post.updateMany).not.toHaveBeenCalled();
+  });
+
   it('does not compensate an ambiguous local persistence error', async () => {
     const error = new Error('Database connection was lost');
     post.create.mockRejectedValue(error);

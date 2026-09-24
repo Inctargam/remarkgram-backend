@@ -1,24 +1,14 @@
-import {
-  type AttachReservedImageUploadsRequest,
-  type AttachReservedImageUploadsResponse,
-  FilesErrorCode,
-  type ReleaseReservedImageUploadsRequest,
-  type ReleaseReservedImageUploadsResponse,
-  type ReserveImageUploadsRequest,
-  type ReserveImageUploadsResponse,
-} from '@app/files-grpc';
+import { FilesErrorCode, type FilesServiceClient } from '@app/files-grpc';
 import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
-import { Metadata, type CallOptions, type ServiceError, status } from '@grpc/grpc-js';
+import { Metadata, type ServiceError, status } from '@grpc/grpc-js';
 import type { ClientGrpc } from '@nestjs/microservices';
-import { of, throwError, type Observable } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import {
   ImageUploadsServiceUnavailableError,
   PostImageNotFoundError,
   PostImagesNotAvailableError,
 } from '../../application/errors/create-post.errors.js';
 import { GrpcImageUploadsGateway } from './grpc-image-uploads.gateway.js';
-
-type UnaryCall<Request, Response> = (request: Request, options?: CallOptions) => Observable<Response>;
 
 const createServiceError = (grpcStatus: status, filesErrorCode?: FilesErrorCode): ServiceError => {
   const metadata = new Metadata();
@@ -35,11 +25,9 @@ const createServiceError = (grpcStatus: status, filesErrorCode?: FilesErrorCode)
 };
 
 describe('GrpcImageUploadsGateway', () => {
-  const reserveImageUploads = vi.fn<UnaryCall<ReserveImageUploadsRequest, ReserveImageUploadsResponse>>();
-  const attachReservedImageUploads =
-    vi.fn<UnaryCall<AttachReservedImageUploadsRequest, AttachReservedImageUploadsResponse>>();
-  const releaseReservedImageUploads =
-    vi.fn<UnaryCall<ReleaseReservedImageUploadsRequest, ReleaseReservedImageUploadsResponse>>();
+  const reserveImageUploads = vi.fn<FilesServiceClient['reserveImageUploads']>();
+  const attachReservedImageUploads = vi.fn<FilesServiceClient['attachReservedImageUploads']>();
+  const releaseReservedImageUploads = vi.fn<FilesServiceClient['releaseReservedImageUploads']>();
   const grpcClient = {
     getService: vi.fn(() => ({
       attachReservedImageUploads,
@@ -49,11 +37,8 @@ describe('GrpcImageUploadsGateway', () => {
   };
   const gateway = new GrpcImageUploadsGateway(grpcClient as unknown as ClientGrpc);
   const reservationId = '22222222-2222-4222-8222-222222222222';
-  const deadline = new Date('2030-01-01T00:00:05.000Z');
 
   beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
     reserveImageUploads.mockReset();
     attachReservedImageUploads.mockReset();
     releaseReservedImageUploads.mockReset();
@@ -61,19 +46,15 @@ describe('GrpcImageUploadsGateway', () => {
     gateway.onModuleInit();
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('forwards attachment of reserved image uploads with a deadline', async () => {
+  it('forwards attachment of reserved image uploads', async () => {
     attachReservedImageUploads.mockReturnValue(of({}));
 
     await expect(gateway.attachReservedImageUploads({ userId: 42, reservationId })).resolves.toBeUndefined();
 
-    expect(attachReservedImageUploads).toHaveBeenCalledWith({ userId: '42', reservationId }, { deadline });
+    expect(attachReservedImageUploads).toHaveBeenCalledWith({ userId: '42', reservationId });
   });
 
-  it('forwards an image upload reservation with a deadline', async () => {
+  it('forwards an image upload reservation', async () => {
     reserveImageUploads.mockReturnValue(of({}));
 
     await expect(
@@ -84,22 +65,19 @@ describe('GrpcImageUploadsGateway', () => {
       }),
     ).resolves.toBeUndefined();
 
-    expect(reserveImageUploads).toHaveBeenCalledWith(
-      {
-        userId: '42',
-        uploadIds: ['11111111-1111-4111-8111-111111111111'],
-        reservationId,
-      },
-      { deadline },
-    );
+    expect(reserveImageUploads).toHaveBeenCalledWith({
+      userId: '42',
+      uploadIds: ['11111111-1111-4111-8111-111111111111'],
+      reservationId,
+    });
   });
 
-  it('forwards release of reserved image uploads with a deadline', async () => {
+  it('forwards release of reserved image uploads', async () => {
     releaseReservedImageUploads.mockReturnValue(of({}));
 
     await expect(gateway.releaseReservedImageUploads({ userId: 42, reservationId })).resolves.toBeUndefined();
 
-    expect(releaseReservedImageUploads).toHaveBeenCalledWith({ userId: '42', reservationId }, { deadline });
+    expect(releaseReservedImageUploads).toHaveBeenCalledWith({ userId: '42', reservationId });
   });
 
   it.each([
@@ -109,10 +87,22 @@ describe('GrpcImageUploadsGateway', () => {
     'maps Files error %s/%s to a Posts application error',
     async (grpcStatus, filesErrorCode, ErrorType) => {
       reserveImageUploads.mockReturnValue(throwError(() => createServiceError(grpcStatus, filesErrorCode)));
+      attachReservedImageUploads.mockReturnValue(
+        throwError(() => createServiceError(grpcStatus, filesErrorCode)),
+      );
+      releaseReservedImageUploads.mockReturnValue(
+        throwError(() => createServiceError(grpcStatus, filesErrorCode)),
+      );
 
       await expect(
         gateway.reserveImageUploads({ userId: 42, imageIds: ['image-id'], reservationId }),
       ).rejects.toBeInstanceOf(ErrorType);
+      await expect(gateway.attachReservedImageUploads({ userId: 42, reservationId })).rejects.toBeInstanceOf(
+        ErrorType,
+      );
+      await expect(gateway.releaseReservedImageUploads({ userId: 42, reservationId })).rejects.toBeInstanceOf(
+        ErrorType,
+      );
     },
   );
 
@@ -129,10 +119,18 @@ describe('GrpcImageUploadsGateway', () => {
     'maps transport status %s to service unavailable',
     async (grpcStatus) => {
       reserveImageUploads.mockReturnValue(throwError(() => createServiceError(grpcStatus)));
+      attachReservedImageUploads.mockReturnValue(throwError(() => createServiceError(grpcStatus)));
+      releaseReservedImageUploads.mockReturnValue(throwError(() => createServiceError(grpcStatus)));
 
       await expect(
         gateway.reserveImageUploads({ userId: 42, imageIds: ['image-id'], reservationId }),
       ).rejects.toBeInstanceOf(ImageUploadsServiceUnavailableError);
+      await expect(gateway.attachReservedImageUploads({ userId: 42, reservationId })).rejects.toBeInstanceOf(
+        ImageUploadsServiceUnavailableError,
+      );
+      await expect(gateway.releaseReservedImageUploads({ userId: 42, reservationId })).rejects.toBeInstanceOf(
+        ImageUploadsServiceUnavailableError,
+      );
     },
   );
 
@@ -148,9 +146,13 @@ describe('GrpcImageUploadsGateway', () => {
   it('does not hide an unexpected error', async () => {
     const error = new Error('Unexpected failure');
     reserveImageUploads.mockReturnValue(throwError(() => error));
+    attachReservedImageUploads.mockReturnValue(throwError(() => error));
+    releaseReservedImageUploads.mockReturnValue(throwError(() => error));
 
     await expect(
       gateway.reserveImageUploads({ userId: 42, imageIds: ['image-id'], reservationId }),
     ).rejects.toBe(error);
+    await expect(gateway.attachReservedImageUploads({ userId: 42, reservationId })).rejects.toBe(error);
+    await expect(gateway.releaseReservedImageUploads({ userId: 42, reservationId })).rejects.toBe(error);
   });
 });

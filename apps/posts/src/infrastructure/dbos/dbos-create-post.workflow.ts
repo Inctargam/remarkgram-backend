@@ -13,7 +13,7 @@ import type {
   ReleaseReservedImageUploadsParams,
 } from '../../application/types/posts.types.js';
 import { Prisma } from '../prisma/generated/client.js';
-import { getDbosPostsErrorCode, restoreDbosPostsError } from './dbos-posts-error.mapper.js';
+import { getPostsErrorCode, restorePostsError } from './dbos-posts-error.mapper.js';
 import { PostsDbosDataSource } from './posts-dbos.datasource.js';
 
 type WorkflowInput = Omit<CreatePostWorkflowParams, 'workflowId'>;
@@ -51,7 +51,7 @@ export class DbosCreatePostWorkflow extends ConfiguredInstance implements Create
 
       return await handle.getResult();
     } catch (error) {
-      throw restoreDbosPostsError(error);
+      throw restorePostsError(error);
     }
   }
 
@@ -68,7 +68,8 @@ export class DbosCreatePostWorkflow extends ConfiguredInstance implements Create
     try {
       postId = await this.createUnpublishedPost(input);
     } catch (error) {
-      if (getDbosPostsErrorCode(error) === PostsErrorCode.POST_IMAGE_ALREADY_ATTACHED) {
+      const code = getPostsErrorCode(error);
+      if (code === PostsErrorCode.POST_IMAGE_ALREADY_ATTACHED) {
         await this.releaseReservation({ userId: input.userId, reservationId });
       }
 
@@ -78,12 +79,8 @@ export class DbosCreatePostWorkflow extends ConfiguredInstance implements Create
     try {
       await this.attachImages(input.userId, reservationId);
     } catch (error) {
-      const errorCode = getDbosPostsErrorCode(error);
-
-      if (
-        errorCode === PostsErrorCode.POST_IMAGE_NOT_FOUND ||
-        errorCode === PostsErrorCode.POST_IMAGES_NOT_AVAILABLE
-      ) {
+      const code = getPostsErrorCode(error);
+      if (code === PostsErrorCode.POST_IMAGE_NOT_FOUND || code === PostsErrorCode.POST_IMAGES_NOT_AVAILABLE) {
         await this.releaseReservation({ userId: input.userId, reservationId });
         await this.deleteUnpublishedPost(postId);
       }
