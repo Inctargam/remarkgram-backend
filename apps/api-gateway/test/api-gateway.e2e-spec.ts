@@ -67,6 +67,7 @@ describe('ApiGateway (e2e)', () => {
   };
   const usersServiceClient = {
     setAvatar: vi.fn<UsersServiceClient['setAvatar']>(),
+    deleteAvatar: vi.fn<UsersServiceClient['deleteAvatar']>(),
     getUsers: vi.fn<UsersServiceClient['getUsers']>(),
     getCurrentUser: vi.fn<UsersServiceClient['getCurrentUser']>(),
   };
@@ -194,6 +195,7 @@ describe('ApiGateway (e2e)', () => {
       }),
     );
     usersServiceClient.setAvatar.mockReturnValue(of({}));
+    usersServiceClient.deleteAvatar.mockReturnValue(of({}));
     filesServiceClient.completeImageUploads.mockReturnValue(of({}));
     postsServiceClient.createPost.mockReturnValue(of({ id: 10 }));
     jwtService.verifyAsync.mockResolvedValue({
@@ -519,6 +521,85 @@ describe('ApiGateway (e2e)', () => {
     expect(filesTestingServiceClient.deleteAllData).toHaveBeenCalledWith({});
     expect(postsTestingServiceClient.deleteAllData).toHaveBeenCalledWith({});
     expect(userAccountsTestingServiceClient.deleteAllData).toHaveBeenCalledWith({});
+  });
+
+  it('DELETE avatar uses the token owner, normalizes the key and returns an empty 204', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .delete(apiPath('/users/me/profile/avatar'))
+      .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', postIdempotencyKey.toUpperCase())
+      .send({ userId: 999 })
+      .expect(204)
+      .expect('');
+    expect(usersServiceClient.deleteAvatar).toHaveBeenCalledExactlyOnceWith({
+      userId: 1,
+      idempotencyKey: postIdempotencyKey,
+    });
+  });
+
+  it('DELETE avatar requires authorization', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .delete(apiPath('/users/me/profile/avatar'))
+      .set('Idempotency-Key', postIdempotencyKey)
+      .expect(401);
+    expect(usersServiceClient.deleteAvatar).not.toHaveBeenCalled();
+  });
+
+  it.each(['', 'invalid', 'aaaaaaaa-aaaa-1aaa-8aaa-aaaaaaaaaaaa'])(
+    'DELETE avatar rejects invalid key %s',
+    async (key) => {
+      const call = request(app.getHttpServer() as SupertestApp)
+        .delete(apiPath('/users/me/profile/avatar'))
+        .set('Authorization', 'Bearer access-token');
+      if (key) call.set('Idempotency-Key', key);
+      await call.expect(400);
+      expect(usersServiceClient.deleteAvatar).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { grpcStatus: status.NOT_FOUND, httpStatus: 404, code: 'USER_NOT_FOUND' },
+    { grpcStatus: status.FAILED_PRECONDITION, httpStatus: 409, code: 'AVATAR_UPDATE_CONFLICT' },
+  ])('DELETE avatar preserves $code as $httpStatus', async ({ grpcStatus, httpStatus, code }) => {
+    const metadata = new Metadata();
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, code);
+    usersServiceClient.deleteAvatar.mockReturnValueOnce(
+      throwError(() => createServiceError(grpcStatus, code, metadata)),
+    );
+    const response = await request(app.getHttpServer() as SupertestApp)
+      .delete(apiPath('/users/me/profile/avatar'))
+      .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', postIdempotencyKey)
+      .expect(httpStatus);
+    expect(response.body).toMatchObject({ code });
+  });
+
+  it('documents DELETE avatar without a body and with a required key', async () => {
+    const response = await request(app.getHttpServer() as SupertestApp)
+      .get(`/${SWAGGER_PATH}-json`)
+      .expect(200);
+    const document = response.body as {
+      paths: Record<
+        string,
+        {
+          delete: {
+            parameters: unknown[];
+            security: unknown[];
+            requestBody?: unknown;
+            responses: Record<string, unknown>;
+          };
+        }
+      >;
+    };
+    const operation = document.paths[apiPath('/users/me/profile/avatar')].delete;
+    expect(operation.requestBody).toBeUndefined();
+    expect(operation.security).toEqual([{ accessToken: [] }]);
+    expect(operation.parameters).toContainEqual(
+      expect.objectContaining({ name: 'Idempotency-Key', required: true }),
+    );
+    expect(Object.keys(operation.responses)).toEqual(
+      expect.arrayContaining(['204', '400', '401', '404', '409']),
+    );
   });
 
   const avatarFileId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
