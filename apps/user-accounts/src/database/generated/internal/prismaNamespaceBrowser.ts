@@ -55,7 +55,8 @@ export const ModelName = {
   DeviceSession: 'DeviceSession',
   PasswordResetToken: 'PasswordResetToken',
   AuthIdentity: 'AuthIdentity',
-  Profile: 'Profile'
+  Profile: 'Profile',
+  AvatarDeletionRequest: 'AvatarDeletionRequest'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -147,6 +148,15 @@ export const ProfileScalarFieldEnum = {
 } as const
 
 export type ProfileScalarFieldEnum = (typeof ProfileScalarFieldEnum)[keyof typeof ProfileScalarFieldEnum]
+
+
+export const AvatarDeletionRequestScalarFieldEnum = {
+  userId: 'userId',
+  idempotencyKey: 'idempotencyKey',
+  createdAt: 'createdAt'
+} as const
+
+export type AvatarDeletionRequestScalarFieldEnum = (typeof AvatarDeletionRequestScalarFieldEnum)[keyof typeof AvatarDeletionRequestScalarFieldEnum]
 
 
 export const SortOrder = {

@@ -388,7 +388,8 @@ export const ModelName = {
   DeviceSession: 'DeviceSession',
   PasswordResetToken: 'PasswordResetToken',
   AuthIdentity: 'AuthIdentity',
-  Profile: 'Profile'
+  Profile: 'Profile',
+  AvatarDeletionRequest: 'AvatarDeletionRequest'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -404,7 +405,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "deviceSession" | "passwordResetToken" | "authIdentity" | "profile"
+    modelProps: "user" | "deviceSession" | "passwordResetToken" | "authIdentity" | "profile" | "avatarDeletionRequest"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -778,6 +779,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    AvatarDeletionRequest: {
+      payload: Prisma.$AvatarDeletionRequestPayload<ExtArgs>
+      fields: Prisma.AvatarDeletionRequestFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.AvatarDeletionRequestFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AvatarDeletionRequestPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.AvatarDeletionRequestFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AvatarDeletionRequestPayload>
+        }
+        findFirst: {
+          args: Prisma.AvatarDeletionRequestFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AvatarDeletionRequestPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.AvatarDeletionRequestFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AvatarDeletionRequestPayload>
+        }
+        findMany: {
+          args: Prisma.AvatarDeletionRequestFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AvatarDeletionRequestPayload>[]
+        }
+        create: {
+          args: Prisma.AvatarDeletionRequestCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AvatarDeletionRequestPayload>
+        }
+        createMany: {
+          args: Prisma.AvatarDeletionRequestCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.AvatarDeletionRequestCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AvatarDeletionRequestPayload>[]
+        }
+        delete: {
+          args: Prisma.AvatarDeletionRequestDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AvatarDeletionRequestPayload>
+        }
+        update: {
+          args: Prisma.AvatarDeletionRequestUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AvatarDeletionRequestPayload>
+        }
+        deleteMany: {
+          args: Prisma.AvatarDeletionRequestDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.AvatarDeletionRequestUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.AvatarDeletionRequestUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AvatarDeletionRequestPayload>[]
+        }
+        upsert: {
+          args: Prisma.AvatarDeletionRequestUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AvatarDeletionRequestPayload>
+        }
+        aggregate: {
+          args: Prisma.AvatarDeletionRequestAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateAvatarDeletionRequest>
+        }
+        groupBy: {
+          args: Prisma.AvatarDeletionRequestGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AvatarDeletionRequestGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.AvatarDeletionRequestCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AvatarDeletionRequestCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -890,6 +965,15 @@ export const ProfileScalarFieldEnum = {
 } as const
 
 export type ProfileScalarFieldEnum = (typeof ProfileScalarFieldEnum)[keyof typeof ProfileScalarFieldEnum]
+
+
+export const AvatarDeletionRequestScalarFieldEnum = {
+  userId: 'userId',
+  idempotencyKey: 'idempotencyKey',
+  createdAt: 'createdAt'
+} as const
+
+export type AvatarDeletionRequestScalarFieldEnum = (typeof AvatarDeletionRequestScalarFieldEnum)[keyof typeof AvatarDeletionRequestScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1127,6 +1211,7 @@ export type GlobalOmitConfig = {
   passwordResetToken?: Prisma.PasswordResetTokenOmit
   authIdentity?: Prisma.AuthIdentityOmit
   profile?: Prisma.ProfileOmit
+  avatarDeletionRequest?: Prisma.AvatarDeletionRequestOmit
 }
 
 /* Types for Logging */

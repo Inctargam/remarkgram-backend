@@ -124,3 +124,12 @@ model Profile {
 
   @@map("profiles")
 }
+
+model AvatarDeletionRequest {
+  userId         Int      @map("user_id")
+  idempotencyKey String   @map("idempotency_key") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@id([userId, idempotencyKey])
+  @@map("avatar_deletion_requests")
+}

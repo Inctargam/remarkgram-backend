@@ -81,3 +81,5 @@ export type MyProfileView = {
   countryCode: string | null;
   dateOfBirth: string | null;
 };
+
+export type DeleteAvatarParams = { userId: number; idempotencyKey: string };

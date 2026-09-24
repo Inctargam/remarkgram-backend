@@ -28,4 +28,8 @@ export abstract class UsersRepository {
   abstract confirmUser(code: string): Promise<boolean>;
   abstract updateConfirmationCode(params: UpdateConfirmationCodeParams): Promise<boolean>;
   abstract updateProfileInfo(params: UpdateProfileInfoRepositoryParams): Promise<void>;
+  /** Блокирует активного пользователя до конца транзакции; false, если он не найден. */
+  abstract lockActiveById(userId: number, ctx: TransactionContext): Promise<boolean>;
+  /** Вызывать после lockActiveById. Очищает avatarFileId, если нет установки; возвращает прежний ID. */
+  abstract clearAvatar(userId: number, ctx: TransactionContext): Promise<string | null>;
 }

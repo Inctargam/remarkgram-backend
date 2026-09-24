@@ -1,3 +1,4 @@
+import { AvatarUpdateConflictError } from '../../../application/errors/avatar.errors.js';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../../../../database/generated/client.js';
 import { PrismaService } from '../../../../../database/prisma.service.js';
@@ -275,5 +276,22 @@ export class PrismaUsersRepository implements UsersRepository {
       // Неизвестную инфраструктурную ошибку нельзя безопасно преобразовать в доменную.
       throw error;
     }
+  }
+
+  async lockActiveById(userId: number, ctx: TransactionContext): Promise<boolean> {
+    // Та же блокировка, что у SetAvatar: Profile может ещё не существовать.
+    const users = await (ctx as Prisma.TransactionClient).$queryRaw<Array<{ id: number }>>`
+      SELECT id FROM users WHERE id = ${userId} AND "deletedAt" IS NULL FOR UPDATE`;
+    return users.length > 0;
+  }
+
+  async clearAvatar(userId: number, ctx: TransactionContext): Promise<string | null> {
+    const tx = ctx as Prisma.TransactionClient;
+    const profile = await tx.profile.findUnique({ where: { userId } });
+    if (profile?.avatarUpdateId) throw new AvatarUpdateConflictError();
+    if (profile?.avatarFileId) {
+      await tx.profile.update({ where: { userId }, data: { avatarFileId: null } });
+    }
+    return profile?.avatarFileId ?? null;
   }
 }
