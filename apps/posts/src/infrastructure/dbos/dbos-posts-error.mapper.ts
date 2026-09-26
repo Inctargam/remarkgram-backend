@@ -1,3 +1,4 @@
+import { Error as DBOSErrors } from '@dbos-inc/dbos-sdk';
 import {
   ImageUploadsServiceUnavailableError,
   PostImageAlreadyAttachedError,
@@ -5,6 +6,9 @@ import {
   PostImagesNotAvailableError,
 } from '../../application/errors/create-post.errors.js';
 import { PostsError, PostsErrorCode } from '../../application/errors/posts.error.js';
+
+// SDK сохраняет dbosErrorCode при сериализации, но не исходный класс ошибки.
+const maxStepRetriesErrorCode = new DBOSErrors.DBOSMaxStepRetriesError('', 0, []).dbosErrorCode;
 
 const postsErrorTypes = new Map<string, new () => PostsError>([
   [PostsErrorCode.POST_IMAGE_NOT_FOUND, PostImageNotFoundError],
@@ -29,6 +33,20 @@ export function getPostsErrorCode(error: unknown): string | undefined {
 // В execute восстанавливаем класс для gRPC-фильтра: getResult может вернуть ошибку
 // из истории без выполнения тела workflow. Исходный экземпляр возвращаем как есть.
 export function restorePostsError(error: unknown): unknown {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'dbosErrorCode' in error &&
+    error.dbosErrorCode === maxStepRetriesErrorCode &&
+    'errors' in error &&
+    Array.isArray(error.errors) &&
+    error.errors.length > 0 &&
+    error.errors.every(
+      (cause: unknown) => getPostsErrorCode(cause) === PostsErrorCode.IMAGE_UPLOADS_SERVICE_UNAVAILABLE,
+    )
+  ) {
+    return new ImageUploadsServiceUnavailableError();
+  }
   if (error instanceof PostsError) return error;
   const code = getPostsErrorCode(error);
   const ErrorType = code === undefined ? undefined : postsErrorTypes.get(code);

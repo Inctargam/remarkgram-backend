@@ -1,4 +1,7 @@
+import type * as DbosSdk from '@dbos-inc/dbos-sdk';
+
 const dbosMock = vi.hoisted(() => ({
+  logger: { error: vi.fn() },
   workflow: vi.fn(
     () => (_target: object, _propertyKey: string, descriptor: PropertyDescriptor) => descriptor,
   ),
@@ -13,7 +16,8 @@ const dbosMock = vi.hoisted(() => ({
   randomUUID: vi.fn<() => Promise<string>>(),
 }));
 
-vi.mock('@dbos-inc/dbos-sdk', () => ({
+vi.mock('@dbos-inc/dbos-sdk', async (importOriginal) => ({
+  ...(await importOriginal<typeof DbosSdk>()),
   ConfiguredInstance: class ConfiguredInstance {},
   DBOS: dbosMock,
 }));

@@ -1,3 +1,4 @@
+import { Error as DBOSErrors } from '@dbos-inc/dbos-sdk';
 import { getAvatarErrorCode, restoreAvatarError } from './avatar-error.mapper.js';
 import {
   InvalidAvatarFileIdError,
@@ -123,4 +124,35 @@ describe('getAvatarErrorCode', () => {
       expect(getAvatarErrorCode(error)).toBeUndefined();
     },
   );
+});
+
+describe('exhausted Files retries', () => {
+  it.each([false, true])('restores unavailability after retries (serialized: %s)', (serialized) => {
+    const error = new DBOSErrors.DBOSMaxStepRetriesError('attach', 5, [
+      new AvatarFilesUnavailableError(),
+      new AvatarFilesUnavailableError(),
+    ]);
+    const stored: unknown = serialized ? JSON.parse(JSON.stringify(error)) : error;
+    expect(restoreAvatarError(stored)).toBeInstanceOf(AvatarFilesUnavailableError);
+    expect(restoreAvatarError(stored)).toMatchObject({ code: Code.AVATAR_FILES_UNAVAILABLE });
+  });
+
+  it.each([
+    { causes: [] },
+    { causes: [new Error('unexpected')] },
+    { causes: [new AvatarFilesUnavailableError(), new Error('unexpected')] },
+  ])('preserves exhausted errors with unrecognized or missing causes: $causes', ({ causes }) => {
+    const error = new DBOSErrors.DBOSMaxStepRetriesError('attach', 5, causes);
+    expect(restoreAvatarError(error)).toBe(error);
+    const stored: unknown = JSON.parse(JSON.stringify(error));
+    expect(restoreAvatarError(stored)).toBe(stored);
+  });
+
+  it('does not treat another SDK error or a matching message as retry exhaustion', () => {
+    const causes = [new AvatarFilesUnavailableError()];
+    const error = Object.assign(new Error('Step has exceeded its maximum retries'), { errors: causes });
+    expect(restoreAvatarError(error)).toBe(error);
+    const other = Object.assign(new DBOSErrors.DBOSError('other'), { errors: causes });
+    expect(restoreAvatarError(other)).toBe(other);
+  });
 });

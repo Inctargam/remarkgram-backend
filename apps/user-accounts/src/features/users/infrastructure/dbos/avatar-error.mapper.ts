@@ -1,3 +1,4 @@
+import { Error as DBOSErrors } from '@dbos-inc/dbos-sdk';
 import {
   UserAccountsError,
   UserAccountsErrorCode as Code,
@@ -13,6 +14,9 @@ import {
   AvatarFilesUnavailableError,
 } from '../../application/errors/avatar.errors.js';
 import { UserNotFoundError } from '../../application/errors/users.errors.js';
+
+// SDK сохраняет dbosErrorCode при сериализации, но не исходный класс ошибки.
+const maxStepRetriesErrorCode = new DBOSErrors.DBOSMaxStepRetriesError('', 0, []).dbosErrorCode;
 
 const avatarErrorTypes = new Map<string, new () => UserAccountsError>([
   [Code.INVALID_AVATAR_FILE_ID, InvalidAvatarFileIdError],
@@ -42,6 +46,18 @@ export function getAvatarErrorCode(error: unknown): string | undefined {
 // В execute восстанавливаем класс для gRPC-фильтра: getResult может вернуть ошибку
 // из истории без выполнения тела workflow. Исходный экземпляр возвращаем как есть.
 export function restoreAvatarError(error: unknown): unknown {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'dbosErrorCode' in error &&
+    error.dbosErrorCode === maxStepRetriesErrorCode &&
+    'errors' in error &&
+    Array.isArray(error.errors) &&
+    error.errors.length > 0 &&
+    error.errors.every((cause: unknown) => getAvatarErrorCode(cause) === Code.AVATAR_FILES_UNAVAILABLE)
+  ) {
+    return new AvatarFilesUnavailableError();
+  }
   if (error instanceof UserAccountsError) return error;
   const code = getAvatarErrorCode(error);
   const ErrorType = code === undefined ? undefined : avatarErrorTypes.get(code);

@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import {
   ImageUploadsServiceUnavailableError,
   PostIdempotencyKeyConflictError,
+  PostImagesNotAvailableError,
 } from '../../src/application/errors/create-post.errors.js';
 import { ImageUploadsGateway } from '../../src/application/ports/image-uploads.gateway.js';
 import type {
@@ -35,6 +36,7 @@ type Reservation = {
 
 /** Минимальная идемпотентная модель Files для проверки сетевого окна после commit. */
 class ReservationBackedImageUploadsGateway extends ImageUploadsGateway {
+  readonly failures = new Map<OperationKind, Error>();
   private readonly reservations = new Map<string, Reservation>();
   private readonly responsesToLose = new Set<OperationKind>();
   private readonly calls: RecordedCall[] = [];
@@ -44,6 +46,7 @@ class ReservationBackedImageUploadsGateway extends ImageUploadsGateway {
   }
 
   reset(): void {
+    this.failures.clear();
     this.reservations.clear();
     this.responsesToLose.clear();
     this.calls.length = 0;
@@ -55,6 +58,8 @@ class ReservationBackedImageUploadsGateway extends ImageUploadsGateway {
 
   reserveImageUploads(params: ReserveImageUploadsParams): Promise<void> {
     this.calls.push({ kind: 'RESERVE', reservationId: params.reservationId });
+    const failure = this.failures.get('RESERVE');
+    if (failure) throw failure;
     const uploadIds = [...params.imageIds].sort();
     const existing = this.reservations.get(params.reservationId);
 
@@ -77,6 +82,8 @@ class ReservationBackedImageUploadsGateway extends ImageUploadsGateway {
 
   attachReservedImageUploads(params: AttachReservedImageUploadsParams): Promise<void> {
     this.calls.push({ kind: 'ATTACH', reservationId: params.reservationId });
+    const failure = this.failures.get('ATTACH');
+    if (failure) throw failure;
     const reservation = this.reservations.get(params.reservationId);
 
     if (reservation?.state === 'RESERVED') {
@@ -91,6 +98,8 @@ class ReservationBackedImageUploadsGateway extends ImageUploadsGateway {
 
   releaseReservedImageUploads(params: ReleaseReservedImageUploadsParams): Promise<void> {
     this.calls.push({ kind: 'RELEASE', reservationId: params.reservationId });
+    const failure = this.failures.get('RELEASE');
+    if (failure) throw failure;
     const reservation = this.reservations.get(params.reservationId);
 
     if (reservation?.state === 'RESERVED') {
@@ -155,6 +164,7 @@ describe.runIf(databaseUrl !== undefined && databaseUrl.length > 0)(
         systemDatabasePoolSize: 4,
         runMigrations: true,
         useListenNotify: false,
+        logLevel: 'error',
       });
       await DBOS.launch();
     }, 60_000);
@@ -224,6 +234,53 @@ describe.runIf(databaseUrl !== undefined && databaseUrl.length > 0)(
       );
       expect(await prisma.post.count({ where: { authorId: TEST_AUTHOR_ID } })).toBe(1);
     }, 30_000);
+
+    it('retries compensation after losing the release response', async () => {
+      const params = createWorkflowParams();
+      workflowIds.add(params.workflowId);
+      imageUploadsGateway.failures.set('ATTACH', new PostImagesNotAvailableError());
+      imageUploadsGateway.loseNextResponse('RELEASE');
+      await expect(workflow.execute(params)).rejects.toBeInstanceOf(PostImagesNotAvailableError);
+      const calls = imageUploadsGateway.getCalls('RELEASE');
+      expect(calls).toHaveLength(2);
+      expect(calls[0]).toEqual(calls[1]);
+      expect(imageUploadsGateway.getCalls('ATTACH')).toHaveLength(1);
+      expect(await prisma.post.count({ where: { authorId: TEST_AUTHOR_ID } })).toBe(0);
+    });
+
+    it.each(['RESERVE', 'ATTACH', 'RELEASE'] as const)(
+      'exhausts %s retries and replays unavailability without further calls',
+      async (kind) => {
+        const params = createWorkflowParams();
+        workflowIds.add(params.workflowId);
+        imageUploadsGateway.failures.set(kind, new ImageUploadsServiceUnavailableError());
+        if (kind === 'RELEASE') {
+          imageUploadsGateway.failures.set('ATTACH', new PostImagesNotAvailableError());
+        }
+        await expect(workflow.execute(params)).rejects.toBeInstanceOf(ImageUploadsServiceUnavailableError);
+        expect(imageUploadsGateway.getCalls(kind)).toHaveLength(5);
+        expect(new Set(imageUploadsGateway.getCalls(kind).map((call) => call.reservationId)).size).toBe(1);
+        await expect(workflow.execute(params)).rejects.toBeInstanceOf(ImageUploadsServiceUnavailableError);
+        expect(imageUploadsGateway.getCalls(kind)).toHaveLength(5);
+        const posts = await prisma.post.findMany({ where: { authorId: TEST_AUTHOR_ID } });
+        expect(posts).toHaveLength(kind === 'RESERVE' ? 0 : 1);
+        if (posts[0]) expect(posts[0].publishedAt).toBeNull();
+        if (kind !== 'RELEASE') expect(imageUploadsGateway.getCalls('RELEASE')).toHaveLength(0);
+      },
+      30_000,
+    );
+
+    it.each([new PostImagesNotAvailableError(), new Error('unexpected Files error')])(
+      'does not retry a non-transient reserve error: %s',
+      async (error) => {
+        const params = createWorkflowParams();
+        workflowIds.add(params.workflowId);
+        imageUploadsGateway.failures.set('RESERVE', error);
+        await expect(workflow.execute(params)).rejects.toMatchObject({ message: error.message });
+        expect(imageUploadsGateway.getCalls('RESERVE')).toHaveLength(1);
+        expect(await prisma.post.count({ where: { authorId: TEST_AUTHOR_ID } })).toBe(0);
+      },
+    );
 
     it.each(['RESERVE', 'ATTACH'] as const)(
       'retries %s with the same reservation ID after the Files response is lost',

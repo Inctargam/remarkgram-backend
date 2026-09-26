@@ -117,7 +117,13 @@ export class DbosSetAvatarWorkflow extends ConfiguredInstance implements SetAvat
     await this.releaseAvatarUpdate(input.userId, operationId);
   }
 
-  @DBOS.step()
+  @DBOS.step({
+    retriesAllowed: true,
+    maxAttempts: 5,
+    intervalSeconds: 1,
+    backoffRate: 2,
+    shouldRetry: (error: unknown) => getAvatarErrorCode(error) === Code.AVATAR_FILES_UNAVAILABLE,
+  })
   private async attachAvatar(params: AttachAvatarParams): Promise<void> {
     // Через gRPC просим Files проверить владельца, статус, размер и MIME файла
     // и атомарно перевести его из COMPLETED в ATTACHED.

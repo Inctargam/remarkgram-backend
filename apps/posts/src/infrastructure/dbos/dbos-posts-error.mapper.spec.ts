@@ -1,3 +1,4 @@
+import { Error as DBOSErrors } from '@dbos-inc/dbos-sdk';
 import {
   ImageUploadsServiceUnavailableError,
   PostImageAlreadyAttachedError,
@@ -71,4 +72,37 @@ describe('getPostsErrorCode', () => {
       expect(getPostsErrorCode(error)).toBeUndefined();
     },
   );
+});
+
+describe('exhausted Files retries', () => {
+  it.each([false, true])('restores unavailability after retries (serialized: %s)', (serialized) => {
+    const error = new DBOSErrors.DBOSMaxStepRetriesError('attach', 5, [
+      new ImageUploadsServiceUnavailableError(),
+      new ImageUploadsServiceUnavailableError(),
+    ]);
+    const stored: unknown = serialized ? JSON.parse(JSON.stringify(error)) : error;
+    expect(restorePostsError(stored)).toBeInstanceOf(ImageUploadsServiceUnavailableError);
+    expect(restorePostsError(stored)).toMatchObject({
+      code: PostsErrorCode.IMAGE_UPLOADS_SERVICE_UNAVAILABLE,
+    });
+  });
+
+  it.each([
+    { causes: [] },
+    { causes: [new Error('unexpected')] },
+    { causes: [new ImageUploadsServiceUnavailableError(), new Error('unexpected')] },
+  ])('preserves exhausted errors with unrecognized or missing causes: $causes', ({ causes }) => {
+    const error = new DBOSErrors.DBOSMaxStepRetriesError('attach', 5, causes);
+    expect(restorePostsError(error)).toBe(error);
+    const stored: unknown = JSON.parse(JSON.stringify(error));
+    expect(restorePostsError(stored)).toBe(stored);
+  });
+
+  it('does not treat another SDK error or a matching message as retry exhaustion', () => {
+    const causes = [new ImageUploadsServiceUnavailableError()];
+    const error = Object.assign(new Error('Step has exceeded its maximum retries'), { errors: causes });
+    expect(restorePostsError(error)).toBe(error);
+    const other = Object.assign(new DBOSErrors.DBOSError('other'), { errors: causes });
+    expect(restorePostsError(other)).toBe(other);
+  });
 });
