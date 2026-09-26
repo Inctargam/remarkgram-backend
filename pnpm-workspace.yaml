@@ -6,5 +6,3 @@ allowBuilds:
   grpc-tools: true
   protobufjs: true
   '@scarf/scarf': true
-minimumReleaseAgeExclude:
-  - pg-boss@12.34.0

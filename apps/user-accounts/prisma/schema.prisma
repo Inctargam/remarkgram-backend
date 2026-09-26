@@ -133,3 +133,18 @@ model AvatarDeletionRequest {
   @@id([userId, idempotencyKey])
   @@map("avatar_deletion_requests")
 }
+
+model OutboxEvent {
+  id            String    @id @db.Uuid
+  eventType     String    @map("event_type")
+  aggregateType String    @map("aggregate_type")
+  aggregateId   String    @map("aggregate_id")
+  payload       Json      @db.JsonB
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz(3)
+  lastError     String?   @map("last_error")
+
+  @@index([createdAt, id], where: { publishedAt: null })
+  @@index([publishedAt])
+  @@map("outbox_events")
+}

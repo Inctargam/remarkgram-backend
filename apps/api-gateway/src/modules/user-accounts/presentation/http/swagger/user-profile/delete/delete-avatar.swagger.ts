@@ -16,7 +16,7 @@ export const ApiDeleteAvatar = () =>
       summary: 'Delete the current user avatar',
       description:
         'Call after confirming "Do you really want to delete your profile photo?". No request body. ' +
-        '204 means avatarFileId is cleared and the deletion request is persisted in the durable deletion queue. ' +
+        '204 means avatarFileId is cleared and, when a file existed, its deletion event is persisted in the outbox. ' +
         'RabbitMQ delivery and S3 deletion happen asynchronously. A missing avatar or profile also returns 204. ' +
         'Broker unavailability does not prevent success; pending messages are retried every 6 hours.',
     }),

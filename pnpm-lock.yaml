@@ -107,9 +107,6 @@ importers:
       pg:
         specifier: ^8.21.0
         version: 8.21.0
-      pg-boss:
-        specifier: 12.34.0
-        version: 12.34.0
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -2129,10 +2126,6 @@ packages:
   create-require@1.1.1:
     resolution: {integrity: sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==}
 
-  cron-parser@5.10.1:
-    resolution: {integrity: sha512-pKRrRagItwk9rGIStcUyMxFX34x56zoX3KDf9HJ4ttwkXIK1qxK63EvXvEDmlxI9AdPJ+Y7TEKRftRlW5eSS7A==}
-    engines: {node: '>=18'}
-
   cron@4.4.0:
     resolution: {integrity: sha512-fkdfq+b+AHI4cKdhZlppHveI/mgz2qpiYxcm+t5E5TsxX7QrLS1VE0+7GENEk9z0EeGPcpSciGv6ez24duWhwQ==}
     engines: {node: '>=18.x'}
@@ -3499,10 +3492,6 @@ packages:
     resolution: {integrity: sha512-n+YP+NKwR5zRWa60k3GiQ6Q3B4KXCoAw40dAKeCtYn020iNN74aWK2liXIC3ZEATeGql7we3tE3t8QwhY0eskw==}
     engines: {node: '>=6.0.0'}
 
-  non-error@0.1.0:
-    resolution: {integrity: sha512-TMB1uHiGsHRGv1uYclfhivcnf0/PdFp2pNqRxXjncaAsjYMoisaQJI+SSZCqRq+VliwRTC8tsMQfmrWjDMhkPQ==}
-    engines: {node: '>=20'}
-
   nopt@7.2.1:
     resolution: {integrity: sha512-taM24ViiimT/XntxbPyJQzCG+p4EKOpgD3mxFwW38mGjVUrfERQOeY4EDHjdnptttfHuHQXFx+lTP08Q+mLa/w==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
@@ -3681,19 +3670,11 @@ packages:
   perfect-debounce@2.1.0:
     resolution: {integrity: sha512-LjgdTytVFXeUgtHZr9WYViYSM/g8MkcTPYDlPa3cDqMirHjKiSZPYd6DoL7pK8AJQr+uWkQvCjHNdiMqsrJs+g==}
 
-  pg-boss@12.34.0:
-    resolution: {integrity: sha512-03boJOWLiiHEQPgXCPgrMv6My5Qv6ieD85AOrm/adi475oo74kn//gHOheYqWiU/2guCJMRpKQpD6F7Oln1aWQ==}
-    engines: {node: '>=22.12.0'}
-    hasBin: true
-
   pg-cloudflare@1.4.0:
     resolution: {integrity: sha512-Vo7z/6rrQYxpNRylp4Tlob2elzbh+N/MOQbxFVWCxS7oEx6jF53GTJFxK2WWpKuBRkmiin4Mt+xofFDjx09R0A==}
 
   pg-connection-string@2.13.0:
     resolution: {integrity: sha512-EMnU9E2fSULdsbErBbMaXJvFeD9B4+nPcM3f+4lsiCR0BHLPrLVjv3DbyM2hgQQviKJaTWIRRTjKjWlHg3p2ig==}
-
-  pg-connection-string@2.14.0:
-    resolution: {integrity: sha512-XwWDGcLRGCXAR8F/AM5bG7Q+A3Wm2s6QeEjlOKZLlH3UYcguiqCWKyWXVag5TLTIjR7oOJUY8kcADaZgWPyLeg==}
 
   pg-int8@1.0.1:
     resolution: {integrity: sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw==}
@@ -3707,24 +3688,12 @@ packages:
   pg-protocol@1.14.0:
     resolution: {integrity: sha512-n5taZ1kO3s9ngDTVxsEznOqCyToTgz0FLuPq0B33COy5pPpuWJpY3/2oRBVETuOgzdqRXfWpM9HIhp2LBBT1BA==}
 
-  pg-protocol@1.16.0:
-    resolution: {integrity: sha512-sILXutLVjCLjcDuOmvhX5e2Z4cS5qG/6Bu3VkpFwdf/633ElGLpEh9bgmuI5I4sqKqkifQiGyiCcx1HdtrK7tg==}
-
   pg-types@2.2.0:
     resolution: {integrity: sha512-qTAAlrEsl8s4OiEQY69wDvcMIdQN6wdz5ojQiOy6YRMuynxenON0O5oCpJI6lshc6scgAY8qvJ2On/p+CXY0GA==}
     engines: {node: '>=4'}
 
   pg@8.21.0:
     resolution: {integrity: sha512-AUP1EYJuHraQGsVoCQVIcM7TEJVGtDzxWtGFZd8rds9d+CCXlU5Js1rYgfLNvxy9iJrpHjGrRjoi/3BT9fRyiA==}
-    engines: {node: '>= 16.0.0'}
-    peerDependencies:
-      pg-native: '>=3.0.1'
-    peerDependenciesMeta:
-      pg-native:
-        optional: true
-
-  pg@8.23.0:
-    resolution: {integrity: sha512-Ip2EQCngowJLGOfCwkFhPXU7/ljlhn6Rxlmy4XYfL2Y+vyRM59+8uR2xqRWKdYmbXmxCFOAmKxBuSUCdF34qLg==}
     engines: {node: '>= 16.0.0'}
     peerDependencies:
       pg-native: '>=3.0.1'
@@ -4139,9 +4108,6 @@ packages:
     resolution: {integrity: sha512-nLTrUKm2UyiL7rlhapu/Zl45FwNgkZGaCpZbIHajDYgwlJCOzLSk+cIPAnsEqV955GjILJnKbdQC1nVPz+gAYQ==}
     engines: {node: '>= 18'}
 
-  rrule-temporal@2.2.6:
-    resolution: {integrity: sha512-izTnMn8pAFNLDuyRfF+H53YnWOF7tsA5+RcGrha4onVzOnXn8YXQ7tJE5StNZvAZXvxz0In3R/IQhbQJpi7EYQ==}
-
   run-applescript@5.0.0:
     resolution: {integrity: sha512-XcT5rBksx1QdIhlFOCtgZkB99ZEouFZ1E2Kc2LHqNW13U3/74YGdkQRmThTwxy4QIyookibDKYZOPqX//6BlAg==}
     engines: {node: '>=12'}
@@ -4187,10 +4153,6 @@ packages:
 
   seq-queue@0.0.5:
     resolution: {integrity: sha512-hr3Wtp/GZIc/6DAGPDcV4/9WoZhjrkXsi5B/07QgX8tsdc6ilr7BFM6PM6rbdAX1kFSDYeZGLipIZZKyQP0O5Q==}
-
-  serialize-error@13.0.1:
-    resolution: {integrity: sha512-bBZaRwLH9PN5HbLCjPId4dP5bNGEtumcErgOX952IsvOhVPrm3/AeK1y0UHA/QaPG701eg0yEnOKsCOC6X/kaA==}
-    engines: {node: '>=20'}
 
   serialize-error@8.1.0:
     resolution: {integrity: sha512-3NnuWfM6vBYoy5gZFvHiYsVbafvI9vZv/+jlIigFn4oP4zjNPK3LhcY0xSCgeb1a5L8jO71Mit9LlNoi2UfDDQ==}
@@ -4369,10 +4331,6 @@ packages:
     resolution: {integrity: sha512-eNRKgb3z66Yp3D2CixVujOUvXLFUTij/zVnV8KRyvFdQwpz7I5DS8UfRkTeLzb64u+dkzDSdelE24izu+zSSUg==}
     engines: {node: ^14.18.0 || >=16.0.0}
 
-  tagged-tag@1.0.0:
-    resolution: {integrity: sha512-yEFYrVhod+hdNyx7g5Bnkkb0G6si8HJurOoOEgC8B/O0uXLHlaey/65KRv6cuWBNhBgHKAROVpc7QyYqE5gFng==}
-    engines: {node: '>=20'}
-
   tapable@2.3.3:
     resolution: {integrity: sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==}
     engines: {node: '>=6'}
@@ -4380,9 +4338,6 @@ packages:
   tar@7.5.16:
     resolution: {integrity: sha512-56adEpPMouktRlBLXiaYFFzZ/3+JXa8P9n7WbR+ibIjtviN55mEaOkiysCnPnWm+7kkui1Dn8J9l+g6zV8731w==}
     engines: {node: '>=18'}
-
-  temporal-spec@1.0.1:
-    resolution: {integrity: sha512-wxVoanmDeavXie1vu2JaQ3WIc3JZnWAOYFBsJyATaVsXsycKYUflGsyBmrRSnoCpZJpwPyr38VpgSUlQ8CbFxg==}
 
   terser-webpack-plugin@5.6.1:
     resolution: {integrity: sha512-201R5j+sJpK8nFWwKVyNfZot8FaJbLZDq5evriVzbV1wDtSXDjRUDRfJzHpAaxFDMEhsZL1QkeqM61wgsS3KaQ==}
@@ -4528,10 +4483,6 @@ packages:
   type-fest@0.20.2:
     resolution: {integrity: sha512-Ne+eE4r0/iWnpAxD852z3A+N0Bt5RN//NjJwRd2VFHEmrywxf5vsZlh4R6lixl6B+wz/8d+maTSAkN1FIkI3LQ==}
     engines: {node: '>=10'}
-
-  type-fest@5.10.0:
-    resolution: {integrity: sha512-NoSdpq/WEiAg5sjmBkmV/hfxv6HJH4NqPNrqjtSO5CwRmpsDfaf4begxW34KdJykH/l1yHtwBWQkCRdoXO8mPA==}
-    engines: {node: '>=20'}
 
   type-is@1.6.18:
     resolution: {integrity: sha512-TkRKr9sUTxEH8MdfuCSP7VizJyzRNMjj2J2do2Jr3Kym598JVdEksuzPQCnlFPW4ky9Q+iA+ma9BGm06XQBy8g==}
@@ -6968,10 +6919,6 @@ snapshots:
 
   create-require@1.1.1: {}
 
-  cron-parser@5.10.1:
-    dependencies:
-      luxon: 3.7.2
-
   cron@4.4.0:
     dependencies:
       '@types/luxon': 3.7.3
@@ -8777,8 +8724,6 @@ snapshots:
 
   nodemailer@9.0.3: {}
 
-  non-error@0.1.0: {}
-
   nopt@7.2.1:
     dependencies:
       abbrev: 2.0.0
@@ -8978,21 +8923,10 @@ snapshots:
 
   perfect-debounce@2.1.0: {}
 
-  pg-boss@12.34.0:
-    dependencies:
-      cron-parser: 5.10.1
-      pg: 8.23.0
-      rrule-temporal: 2.2.6
-      serialize-error: 13.0.1
-    transitivePeerDependencies:
-      - pg-native
-
   pg-cloudflare@1.4.0:
     optional: true
 
   pg-connection-string@2.13.0: {}
-
-  pg-connection-string@2.14.0: {}
 
   pg-int8@1.0.1: {}
 
@@ -9000,13 +8934,7 @@ snapshots:
     dependencies:
       pg: 8.21.0
 
-  pg-pool@3.14.0(pg@8.23.0):
-    dependencies:
-      pg: 8.23.0
-
   pg-protocol@1.14.0: {}
-
-  pg-protocol@1.16.0: {}
 
   pg-types@2.2.0:
     dependencies:
@@ -9021,16 +8949,6 @@ snapshots:
       pg-connection-string: 2.13.0
       pg-pool: 3.14.0(pg@8.21.0)
       pg-protocol: 1.14.0
-      pg-types: 2.2.0
-      pgpass: 1.0.5
-    optionalDependencies:
-      pg-cloudflare: 1.4.0
-
-  pg@8.23.0:
-    dependencies:
-      pg-connection-string: 2.14.0
-      pg-pool: 3.14.0(pg@8.23.0)
-      pg-protocol: 1.16.0
       pg-types: 2.2.0
       pgpass: 1.0.5
     optionalDependencies:
@@ -9537,10 +9455,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  rrule-temporal@2.2.6:
-    dependencies:
-      temporal-spec: 1.0.1
-
   run-applescript@5.0.0:
     dependencies:
       execa: 5.1.1
@@ -9600,11 +9514,6 @@ snapshots:
       - supports-color
 
   seq-queue@0.0.5: {}
-
-  serialize-error@13.0.1:
-    dependencies:
-      non-error: 0.1.0
-      type-fest: 5.10.0
 
   serialize-error@8.1.0:
     dependencies:
@@ -9796,8 +9705,6 @@ snapshots:
     dependencies:
       '@pkgr/core': 0.3.6
 
-  tagged-tag@1.0.0: {}
-
   tapable@2.3.3: {}
 
   tar@7.5.16:
@@ -9807,8 +9714,6 @@ snapshots:
       minipass: 7.1.3
       minizlib: 3.1.0
       yallist: 5.0.0
-
-  temporal-spec@1.0.1: {}
 
   terser-webpack-plugin@5.6.1(@swc/core@1.15.40)(cssnano@7.1.9(postcss@8.5.15))(csso@5.0.5)(lightningcss@1.32.0)(postcss@8.5.15)(uglify-js@3.19.3)(webpack@5.106.0(@swc/core@1.15.40)(cssnano@7.1.9(postcss@8.5.15))(csso@5.0.5)(lightningcss@1.32.0)(postcss@8.5.15)(uglify-js@3.19.3)):
     dependencies:
@@ -9932,10 +9837,6 @@ snapshots:
       prelude-ls: 1.2.1
 
   type-fest@0.20.2: {}
-
-  type-fest@5.10.0:
-    dependencies:
-      tagged-tag: 1.0.0
 
   type-is@1.6.18:
     dependencies:

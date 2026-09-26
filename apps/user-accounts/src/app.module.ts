@@ -1,17 +1,14 @@
-import { PgBoss } from 'pg-boss';
-import { AvatarDeletionOutbox } from './features/users/application/ports/avatar-deletion.outbox.js';
-import { PgBossAvatarDeletionOutbox } from './features/users/infrastructure/pg-boss/pg-boss-avatar-deletion.outbox.js';
-import { avatarDeletionBossOptions } from './features/users/infrastructure/pg-boss/avatar-deletion-queue.options.js';
+import { ScheduleModule } from '@nestjs/schedule';
+import { OutboxEventsRepository } from './features/outbox/application/ports/outbox-events.repository.js';
+import { PrismaOutboxEventsRepository } from './features/outbox/infrastructure/persistence/repositories/prisma-outbox-events.repository.js';
+import { OutboxWorker } from './features/outbox/application/workers/outbox.worker.js';
+import { OutboxScheduler } from './features/outbox/infrastructure/scheduling/outbox.scheduler.js';
 import { AvatarDeletionRequestsRepository } from './features/users/application/ports/avatar-deletion-requests.repository.js';
 import { PrismaAvatarDeletionRequestsRepository } from './features/users/infrastructure/persistence/repositories/prisma-avatar-deletion-requests.repository.js';
-import { FILES_AVATAR_DELETION_QUEUE } from '@app/message-broker';
 import { userAccountsMessageBrokerConfig } from './config/message-broker.config.js';
 import { DeleteAvatarUseCase } from './features/users/application/use-cases/delete-avatar.use-case.js';
-import { AvatarDeletionPublisher } from './features/users/application/ports/avatar-deletion.publisher.js';
-import {
-  RmqAvatarDeletionPublisher,
-  AVATAR_DELETION_RMQ_CLIENT,
-} from './features/users/infrastructure/rmq/rmq-avatar-deletion.publisher.js';
+import { IntegrationEventPublisher } from './features/outbox/application/ports/integration-event.publisher.js';
+import { RmqIntegrationEventPublisher } from './features/outbox/infrastructure/rmq/rmq-integration-event.publisher.js';
 import { FILES_GRPC_PROTO_PATH, REMARKGRAM_FILES_V1_PACKAGE_NAME } from '@app/files-grpc';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { dbosConfig } from './config/dbos.config.js';
@@ -90,6 +87,7 @@ import { GetPublicProfileHandler } from './features/users/application/use-cases/
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [
@@ -115,19 +113,6 @@ import { GetPublicProfileHandler } from './features/users/application/use-cases/
       ],
     }),
     ClientsModule.registerAsync([
-      {
-        name: AVATAR_DELETION_RMQ_CLIENT,
-        inject: [userAccountsMessageBrokerConfig.KEY],
-        useFactory: (config: ConfigType<typeof userAccountsMessageBrokerConfig>) => ({
-          transport: Transport.RMQ,
-          options: {
-            urls: [config.url],
-            queue: FILES_AVATAR_DELETION_QUEUE,
-            queueOptions: { durable: true },
-            persistent: true,
-          },
-        }),
-      },
       {
         name: REMARKGRAM_FILES_V1_PACKAGE_NAME,
         inject: [filesGrpcClientConfig.KEY],
@@ -163,16 +148,16 @@ import { GetPublicProfileHandler } from './features/users/application/use-cases/
   providers: [
     SetAvatarUseCase,
     DeleteAvatarUseCase,
-    {
-      provide: PgBoss,
-      inject: [databaseConfig.KEY],
-      useFactory: (config: ConfigType<typeof databaseConfig>) =>
-        new PgBoss({ ...avatarDeletionBossOptions, connectionString: config.url }),
-    },
-    PgBossAvatarDeletionOutbox,
-    { provide: AvatarDeletionOutbox, useExisting: PgBossAvatarDeletionOutbox },
+    { provide: OutboxEventsRepository, useClass: PrismaOutboxEventsRepository },
+    OutboxWorker,
+    OutboxScheduler,
     { provide: AvatarDeletionRequestsRepository, useClass: PrismaAvatarDeletionRequestsRepository },
-    { provide: AvatarDeletionPublisher, useClass: RmqAvatarDeletionPublisher },
+    {
+      provide: IntegrationEventPublisher,
+      inject: [userAccountsMessageBrokerConfig.KEY],
+      useFactory: (config: ConfigType<typeof userAccountsMessageBrokerConfig>) =>
+        new RmqIntegrationEventPublisher(config.url),
+    },
     UserAccountsDbosDataSource,
     DbosSetAvatarWorkflow,
     DbosLifecycleService,

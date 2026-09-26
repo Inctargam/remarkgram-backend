@@ -9,7 +9,7 @@ describe('PrismaTestingRepository', () => {
 
     await expect(repository.deleteAllData()).resolves.toBeUndefined();
     expect(executeRawUnsafe).toHaveBeenCalledWith(
-      'TRUNCATE TABLE "users", "avatar_deletion_requests", "pgboss"."job" RESTART IDENTITY CASCADE',
+      'TRUNCATE TABLE "users", "avatar_deletion_requests", "outbox_events" RESTART IDENTITY CASCADE',
     );
   });
 });

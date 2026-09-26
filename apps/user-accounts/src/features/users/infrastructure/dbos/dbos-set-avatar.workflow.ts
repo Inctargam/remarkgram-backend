@@ -1,4 +1,5 @@
-import { AvatarDeletionOutbox } from '../../application/ports/avatar-deletion.outbox.js';
+import { OutboxEventsRepository } from '../../../outbox/application/ports/outbox-events.repository.js';
+import { OutboxWorker } from '../../../outbox/application/workers/outbox.worker.js';
 import { createAvatarDeletionEvent } from '../../application/integration-events/avatar-deletion-requested.event.js';
 import { ConfiguredInstance, DBOS } from '@dbos-inc/dbos-sdk';
 import { Injectable } from '@nestjs/common';
@@ -36,7 +37,8 @@ export class DbosSetAvatarWorkflow extends ConfiguredInstance implements SetAvat
   constructor(
     private readonly dataSource: UserAccountsDbosDataSource,
     private readonly filesGateway: AvatarFilesGateway,
-    private readonly avatarDeletionOutbox: AvatarDeletionOutbox,
+    private readonly events: OutboxEventsRepository,
+    private readonly outboxWorker: OutboxWorker,
   ) {
     super('set-avatar-workflow');
   }
@@ -61,7 +63,7 @@ export class DbosSetAvatarWorkflow extends ConfiguredInstance implements SetAvat
       // Логируем технические сбои. Недоступность Files — тоже технический сбой,
       // хотя её ошибка наследуется от UserAccountsError. Ожидаемые бизнес-отказы не логируем.
       if (!(error instanceof UserAccountsError) || error instanceof AvatarFilesUnavailableError) {
-        DBOS.logger.error(`SetAvatar failed; workflowId=${workflowId}: ${String(error)}`);
+        DBOS.logger.error(`SetAvatar failed; workflowId=${workflowId}: ${String(cause)}`);
       }
       throw error;
     }
@@ -91,19 +93,25 @@ export class DbosSetAvatarWorkflow extends ConfiguredInstance implements SetAvat
       throw error;
     }
 
+    let deletionEventId: string | null;
     try {
-      await this.updateProfileAvatar(input, operationId);
+      const result = await this.updateAvatarAndScheduleDeletion(
+        input,
+        operationId,
+        lockResult.previousAvatarFileId,
+      );
+      deletionEventId = result.deletionEventId;
     } catch (error) {
       const code = getAvatarErrorCode(error);
       if (code === Code.USER_NOT_FOUND) {
-        await this.scheduleFileDeletion(input);
+        await this.scheduleNewAvatarDeletion(input);
         await this.releaseAvatarUpdate(input.userId, operationId);
       }
       throw error;
     }
 
-    if (lockResult.previousAvatarFileId) {
-      await this.scheduleFileDeletion({ userId: input.userId, fileId: lockResult.previousAvatarFileId });
+    if (deletionEventId) {
+      await this.startFileDeletionPublication(deletionEventId);
     }
 
     await this.releaseAvatarUpdate(input.userId, operationId);
@@ -116,22 +124,23 @@ export class DbosSetAvatarWorkflow extends ConfiguredInstance implements SetAvat
     await this.filesGateway.attachAvatarUpload(params);
   }
 
-  private async scheduleFileDeletion(params: AvatarFileParams): Promise<void> {
+  private async scheduleNewAvatarDeletion(params: AvatarFileParams): Promise<void> {
     // Сохраняем запрос удаления вместе с checkpoint. Брокер не участвует в транзакции.
-    await this.dataSource.runTransaction(
+    const eventId = await this.dataSource.runTransaction(
       async () => {
         const event = createAvatarDeletionEvent(params.userId, params.fileId);
-        await this.avatarDeletionOutbox.enqueue(event, this.dataSource.client);
+        await this.events.add(event, this.dataSource.client);
+        return event.eventId;
       },
-      { name: 'scheduleFileDeletion' },
+      { name: 'scheduleNewAvatarDeletion' },
     );
-    await this.startFileDeletionPublication();
+    await this.startFileDeletionPublication(eventId);
   }
 
   @DBOS.step()
-  private startFileDeletionPublication(): Promise<void> {
-    // Падение до пробуждения worker покроет резервный опрос pg-boss.
-    this.avatarDeletionOutbox.wake();
+  private startFileDeletionPublication(eventId: string): Promise<void> {
+    // Если процесс упадёт до отправки, сохранённое событие подхватит scheduler.
+    void this.outboxWorker.publish(eventId);
     return Promise.resolve();
   }
 
@@ -170,9 +179,13 @@ export class DbosSetAvatarWorkflow extends ConfiguredInstance implements SetAvat
     );
   }
 
-  private updateProfileAvatar(input: WorkflowInput, operationId: string): Promise<void> {
-    // В отдельной транзакции повторно проверяем пользователя и принадлежность
-    // блокировки, затем записываем новый avatarFileId. Блокировку пока сохраняем.
+  private updateAvatarAndScheduleDeletion(
+    input: WorkflowInput,
+    operationId: string,
+    previousAvatarFileId: string | null,
+  ): Promise<{ deletionEventId: string | null }> {
+    // Новый avatarFileId, событие удаления прежнего файла и checkpoint фиксируются вместе.
+    // Блокировку снимаем отдельным шагом после commit.
     return this.dataSource.runTransaction(
       async () => {
         // После RPC пользователь мог быть удалён; проверяем его снова под блокировкой.
@@ -187,8 +200,13 @@ export class DbosSetAvatarWorkflow extends ConfiguredInstance implements SetAvat
           where: { userId: input.userId, avatarUpdateId: operationId },
           data: { avatarFileId: input.fileId },
         });
+
+        if (!previousAvatarFileId) return { deletionEventId: null };
+        const event = createAvatarDeletionEvent(input.userId, previousAvatarFileId);
+        await this.events.add(event, this.dataSource.client);
+        return { deletionEventId: event.eventId };
       },
-      { name: 'updateProfileAvatar' },
+      { name: 'updateAvatarAndScheduleDeletion' },
     );
   }
 

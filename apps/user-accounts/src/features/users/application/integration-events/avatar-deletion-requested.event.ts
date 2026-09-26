@@ -8,6 +8,8 @@ export function createAvatarDeletionEvent(userId: number, fileId: string): Avata
   return {
     eventId: randomUUID(),
     eventType: AVATAR_DELETION_REQUESTED_V1_EVENT_NAME,
+    aggregateType: 'user',
+    aggregateId: String(userId),
     data: { userId, fileId },
   };
 }

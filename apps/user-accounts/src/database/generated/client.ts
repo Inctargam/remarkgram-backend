@@ -71,3 +71,8 @@ export type Profile = Prisma.ProfileModel
  *
  */
 export type AvatarDeletionRequest = Prisma.AvatarDeletionRequestModel
+/**
+ * Model OutboxEvent
+ *
+ */
+export type OutboxEvent = Prisma.OutboxEventModel

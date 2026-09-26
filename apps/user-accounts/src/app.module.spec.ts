@@ -14,7 +14,6 @@ describe('UserAccountsModule', () => {
     vi.stubEnv('ACCESS_TOKEN_EXPIRES_IN', '10m');
     vi.stubEnv('REFRESH_TOKEN_EXPIRES_IN', '20m');
     vi.stubEnv('CONFIRMATION_CODE_EXPIRES_IN', '24');
-    vi.stubEnv('RECOVERY_CODE_EXPIRES_IN', '1');
     vi.stubEnv('PASSWORD_RESET_TOKEN_TTL_MINUTES', '30');
     vi.stubEnv('PASSWORD_RESET_TOKEN_SECRET', 'private');
     vi.stubEnv('PASSWORD_RESET_EMAIL_COOLDOWN_MINUTES', '2');

@@ -6,7 +6,8 @@ import { InvalidIdempotencyKeyError } from '../errors/avatar.errors.js';
 import { InvalidUserIdError, UserNotFoundError } from '../errors/users.errors.js';
 import { UsersRepository } from '../ports/users.repository.js';
 import type { DeleteAvatarParams } from '../types/users.types.js';
-import { AvatarDeletionOutbox } from '../ports/avatar-deletion.outbox.js';
+import { OutboxEventsRepository } from '../../../outbox/application/ports/outbox-events.repository.js';
+import { OutboxWorker } from '../../../outbox/application/workers/outbox.worker.js';
 import { createAvatarDeletionEvent } from '../integration-events/avatar-deletion-requested.event.js';
 
 export class DeleteAvatarCommand extends Command<void> {
@@ -21,7 +22,8 @@ export class DeleteAvatarUseCase implements ICommandHandler<DeleteAvatarCommand>
     private readonly unitOfWork: UnitOfWork,
     private readonly users: UsersRepository,
     private readonly deletionRequests: AvatarDeletionRequestsRepository,
-    private readonly avatarDeletionOutbox: AvatarDeletionOutbox,
+    private readonly events: OutboxEventsRepository,
+    private readonly outboxWorker: OutboxWorker,
   ) {}
 
   async execute({ params }: DeleteAvatarCommand): Promise<void> {
@@ -29,7 +31,7 @@ export class DeleteAvatarUseCase implements ICommandHandler<DeleteAvatarCommand>
     if (!isUUID(params.idempotencyKey, '4')) throw new InvalidIdempotencyKeyError();
 
     const request = { ...params, idempotencyKey: params.idempotencyKey.toLowerCase() };
-    const event = await this.unitOfWork.run(async (ctx) => {
+    const eventId = await this.unitOfWork.run(async (ctx) => {
       if (!(await this.users.lockActiveById(params.userId, ctx))) throw new UserNotFoundError();
       // Старый DELETE не должен удалить аватар, установленный после первого запроса.
       if (await this.deletionRequests.exists(request, ctx)) return null;
@@ -39,11 +41,11 @@ export class DeleteAvatarUseCase implements ICommandHandler<DeleteAvatarCommand>
       if (!previousAvatarFileId) return null;
 
       const event = createAvatarDeletionEvent(params.userId, previousAvatarFileId);
-      await this.avatarDeletionOutbox.enqueue(event, ctx);
+      await this.events.add(event, ctx);
 
-      return event;
+      return event.eventId;
     });
-    // Транзакция уже завершена; сбой процесса здесь подхватит резервный опрос pg-boss.
-    if (event) this.avatarDeletionOutbox.wake();
+    // HTTP не ждёт брокера. Падение после commit покроет следующий проход scheduler.
+    if (eventId) void this.outboxWorker.publish(eventId);
   }
 }
