@@ -23,7 +23,7 @@ import {
 } from '@app/user-accounts-grpc';
 import type { ClientGrpc } from '@nestjs/microservices';
 import { UpdateProfileInfoDto } from '../dto/input/update-profile-info.dto.js';
-import { type RequestWithUserId } from '../auth-request.types.js';
+import type { AuthenticatedRequest } from '../../../../../common/http/authenticated-request.js';
 import { firstValueFrom } from 'rxjs';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiUpdateProfileInfo } from '../swagger/user-profile/put/update-profile-info.swagger.js';
@@ -52,7 +52,7 @@ export class UserProfileHttpController implements OnModuleInit {
   @ApiDeleteAvatar()
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteAvatar(
-    @Req() request: RequestWithUserId,
+    @Req() request: AuthenticatedRequest,
     @IdempotencyKey() idempotencyKey: string,
   ): Promise<void> {
     await firstValueFrom(
@@ -68,7 +68,7 @@ export class UserProfileHttpController implements OnModuleInit {
   @HttpCode(HttpStatus.NO_CONTENT)
   async setAvatar(
     @Body() dto: SetAvatarDto,
-    @Req() request: RequestWithUserId,
+    @Req() request: AuthenticatedRequest,
     @IdempotencyKey() idempotencyKey: string,
   ): Promise<void> {
     await firstValueFrom(
@@ -85,7 +85,7 @@ export class UserProfileHttpController implements OnModuleInit {
   @HttpCode(HttpStatus.NO_CONTENT)
   async updateProfileInfo(
     @Body() dto: UpdateProfileInfoDto,
-    @Req() request: RequestWithUserId,
+    @Req() request: AuthenticatedRequest,
   ): Promise<void> {
     const countryCode = (dto?.countryCode ?? '').trim();
     if (countryCode && countryCode.length > 0) {
@@ -115,7 +115,7 @@ export class UserProfileHttpController implements OnModuleInit {
 
   @Get('me/profile')
   @ApiGetMyProfile()
-  async getMyProfile(@Req() request: RequestWithUserId): Promise<MyProfileResponseDto> {
+  async getMyProfile(@Req() request: AuthenticatedRequest): Promise<MyProfileResponseDto> {
     const profile = await firstValueFrom(
       this.usersGrpcClient.getMyProfile({
         userId: Number(request.userId),

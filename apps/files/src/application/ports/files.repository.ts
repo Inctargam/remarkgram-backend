@@ -21,26 +21,24 @@ export type ImageUploadRecord = {
   uploadStatus: FileUploadStatus;
 };
 
-export type FindImageUploadsParams = {
+export type ImageUploadsSelection = {
   uploadIds: readonly string[];
   userId: number;
 };
 
-export type UpdateImageUploadsStatusParams = FindImageUploadsParams & {
+export type UpdateImageUploadsStatusParams = ImageUploadsSelection & {
   uploadStatus: FileUploadStatus;
   uploadedAt: Date | null;
 };
 
-export type ReserveImageUploadsRepositoryParams = FindImageUploadsParams & {
+export type ReserveImageUploadsRepositoryParams = ImageUploadsSelection & {
   reservationId: string;
 };
 
-export type ReleaseReservedImageUploadsRepositoryParams = {
+export type ReservationParams = {
   userId: number;
   reservationId: string;
 };
-
-export type AttachReservedImageUploadsRepositoryParams = ReleaseReservedImageUploadsRepositoryParams;
 
 export type AttachImageUploadRepositoryParams = {
   userId: number;
@@ -67,8 +65,6 @@ export type DeleteClaimedImageUploadParams = {
   claimedAt: Date;
 };
 
-export type DeleteRejectedImageUploadsParams = FindImageUploadsParams;
-
 export type FindAvailableByIdRepositoryParams = {
   id: string;
 };
@@ -93,20 +89,20 @@ export abstract class FilesRepository {
 
   abstract createMany(fileRecords: readonly CreateFileRecord[]): Promise<void>;
 
-  abstract findImageUploads(params: FindImageUploadsParams): Promise<ImageUploadRecord[]>;
+  abstract findImageUploads(params: ImageUploadsSelection): Promise<ImageUploadRecord[]>;
 
   abstract updateImageUploadsStatusIfAllPending(params: UpdateImageUploadsStatusParams): Promise<void>;
   abstract reserveImageUploads(params: ReserveImageUploadsRepositoryParams): Promise<void>;
 
-  abstract attachReservedImageUploads(params: AttachReservedImageUploadsRepositoryParams): Promise<void>;
+  abstract attachReservedImageUploads(params: ReservationParams): Promise<void>;
 
-  abstract releaseReservedImageUploads(params: ReleaseReservedImageUploadsRepositoryParams): Promise<void>;
+  abstract releaseReservedImageUploads(params: ReservationParams): Promise<void>;
 
   abstract claimExpiredImageUploads(params: ClaimExpiredImageUploadsParams): Promise<ClaimedImageUpload[]>;
 
   abstract deleteClaimedImageUpload(params: DeleteClaimedImageUploadParams): Promise<boolean>;
 
-  abstract deleteRejectedImageUploads(params: DeleteRejectedImageUploadsParams): Promise<void>;
+  abstract deleteRejectedImageUploads(params: ImageUploadsSelection): Promise<void>;
 
   abstract findAvailableById(
     params: FindAvailableByIdRepositoryParams,

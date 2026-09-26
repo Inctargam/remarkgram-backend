@@ -19,6 +19,7 @@ import { type ConfigType } from '@nestjs/config';
 import {
   AUTH_SERVICE_NAME,
   type AuthServiceClient,
+  type OAuthIdentityClaims,
   OAuthProvider,
   PASSWORD_RESET_SERVICE_NAME,
   type PasswordResetServiceClient,
@@ -42,12 +43,12 @@ import {
 } from 'openid-client';
 import { firstValueFrom } from 'rxjs';
 import { Public } from '../../../../../common/http/decorators/public.decorator.js';
+import type { AuthenticatedRequest } from '../../../../../common/http/authenticated-request.js';
 import { userAccountsHttpConfig } from '../../../config/user-accounts-http.config.js';
 import type {
   RequestWithOAuthIdentityClaims,
   RequestWithOptionalRefreshSession,
   RequestWithRefreshSession,
-  RequestWithUserId,
 } from '../auth-request.types.js';
 import { LoginDto } from '../dto/input/login.dto.js';
 import { AccessTokenResponseDto } from '../dto/output/access-token-response.dto.js';
@@ -129,7 +130,7 @@ export class AuthHttpController implements OnModuleInit {
 
   @Get('me')
   @ApiGetCurrentUser()
-  async getCurrentUser(@Req() request: RequestWithUserId): Promise<CurrentUserResponseDto> {
+  async getCurrentUser(@Req() request: AuthenticatedRequest): Promise<CurrentUserResponseDto> {
     const user = await firstValueFrom(this.usersClient.getCurrentUser({ userId: request.userId }));
     const loginMethods: LoginMethod[] = [];
 
@@ -327,7 +328,7 @@ export class AuthHttpController implements OnModuleInit {
     @Headers('User-Agent') userAgent: string | undefined,
     @Ip() ip: string,
   ): Promise<void> {
-    let identity: ReturnType<typeof normalizeGoogleIdentityClaims>;
+    let identity: OAuthIdentityClaims;
 
     const callbackUrl = new URL(this.googleConfig.callbackUrl);
     // Для удаления transaction cookies важно повторить тот же path, с которым они были установлены:

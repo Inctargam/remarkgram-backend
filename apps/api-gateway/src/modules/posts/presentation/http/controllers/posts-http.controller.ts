@@ -20,7 +20,7 @@ import {
   Req,
 } from '@nestjs/common';
 import type { ClientGrpc } from '@nestjs/microservices';
-import type { Request } from 'express';
+import type { AuthenticatedRequest } from '../../../../../common/http/authenticated-request.js';
 import { firstValueFrom, type Observable } from 'rxjs';
 import { IdempotencyKey } from '../../../../../common/http/decorators/idempotency-key.decorator.js';
 import { CreatePostDto } from '../dto/input/create-post.dto.js';
@@ -29,8 +29,6 @@ import { ApiDeletePost } from '../swagger/delete/delete-post.swagger.js';
 import { ApiCreatePost } from '../swagger/post/create-post.swagger.js';
 import { ApiPostsController } from '../swagger/posts-controller.swagger.js';
 import { ApiUpdatePost } from '../swagger/put/update-post.swagger.js';
-
-type AuthenticatedRequest = Request & { userId: string };
 
 @ApiPostsController()
 @Controller('posts')

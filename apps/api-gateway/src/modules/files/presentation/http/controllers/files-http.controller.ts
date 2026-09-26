@@ -19,7 +19,8 @@ import {
   type FilesServiceClient,
 } from '@app/files-grpc';
 import type { ClientGrpc } from '@nestjs/microservices';
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
+import type { AuthenticatedRequest } from '../../../../../common/http/authenticated-request.js';
 import { firstValueFrom, type Observable } from 'rxjs';
 import { CompleteImageUploadsDto } from '../dto/input/complete-image-uploads.dto.js';
 import { InitiateImageUploadsDto } from '../dto/input/initiate-image-uploads.dto.js';
@@ -31,8 +32,6 @@ import { ApiInitiateAvatarUpload } from '../swagger/post/initiate-avatar-upload.
 import { GetFileDownloadUrlParamsDto } from '../dto/input/get-public-file-url-params.dto.js';
 import { ApiGetFileDownloadUrl } from '../swagger/get/get-public-file-url.swagger.js';
 import { Public } from '../../../../../common/http/decorators/public.decorator.js';
-
-type AuthenticatedRequest = Request & { userId: string };
 
 @ApiFilesController()
 @Controller('files')

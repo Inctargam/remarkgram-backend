@@ -2,17 +2,15 @@ import { Injectable } from '@nestjs/common';
 import {
   FilesRepository,
   type AttachImageUploadRepositoryParams,
-  type AttachReservedImageUploadsRepositoryParams,
   type ClaimExpiredImageUploadsParams,
   type ClaimedImageUpload,
   type CreateFileRecord,
   type DeleteClaimedImageUploadParams,
-  type DeleteRejectedImageUploadsParams,
   type FindAvailableByIdRepositoryParams,
   type FindAvailableByIdRepositoryResult,
-  type FindImageUploadsParams,
+  type ImageUploadsSelection,
   type ImageUploadRecord,
-  type ReleaseReservedImageUploadsRepositoryParams,
+  type ReservationParams,
   type ReserveImageUploadsRepositoryParams,
   type UpdateImageUploadsStatusParams,
   type SoftDeleteFileIdsByUserRepositoryResult,
@@ -91,7 +89,7 @@ export class PrismaFilesRepository extends FilesRepository {
     throw new ImageUploadStateConflictError();
   }
 
-  async findImageUploads(params: FindImageUploadsParams): Promise<ImageUploadRecord[]> {
+  async findImageUploads(params: ImageUploadsSelection): Promise<ImageUploadRecord[]> {
     const { uploadIds, userId } = params;
 
     const fileRecords = await this.prisma.file.findMany({
@@ -221,7 +219,7 @@ export class PrismaFilesRepository extends FilesRepository {
     }
   }
 
-  async releaseReservedImageUploads(params: ReleaseReservedImageUploadsRepositoryParams): Promise<void> {
+  async releaseReservedImageUploads(params: ReservationParams): Promise<void> {
     const { userId, reservationId } = params;
 
     await this.prisma.$transaction(async (tx) => {
@@ -266,7 +264,7 @@ export class PrismaFilesRepository extends FilesRepository {
     });
   }
 
-  async attachReservedImageUploads(params: AttachReservedImageUploadsRepositoryParams): Promise<void> {
+  async attachReservedImageUploads(params: ReservationParams): Promise<void> {
     const { userId, reservationId } = params;
 
     await this.prisma.$transaction(async (tx) => {
@@ -399,7 +397,7 @@ export class PrismaFilesRepository extends FilesRepository {
     return result.count === 1;
   }
 
-  async deleteRejectedImageUploads(params: DeleteRejectedImageUploadsParams): Promise<void> {
+  async deleteRejectedImageUploads(params: ImageUploadsSelection): Promise<void> {
     const { uploadIds, userId } = params;
 
     // Объекты уже удалены из S3. Записи удаляются только если всё ещё принадлежат этой

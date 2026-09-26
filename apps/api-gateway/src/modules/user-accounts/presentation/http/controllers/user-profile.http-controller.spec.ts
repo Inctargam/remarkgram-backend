@@ -8,7 +8,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { of, throwError } from 'rxjs';
 import request from 'supertest';
 import { Public } from '../../../../../common/http/decorators/public.decorator.js';
-import type { RequestWithUserId } from '../auth-request.types.js';
+import type { AuthenticatedRequest } from '../../../../../common/http/authenticated-request.js';
 import { UpdateProfileInfoDto } from '../dto/input/update-profile-info.dto.js';
 import { UserProfileHttpController } from './user-profile.http-controller.js';
 
@@ -51,7 +51,7 @@ describe(UserProfileHttpController.name, () => {
         countryCode: 'UA',
         city: 'Kyiv',
       },
-      { userId: '42' } as RequestWithUserId,
+      { userId: '42' } as AuthenticatedRequest,
     );
 
     expect(countriesApi.exists).toHaveBeenCalledOnce();
@@ -82,7 +82,7 @@ describe(UserProfileHttpController.name, () => {
           lastName: 'Doe',
           countryCode,
         } as unknown as UpdateProfileInfoDto,
-        { userId: '1' } as RequestWithUserId,
+        { userId: '1' } as AuthenticatedRequest,
       );
 
       expect(countriesApi.exists).not.toHaveBeenCalled();
@@ -101,7 +101,7 @@ describe(UserProfileHttpController.name, () => {
           lastName: 'Doe',
           countryCode: 'ZZ',
         } as unknown as UpdateProfileInfoDto,
-        { userId: '1' } as RequestWithUserId,
+        { userId: '1' } as AuthenticatedRequest,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -121,7 +121,7 @@ describe(UserProfileHttpController.name, () => {
           lastName: 'Doe',
           countryCode: 'UA',
         } as unknown as UpdateProfileInfoDto,
-        { userId: '1' } as RequestWithUserId,
+        { userId: '1' } as AuthenticatedRequest,
       ),
     ).rejects.toBe(error);
     expect(updateProfileInfo).not.toHaveBeenCalled();
@@ -136,7 +136,7 @@ describe(UserProfileHttpController.name, () => {
         { username: 'username', firstName: 'John', lastName: 'Doe' } as unknown as UpdateProfileInfoDto,
         {
           userId: '1',
-        } as RequestWithUserId,
+        } as AuthenticatedRequest,
       ),
     ).rejects.toBe(error);
     expect(updateProfileInfo).toHaveBeenCalledOnce();
@@ -172,7 +172,7 @@ describe(UserProfileHttpController.name, () => {
         name: { en: 'Ukraine', ru: 'Украина' },
       });
 
-      const result = await controller.getMyProfile({ userId: '42' } as RequestWithUserId);
+      const result = await controller.getMyProfile({ userId: '42' } as AuthenticatedRequest);
 
       expect(getMyProfile).toHaveBeenCalledWith({ userId: 42 });
       expect(countriesApi.findByCode).toHaveBeenCalledWith('UA');
@@ -205,7 +205,7 @@ describe(UserProfileHttpController.name, () => {
       );
       countriesApi.findByCode.mockResolvedValue(null);
 
-      await expect(controller.getMyProfile({ userId: '7' } as RequestWithUserId)).resolves.toEqual({
+      await expect(controller.getMyProfile({ userId: '7' } as AuthenticatedRequest)).resolves.toEqual({
         userId: 7,
         username: 'username',
         firstName: null,
@@ -221,7 +221,7 @@ describe(UserProfileHttpController.name, () => {
     it('does not query countries when the private profile has no country code', async () => {
       getMyProfile.mockReturnValue(of({ userId: 7, username: 'username' }));
 
-      await controller.getMyProfile({ userId: '7' } as RequestWithUserId);
+      await controller.getMyProfile({ userId: '7' } as AuthenticatedRequest);
 
       expect(countriesApi.findByCode).not.toHaveBeenCalled();
     });
@@ -259,7 +259,7 @@ describe(UserProfileHttpController.name, () => {
     });
 
     it.each([
-      ['private', () => controller.getMyProfile({ userId: '42' } as RequestWithUserId), getMyProfile],
+      ['private', () => controller.getMyProfile({ userId: '42' } as AuthenticatedRequest), getMyProfile],
       ['public', () => controller.getPublicProfile({ userId: 42 }), getPublicProfile],
     ] as const)('propagates a downstream %s profile error', async (_type, invoke, grpcMethod) => {
       const error = new Error('user accounts unavailable');
@@ -282,7 +282,7 @@ describe(UserProfileHttpController.name, () => {
       }).compile();
       app = module.createNestApplication();
       app.use((req: Request, _res: Response, next: NextFunction) => {
-        (req as RequestWithUserId).userId = '42';
+        (req as AuthenticatedRequest).userId = '42';
         next();
       });
       app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
