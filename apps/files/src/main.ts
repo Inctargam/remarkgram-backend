@@ -1,3 +1,4 @@
+import { AvatarDeletionRmqServer } from './infrastructure/rmq/avatar-deletion.rmq-server.js';
 import { NestFactory } from '@nestjs/core';
 import type { ConfigType } from '@nestjs/config';
 import type { MicroserviceOptions } from '@nestjs/microservices';
@@ -6,15 +7,11 @@ import { filesConfig } from './config/files.config.js';
 import { FilesModule } from './files.module.js';
 import { FILES_GRPC_PROTO_PATH, REMARKGRAM_FILES_V1_PACKAGE_NAME } from '@app/files-grpc';
 import { filesMessageBrokerConfig } from './config/message-broker.config.js';
-import {
-  FILES_AVATAR_DELETION_QUEUE,
-  FILES_POST_EVENTS_QUEUE,
-  POST_DELETED_V1_EVENT_NAME,
-  POSTS_EXCHANGE,
-} from '@app/message-broker';
+import { FILES_POST_EVENTS_QUEUE, POST_DELETED_V1_EVENT_NAME, POSTS_EXCHANGE } from '@app/message-broker';
 
 async function bootstrap() {
   const app = await NestFactory.create(FilesModule);
+  app.enableShutdownHooks();
   const config = app.get<ConfigType<typeof filesConfig>>(filesConfig.KEY);
   const brokerConfig = app.get<ConfigType<typeof filesMessageBrokerConfig>>(filesMessageBrokerConfig.KEY);
 
@@ -44,14 +41,7 @@ async function bootstrap() {
   });
 
   app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.RMQ,
-    options: {
-      urls: [brokerConfig.url],
-      queue: FILES_AVATAR_DELETION_QUEUE,
-      queueOptions: { durable: true },
-      noAck: false,
-      prefetchCount: 1,
-    },
+    strategy: new AvatarDeletionRmqServer(brokerConfig.url),
   });
 
   await app.startAllMicroservices();

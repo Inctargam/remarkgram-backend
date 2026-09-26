@@ -1,3 +1,4 @@
+import type { Channel, ConsumeMessage } from 'amqplib';
 import { Controller, Logger } from '@nestjs/common';
 import { Ctx, EventPattern, Payload, RmqContext } from '@nestjs/microservices';
 import {
@@ -12,10 +13,12 @@ import {
 import { FileDeletionJobsWorker } from '../../application/workers/file-deletion-jobs.worker.js';
 import { ImageUploadStateConflictError } from '../../application/errors/image-upload.errors.js';
 
-// Проверяем данные из брокера во время выполнения; после true TypeScript знает тип события.
-function isAvatarDeletionEvent(value: unknown): value is AvatarDeletionRequestedV1Event {
+type AvatarDeletionMessage = Pick<AvatarDeletionRequestedV1Event, 'eventId' | 'eventType' | 'data'>;
+
+// Проверяем используемые поля; принимаем также старые сообщения без aggregate metadata.
+function isAvatarDeletionEvent(value: unknown): value is AvatarDeletionMessage {
   if (!value || typeof value !== 'object') return false;
-  const event = value as Partial<AvatarDeletionRequestedV1Event>;
+  const event = value as Partial<AvatarDeletionMessage>;
   return (
     typeof event.eventId === 'string' &&
     isUUID(event.eventId, '4') &&
@@ -41,17 +44,12 @@ export class AvatarDeletionEventConsumer {
   @EventPattern(AVATAR_DELETION_REQUESTED_V1_EVENT_NAME)
   async handle(@Payload() data: unknown, @Ctx() context: RmqContext): Promise<void> {
     // Канал и исходное сообщение нужны для ручного подтверждения доставки (noAck: false).
-    const channel = context.getChannelRef() as {
-      ack(message: unknown): void;
-      nack(message: unknown, all: boolean, requeue: boolean): void;
-    };
-
-    const message = context.getMessage();
+    const channel = context.getChannelRef() as Channel;
+    const message = context.getMessage() as ConsumeMessage;
 
     if (!isAvatarDeletionEvent(data)) {
       this.logger.warn('Rejected invalid avatar deletion message');
-      // nack(message, all, requeue): отклоняем только это сообщение без возврата в очередь.
-      channel.nack(message, false, false);
+      channel.reject(message, false);
       return;
     }
 
@@ -66,8 +64,9 @@ export class AvatarDeletionEventConsumer {
       );
     } catch (error) {
       this.logger.error(`Avatar deletion failed: eventId=${data.eventId}: ${String(error)}`);
-      // Конфликт состояния отклоняем без повтора; остальные ошибки возвращают сообщение в очередь.
-      channel.nack(message, false, !(error instanceof ImageUploadStateConflictError));
+      // В RabbitMQ 4.3 reject увеличивает delivery-count; nack с requeue этого не делает.
+      // Аргументы quorum-очереди задают задержку, лимит повторов и перенос в DLQ.
+      channel.reject(message, !(error instanceof ImageUploadStateConflictError));
       return;
     }
     // После commit за удаление отвечает FileDeletionJob, сообщение можно подтвердить.

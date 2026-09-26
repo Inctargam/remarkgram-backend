@@ -11,7 +11,7 @@ const event = {
 describe('AvatarDeletionEventConsumer', () => {
   const deletion = { execute: vi.fn() };
   const worker = { run: vi.fn() };
-  const channel = { ack: vi.fn(), nack: vi.fn() };
+  const channel = { ack: vi.fn(), reject: vi.fn() };
   const message = {};
   const context = new RmqContext([message, channel, event.eventType]);
   const consumer = new AvatarDeletionEventConsumer(deletion as never, worker as never);
@@ -39,20 +39,21 @@ describe('AvatarDeletionEventConsumer', () => {
   it('accepts queued messages from the previous version with extra aggregate fields', async () => {
     await consumer.handle({ ...event, aggregateType: 'User', aggregateId: '42' }, context);
     expect(channel.ack).toHaveBeenCalledWith(message);
-    expect(channel.nack).not.toHaveBeenCalled();
+    expect(channel.reject).not.toHaveBeenCalled();
     expect(deletion.execute).toHaveBeenCalledOnce();
   });
-  it('requeues a database failure without acknowledging', async () => {
+  it('returns transient failures to the quorum queue without acknowledging them', async () => {
     deletion.execute.mockRejectedValue(new Error('DB unavailable'));
     await consumer.handle(event, context);
-    expect(channel.nack).toHaveBeenCalledWith(message, false, true);
+    expect(channel.reject).toHaveBeenCalledWith(message, true);
     expect(channel.ack).not.toHaveBeenCalled();
     expect(worker.run).not.toHaveBeenCalled();
   });
-  it('rejects a state conflict without requeue', async () => {
+  it('sends a state conflict straight to DLQ', async () => {
     deletion.execute.mockRejectedValue(new ImageUploadStateConflictError());
     await consumer.handle(event, context);
-    expect(channel.nack).toHaveBeenCalledWith(message, false, false);
+    expect(channel.reject).toHaveBeenCalledWith(message, false);
+    expect(channel.ack).not.toHaveBeenCalled();
   });
   it.each([
     null,
@@ -63,13 +64,14 @@ describe('AvatarDeletionEventConsumer', () => {
     { ...event, data: { userId: 42, fileId: 'bad' } },
   ])('rejects malformed input %j', async (data) => {
     await consumer.handle(data, context);
-    expect(channel.nack).toHaveBeenCalledWith(message, false, false);
+    expect(channel.reject).toHaveBeenCalledWith(message, false);
+    expect(channel.ack).not.toHaveBeenCalled();
     expect(deletion.execute).not.toHaveBeenCalled();
   });
   it('does not requeue a persisted request if the background worker fails', async () => {
     worker.run.mockRejectedValue(new Error('S3 offline'));
     await consumer.handle(event, context);
     expect(channel.ack).toHaveBeenCalledOnce();
-    expect(channel.nack).not.toHaveBeenCalled();
+    expect(channel.reject).not.toHaveBeenCalled();
   });
 });
