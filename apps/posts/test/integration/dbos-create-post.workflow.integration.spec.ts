@@ -258,10 +258,10 @@ describe.runIf(databaseUrl !== undefined && databaseUrl.length > 0)(
           imageUploadsGateway.failures.set('ATTACH', new PostImagesNotAvailableError());
         }
         await expect(workflow.execute(params)).rejects.toBeInstanceOf(ImageUploadsServiceUnavailableError);
-        expect(imageUploadsGateway.getCalls(kind)).toHaveLength(5);
+        expect(imageUploadsGateway.getCalls(kind)).toHaveLength(3);
         expect(new Set(imageUploadsGateway.getCalls(kind).map((call) => call.reservationId)).size).toBe(1);
         await expect(workflow.execute(params)).rejects.toBeInstanceOf(ImageUploadsServiceUnavailableError);
-        expect(imageUploadsGateway.getCalls(kind)).toHaveLength(5);
+        expect(imageUploadsGateway.getCalls(kind)).toHaveLength(3);
         const posts = await prisma.post.findMany({ where: { authorId: TEST_AUTHOR_ID } });
         expect(posts).toHaveLength(kind === 'RESERVE' ? 0 : 1);
         if (posts[0]) expect(posts[0].publishedAt).toBeNull();

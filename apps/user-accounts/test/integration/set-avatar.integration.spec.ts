@@ -562,14 +562,14 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
     await waitForJobs((events) => expect(events).toHaveLength(1));
   });
 
-  it('exhausts five attempts, keeps the previous avatar and lock, and replays the error', async () => {
+  it('exhausts three attempts, keeps the previous avatar and lock, and replays the error', async () => {
     const old = await newFile({ uploadStatus: 'ATTACHED' });
     await prisma.profile.create({ data: { userId, avatarFileId: old.id } });
     const file = await newFile();
     const input = params(file.id);
     gateway.pauseAttach = () => Promise.reject(new AvatarFilesUnavailableError());
     await expect(workflow.execute(input)).rejects.toMatchObject({ code: Code.AVATAR_FILES_UNAVAILABLE });
-    expect(gateway.calls).toHaveLength(5);
+    expect(gateway.calls).toHaveLength(3);
     expect(gateway.calls.every((call) => call.operationId === gateway.calls[0].operationId)).toBe(true);
     const profile = await prisma.profile.findUniqueOrThrow({ where: { userId } });
     expect(profile.avatarFileId).toBe(old.id);
@@ -579,7 +579,7 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
       uploadStatus: 'COMPLETED',
     });
     await expect(workflow.execute(input)).rejects.toMatchObject({ code: Code.AVATAR_FILES_UNAVAILABLE });
-    expect(gateway.calls).toHaveLength(5);
+    expect(gateway.calls).toHaveLength(3);
     expect((await DBOS.retrieveWorkflow(input.workflowId).getStatus())?.status).toBe('ERROR');
   }, 30_000);
 

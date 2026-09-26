@@ -119,7 +119,7 @@ export class DbosSetAvatarWorkflow extends ConfiguredInstance implements SetAvat
 
   @DBOS.step({
     retriesAllowed: true,
-    maxAttempts: 5,
+    maxAttempts: 3,
     intervalSeconds: 1,
     backoffRate: 2,
     shouldRetry: (error: unknown) => getAvatarErrorCode(error) === Code.AVATAR_FILES_UNAVAILABLE,

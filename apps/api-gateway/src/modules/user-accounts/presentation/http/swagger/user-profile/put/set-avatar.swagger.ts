@@ -35,6 +35,8 @@ export const ApiSetAvatar = () =>
     ApiResponse({
       status: 503,
       description:
-        'Files request failed. The workflow retains its error and lock; retries in the gRPC adapter are not implemented yet.',
+        'Files remains unavailable after three attempts with delays of 1 and 2 seconds. ' +
+        'The 3 seconds cover only retry delays, not the duration of the calls; no overall request deadline is configured. ' +
+        'The workflow retains its error and lock. Repeating the same Idempotency-Key returns the stored error without new attempts.',
     }),
   );

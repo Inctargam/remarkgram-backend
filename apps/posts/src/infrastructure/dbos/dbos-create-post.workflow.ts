@@ -19,7 +19,7 @@ import { PostsDbosDataSource } from './posts-dbos.datasource.js';
 
 const filesStepRetryOptions = {
   retriesAllowed: true,
-  maxAttempts: 5,
+  maxAttempts: 3,
   intervalSeconds: 1,
   backoffRate: 2,
   shouldRetry: (error: unknown) =>

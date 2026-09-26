@@ -23,8 +23,9 @@ export const ApiCreatePost = () =>
         'files/image-uploads/complete in their display order. Posts asks Files over gRPC to reserve images ' +
         'that exist, belong to the authenticated author, are not soft-deleted and have status COMPLETED. ' +
         'The post and its ordered image relations are then created atomically, after which the reservation ' +
-        'is marked as attached. Retrying an identical request with the same Idempotency-Key resumes ' +
-        'the original creation workflow and returns the same post ID.',
+        'is marked as attached. An identical request with the same Idempotency-Key waits for an ongoing workflow ' +
+        'or returns its stored result. After success it returns the same post ID; after a final failure it ' +
+        'returns the stored error without starting new attempts.',
     }),
     ApiBody({
       type: CreatePostDto,
@@ -160,7 +161,11 @@ export const ApiCreatePost = () =>
     }),
     ApiResponse({
       status: 503,
-      description: 'Posts could not verify images because Files is unavailable or exceeded its deadline.',
+      description:
+        'Files remains unavailable after three attempts for a step, with delays of 1 and 2 seconds. ' +
+        'Retries apply to reservation, attachment and reservation release. The 3 seconds cover only delays ' +
+        'for one step; call durations and delays across steps add up. No overall request deadline is configured. ' +
+        'Repeating the same Idempotency-Key returns the stored error without new attempts.',
       content: {
         'application/json': {
           schema: { $ref: getSchemaPath(ApiErrorResponseDto) },
