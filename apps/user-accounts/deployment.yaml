@@ -50,11 +50,6 @@ spec:
                  secretKeyRef:
                    name: remarkgram-user-accounts-production-config-secret
                    key: CONFIRMATION_CODE_EXPIRES_IN
-             - name: RECOVERY_CODE_EXPIRES_IN
-               valueFrom:
-                 secretKeyRef:
-                   name: remarkgram-user-accounts-production-config-secret
-                   key: RECOVERY_CODE_EXPIRES_IN
              - name: PASSWORD_RESET_TOKEN_TTL_MINUTES
                valueFrom:
                  secretKeyRef:

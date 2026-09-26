@@ -24,7 +24,6 @@ describe('AuthService', () => {
     accessTokenExpiresIn: '10m',
     refreshTokenExpiresIn: '20m',
     confirmationCodeExpiresIn: 24,
-    recoveryCodeExpiresIn: 1,
   } as ConfigType<typeof authConfig>;
   let service: AuthService;
 
