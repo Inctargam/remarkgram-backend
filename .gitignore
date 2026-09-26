@@ -59,6 +59,7 @@ lerna-debug.log*
 
 # Local Docker Compose configuration
 /compose.yaml
+/compose.dev.yaml
 
 # temp directory
 .temp

@@ -3,7 +3,7 @@ pipeline {
     agent any
     environment {
         ENV_TYPE = "production"
-        PORT = 4397
+        PORT = 4398
         NAMESPACE = "remark-gram-com"
         REGISTRY_HOSTNAME = "ykvachonak"
         PROJECT = "remarkgram-posts"

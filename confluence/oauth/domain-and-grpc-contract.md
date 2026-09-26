@@ -243,7 +243,7 @@ Repository использует `INSERT ... ON CONFLICT DO NOTHING`. Пусто�
 | `OAUTH_PROVIDER_ALREADY_LINKED` | `ALREADY_EXISTS` | У пользователя уже есть другая identity этого провайдера. |
 | `OAUTH_IDENTITY_CONFLICT` | `ABORTED` | Конфликт уникальности не удалось однозначно классифицировать. |
 
-Application error code передаётся клиенту в gRPC metadata под ключом, экспортируемым как `USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY`.
+Application error code передаётся клиенту в gRPC metadata под общим для всех микросервисов ключом `APP_ERROR_CODE_METADATA_KEY`.
 
 ## 8. gRPC-контракт
 

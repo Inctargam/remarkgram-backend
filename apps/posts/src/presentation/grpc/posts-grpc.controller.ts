@@ -2,25 +2,66 @@ import {
   PostsServiceControllerMethods,
   type CreatePostRequest,
   type CreatePostResponse,
+  UpdatePostRequest,
+  UpdatePostResponse,
+  GetAuthPostsPaginatedRequest,
+  GetAuthPostsPaginatedResponse,
+  DeletePostRequest,
+  DeletePostResponse,
 } from '@app/posts-grpc';
 import { Controller, UseFilters } from '@nestjs/common';
-import { CommandBus } from '@nestjs/cqrs';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { CreatePostCommand } from '../../application/use-cases/create-post/create-post.use-case.js';
 import { PostsRpcExceptionFilter } from './filters/posts-rpc-exception.filter.js';
+import { UpdatePostCommand } from '../../application/use-cases/update-post/update-post.use-case.js';
+import { GetAuthorPostsQuery } from '../../application/use-cases/get-author-posts/get-author-posts.query-handler.js';
+import { SoftDeletePostCommand } from '../../application/use-cases/soft-delete-post/soft-delete-post.use-case.js';
 
 @Controller()
 @PostsServiceControllerMethods()
 @UseFilters(PostsRpcExceptionFilter)
 export class PostsGrpcController {
-  constructor(private readonly commandBus: CommandBus) {}
+  constructor(
+    private readonly commandBus: CommandBus,
+    private readonly queryBus: QueryBus,
+  ) {}
 
   createPost(request: CreatePostRequest): Promise<CreatePostResponse> {
     return this.commandBus.execute(
       new CreatePostCommand({
         userId: Number(request.userId),
+        idempotencyKey: request.idempotencyKey,
         description: request.description,
         imageIds: request.imageIds,
       }),
     );
+  }
+
+  async updatePost(request: UpdatePostRequest): Promise<UpdatePostResponse> {
+    await this.commandBus.execute(
+      new UpdatePostCommand({
+        authorId: Number(request.userId),
+        postId: Number(request.postId),
+        description: request.description,
+      }),
+    );
+    return {};
+  }
+  async getAuthPostsPaginated(request: GetAuthPostsPaginatedRequest): Promise<GetAuthPostsPaginatedResponse> {
+    return await this.queryBus.execute(
+      new GetAuthorPostsQuery({
+        authorId: Number(request.userId),
+        limit: request.limit,
+        cursor: request?.cursor,
+      }),
+    );
+  }
+  async deletePost(request: DeletePostRequest): Promise<DeletePostResponse> {
+    const command = new SoftDeletePostCommand({
+      authorId: Number(request.userId),
+      postId: Number(request.postId),
+    });
+    await this.commandBus.execute(command);
+    return {};
   }
 }

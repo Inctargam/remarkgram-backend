@@ -1,11 +1,21 @@
-import { HeadObjectCommand, S3ServiceException, type S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  S3ServiceException,
+  type S3Client,
+} from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { ConfigType } from '@nestjs/config';
 import type { filesConfig } from '../../config/files.config.js';
 import { S3ObjectStorage } from './s3-object-storage.js';
 
 vi.mock('@aws-sdk/s3-presigned-post', () => ({
   createPresignedPost: vi.fn(),
+}));
+vi.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: vi.fn(),
 }));
 
 describe('S3ObjectStorage', () => {
@@ -19,12 +29,33 @@ describe('S3ObjectStorage', () => {
 
   beforeEach(() => {
     vi.mocked(createPresignedPost).mockReset();
+    vi.mocked(getSignedUrl).mockReset();
     send.mockReset();
+  });
+
+  it('creates a temporary signed download URL', async () => {
+    vi.mocked(getSignedUrl).mockResolvedValue('https://storage.example.com/signed-object');
+
+    await expect(
+      objectStorage.createPresignedDownloadUrl({
+        objectKey: 'users/42/images/image-id',
+        expiresInSeconds: 300,
+      }),
+    ).resolves.toBe('https://storage.example.com/signed-object');
+
+    expect(getSignedUrl).toHaveBeenCalledTimes(1);
+    const [, command, options] = vi.mocked(getSignedUrl).mock.calls[0];
+    expect(command).toBeInstanceOf(GetObjectCommand);
+    expect((command as GetObjectCommand).input).toEqual({
+      Bucket: 'images-bucket',
+      Key: 'users/42/images/image-id',
+    });
+    expect(options).toEqual({ expiresIn: 300 });
   });
 
   it('creates a constrained presigned upload and returns its policy expiration', async () => {
     const fields = {
-      key: 'user/42/images/image-id',
+      key: 'users/42/images/image-id',
       Policy: Buffer.from(JSON.stringify({ expiration: '2030-01-01T00:00:00Z' })).toString('base64'),
     };
     vi.mocked(createPresignedPost).mockResolvedValue({
@@ -33,7 +64,7 @@ describe('S3ObjectStorage', () => {
     });
 
     const result = await objectStorage.createPresignedUpload({
-      objectKey: 'user/42/images/image-id',
+      objectKey: 'users/42/images/image-id',
       contentType: 'image/jpeg',
       size: 1_024,
       expiresInSeconds: 300,
@@ -41,7 +72,7 @@ describe('S3ObjectStorage', () => {
 
     expect(createPresignedPost).toHaveBeenCalledWith(s3Client, {
       Bucket: 'images-bucket',
-      Key: 'user/42/images/image-id',
+      Key: 'users/42/images/image-id',
       Expires: 300,
       Fields: {
         'Content-Type': 'image/jpeg',
@@ -62,7 +93,7 @@ describe('S3ObjectStorage', () => {
       $metadata: {},
     });
 
-    await expect(objectStorage.getObjectMetadata('user/42/images/image-id')).resolves.toEqual({
+    await expect(objectStorage.getObjectMetadata('users/42/images/image-id')).resolves.toEqual({
       size: 1_024,
       contentType: 'image/jpeg',
     });
@@ -71,7 +102,7 @@ describe('S3ObjectStorage', () => {
     expect(command).toBeInstanceOf(HeadObjectCommand);
     expect((command as HeadObjectCommand).input).toEqual({
       Bucket: 'images-bucket',
-      Key: 'user/42/images/image-id',
+      Key: 'users/42/images/image-id',
     });
   });
 
@@ -98,5 +129,18 @@ describe('S3ObjectStorage', () => {
     send.mockRejectedValue(error);
 
     await expect(objectStorage.getObjectMetadata('object-key')).rejects.toBe(error);
+  });
+
+  it('deletes an object from the configured bucket', async () => {
+    send.mockResolvedValue({ $metadata: {} });
+
+    await expect(objectStorage.deleteObject('users/42/images/image-id')).resolves.toBeUndefined();
+
+    const command = send.mock.calls[0]?.[0];
+    expect(command).toBeInstanceOf(DeleteObjectCommand);
+    expect((command as DeleteObjectCommand).input).toEqual({
+      Bucket: 'images-bucket',
+      Key: 'users/42/images/image-id',
+    });
   });
 });

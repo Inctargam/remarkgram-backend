@@ -3,9 +3,10 @@ import { Test } from '@nestjs/testing';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { Metadata, type ServiceError, status } from '@grpc/grpc-js';
+import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import {
-  FILES_APP_ERROR_CODE_METADATA_KEY,
   FILES_SERVICE_NAME,
+  MAX_AVATAR_SIZE_BYTES,
   REMARKGRAM_FILES_V1_PACKAGE_NAME,
   TESTING_SERVICE_NAME as FILES_TESTING_SERVICE_NAME,
   type FilesServiceClient,
@@ -20,13 +21,13 @@ import {
 } from '@app/posts-grpc';
 import {
   AUTH_SERVICE_NAME,
+  OAuthProvider,
   PASSWORD_RESET_SERVICE_NAME,
   REGISTRATION_SERVICE_NAME,
   REMARKGRAM_USER_ACCOUNTS_V1_PACKAGE_NAME,
   SESSIONS_SERVICE_NAME,
   TESTING_SERVICE_NAME as USER_ACCOUNTS_TESTING_SERVICE_NAME,
   USERS_SERVICE_NAME,
-  USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY,
   type AuthServiceClient,
   type PasswordResetServiceClient,
   type RegistrationServiceClient,
@@ -57,6 +58,7 @@ describe('ApiGateway (e2e)', () => {
   const testingEndpointKey = 'testing-key-with-at-least-32-characters';
   let app: INestApplication;
   const filesServiceClient = {
+    initiateAvatarUpload: vi.fn<FilesServiceClient['initiateAvatarUpload']>(),
     initiateImageUploads: vi.fn<FilesServiceClient['initiateImageUploads']>(),
     completeImageUploads: vi.fn<FilesServiceClient['completeImageUploads']>(),
   };
@@ -64,7 +66,10 @@ describe('ApiGateway (e2e)', () => {
     createPost: vi.fn<PostsServiceClient['createPost']>(),
   };
   const usersServiceClient = {
+    setAvatar: vi.fn<UsersServiceClient['setAvatar']>(),
+    deleteAvatar: vi.fn<UsersServiceClient['deleteAvatar']>(),
     getUsers: vi.fn<UsersServiceClient['getUsers']>(),
+    getCurrentUser: vi.fn<UsersServiceClient['getCurrentUser']>(),
   };
   const authServiceClient = {
     login: vi.fn<AuthServiceClient['login']>(),
@@ -147,6 +152,7 @@ describe('ApiGateway (e2e)', () => {
     sessionId: 'e3637e61-194b-4f79-9676-e59a20bb7c42',
     jti: 'current-jti',
   };
+  const postIdempotencyKey = '7b96a443-8b33-41cf-9bd9-2f57b720d39e';
 
   beforeEach(async () => {
     vi.stubEnv('NODE_ENV', 'testing');
@@ -168,6 +174,14 @@ describe('ApiGateway (e2e)', () => {
     vi.stubEnv('GITHUB_CALLBACK_URL', 'https://api.example.com/api/v1/auth/github/callback');
     vi.stubEnv('GITHUB_API_VERSION', '2026-03-10');
     vi.stubEnv('GITHUB_USER_AGENT', 'remark-gram-tests');
+    filesServiceClient.initiateAvatarUpload.mockReturnValue(
+      of({
+        id: '22222222-2222-4222-8222-222222222222',
+        clientFileId: '11111111-1111-4111-8111-111111111111',
+        url: 'https://storage.example.com',
+        fields: { key: 'avatar-object-key' },
+      }),
+    );
     filesServiceClient.initiateImageUploads.mockReturnValue(
       of({
         sessions: [
@@ -180,6 +194,8 @@ describe('ApiGateway (e2e)', () => {
         ],
       }),
     );
+    usersServiceClient.setAvatar.mockReturnValue(of({}));
+    usersServiceClient.deleteAvatar.mockReturnValue(of({}));
     filesServiceClient.completeImageUploads.mockReturnValue(of({}));
     postsServiceClient.createPost.mockReturnValue(of({ id: 10 }));
     jwtService.verifyAsync.mockResolvedValue({
@@ -190,6 +206,17 @@ describe('ApiGateway (e2e)', () => {
     usersServiceClient.getUsers.mockReturnValue(
       of({
         users: [{ id: 1, username: 'user', email: 'user@example.com' }],
+      }),
+    );
+    usersServiceClient.getCurrentUser.mockReturnValue(
+      of({
+        id: 1,
+        username: 'client123',
+        email: 'user@example.com',
+        emailVerified: true,
+        hasPassword: true,
+        oauthProviders: [OAuthProvider.OAUTH_PROVIDER_GOOGLE, OAuthProvider.OAUTH_PROVIDER_GITHUB],
+        createdAt: '2026-08-21T10:15:00.000Z',
       }),
     );
     authServiceClient.login.mockReturnValue(
@@ -290,6 +317,7 @@ describe('ApiGateway (e2e)', () => {
       '/auth/login',
       '/auth/refresh-token',
       '/auth/logout',
+      '/auth/me',
       '/auth/google',
       '/auth/google/callback',
       '/auth/github',
@@ -297,6 +325,8 @@ describe('ApiGateway (e2e)', () => {
       '/auth/password-reset/request',
       '/auth/password-reset/confirm',
       '/files/image-uploads',
+      '/files/avatar-upload',
+      '/users/me/profile/avatar',
       '/files/image-uploads/complete',
       '/posts',
       '/security/sessions',
@@ -312,6 +342,17 @@ describe('ApiGateway (e2e)', () => {
     expect(document.paths).not.toHaveProperty(apiPath('/files'));
     expect(Object.keys(document.components.schemas.SessionResponseDto?.properties ?? {})).toEqual(
       expect.arrayContaining(['sessionId', 'deviceName', 'ip', 'lastActiveAt', 'isCurrent']),
+    );
+    expect(Object.keys(document.components.schemas.CurrentUserResponseDto?.properties ?? {})).toEqual(
+      expect.arrayContaining([
+        'id',
+        'username',
+        'email',
+        'avatarUrl',
+        'emailVerified',
+        'loginMethods',
+        'createdAt',
+      ]),
     );
     expect(document.components.schemas).not.toHaveProperty('DeviceResponseDto');
 
@@ -339,10 +380,16 @@ describe('ApiGateway (e2e)', () => {
       delete: OpenApiOperation;
     };
     const googleAuth = document.paths[apiPath('/auth/google')] as { get: OpenApiOperation };
+    const getCurrentUser = document.paths[apiPath('/auth/me')] as {
+      get: OpenApiOperation & { security?: Record<string, unknown>[] };
+    };
     const googleAuthCallback = document.paths[apiPath('/auth/google/callback')] as {
       get: OpenApiOperation;
     };
     const initiateImageUploads = document.paths[apiPath('/files/image-uploads')] as {
+      post: OpenApiOperation;
+    };
+    const initiateAvatarUpload = document.paths[apiPath('/files/avatar-upload')] as {
       post: OpenApiOperation;
     };
     const completeImageUploads = document.paths[apiPath('/files/image-uploads/complete')] as {
@@ -351,6 +398,11 @@ describe('ApiGateway (e2e)', () => {
     const createPost = document.paths[apiPath('/posts')] as { post: OpenApiOperation };
 
     expect(googleAuth.get.summary).toBe('Start Google OIDC authentication');
+    expect(getCurrentUser.get.summary).toBe('Get the current authenticated user');
+    expect(getCurrentUser.get.security).toContainEqual({ accessToken: [] });
+    expect(Object.keys(getCurrentUser.get.responses)).toEqual(
+      expect.arrayContaining(['200', '401', '502', '503']),
+    );
     expect(googleAuth.get.responses['302']?.headers).toHaveProperty('Location');
     expect(googleAuth.get.responses['302']?.headers).toHaveProperty('Set-Cookie');
     expect(googleAuthCallback.get.summary).toBe('Complete Google OIDC authentication');
@@ -377,6 +429,27 @@ describe('ApiGateway (e2e)', () => {
       name: 'Posts',
       description: 'Post creation with completed image uploads.',
     });
+    expect(initiateAvatarUpload.post.summary).toBe('Create an avatar upload session');
+    expect(initiateAvatarUpload.post.description).toContain('24 hours');
+    expect(initiateAvatarUpload.post.description).toContain('/files/image-uploads/complete');
+    expect(Object.keys(initiateAvatarUpload.post.responses)).toEqual(
+      expect.arrayContaining(['201', '400', '401', '502', '503']),
+    );
+    expect(document.components.schemas.InitiateAvatarUploadDto?.properties?.size).toMatchObject({
+      minimum: 1,
+      maximum: MAX_AVATAR_SIZE_BYTES,
+    });
+    expect(Object.keys(document.components.schemas.InitiateAvatarUploadDto?.properties ?? {})).toEqual(
+      expect.arrayContaining(['clientFileId', 'originalFilename', 'contentType', 'size']),
+    );
+    expect(
+      initiateAvatarUpload.post.responses['400'].content?.['application/json']?.examples?.invalidImageSize
+        ?.value,
+    ).toEqual({
+      statusCode: 400,
+      code: 'INVALID_IMAGE_SIZE',
+      message: 'Image size must be between 1 and 10485760 bytes',
+    });
     expect(initiateImageUploads.post.summary).toBe('Create image upload sessions');
     expect(initiateImageUploads.post.description).toContain('presigned POST');
     expect(Object.keys(initiateImageUploads.post.responses)).toEqual(
@@ -395,15 +468,39 @@ describe('ApiGateway (e2e)', () => {
       expect.arrayContaining(['204', '400', '401', '404', '409', '502', '503']),
     );
     expect(createPost.post.summary).toBe('Create a post with completed image uploads');
+    expect(createPost.post.parameters).toContainEqual(
+      expect.objectContaining({ name: 'Idempotency-Key', in: 'header', required: true }),
+    );
     expect(Object.keys(createPost.post.responses)).toEqual(
       expect.arrayContaining(['201', '400', '401', '404', '409', '502', '503']),
     );
+    expect(
+      createPost.post.responses['400'].content?.['application/json']?.examples?.invalidIdempotencyKey?.value,
+    ).toEqual({
+      statusCode: 400,
+      message: 'Idempotency-Key header must be a UUID v4',
+      error: 'Bad Request',
+    });
+    expect(
+      createPost.post.responses['409'].content?.['application/json']?.examples?.imagesNotAvailable?.value,
+    ).toEqual({
+      statusCode: 409,
+      code: 'POST_IMAGES_NOT_AVAILABLE',
+      message: 'One or more post images are not available',
+    });
     expect(
       createPost.post.responses['409'].content?.['application/json']?.examples?.imageAlreadyAttached?.value,
     ).toEqual({
       statusCode: 409,
       code: 'POST_IMAGE_ALREADY_ATTACHED',
       message: 'One or more images are already attached to a post',
+    });
+    expect(
+      createPost.post.responses['409'].content?.['application/json']?.examples?.idempotencyKeyConflict?.value,
+    ).toEqual({
+      statusCode: 409,
+      code: 'POST_IDEMPOTENCY_KEY_CONFLICT',
+      message: 'Idempotency-Key was already used with a different request',
     });
     expect(
       createPost.post.responses['503'].content?.['application/json']?.examples?.imageUploadsServiceUnavailable
@@ -424,6 +521,311 @@ describe('ApiGateway (e2e)', () => {
     expect(filesTestingServiceClient.deleteAllData).toHaveBeenCalledWith({});
     expect(postsTestingServiceClient.deleteAllData).toHaveBeenCalledWith({});
     expect(userAccountsTestingServiceClient.deleteAllData).toHaveBeenCalledWith({});
+  });
+
+  it('DELETE avatar uses the token owner, normalizes the key and returns an empty 204', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .delete(apiPath('/users/me/profile/avatar'))
+      .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', postIdempotencyKey.toUpperCase())
+      .send({ userId: 999 })
+      .expect(204)
+      .expect('');
+    expect(usersServiceClient.deleteAvatar).toHaveBeenCalledExactlyOnceWith({
+      userId: 1,
+      idempotencyKey: postIdempotencyKey,
+    });
+  });
+
+  it('DELETE avatar requires authorization', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .delete(apiPath('/users/me/profile/avatar'))
+      .set('Idempotency-Key', postIdempotencyKey)
+      .expect(401);
+    expect(usersServiceClient.deleteAvatar).not.toHaveBeenCalled();
+  });
+
+  it.each(['', 'invalid', 'aaaaaaaa-aaaa-1aaa-8aaa-aaaaaaaaaaaa'])(
+    'DELETE avatar rejects invalid key %s',
+    async (key) => {
+      const call = request(app.getHttpServer() as SupertestApp)
+        .delete(apiPath('/users/me/profile/avatar'))
+        .set('Authorization', 'Bearer access-token');
+      if (key) call.set('Idempotency-Key', key);
+      await call.expect(400);
+      expect(usersServiceClient.deleteAvatar).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { grpcStatus: status.NOT_FOUND, httpStatus: 404, code: 'USER_NOT_FOUND' },
+    { grpcStatus: status.FAILED_PRECONDITION, httpStatus: 409, code: 'AVATAR_UPDATE_CONFLICT' },
+  ])('DELETE avatar preserves $code as $httpStatus', async ({ grpcStatus, httpStatus, code }) => {
+    const metadata = new Metadata();
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, code);
+    usersServiceClient.deleteAvatar.mockReturnValueOnce(
+      throwError(() => createServiceError(grpcStatus, code, metadata)),
+    );
+    const response = await request(app.getHttpServer() as SupertestApp)
+      .delete(apiPath('/users/me/profile/avatar'))
+      .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', postIdempotencyKey)
+      .expect(httpStatus);
+    expect(response.body).toMatchObject({ code });
+  });
+
+  it('documents DELETE avatar without a body and with a required key', async () => {
+    const response = await request(app.getHttpServer() as SupertestApp)
+      .get(`/${SWAGGER_PATH}-json`)
+      .expect(200);
+    const document = response.body as {
+      paths: Record<
+        string,
+        {
+          delete: {
+            parameters: unknown[];
+            security: unknown[];
+            requestBody?: unknown;
+            responses: Record<string, unknown>;
+          };
+        }
+      >;
+    };
+    const operation = document.paths[apiPath('/users/me/profile/avatar')].delete;
+    expect(operation.requestBody).toBeUndefined();
+    expect(operation.security).toEqual([{ accessToken: [] }]);
+    expect(operation.parameters).toContainEqual(
+      expect.objectContaining({ name: 'Idempotency-Key', required: true }),
+    );
+    expect(Object.keys(operation.responses)).toEqual(
+      expect.arrayContaining(['204', '400', '401', '404', '409']),
+    );
+  });
+
+  const avatarFileId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  it('PUT /users/me/profile/avatar uses the token owner and normalizes UUIDs', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .put(apiPath('/users/me/profile/avatar'))
+      .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', postIdempotencyKey.toUpperCase())
+      .send({ fileId: avatarFileId.toUpperCase(), userId: 999 })
+      .expect(204)
+      .expect('');
+    expect(usersServiceClient.setAvatar).toHaveBeenCalledWith({
+      userId: 1,
+      fileId: avatarFileId,
+      idempotencyKey: postIdempotencyKey,
+    });
+  });
+
+  it('documents the avatar body, key, authorization and response statuses', async () => {
+    const response = await request(app.getHttpServer() as SupertestApp)
+      .get(`/${SWAGGER_PATH}-json`)
+      .expect(200);
+    const document = response.body as {
+      paths: Record<
+        string,
+        {
+          put: {
+            parameters: Array<{ name: string; required: boolean }>;
+            responses: Record<string, unknown>;
+            security: unknown[];
+            requestBody: unknown;
+          };
+        }
+      >;
+      components: { schemas: Record<string, { required: string[]; properties: Record<string, unknown> }> };
+    };
+    const operation = document.paths[apiPath('/users/me/profile/avatar')].put;
+    expect(operation.parameters).toContainEqual(
+      expect.objectContaining({ name: 'Idempotency-Key', required: true }),
+    );
+    expect(Object.keys(operation.responses)).toEqual(
+      expect.arrayContaining(['204', '400', '401', '404', '409', '503']),
+    );
+    expect(operation.security).toEqual([{ accessToken: [] }]);
+    expect(operation.requestBody).toBeDefined();
+    expect(document.components.schemas.SetAvatarDto.required).toEqual(['fileId']);
+    expect(document.components.schemas.SetAvatarDto.properties.fileId).toMatchObject({ format: 'uuid' });
+  });
+
+  it('PUT avatar requires authorization', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .put(apiPath('/users/me/profile/avatar'))
+      .set('Idempotency-Key', postIdempotencyKey)
+      .send({ fileId: avatarFileId })
+      .expect(401);
+    expect(usersServiceClient.setAvatar).not.toHaveBeenCalled();
+  });
+
+  it.each([{}, { fileId: 'invalid' }, { fileId: null }, [{ fileId: avatarFileId }]])(
+    'PUT avatar rejects invalid body %j',
+    async (body) => {
+      await request(app.getHttpServer() as SupertestApp)
+        .put(apiPath('/users/me/profile/avatar'))
+        .set('Authorization', 'Bearer access-token')
+        .set('Idempotency-Key', postIdempotencyKey)
+        .send(body)
+        .expect(400);
+      expect(usersServiceClient.setAvatar).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['', 'not-a-uuid'])('PUT avatar rejects invalid idempotency key %s', async (key) => {
+    const call = request(app.getHttpServer() as SupertestApp)
+      .put(apiPath('/users/me/profile/avatar'))
+      .set('Authorization', 'Bearer access-token');
+    if (key) call.set('Idempotency-Key', key);
+    await call.send({ fileId: avatarFileId }).expect(400);
+    expect(usersServiceClient.setAvatar).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      grpcStatus: status.INVALID_ARGUMENT,
+      httpStatus: 400,
+      code: 'INVALID_AVATAR_IMAGE',
+      message: 'The photo must be less than 10 Mb and have JPEG or PNG format',
+    },
+    {
+      grpcStatus: status.NOT_FOUND,
+      httpStatus: 404,
+      code: 'AVATAR_FILE_NOT_FOUND',
+      message: 'Avatar file was not found',
+    },
+    {
+      grpcStatus: status.FAILED_PRECONDITION,
+      httpStatus: 409,
+      code: 'AVATAR_UPDATE_CONFLICT',
+      message: 'An avatar update is already in progress',
+    },
+    {
+      grpcStatus: status.UNAVAILABLE,
+      httpStatus: 503,
+      code: 'AVATAR_FILES_UNAVAILABLE',
+      message: 'Files service is temporarily unavailable',
+    },
+  ])('PUT avatar preserves $code as $httpStatus', async ({ grpcStatus, httpStatus, code, message }) => {
+    const metadata = new Metadata();
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, code);
+    usersServiceClient.setAvatar.mockReturnValueOnce(
+      throwError(() => createServiceError(grpcStatus, message, metadata)),
+    );
+    const response = await request(app.getHttpServer() as SupertestApp)
+      .put(apiPath('/users/me/profile/avatar'))
+      .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', postIdempotencyKey)
+      .send({ fileId: avatarFileId })
+      .expect(httpStatus);
+    expect(response.body).toMatchObject({ code, message });
+  });
+
+  const avatarInput = {
+    clientFileId: '11111111-1111-4111-8111-111111111111',
+    originalFilename: 'avatar.jpg',
+    contentType: 'image/jpeg',
+    size: 1_048_576,
+  };
+
+  it('POST /files/avatar-upload returns one session for the authenticated user and supports confirmation', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/files/avatar-upload'))
+      .set('Authorization', 'Bearer access-token')
+      .send({ ...avatarInput, userId: '999' })
+      .expect(201)
+      .expect({
+        id: '22222222-2222-4222-8222-222222222222',
+        clientFileId: avatarInput.clientFileId,
+        url: 'https://storage.example.com',
+        fields: { key: 'avatar-object-key' },
+      });
+    expect(filesServiceClient.initiateAvatarUpload).toHaveBeenCalledExactlyOnceWith({
+      ...avatarInput,
+      userId: refreshTokenClaims.userId,
+    });
+
+    const uploadIds = ['22222222-2222-4222-8222-222222222222'];
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/files/image-uploads/complete'))
+      .set('Authorization', 'Bearer access-token')
+      .send({ uploadIds })
+      .expect(204);
+    expect(filesServiceClient.completeImageUploads).toHaveBeenCalledWith({
+      userId: refreshTokenClaims.userId,
+      uploadIds,
+    });
+  });
+
+  it('POST /files/avatar-upload requires authentication', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/files/avatar-upload'))
+      .send(avatarInput)
+      .expect(401);
+    expect(filesServiceClient.initiateAvatarUpload).not.toHaveBeenCalled();
+  });
+
+  it.each(['clientFileId', 'originalFilename', 'contentType', 'size'] as const)(
+    'POST /files/avatar-upload requires %s',
+    async (field) => {
+      const input: Partial<typeof avatarInput> = { ...avatarInput };
+      delete input[field];
+      await request(app.getHttpServer() as SupertestApp)
+        .post(apiPath('/files/avatar-upload'))
+        .set('Authorization', 'Bearer access-token')
+        .send(input)
+        .expect(400);
+      expect(filesServiceClient.initiateAvatarUpload).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(
+    [
+      [avatarInput],
+      [avatarInput, avatarInput],
+      { images: [avatarInput] },
+      { ...avatarInput, clientFileId: 'not-a-uuid' },
+      { ...avatarInput, originalFilename: '' },
+      { ...avatarInput, contentType: '' },
+      { ...avatarInput, size: '1024' },
+      { ...avatarInput, size: 1.5 },
+      { ...avatarInput, size: 4_294_967_297 },
+    ].map((input) => ({ input })),
+  )('POST /files/avatar-upload rejects malformed metadata: $input', async ({ input }) => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/files/avatar-upload'))
+      .set('Authorization', 'Bearer access-token')
+      .send(input)
+      .expect(400);
+    expect(filesServiceClient.initiateAvatarUpload).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      code: 'INVALID_IMAGE_SIZE',
+      message: 'Image size must be between 1 and 10485760 bytes',
+      input: { ...avatarInput, size: MAX_AVATAR_SIZE_BYTES + 1 },
+    },
+    {
+      code: 'UNSUPPORTED_IMAGE_CONTENT_TYPE',
+      message: 'Unsupported image content type: image/webp',
+      input: { ...avatarInput, contentType: 'image/webp' },
+    },
+  ])('POST /files/avatar-upload preserves the Files error $code', async ({ code, message, input }) => {
+    const metadata = new Metadata();
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, code);
+    filesServiceClient.initiateAvatarUpload.mockReturnValueOnce(
+      throwError(() => createServiceError(status.INVALID_ARGUMENT, message, metadata)),
+    );
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/files/avatar-upload'))
+      .set('Authorization', 'Bearer access-token')
+      .send(input)
+      .expect(400)
+      .expect({ statusCode: 400, code, message });
+    expect(filesServiceClient.initiateAvatarUpload).toHaveBeenCalledWith({
+      ...input,
+      userId: refreshTokenClaims.userId,
+    });
   });
 
   it('POST /files/image-uploads initiates authenticated image uploads', async () => {
@@ -461,7 +863,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('POST /files/image-uploads rejects unsupported image metadata', async () => {
     const metadata = new Metadata();
-    metadata.set(FILES_APP_ERROR_CODE_METADATA_KEY, 'UNSUPPORTED_IMAGE_CONTENT_TYPE');
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, 'UNSUPPORTED_IMAGE_CONTENT_TYPE');
     filesServiceClient.initiateImageUploads.mockReturnValueOnce(
       throwError(() =>
         createServiceError(status.INVALID_ARGUMENT, 'Unsupported image content type: image/webp', metadata),
@@ -520,6 +922,7 @@ describe('ApiGateway (e2e)', () => {
     await request(app.getHttpServer() as SupertestApp)
       .post(apiPath('/posts'))
       .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', postIdempotencyKey)
       .send(input)
       .expect(201)
       .expect({ id: 10 });
@@ -527,14 +930,68 @@ describe('ApiGateway (e2e)', () => {
     expect(postsServiceClient.createPost).toHaveBeenCalledWith({
       userId: refreshTokenClaims.userId,
       ...input,
+      idempotencyKey: postIdempotencyKey,
     });
     expect(postsGrpcClient.getService).toHaveBeenCalledWith(POSTS_SERVICE_NAME);
+  });
+
+  it('POST /posts requires an Idempotency-Key header', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/posts'))
+      .set('Authorization', 'Bearer access-token')
+      .send({ imageIds: ['11111111-1111-4111-8111-111111111111'] })
+      .expect(400)
+      .expect({
+        statusCode: 400,
+        message: 'Idempotency-Key header must be a UUID v4',
+        error: 'Bad Request',
+      });
+
+    expect(postsServiceClient.createPost).not.toHaveBeenCalled();
+  });
+
+  it('POST /posts rejects a non-v4 Idempotency-Key', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/posts'))
+      .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', '6ba7b810-9dad-11d1-80b4-00c04fd430c8')
+      .send({ imageIds: ['11111111-1111-4111-8111-111111111111'] })
+      .expect(400);
+
+    expect(postsServiceClient.createPost).not.toHaveBeenCalled();
+  });
+
+  it('POST /posts maps an idempotency-key conflict to HTTP 409', async () => {
+    const metadata = new Metadata();
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, 'POST_IDEMPOTENCY_KEY_CONFLICT');
+    postsServiceClient.createPost.mockReturnValueOnce(
+      throwError(() =>
+        createServiceError(
+          status.INVALID_ARGUMENT,
+          'Idempotency-Key was already used with a different request',
+          metadata,
+        ),
+      ),
+    );
+
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/posts'))
+      .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', postIdempotencyKey)
+      .send({ imageIds: ['11111111-1111-4111-8111-111111111111'] })
+      .expect(409)
+      .expect({
+        statusCode: 409,
+        code: 'POST_IDEMPOTENCY_KEY_CONFLICT',
+        message: 'Idempotency-Key was already used with a different request',
+      });
   });
 
   it('POST /posts rejects a null description before calling posts', async () => {
     await request(app.getHttpServer() as SupertestApp)
       .post(apiPath('/posts'))
       .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', postIdempotencyKey)
       .send({
         description: null,
         imageIds: ['11111111-1111-4111-8111-111111111111'],
@@ -547,6 +1004,7 @@ describe('ApiGateway (e2e)', () => {
   it('POST /posts requires an authenticated user', async () => {
     await request(app.getHttpServer() as SupertestApp)
       .post(apiPath('/posts'))
+      .set('Idempotency-Key', postIdempotencyKey)
       .send({ imageIds: ['11111111-1111-4111-8111-111111111111'] })
       .expect(401);
 
@@ -560,6 +1018,52 @@ describe('ApiGateway (e2e)', () => {
       .expect([{ id: 1, username: 'user', email: 'user@example.com' }]);
 
     expect(usersServiceClient.getUsers).toHaveBeenCalledOnce();
+  });
+
+  it('GET /auth/me returns the current user with stable login method ordering', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .get(apiPath('/auth/me'))
+      .set('Authorization', 'Bearer access-token')
+      .expect(200)
+      .expect({
+        id: 1,
+        username: 'client123',
+        email: 'user@example.com',
+        avatarUrl: null,
+        emailVerified: true,
+        loginMethods: ['password', 'github', 'google'],
+        createdAt: '2026-08-21T10:15:00.000Z',
+      });
+
+    expect(usersServiceClient.getCurrentUser).toHaveBeenCalledWith({
+      userId: refreshTokenClaims.userId,
+    });
+  });
+
+  it('GET /auth/me requires an access token', async () => {
+    await request(app.getHttpServer() as SupertestApp)
+      .get(apiPath('/auth/me'))
+      .expect(401);
+
+    expect(usersServiceClient.getCurrentUser).not.toHaveBeenCalled();
+  });
+
+  it('GET /auth/me maps a missing token subject user to 401', async () => {
+    const metadata = new Metadata();
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, 'INVALID_USER_ID');
+    usersServiceClient.getCurrentUser.mockReturnValueOnce(
+      throwError(() => createServiceError(status.UNAUTHENTICATED, 'Unauthorized', metadata)),
+    );
+
+    await request(app.getHttpServer() as SupertestApp)
+      .get(apiPath('/auth/me'))
+      .set('Authorization', 'Bearer access-token')
+      .expect(401)
+      .expect({
+        statusCode: 401,
+        code: 'INVALID_USER_ID',
+        message: 'Unauthorized',
+      });
   });
 
   it('maps user-accounts gRPC errors to HTTP errors', async () => {
@@ -578,7 +1082,7 @@ describe('ApiGateway (e2e)', () => {
 
   it('preserves user-accounts error codes while mapping gRPC status to HTTP', async () => {
     const metadata = new Metadata();
-    metadata.set(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED');
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, 'EMAIL_NOT_CONFIRMED');
     usersServiceClient.getUsers.mockReturnValueOnce(
       throwError(() =>
         createServiceError(status.FAILED_PRECONDITION, 'Email has not been confirmed', metadata),

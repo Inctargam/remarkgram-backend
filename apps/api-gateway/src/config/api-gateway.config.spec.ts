@@ -6,6 +6,7 @@ describe('apiGatewayConfig', () => {
   beforeEach(() => {
     vi.stubEnv('NODE_ENV', Environments.PRODUCTION);
     vi.stubEnv('GATEWAY_PORT', '3000');
+    vi.stubEnv('BACKEND_API_URL', 'https://api.remark-gram.com/api/v1');
     vi.stubEnv('CORS_ALLOWED_ORIGINS', 'https://dev.remark-gram.com, https://dev.remark-gram.com:3000');
     vi.stubEnv('ENABLE_TESTING_ENDPOINTS', 'false');
     vi.stubEnv('TESTING_ENDPOINT_KEY', '');
@@ -17,6 +18,7 @@ describe('apiGatewayConfig', () => {
 
   it('does not require a testing key when destructive endpoints are disabled', () => {
     expect(apiGatewayConfig()).toEqual({
+      backendApiUrl: 'https://api.remark-gram.com/api/v1/',
       port: 3000,
       corsAllowedOrigins: ['https://dev.remark-gram.com', 'https://dev.remark-gram.com:3000'],
       env: Environments.PRODUCTION,
@@ -31,6 +33,7 @@ describe('apiGatewayConfig', () => {
     vi.stubEnv('TESTING_ENDPOINT_KEY', key);
 
     expect(apiGatewayConfig()).toEqual({
+      backendApiUrl: 'https://api.remark-gram.com/api/v1/',
       port: 3000,
       corsAllowedOrigins: ['https://dev.remark-gram.com', 'https://dev.remark-gram.com:3000'],
       env: Environments.PRODUCTION,
@@ -54,6 +57,24 @@ describe('apiGatewayConfig', () => {
 
   it('rejects an empty CORS origin caused by an extra comma', () => {
     vi.stubEnv('CORS_ALLOWED_ORIGINS', 'https://dev.remark-gram.com,');
+
+    expect(() => apiGatewayConfig()).toThrow('Validation failed');
+  });
+
+  it('accepts a backend API URL with the global prefix and normalizes its trailing slash', () => {
+    vi.stubEnv('BACKEND_API_URL', 'http://localhost:3000/api/v1');
+
+    expect(apiGatewayConfig().backendApiUrl).toBe('http://localhost:3000/api/v1/');
+  });
+
+  it('rejects a backend API URL without the global prefix', () => {
+    vi.stubEnv('BACKEND_API_URL', 'https://api.remark-gram.com');
+
+    expect(() => apiGatewayConfig()).toThrow('Validation failed');
+  });
+
+  it('rejects a backend API URL with query parameters after the global prefix', () => {
+    vi.stubEnv('BACKEND_API_URL', 'https://api.remark-gram.com/api/v1?source=config');
 
     expect(() => apiGatewayConfig()).toThrow('Validation failed');
   });

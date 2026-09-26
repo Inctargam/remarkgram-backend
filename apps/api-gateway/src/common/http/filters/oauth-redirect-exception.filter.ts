@@ -3,7 +3,7 @@ import type { ConfigType } from '@nestjs/config';
 import { Metadata } from '@grpc/grpc-js';
 import type { Response } from 'express';
 import { AuthorizationResponseError } from 'openid-client';
-import { USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
+import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import { frontendConfig } from '../../../config/frontend.config.js';
 
 export enum OAuthRedirectErrorCode {
@@ -74,7 +74,7 @@ export class OauthRedirectExceptionFilter implements ExceptionFilter {
       exception.metadata instanceof Metadata
         ? exception.metadata
         : undefined;
-    const applicationErrorCode = metadata?.get(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY).at(0)?.toString();
+    const applicationErrorCode = metadata?.get(APP_ERROR_CODE_METADATA_KEY).at(0)?.toString();
     return applicationErrorCode
       ? (OAUTH_REDIRECT_CODE_BY_APP_ERROR[applicationErrorCode] ?? OAuthRedirectErrorCode.Unknown)
       : OAuthRedirectErrorCode.Unknown;

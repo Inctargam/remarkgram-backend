@@ -3,7 +3,6 @@ import request from 'supertest';
 import type { ResponseBodySuperTest, SupertestApp } from '../supertest-types.js';
 import { API_PREFIX } from '../../src/http-api.constants.js';
 
-
 export type RegistrationRequest = {
   username: string;
   email: string;

@@ -45,8 +45,8 @@ export class ImageUploadMetadataDto {
     minimum: MIN_IMAGE_SIZE_BYTES,
     maximum: MAX_IMAGE_SIZE_BYTES,
   })
-  // Проверяем только безопасную сериализацию в protobuf int32. Бизнес-диапазон 1–20 МиБ
-  // проверяется в Files Service, чтобы не дублировать правило в транспортном слое.
+  // Проверяем только безопасную сериализацию в protobuf int32. Бизнес-диапазон
+  // проверяется соответствующим use case в Files Service.
   @IsInt()
   @Min(MIN_INT32_VALUE)
   @Max(MAX_INT32_VALUE)

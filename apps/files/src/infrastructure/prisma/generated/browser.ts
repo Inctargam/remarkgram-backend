@@ -13,12 +13,27 @@
  * 🟢 You can import this file directly.
  */
 
-import * as Prisma from './internal/prismaNamespaceBrowser.js'
+import * as Prisma from './internal/prismaNamespaceBrowser.ts'
 export { Prisma }
-export * as $Enums from './enums.js'
-export * from './enums.js';
+export * as $Enums from './enums.ts'
+export * from './enums.ts';
 /**
  * Model File
  * 
  */
 export type File = Prisma.FileModel
+/**
+ * Model ImageUploadReservation
+ * 
+ */
+export type ImageUploadReservation = Prisma.ImageUploadReservationModel
+/**
+ * Model InboxEvents
+ * 
+ */
+export type InboxEvents = Prisma.InboxEventsModel
+/**
+ * Model FileDeletionJob
+ * 
+ */
+export type FileDeletionJob = Prisma.FileDeletionJobModel

@@ -1,4 +1,4 @@
-import { POSTS_APP_ERROR_CODE_METADATA_KEY } from '@app/posts-grpc';
+import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import { Metadata, status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
 import { type PostsError, PostsErrorCode } from '../../../application/errors/posts.error.js';
@@ -8,15 +8,23 @@ const GRPC_STATUS_BY_APP_ERROR_CODE = {
   [PostsErrorCode.INVALID_POST_DESCRIPTION]: status.INVALID_ARGUMENT,
   [PostsErrorCode.INVALID_POST_IMAGE_COUNT]: status.INVALID_ARGUMENT,
   [PostsErrorCode.DUPLICATE_POST_IMAGE_ID]: status.INVALID_ARGUMENT,
+  [PostsErrorCode.INVALID_POST_IDEMPOTENCY_KEY]: status.INVALID_ARGUMENT,
+  [PostsErrorCode.POST_IDEMPOTENCY_KEY_CONFLICT]: status.ALREADY_EXISTS,
   [PostsErrorCode.POST_IMAGE_NOT_FOUND]: status.NOT_FOUND,
-  [PostsErrorCode.POST_IMAGE_NOT_COMPLETED]: status.FAILED_PRECONDITION,
+  [PostsErrorCode.POST_IMAGES_NOT_AVAILABLE]: status.FAILED_PRECONDITION,
   [PostsErrorCode.POST_IMAGE_ALREADY_ATTACHED]: status.ALREADY_EXISTS,
   [PostsErrorCode.IMAGE_UPLOADS_SERVICE_UNAVAILABLE]: status.UNAVAILABLE,
+  [PostsErrorCode.POST_ACCESS_FORBIDDEN]: status.PERMISSION_DENIED,
+  [PostsErrorCode.POST_UPDATE_CONFLICT]: status.ALREADY_EXISTS,
+  [PostsErrorCode.POST_NOT_FOUND]: status.NOT_FOUND,
+  [PostsErrorCode.INVALID_POST_ID]: status.INVALID_ARGUMENT,
+  [PostsErrorCode.INVALID_POST_CURSOR]: status.INVALID_ARGUMENT,
+  [PostsErrorCode.INVALID_POST_PAGE_LIMIT]: status.INVALID_ARGUMENT,
 } satisfies Record<PostsErrorCode, status>;
 
 export const mapPostsErrorToRpcException = (error: PostsError): RpcException => {
   const metadata = new Metadata();
-  metadata.set(POSTS_APP_ERROR_CODE_METADATA_KEY, error.code);
+  metadata.set(APP_ERROR_CODE_METADATA_KEY, error.code);
 
   return new RpcException({
     code: GRPC_STATUS_BY_APP_ERROR_CODE[error.code],

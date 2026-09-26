@@ -28,6 +28,8 @@ model User {
 
   providers AuthIdentity[]
 
+  profile Profile?
+
   @@unique([username], where: {deletedAt: null})
   @@unique([email], where: {deletedAt: null})
 
@@ -105,4 +107,44 @@ model AuthIdentity {
   @@unique([userId, provider])
   @@index([userId])
   @@map("auth_identities")
+}
+
+model Profile {
+  userId      Int       @id @map("user_id")
+  firstName   String?   @map("first_name") @db.VarChar
+  lastName    String?   @map("last_name") @db.VarChar
+  avatarFileId String?  @map("avatar_file_id") @db.Uuid
+  avatarUpdateId String? @map("avatar_update_id") @db.Uuid
+  dateOfBirth DateTime? @map("date_of_birth") @db.Date
+  aboutMe     String?   @map("about_me") @db.VarChar
+  countryCode String?   @map("country_code") @db.VarChar
+  city        String?   @db.VarChar
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model AvatarDeletionRequest {
+  userId         Int      @map("user_id")
+  idempotencyKey String   @map("idempotency_key") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@id([userId, idempotencyKey])
+  @@map("avatar_deletion_requests")
+}
+
+model OutboxEvent {
+  id            String    @id @db.Uuid
+  eventType     String    @map("event_type")
+  aggregateType String    @map("aggregate_type")
+  aggregateId   String    @map("aggregate_id")
+  payload       Json      @db.JsonB
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz(3)
+  lastError     String?   @map("last_error")
+
+  @@index([createdAt, id], where: { publishedAt: null })
+  @@index([publishedAt])
+  @@map("outbox_events")
 }
