@@ -8,7 +8,6 @@ import type {
   AuthIdentityCreateRepositoryParams,
   UpdateAuthIdentityProviderProfileParams,
 } from '../../application/types/auth-identities.types.js';
-import { AuthIdentityModel } from '../../../../database/generated/models/AuthIdentity.js';
 
 type PrismaClient = PrismaService | Prisma.TransactionClient;
 
@@ -25,36 +24,10 @@ export class PrismaAuthIdentitiesRepository implements AuthIdentitiesRepository 
   ): Promise<AuthIdentity | null> {
     const client = this.getClient(ctx);
 
-    const rows = await client.$queryRaw<AuthIdentityModel[]>`
-      INSERT INTO "auth_identities" (
-        "id",
-        "userId",
-        "provider",
-        "providerSubject",
-        "providerEmail",
-        "providerEmailVerified",
-        "username",
-        "avatarUrl",
-        "createdAt",
-        "updatedAt"
-      )
-      VALUES (
-        gen_random_uuid(),
-        ${params.userId},
-        ${params.provider}::"AuthProvider",
-        ${params.providerSubject},
-        ${params.providerEmail},
-        ${params.providerEmailVerified},
-        ${params.username},
-        ${params.avatarUrl},
-        NOW(),
-        NOW()
-      )
-      ON CONFLICT DO NOTHING
-      RETURNING *
-    `;
-
-    const row = rows[0];
+    const [row] = await client.authIdentity.createManyAndReturn({
+      data: params,
+      skipDuplicates: true,
+    });
 
     return row ? AuthIdentity.restore(row) : null;
   }
