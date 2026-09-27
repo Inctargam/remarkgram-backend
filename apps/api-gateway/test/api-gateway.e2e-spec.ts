@@ -987,6 +987,28 @@ describe('ApiGateway (e2e)', () => {
       });
   });
 
+  it('POST /posts maps invalid image IDs reported by Posts to HTTP 400', async () => {
+    const metadata = new Metadata();
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, 'INVALID_POST_IMAGE_ID');
+    postsServiceClient.createPost.mockReturnValueOnce(
+      throwError(() =>
+        createServiceError(status.INVALID_ARGUMENT, 'Post image IDs must be UUID v4', metadata),
+      ),
+    );
+
+    await request(app.getHttpServer() as SupertestApp)
+      .post(apiPath('/posts'))
+      .set('Authorization', 'Bearer access-token')
+      .set('Idempotency-Key', postIdempotencyKey)
+      .send({ imageIds: ['11111111-1111-4111-8111-111111111111'] })
+      .expect(400)
+      .expect({
+        statusCode: 400,
+        code: 'INVALID_POST_IMAGE_ID',
+        message: 'Post image IDs must be UUID v4',
+      });
+  });
+
   it('POST /posts rejects a null description before calling posts', async () => {
     await request(app.getHttpServer() as SupertestApp)
       .post(apiPath('/posts'))

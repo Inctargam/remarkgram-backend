@@ -52,7 +52,7 @@ export const ApiCreatePost = () =>
     ApiResponse({
       status: 400,
       description:
-        'The Idempotency-Key or request shape is invalid, or a post invariant is violated: description length, image count or unique image IDs.',
+        'The Idempotency-Key or request shape is invalid, or a post invariant is violated: description length, image count, UUID v4 format or unique image IDs.',
       content: {
         'application/json': {
           schema: {
@@ -92,6 +92,14 @@ export const ApiCreatePost = () =>
                 400,
                 'INVALID_POST_IMAGE_COUNT',
                 'Post image count must be between 1 and 10',
+              ),
+            },
+            invalidImageId: {
+              summary: 'Posts rejects an image ID that is not a UUID v4',
+              value: createApiErrorResponseExample(
+                400,
+                'INVALID_POST_IMAGE_ID',
+                'Post image IDs must be UUID v4',
               ),
             },
             duplicateImageId: {

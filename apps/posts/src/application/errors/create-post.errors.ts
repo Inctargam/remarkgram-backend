@@ -25,6 +25,14 @@ export class InvalidPostImageCountError extends PostsError {
   }
 }
 
+export class InvalidPostImageIdError extends PostsError {
+  readonly code = PostsErrorCode.INVALID_POST_IMAGE_ID;
+
+  constructor() {
+    super('Post image IDs must be UUID v4');
+  }
+}
+
 export class DuplicatePostImageIdError extends PostsError {
   readonly code = PostsErrorCode.DUPLICATE_POST_IMAGE_ID;
 

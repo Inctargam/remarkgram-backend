@@ -4,6 +4,7 @@ import {
   InvalidPostDescriptionError,
   InvalidPostIdempotencyKeyError,
   InvalidPostImageCountError,
+  InvalidPostImageIdError,
   InvalidUserIdError,
 } from '../../errors/create-post.errors.js';
 import type { CreatePostWorkflow } from '../../ports/create-post.workflow.js';
@@ -117,6 +118,25 @@ describe('CreatePostUseCase', () => {
       ).rejects.toBeInstanceOf(InvalidPostImageCountError);
     },
   );
+
+  it.each([
+    '',
+    'not-a-uuid',
+    '11111111-1111-1111-8111-111111111111',
+    '11111111-1111-4111-7111-111111111111',
+    '00000000-0000-0000-0000-000000000000',
+  ])('rejects invalid file ID %s before starting the workflow', async (invalidFileId) => {
+    await expect(
+      useCase.execute(
+        new CreatePostCommand({
+          userId: 42,
+          idempotencyKey,
+          fileIds: [imageId, invalidFileId],
+        }),
+      ),
+    ).rejects.toBeInstanceOf(InvalidPostImageIdError);
+    expect(createPostWorkflow.execute).not.toHaveBeenCalled();
+  });
 
   it('rejects duplicate image IDs', async () => {
     await expect(

@@ -6,6 +6,7 @@ import {
   InvalidPostDescriptionError,
   InvalidPostIdempotencyKeyError,
   InvalidPostImageCountError,
+  InvalidPostImageIdError,
   InvalidUserIdError,
 } from '../../errors/create-post.errors.js';
 import { CreatePostWorkflow } from '../../ports/create-post.workflow.js';
@@ -33,7 +34,6 @@ export class CreatePostUseCase implements ICommandHandler<CreatePostCommand> {
   async execute(command: CreatePostCommand): Promise<CreatePostResult> {
     const { userId, description, fileIds } = command.params;
     const idempotencyKey = command.params.idempotencyKey.toLowerCase();
-    const canonicalFileIds = fileIds.map((fileId) => fileId.toLowerCase());
 
     // После преобразования userId из транспортной строки application-слой принимает
     // только положительное целое, независимо от используемого транспорта и хранилища.
@@ -53,6 +53,11 @@ export class CreatePostUseCase implements ICommandHandler<CreatePostCommand> {
       throw new InvalidPostImageCountError();
     }
 
+    if (fileIds.some((fileId) => !UUID_V4_PATTERN.test(fileId))) {
+      throw new InvalidPostImageIdError();
+    }
+
+    const canonicalFileIds = fileIds.map((fileId) => fileId.toLowerCase());
     if (new Set(canonicalFileIds).size !== canonicalFileIds.length) {
       throw new DuplicatePostImageIdError();
     }
