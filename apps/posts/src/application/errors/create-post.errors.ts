@@ -73,7 +73,7 @@ export class PostImageAlreadyAttachedError extends PostsError {
   }
 }
 
-export class ImageUploadsServiceUnavailableError extends PostsError {
+export class FilesServiceUnavailableError extends PostsError {
   readonly code = PostsErrorCode.IMAGE_UPLOADS_SERVICE_UNAVAILABLE;
 
   constructor() {

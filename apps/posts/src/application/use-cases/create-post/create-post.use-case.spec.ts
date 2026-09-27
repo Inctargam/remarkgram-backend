@@ -30,7 +30,7 @@ describe('CreatePostUseCase', () => {
           userId: 42,
           idempotencyKey,
           description: 'A new post',
-          imageIds: [imageId],
+          fileIds: [imageId],
         }),
       ),
     ).resolves.toEqual({ id: 10 });
@@ -40,20 +40,22 @@ describe('CreatePostUseCase', () => {
       workflowId: `create-post:42:${normalizedIdempotencyKey}`,
       userId: 42,
       description: 'A new post',
-      imageIds: [imageId],
+      fileIds: [imageId],
     });
-    expect(workflowParams?.requestHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(workflowParams?.requestHash).toBe(
+      '46c789928170448863287b3275852b1084e2b0874dd9783b549984bf3b9a4211',
+    );
   });
 
   it('normalizes an omitted description to null', async () => {
-    await useCase.execute(new CreatePostCommand({ userId: 42, idempotencyKey, imageIds: [imageId] }));
+    await useCase.execute(new CreatePostCommand({ userId: 42, idempotencyKey, fileIds: [imageId] }));
 
     expect(createPostWorkflow.execute).toHaveBeenCalledWith(expect.objectContaining({ description: null }));
   });
 
   it('preserves an empty description', async () => {
     await useCase.execute(
-      new CreatePostCommand({ userId: 42, idempotencyKey, description: '', imageIds: [imageId] }),
+      new CreatePostCommand({ userId: 42, idempotencyKey, description: '', fileIds: [imageId] }),
     );
 
     expect(createPostWorkflow.execute).toHaveBeenCalledWith(expect.objectContaining({ description: '' }));
@@ -66,18 +68,18 @@ describe('CreatePostUseCase', () => {
       new CreatePostCommand({
         userId: 42,
         idempotencyKey,
-        imageIds: [normalizedImageId.toUpperCase()],
+        fileIds: [normalizedImageId.toUpperCase()],
       }),
     );
 
     expect(createPostWorkflow.execute).toHaveBeenCalledWith(
-      expect.objectContaining({ imageIds: [normalizedImageId] }),
+      expect.objectContaining({ fileIds: [normalizedImageId] }),
     );
   });
 
   it.each([0, -1, Number.NaN, 1.5])('rejects invalid user ID %s', async (userId) => {
     await expect(
-      useCase.execute(new CreatePostCommand({ userId, idempotencyKey, imageIds: [imageId] })),
+      useCase.execute(new CreatePostCommand({ userId, idempotencyKey, fileIds: [imageId] })),
     ).rejects.toBeInstanceOf(InvalidUserIdError);
 
     expect(createPostWorkflow.execute).not.toHaveBeenCalled();
@@ -88,7 +90,7 @@ describe('CreatePostUseCase', () => {
     async (invalidKey) => {
       await expect(
         useCase.execute(
-          new CreatePostCommand({ userId: 42, idempotencyKey: invalidKey, imageIds: [imageId] }),
+          new CreatePostCommand({ userId: 42, idempotencyKey: invalidKey, fileIds: [imageId] }),
         ),
       ).rejects.toBeInstanceOf(InvalidPostIdempotencyKeyError);
     },
@@ -101,7 +103,7 @@ describe('CreatePostUseCase', () => {
           userId: 42,
           idempotencyKey,
           description: 'a'.repeat(MAX_POST_DESCRIPTION_LENGTH + 1),
-          imageIds: [imageId],
+          fileIds: [imageId],
         }),
       ),
     ).rejects.toBeInstanceOf(InvalidPostDescriptionError);
@@ -109,16 +111,16 @@ describe('CreatePostUseCase', () => {
 
   it.each([[[]], [Array.from({ length: MAX_IMAGES_PER_POST + 1 }, (_, index) => `image-${index}`)]])(
     'rejects an invalid image count',
-    async (imageIds) => {
+    async (fileIds) => {
       await expect(
-        useCase.execute(new CreatePostCommand({ userId: 42, idempotencyKey, imageIds })),
+        useCase.execute(new CreatePostCommand({ userId: 42, idempotencyKey, fileIds })),
       ).rejects.toBeInstanceOf(InvalidPostImageCountError);
     },
   );
 
   it('rejects duplicate image IDs', async () => {
     await expect(
-      useCase.execute(new CreatePostCommand({ userId: 42, idempotencyKey, imageIds: [imageId, imageId] })),
+      useCase.execute(new CreatePostCommand({ userId: 42, idempotencyKey, fileIds: [imageId, imageId] })),
     ).rejects.toBeInstanceOf(DuplicatePostImageIdError);
   });
 
@@ -130,14 +132,14 @@ describe('CreatePostUseCase', () => {
         new CreatePostCommand({
           userId: 42,
           idempotencyKey,
-          imageIds: [mixedCaseImageId, mixedCaseImageId.toUpperCase()],
+          fileIds: [mixedCaseImageId, mixedCaseImageId.toUpperCase()],
         }),
       ),
     ).rejects.toBeInstanceOf(DuplicatePostImageIdError);
   });
 
   it('continues the same workflow for an exact retry', async () => {
-    const command = new CreatePostCommand({ userId: 42, idempotencyKey, imageIds: [imageId] });
+    const command = new CreatePostCommand({ userId: 42, idempotencyKey, fileIds: [imageId] });
 
     await expect(Promise.all([useCase.execute(command), useCase.execute(command)])).resolves.toEqual([
       { id: 10 },
@@ -155,7 +157,7 @@ describe('CreatePostUseCase', () => {
     createPostWorkflow.execute.mockRejectedValue(error);
 
     await expect(
-      useCase.execute(new CreatePostCommand({ userId: 42, idempotencyKey, imageIds: [imageId] })),
+      useCase.execute(new CreatePostCommand({ userId: 42, idempotencyKey, fileIds: [imageId] })),
     ).rejects.toBe(error);
   });
 
@@ -166,14 +168,14 @@ describe('CreatePostUseCase', () => {
       new CreatePostCommand({
         userId: 42,
         idempotencyKey,
-        imageIds: [imageId, secondImageId],
+        fileIds: [imageId, secondImageId],
       }),
     );
     await useCase.execute(
       new CreatePostCommand({
         userId: 42,
         idempotencyKey,
-        imageIds: [secondImageId, imageId],
+        fileIds: [secondImageId, imageId],
       }),
     );
 

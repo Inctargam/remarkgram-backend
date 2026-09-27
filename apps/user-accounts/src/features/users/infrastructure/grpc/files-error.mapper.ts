@@ -40,7 +40,7 @@ export function mapFilesError(error: unknown): unknown {
 
   if (
     error.code === status.ALREADY_EXISTS &&
-    filesErrorCode === FilesErrorCode.IMAGE_UPLOAD_RESERVATION_CONFLICT
+    filesErrorCode === FilesErrorCode.AVATAR_ATTACHMENT_OPERATION_CONFLICT
   ) {
     return new AvatarFileStateConflictError();
   }

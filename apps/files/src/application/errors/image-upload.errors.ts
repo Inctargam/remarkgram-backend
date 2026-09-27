@@ -65,11 +65,11 @@ export class ImageUploadStateConflictError extends FilesError {
   }
 }
 
-export class ImageUploadReservationConflictError extends FilesError {
-  readonly code = FilesErrorCode.IMAGE_UPLOAD_RESERVATION_CONFLICT;
+export class AvatarAttachmentOperationConflictError extends FilesError {
+  readonly code = FilesErrorCode.AVATAR_ATTACHMENT_OPERATION_CONFLICT;
 
   constructor() {
-    super('Image upload reservation conflicts with an existing reservation');
+    super('Avatar attachment operation was already used for another file');
   }
 }
 
@@ -94,5 +94,12 @@ export class UnsupportedImageContentTypeError extends FilesError {
 
   constructor(contentType: string) {
     super(`Unsupported image content type: ${contentType}`);
+  }
+}
+
+export class PostImageAttachmentConflictError extends FilesError {
+  readonly code = FilesErrorCode.POST_IMAGE_ATTACHMENT_CONFLICT;
+  constructor() {
+    super('Post image attachment operation was reused with different parameters');
   }
 }

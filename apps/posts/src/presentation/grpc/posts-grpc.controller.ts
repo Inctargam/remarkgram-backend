@@ -32,7 +32,7 @@ export class PostsGrpcController {
         userId: Number(request.userId),
         idempotencyKey: request.idempotencyKey,
         description: request.description,
-        imageIds: request.imageIds,
+        fileIds: request.imageIds,
       }),
     );
   }

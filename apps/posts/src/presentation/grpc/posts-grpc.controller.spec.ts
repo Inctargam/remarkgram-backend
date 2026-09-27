@@ -35,7 +35,7 @@ describe('PostsGrpcController', () => {
         userId: 42,
         idempotencyKey: request.idempotencyKey,
         description: 'A new post',
-        imageIds: request.imageIds,
+        fileIds: request.imageIds,
       }),
     );
   });

@@ -1,18 +1,19 @@
+import type { AttachPostImagesRequest, CancelPostImageAttachmentRequest } from '@app/files-grpc';
+import { AttachPostImagesCommand } from '../../application/use-cases/attach-post-images/attach-post-images.use-case.js';
+import { CancelPostImageAttachmentCommand } from '../../application/use-cases/cancel-post-image-attachment/cancel-post-image-attachment.use-case.js';
 import { Controller, UseFilters } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import { RpcException } from '@nestjs/microservices';
 import { status } from '@grpc/grpc-js';
 import type {
-  AttachAvatarUploadResponse,
-  AttachAvatarUploadRequest,
+  AttachAvatarFileResponse,
+  AttachAvatarFileRequest,
   ScheduleAttachedFileDeletionRequest,
 } from '@app/files-grpc';
-import { AttachAvatarUploadCommand } from '../../application/use-cases/attach-avatar-upload/attach-avatar-upload.use-case.js';
+import { AttachAvatarFileCommand } from '../../application/use-cases/attach-avatar-file/attach-avatar-file.use-case.js';
 import { ScheduleAttachedFileDeletionCommand } from '../../application/use-cases/schedule-attached-file-deletion/schedule-attached-file-deletion.use-case.js';
 import { FilesServiceControllerMethods } from '@app/files-grpc';
 import type {
-  AttachReservedImageUploadsRequest,
-  AttachReservedImageUploadsResponse,
   CompleteImageUploadsRequest,
   CompleteImageUploadsResponse,
   GetFileDownloadUrlRequest,
@@ -21,18 +22,11 @@ import type {
   InitiateImageUploadsResponse,
   InitiateAvatarUploadRequest,
   ImageUploadSession,
-  ReleaseReservedImageUploadsRequest,
-  ReleaseReservedImageUploadsResponse,
-  ReserveImageUploadsRequest,
-  ReserveImageUploadsResponse,
 } from '@app/files-grpc';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
-import { AttachReservedImageUploadsCommand } from '../../application/use-cases/attach-reserved-image-uploads/attach-reserved-image-uploads.use-case.js';
 import { CompleteImageUploadsCommand } from '../../application/use-cases/complete-image-uploads/complete-image-uploads.use-case.js';
 import { InitiateImageUploadsCommand } from '../../application/use-cases/initiate-image-uploads/initiate-image-uploads.use-case.js';
 import { InitiateAvatarUploadCommand } from '../../application/use-cases/initiate-avatar-upload/initiate-avatar-upload.use-case.js';
-import { ReleaseReservedImageUploadsCommand } from '../../application/use-cases/release-reserved-image-uploads/release-reserved-image-uploads.use-case.js';
-import { ReserveImageUploadsCommand } from '../../application/use-cases/reserve-image-uploads/reserve-image-uploads.use-case.js';
 import { GetFileDownloadUrlQuery } from '../../application/use-cases/get-public-file-url/get-public-file-url.query-handler.js';
 import { FilesRpcExceptionFilter } from './filters/files-rpc-exception.filter.js';
 
@@ -45,7 +39,7 @@ export class FilesGrpcController {
     private readonly queryBus: QueryBus,
   ) {}
 
-  async attachAvatarUpload(request: AttachAvatarUploadRequest): Promise<AttachAvatarUploadResponse> {
+  async attachAvatarFile(request: AttachAvatarFileRequest): Promise<AttachAvatarFileResponse> {
     if (!isUUID(request.fileId, '4') || !isUUID(request.operationId, '4')) {
       throw new RpcException({
         code: status.INVALID_ARGUMENT,
@@ -53,7 +47,7 @@ export class FilesGrpcController {
       });
     }
     await this.commandBus.execute(
-      new AttachAvatarUploadCommand({
+      new AttachAvatarFileCommand({
         userId: Number(request.userId),
         fileId: request.fileId.toLowerCase(),
         operationId: request.operationId.toLowerCase(),
@@ -103,42 +97,28 @@ export class FilesGrpcController {
     return {};
   }
 
-  async reserveImageUploads(request: ReserveImageUploadsRequest): Promise<ReserveImageUploadsResponse> {
-    await this.commandBus.execute(
-      new ReserveImageUploadsCommand({
-        userId: Number(request.userId),
-        uploadIds: request.uploadIds,
-        reservationId: request.reservationId,
-      }),
-    );
-
+  async attachPostImages(request: AttachPostImagesRequest): Promise<Record<string, never>> {
+    await this.commandBus.execute(new AttachPostImagesCommand(this.parseAttachmentRequest(request)));
     return {};
   }
 
-  async releaseReservedImageUploads(
-    request: ReleaseReservedImageUploadsRequest,
-  ): Promise<ReleaseReservedImageUploadsResponse> {
-    await this.commandBus.execute(
-      new ReleaseReservedImageUploadsCommand({
-        userId: Number(request.userId),
-        reservationId: request.reservationId,
-      }),
-    );
-
+  async cancelPostImageAttachment(request: CancelPostImageAttachmentRequest): Promise<Record<string, never>> {
+    await this.commandBus.execute(new CancelPostImageAttachmentCommand(this.parseAttachmentRequest(request)));
     return {};
   }
 
-  async attachReservedImageUploads(
-    request: AttachReservedImageUploadsRequest,
-  ): Promise<AttachReservedImageUploadsResponse> {
-    await this.commandBus.execute(
-      new AttachReservedImageUploadsCommand({
-        userId: Number(request.userId),
-        reservationId: request.reservationId,
-      }),
-    );
-
-    return {};
+  private parseAttachmentRequest(request: AttachPostImagesRequest) {
+    if (!isUUID(request.operationId, '4') || !request.fileIds.every((id) => isUUID(id, '4'))) {
+      throw new RpcException({
+        code: status.INVALID_ARGUMENT,
+        message: 'fileIds and operationId must be UUID v4',
+      });
+    }
+    return {
+      userId: Number(request.userId),
+      fileIds: request.fileIds.map((id) => id.toLowerCase()),
+      operationId: request.operationId.toLowerCase(),
+    };
   }
 
   async getFileDownloadUrl(request: GetFileDownloadUrlRequest): Promise<GetFileDownloadUrlResponse> {

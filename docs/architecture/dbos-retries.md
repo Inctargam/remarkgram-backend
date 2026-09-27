@@ -4,15 +4,14 @@ CreatePost и SetAvatar используют встроенные ретраи `
 `retriesAllowed: true`, `maxAttempts: 3`, `intervalSeconds: 1`, `backoffRate: 2`.
 Всего три попытки: первая выполняется сразу, следующие — после пауз 1 и 2 секунды.
 
-| Workflow   | Шаги с повторами                                                    |
-| ---------- | ------------------------------------------------------------------- |
-| CreatePost | `reserveImages`, `attachImages`, `releaseReservation` (компенсация) |
-| SetAvatar  | `attachAvatar`                                                      |
+| Workflow   | Шаги с повторами                                 |
+| ---------- | ------------------------------------------------ |
+| CreatePost | `attachImages`, `cancelAttachment` (компенсация) |
+| SetAvatar  | `attachAvatar`                                   |
 
 `shouldRetry` разрешает только локальные ошибки недоступности Files, в которые gRPC-адаптеры
 преобразуют `UNAVAILABLE` и `DEADLINE_EXCEEDED`. Валидация, конфликт состояния, отсутствие
-файла и неизвестные ошибки завершают шаг без повторов. Параметры, `operationId` и
-`reservationId` не меняются между попытками: потерянный ответ после commit Files
+файла и неизвестные ошибки завершают шаг без повторов. Параметры и `operationId` не меняются между попытками: потерянный ответ после commit Files
 безопасно обрабатывается существующей идемпотентностью Files.
 
 ## После исчерпания попыток
@@ -45,3 +44,16 @@ HTTP-таймер и повторы в адаптерах не добавлен�
 CreatePost и SetAvatar: потеря ответа, успешный повтор, повторы компенсации, исчерпание
 попыток и повторное чтение ошибки из истории. Unit-тесты mapper дополнительно проверяют,
 что ошибки с неизвестными или смешанными причинами не превращаются в `503`.
+
+## Имена в CreatePost
+
+CreatePost использует порт `FilesGateway` и адаптер `GrpcFilesGateway` с методами
+`attachPostImages` и `cancelPostImageAttachment`. В HTTP/Posts gRPC сохраняется `imageIds`,
+в application-слое и новых Files RPC используются `fileIds` и `operationId`.
+Порядок изображений входит в хеш запроса Posts; Files проверяет хеш неупорядоченного набора.
+
+`createPostV2` (версия приложения DBOS `create-post-v2`) создаёт скрытый пост, прикрепляет файлы и публикует пост. Прежние RPC
+резервирования удалены; Files и Posts обновляются согласованно после миграции Files.
+Старые workflow не восстанавливаются новой последовательностью, их ключи не переиспользуются.
+Локальный класс ошибки — `FilesServiceUnavailableError`, публичный код остаётся
+`IMAGE_UPLOADS_SERVICE_UNAVAILABLE`.

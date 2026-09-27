@@ -3,24 +3,23 @@ syntax = "proto3";
 package remarkgram.files.v1;
 
 service FilesService {
-  rpc AttachAvatarUpload(AttachAvatarUploadRequest) returns (AttachAvatarUploadResponse);
+  rpc AttachPostImages(AttachPostImagesRequest) returns (AttachPostImagesResponse);
+  rpc CancelPostImageAttachment(CancelPostImageAttachmentRequest) returns (CancelPostImageAttachmentResponse);
+  rpc AttachAvatarFile(AttachAvatarFileRequest) returns (AttachAvatarFileResponse);
   rpc ScheduleAttachedFileDeletion(ScheduleAttachedFileDeletionRequest) returns (ScheduleAttachedFileDeletionResponse);
   rpc InitiateAvatarUpload(InitiateAvatarUploadRequest) returns (ImageUploadSession);
   rpc InitiateImageUploads(InitiateImageUploadsRequest) returns (InitiateImageUploadsResponse);
   rpc CompleteImageUploads(CompleteImageUploadsRequest) returns (CompleteImageUploadsResponse);
-  rpc ReserveImageUploads(ReserveImageUploadsRequest) returns (ReserveImageUploadsResponse);
-  rpc AttachReservedImageUploads(AttachReservedImageUploadsRequest) returns (AttachReservedImageUploadsResponse);
-  rpc ReleaseReservedImageUploads(ReleaseReservedImageUploadsRequest) returns (ReleaseReservedImageUploadsResponse);
   rpc GetFileDownloadUrl(GetFileDownloadUrlRequest) returns (GetFileDownloadUrlResponse);
 }
 
-message AttachAvatarUploadRequest {
+message AttachAvatarFileRequest {
   string user_id = 1;
   string file_id = 2;
   string operation_id = 3;
 }
 
-message AttachAvatarUploadResponse {}
+message AttachAvatarFileResponse {}
 
 message ScheduleAttachedFileDeletionRequest {
   string user_id = 1;
@@ -69,21 +68,8 @@ message CompleteImageUploadsRequest {
     repeated string upload_ids = 2;
 }
 
-message ReserveImageUploadsRequest {
-  string user_id = 1;
-  repeated string upload_ids = 2;
-  string reservation_id = 3;
-}
 
-message ReleaseReservedImageUploadsRequest {
-  string user_id = 1;
-  string reservation_id = 2;
-}
 
-message AttachReservedImageUploadsRequest {
-  string user_id = 1;
-  string reservation_id = 2;
-}
 
 message CompleteImageUploadsResponse {}
 
@@ -91,11 +77,8 @@ message DeleteAllDataRequest {}
 
 message DeleteAllDataResponse {}
 
-message ReserveImageUploadsResponse {}
 
-message AttachReservedImageUploadsResponse {}
 
-message ReleaseReservedImageUploadsResponse {}
 
 message GetFileDownloadUrlRequest {
     string file_id = 1;
@@ -104,3 +87,17 @@ message GetFileDownloadUrlRequest {
 message GetFileDownloadUrlResponse {
     string url = 1;
 }
+
+message AttachPostImagesRequest {
+  string user_id = 1;
+  repeated string file_ids = 2;
+  string operation_id = 3;
+}
+message AttachPostImagesResponse {}
+
+message CancelPostImageAttachmentRequest {
+  string user_id = 1;
+  repeated string file_ids = 2;
+  string operation_id = 3;
+}
+message CancelPostImageAttachmentResponse {}

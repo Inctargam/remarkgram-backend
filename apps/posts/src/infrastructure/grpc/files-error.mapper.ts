@@ -2,7 +2,7 @@ import { FilesErrorCode } from '@app/files-grpc';
 import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import { Metadata, status, type ServiceError } from '@grpc/grpc-js';
 import {
-  ImageUploadsServiceUnavailableError,
+  FilesServiceUnavailableError,
   PostImageNotFoundError,
   PostImagesNotAvailableError,
 } from '../../application/errors/create-post.errors.js';
@@ -21,7 +21,7 @@ export function mapFilesError(error: unknown): unknown {
   if (!isServiceError(error)) return error;
 
   if (error.code === status.UNAVAILABLE || error.code === status.DEADLINE_EXCEEDED) {
-    return new ImageUploadsServiceUnavailableError();
+    return new FilesServiceUnavailableError();
   }
 
   const filesErrorCode = error.metadata.get(APP_ERROR_CODE_METADATA_KEY).at(0)?.toString();
@@ -33,6 +33,13 @@ export function mapFilesError(error: unknown): unknown {
   if (
     error.code === status.FAILED_PRECONDITION &&
     filesErrorCode === FilesErrorCode.IMAGE_UPLOAD_STATE_CONFLICT
+  ) {
+    return new PostImagesNotAvailableError();
+  }
+
+  if (
+    error.code === status.ALREADY_EXISTS &&
+    filesErrorCode === FilesErrorCode.POST_IMAGE_ATTACHMENT_CONFLICT
   ) {
     return new PostImagesNotAvailableError();
   }

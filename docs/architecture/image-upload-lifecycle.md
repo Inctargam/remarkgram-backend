@@ -101,7 +101,11 @@ if (!response.ok) throw new Error('Upload failed');
 ```
 
 Существующее подтверждение проверяет владельца, состояние и совпадение размера и MIME-типа
-с метаданными S3, затем переводит файл из `PENDING` в `COMPLETED`.
+с метаданными S3, затем переводит файл из `PENDING` в `COMPLETED`. Два одновременных
+подтверждения одного набора также успешны: если условный UPDATE не изменил весь набор,
+транзакция откатывается, а репозиторий проверяет, что все файлы уже `COMPLETED`,
+принадлежат пользователю и не удалены. Частично подтверждённый набор остаётся ошибкой;
+время первого подтверждения не перезаписывается.
 Для установки в профиль после подтверждения вызывается `PUT /api/v1/users/me/profile/avatar`
 с `{ "fileId": "<session.id>" }` и заголовком `Idempotency-Key: <UUID v4>`.
 Подробности: [установка и замена аватара](set-avatar.md).
@@ -115,80 +119,49 @@ if (!response.ok) throw new Error('Upload failed');
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    actor User as Пользователь
-    participant Frontend
-    participant Gateway as API Gateway
-    participant Posts as Posts service
+    participant Client as Клиент
+    participant Posts
     participant DBOS
-    participant PostsDB as Posts DB + DBOS tables
-    participant Files as Files service
+    participant PostsDB as Posts DB
+    participant Files
     participant FilesDB as Files DB
-
-    User->>Frontend: Нажимает Publish
-    Frontend->>Gateway: POST /api/v1/posts<br/>Idempotency-Key, description, imageIds
-    Gateway->>Posts: CreatePost (gRPC)
-    Posts->>Posts: Проверить бизнес-инварианты<br/>и вычислить requestHash
-    Posts->>DBOS: startWorkflow(createPostV1, workflowID)
-    DBOS->>PostsDB: Найти или зарегистрировать workflow
-
-    alt Тот же workflowID, но другой requestHash
-        DBOS-->>Posts: Сохранённый input не совпадает
-        Posts-->>Gateway: Idempotency conflict
-        Gateway-->>Frontend: 409 Conflict
-    else Новый workflow или точный повтор
-        Note over DBOS: Повтор получает handle того же workflow<br/>и использует сохранённые checkpoints
-        DBOS->>DBOS: DBOS.randomUUID()<br/>стабильный reservationId
-
-        rect rgb(235, 245, 255)
-            Note over DBOS,FilesDB: Durable step: reserveImages
-            DBOS->>Files: ReserveImageUploads (gRPC)
-            Files->>FilesDB: В одной транзакции создать Reservation<br/>и перевести COMPLETED → RESERVED
-            Note over Files,FilesDB: Точный повтор с тем же reservationId<br/>возвращает успех
-            Files-->>DBOS: Резерв создан
-        end
-
-        rect rgb(245, 240, 255)
-            Note over DBOS,PostsDB: DBOS-транзакция createUnpublishedPost
-            DBOS->>PostsDB: Создать Post(publishedAt = NULL)<br/>и упорядоченные PostImage
-            Note over DBOS,PostsDB: Изменение Posts и DBOS-checkpoint<br/>фиксируются атомарно
-        end
-
-        rect rgb(235, 245, 255)
-            Note over DBOS,FilesDB: Durable step: attachImages
-            DBOS->>Files: AttachReservedImageUploads (gRPC)
-            Files->>FilesDB: В одной транзакции Reservation и File:<br/>RESERVED → ATTACHED
-            Files-->>DBOS: Изображения прикреплены
-        end
-
-        rect rgb(245, 240, 255)
-            Note over DBOS,PostsDB: DBOS-транзакция publishPost
-            DBOS->>PostsDB: Установить Post.publishedAt
-        end
-
-        DBOS-->>Posts: { id: postId }
-        Posts-->>Gateway: { id: postId }
-        Gateway-->>Frontend: 201 Created
-        Frontend-->>User: Показать опубликованный пост
-    end
+    Client->>Posts: POST /posts: imageIds, description, Idempotency-Key
+    Posts->>DBOS: createPostV2: fileIds, requestHash
+    DBOS->>DBOS: Стабильный operationId
+    DBOS->>PostsDB: createUnpublishedPost: Post + PostImage + checkpoint
+    DBOS->>Files: AttachPostImages(userId, fileIds, operationId)
+    Files->>FilesDB: Атомарно журнал ATTACHED + File COMPLETED → ATTACHED
+    Files-->>DBOS: Успех
+    DBOS->>PostsDB: publishPost: publishedAt + checkpoint
+    DBOS-->>Posts: postId
+    Posts-->>Client: 201 Created
 ```
 
-### Компенсации и восстановление создания поста
+Скрытый пост не виден в чтении и не доступен для обычного изменения/удаления. Уникальная
+связь `PostImage.fileId` проверяется до обращения в Files; порядок изображений сохраняется.
+Files прикрепляет весь набор одной транзакцией. Частичный успех откатывается вместе с журналом.
 
-- Если создание `Post` завершается известным конфликтом после резерва, DBOS выполняет durable
-  `releaseReservation`: `RESERVED → COMPLETED`.
-- Если `attachImages` возвращает известную бизнес-ошибку, DBOS освобождает резерв и удаляет
-  неопубликованный `Post`.
-- Неизвестная инфраструктурная ошибка не запускает слепую компенсацию. Workflow сохраняется для
-  диагностики и восстановления, а `Post` с `publishedAt = NULL` не виден читателям.
-- После падения процесса DBOS продолжает workflow с последнего checkpoint. Повтор gRPC-шага
-  безопасен благодаря стабильному `reservationId` и идемпотентным операциям Files.
-- Повтор HTTP-запроса с тем же `Idempotency-Key` получает результат того же workflow. Тот же ключ
-  с другим содержимым запроса возвращает `409 Conflict`.
+### Компенсации и восстановление
+
+- Конфликт создания скрытого поста не требует компенсации Files: вызова ещё не было.
+- При известном отказе прикрепления workflow вызывает `CancelPostImageAttachment`, затем
+  удаляет скрытый пост. Отмена записывается даже до первого успешного Attach: поздний запрос
+  с тем же operationId уже не сможет прикрепить файлы.
+- Ошибка компенсации сохраняет скрытый пост. Неизвестный результат RPC и техническая ошибка
+  публикации поста не запускают слепое открепление.
+- До Attach файлы остаются `COMPLETED` и доступны очистке через 24 часа. Если очистка
+  успела первой, прикрепление отклоняется и скрытый пост компенсируется.
+- При падении процесса DBOS восстанавливает checkpoint и прежний operationId. Локальные
+  изменения Posts фиксируются вместе с checkpoint; повтор Files безопасен по журналу.
+- Три попытки Files имеют паузы 1 и 2 секунды. Исчерпание попыток завершает workflow ошибкой,
+  а не запускает автоматическое восстановление. Может остаться скрытый пост и прикреплённые
+  файлы; требуется отдельное восстановление. Повтор старого ключа возвращает сохранённую ошибку.
+- Точный повтор успешного HTTP-запроса получает прежний результат. Изменение параметров
+  с тем же ключом возвращает `409 Conflict`.
 
 ## Состояния File
 
-`PENDING`, `COMPLETED`, `REJECTED`, `RESERVED` и `ATTACHED` — значения `File.uploadStatus`.
+`PENDING`, `COMPLETED`, `REJECTED` и `ATTACHED` — значения `File.uploadStatus`.
 Состояние `DELETION_CLAIMED` на диаграмме обозначает запись с заполненным `deletedAt`, а не
 дополнительное значение enum.
 
@@ -199,10 +172,9 @@ stateDiagram-v2
     PENDING --> COMPLETED: CompleteImageUploads<br/>объект найден, метаданные совпали
     PENDING --> REJECTED: CompleteImageUploads<br/>объект отсутствует или метаданные не совпали
 
-    COMPLETED --> ATTACHED: AttachAvatarUpload<br/>аватар: проверка и прикрепление атомарно
-    COMPLETED --> RESERVED: ReserveImageUploads<br/>создана ImageUploadReservation
-    RESERVED --> ATTACHED: AttachReservedImageUploads
-    RESERVED --> COMPLETED: ReleaseReservedImageUploads<br/>reservationId очищен
+    COMPLETED --> ATTACHED: AttachAvatarFile<br/>аватар: проверка и прикрепление атомарно
+    COMPLETED --> ATTACHED: AttachPostImages<br/>весь набор и журнал атомарно
+    ATTACHED --> COMPLETED: CancelPostImageAttachment<br/>только файлы этой операции
 
     state "Удаление захвачено<br/>deletedAt != NULL" as DELETION_CLAIMED
 
@@ -215,12 +187,6 @@ stateDiagram-v2
     DELETION_CLAIMED --> [*]: DeleteObject выполнен<br/>запись File удалена
     DELETION_CLAIMED --> DELETION_CLAIMED: Ошибка удаления<br/>повтор после timeout
 
-    note right of RESERVED
-        RESERVED не очищается по TTL.
-        Незавершённый сценарий создания поста
-        восстанавливает DBOS workflow.
-    end note
-
     note right of ATTACHED
         ATTACHED не участвует в очистке
         неиспользованных загрузок.
@@ -229,20 +195,37 @@ stateDiagram-v2
     end note
 ```
 
-## Связь File и ImageUploadReservation
+## Журнал прикрепления файлов поста
 
-Для аватара идентификатор прикрепления хранится в `File.attachmentOperationId` (nullable UUID
-с уникальным индексом). Повтор распознаётся по файлу, владельцу и этому идентификатору, пока
-запись файла существует. После её физического удаления повтор RPC возвращает ошибку отсутствия файла.
+`PostImageAttachmentOperation` хранится в `post_image_attachment_operations`: UUID операции,
+владелец, `fileIdsHash`, `ATTACHED`/`CANCELLED` и даты. Хеш — SHA-256 отсортированных UUID
+в нижнем регистре, соединённых запятой. Он фиксирует состав исходного запроса после
+открепления или удаления файлов, но не определяет порядок изображений в посте.
 
-Для изображений постов сохраняется схема резервирования:
+`File.postImageAttachmentOperationId` — nullable внешний ключ; одна операция объединяет
+несколько файлов. Attach и Cancel блокируют строку журнала и изменяют её вместе с файлами.
+Точный Attach в состоянии ATTACHED возвращает прежний успех даже после удаления файла.
+CANCELLED терминален: поздний Attach отклоняется. Повтор Cancel ничего не меняет;
+отмена изменяет только свои неудалённые ATTACHED-файлы и не перезаписывает новую операцию.
+История операций автоматически не очищается.
 
-- `ImageUploadReservation.id` — стабильный `reservationId`, созданный внутри DBOS workflow.
-- Резервация хранит владельца и полный отсортированный набор `uploadIds`.
-- `reserve`, `attach` и `release` атомарно изменяют агрегат резервации и связанные записи `File`.
-- Статусы агрегата `RESERVED`, `ATTACHED`, `RELEASED` обеспечивают распознавание точных повторов.
-- После `release` резервация остаётся в `RELEASED`, а файлы возвращаются в `COMPLETED` и теряют
-  ссылку `reservationId`.
+Аватар продолжает использовать отдельное уникальное `File.avatarAttachmentOperationId`.
+Общий статус ATTACHED не означает общий идентификатор операции: у поста несколько файлов,
+у операции аватара один. После физического удаления файла аватара повтор его RPC возвращает
+ошибку отсутствия файла; журнал постов не участвует в этом сценарии.
+
+## Внедрение createPostV2
+
+1. Остановить старые экземпляры Posts и Files, исключить recovery старых незавершённых workflow.
+2. Проверить старые скрытые посты и разобрать их до запуска новой версии. Миграция Files
+   отменяет резервы, но не удаляет Post/PostImage в другой БД. Опубликованные посты не удалять.
+3. Применить новую миграцию Files `20260927120000_replace_post_image_reservations`.
+   Она сохраняет ATTACHED, преобразует RELEASED/RESERVED в CANCELLED, освобождает
+   RESERVED-файлы, переносит массивы в хеши и удаляет RESERVED из enum файла.
+4. Согласованно обновить Files и Posts. Старые RPC удалены; историю createPostV1 не переносить
+   и не восстанавливать новой последовательностью. Для новых запросов использовать новые ключи.
+
+Применённые миграции и системные таблицы DBOS не изменяются.
 
 ## Фоновая очистка неиспользованных загрузок
 
@@ -250,7 +233,7 @@ stateDiagram-v2
 
 - `PENDING` — спустя 15 минут после `uploadExpiresAt`;
 - `REJECTED` — спустя 15 минут после отклонения, если немедленное удаление не завершилось;
-- `COMPLETED` — спустя 24 часа после `uploadedAt`, если файл не зарезервирован;
+- `COMPLETED` — спустя 24 часа после `uploadedAt`, если файл свободен и ещё не прикреплён;
 - незавершённую попытку очистки можно повторно захватить спустя один час.
 
 Перед обращением в S3 запись помечается через `deletedAt`. После успешного `DeleteObject` запись

@@ -10,7 +10,7 @@ describe('PrismaTestingRepository', () => {
     await expect(repository.deleteAllData()).resolves.toBeUndefined();
     expect(executeRawUnsafe).toHaveBeenNthCalledWith(
       1,
-      'TRUNCATE TABLE "files", "image_upload_reservations" CASCADE',
+      'TRUNCATE TABLE "files", "post_image_attachment_operations" CASCADE',
     );
     expect(executeRawUnsafe).toHaveBeenNthCalledWith(2, 'TRUNCATE TABLE "inbox_events" CASCADE');
     expect(executeRawUnsafe).toHaveBeenNthCalledWith(3, 'TRUNCATE TABLE "file_deletion_jobs" CASCADE');

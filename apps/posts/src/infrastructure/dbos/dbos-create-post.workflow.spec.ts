@@ -23,21 +23,21 @@ vi.mock('@dbos-inc/dbos-sdk', async (importOriginal) => ({
 }));
 
 import {
-  ImageUploadsServiceUnavailableError,
+  FilesServiceUnavailableError,
   PostIdempotencyKeyConflictError,
   PostImageAlreadyAttachedError,
   PostImageNotFoundError,
   PostImagesNotAvailableError,
 } from '../../application/errors/create-post.errors.js';
 import { PostsErrorCode } from '../../application/errors/posts.error.js';
-import type { ImageUploadsGateway } from '../../application/ports/image-uploads.gateway.js';
+import type { FilesGateway } from '../../application/ports/files.gateway.js';
 import { Prisma } from '../prisma/generated/client.js';
 import type { PostsDbosDataSource } from './posts-dbos.datasource.js';
 import { DbosCreatePostWorkflow } from './dbos-create-post.workflow.js';
 
 describe('DbosCreatePostWorkflow', () => {
-  const imageIds = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'];
-  const reservationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const fileIds = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'];
+  const operationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const publishedAt = new Date('2030-01-01T00:00:00.000Z');
   const post = {
     create: vi.fn(),
@@ -48,21 +48,17 @@ describe('DbosCreatePostWorkflow', () => {
     client: { post },
     runTransaction: vi.fn((callback: () => Promise<unknown>) => callback()),
   };
-  const imageUploadsGateway = {
-    reserveImageUploads: vi.fn<ImageUploadsGateway['reserveImageUploads']>(),
-    attachReservedImageUploads: vi.fn<ImageUploadsGateway['attachReservedImageUploads']>(),
-    releaseReservedImageUploads: vi.fn<ImageUploadsGateway['releaseReservedImageUploads']>(),
+  const filesGateway = {
+    attachPostImages: vi.fn<FilesGateway['attachPostImages']>(),
+    cancelPostImageAttachment: vi.fn<FilesGateway['cancelPostImageAttachment']>(),
   };
-  const workflow = new DbosCreatePostWorkflow(
-    dataSource as unknown as PostsDbosDataSource,
-    imageUploadsGateway,
-  );
+  const workflow = new DbosCreatePostWorkflow(dataSource as unknown as PostsDbosDataSource, filesGateway);
   const params = {
     workflowId: 'create-post:42:eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
     requestHash: 'request-hash',
     userId: 42,
     description: 'A new post',
-    imageIds,
+    fileIds,
   };
 
   beforeEach(() => {
@@ -70,7 +66,7 @@ describe('DbosCreatePostWorkflow', () => {
     vi.setSystemTime(publishedAt);
     dbosMock.startWorkflow.mockClear();
     dbosMock.randomUUID.mockReset();
-    dbosMock.randomUUID.mockResolvedValue(reservationId);
+    dbosMock.randomUUID.mockResolvedValue(operationId);
 
     dataSource.runTransaction.mockClear();
     post.create.mockReset();
@@ -80,28 +76,21 @@ describe('DbosCreatePostWorkflow', () => {
     post.updateMany.mockReset();
     post.updateMany.mockResolvedValue({ count: 1 });
 
-    imageUploadsGateway.reserveImageUploads.mockReset();
-    imageUploadsGateway.reserveImageUploads.mockResolvedValue();
-    imageUploadsGateway.attachReservedImageUploads.mockReset();
-    imageUploadsGateway.attachReservedImageUploads.mockResolvedValue();
-    imageUploadsGateway.releaseReservedImageUploads.mockReset();
-    imageUploadsGateway.releaseReservedImageUploads.mockResolvedValue();
+    filesGateway.attachPostImages.mockReset();
+    filesGateway.attachPostImages.mockResolvedValue();
+    filesGateway.cancelPostImageAttachment.mockReset();
+    filesGateway.cancelPostImageAttachment.mockResolvedValue();
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('executes reserve, unpublished post creation, attach and publish', async () => {
+  it('creates an unpublished post, attaches files and publishes', async () => {
     await expect(workflow.execute(params)).resolves.toEqual({ id: 10 });
 
     expect(dbosMock.startWorkflow).toHaveBeenCalledWith(workflow, {
       workflowID: params.workflowId,
-    });
-    expect(imageUploadsGateway.reserveImageUploads).toHaveBeenCalledWith({
-      userId: 42,
-      imageIds,
-      reservationId,
     });
     expect(post.create).toHaveBeenCalledWith({
       data: {
@@ -110,17 +99,24 @@ describe('DbosCreatePostWorkflow', () => {
         publishedAt: null,
         images: {
           create: [
-            { fileId: imageIds[0], position: 0 },
-            { fileId: imageIds[1], position: 1 },
+            { fileId: fileIds[0], position: 0 },
+            { fileId: fileIds[1], position: 1 },
           ],
         },
       },
       select: { id: true },
     });
-    expect(imageUploadsGateway.attachReservedImageUploads).toHaveBeenCalledWith({
+    expect(filesGateway.attachPostImages).toHaveBeenCalledWith({
       userId: 42,
-      reservationId,
+      fileIds,
+      operationId,
     });
+    expect(post.create.mock.invocationCallOrder[0]).toBeLessThan(
+      filesGateway.attachPostImages.mock.invocationCallOrder[0],
+    );
+    expect(filesGateway.attachPostImages.mock.invocationCallOrder[0]).toBeLessThan(
+      post.updateMany.mock.invocationCallOrder[0],
+    );
     expect(post.updateMany).toHaveBeenCalledWith({
       where: { id: 10, deletedAt: null, publishedAt: null },
       data: { publishedAt },
@@ -146,15 +142,7 @@ describe('DbosCreatePostWorkflow', () => {
     await expect(workflow.execute(params)).rejects.toBeInstanceOf(PostIdempotencyKeyConflictError);
   });
 
-  it('returns a reserve business error without creating a post', async () => {
-    const error = new PostImageNotFoundError();
-    imageUploadsGateway.reserveImageUploads.mockRejectedValue(error);
-
-    await expect(workflow.execute(params)).rejects.toBeInstanceOf(PostImageNotFoundError);
-    expect(post.create).not.toHaveBeenCalled();
-  });
-
-  it('releases the reservation after a known post image conflict', async () => {
+  it('does not call Files after a known post image conflict', async () => {
     post.create.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
         code: 'P2002',
@@ -163,13 +151,10 @@ describe('DbosCreatePostWorkflow', () => {
     );
 
     await expect(workflow.execute(params)).rejects.toBeInstanceOf(PostImageAlreadyAttachedError);
-    expect(imageUploadsGateway.releaseReservedImageUploads).toHaveBeenCalledWith({
-      userId: 42,
-      reservationId,
-    });
+    expect(filesGateway.cancelPostImageAttachment).not.toHaveBeenCalled();
   });
 
-  it('releases the reservation after replaying a transaction conflict without code', async () => {
+  it('does not call Files after replaying a transaction conflict without code', async () => {
     const replay = Object.assign(new Error('Stored image conflict'), {
       name: 'PostImageAlreadyAttachedError',
     });
@@ -178,22 +163,22 @@ describe('DbosCreatePostWorkflow', () => {
     await expect(workflow.execute(params)).rejects.toBeInstanceOf(PostImageAlreadyAttachedError);
 
     expect(post.create).not.toHaveBeenCalled();
-    expect(imageUploadsGateway.releaseReservedImageUploads).toHaveBeenCalledExactlyOnceWith({
-      userId: 42,
-      reservationId,
-    });
-    expect(imageUploadsGateway.attachReservedImageUploads).not.toHaveBeenCalled();
+    expect(filesGateway.cancelPostImageAttachment).not.toHaveBeenCalled();
+    expect(filesGateway.attachPostImages).not.toHaveBeenCalled();
   });
 
   it.each([PostImageNotFoundError, PostImagesNotAvailableError])(
     'compensates a replayed attach rejection: %s',
     async (ErrorType) => {
       const replay = Object.assign(new Error('Stored attach rejection'), { name: ErrorType.name });
-      imageUploadsGateway.attachReservedImageUploads.mockRejectedValueOnce(replay);
+      filesGateway.attachPostImages.mockRejectedValueOnce(replay);
 
       await expect(workflow.execute(params)).rejects.toBeInstanceOf(ErrorType);
 
-      expect(imageUploadsGateway.releaseReservedImageUploads).toHaveBeenCalledOnce();
+      expect(filesGateway.cancelPostImageAttachment).toHaveBeenCalledOnce();
+      expect(filesGateway.cancelPostImageAttachment.mock.invocationCallOrder[0]).toBeLessThan(
+        post.deleteMany.mock.invocationCallOrder[0],
+      );
       expect(post.deleteMany).toHaveBeenCalledWith({ where: { id: 10, publishedAt: null } });
       expect(post.updateMany).not.toHaveBeenCalled();
     },
@@ -201,13 +186,13 @@ describe('DbosCreatePostWorkflow', () => {
 
   it('does not compensate Files unavailability replayed without code', async () => {
     const replay = Object.assign(new Error('Stored transport failure'), {
-      name: 'ImageUploadsServiceUnavailableError',
+      name: 'FilesServiceUnavailableError',
     });
-    imageUploadsGateway.attachReservedImageUploads.mockRejectedValueOnce(replay);
+    filesGateway.attachPostImages.mockRejectedValueOnce(replay);
 
-    await expect(workflow.execute(params)).rejects.toBeInstanceOf(ImageUploadsServiceUnavailableError);
+    await expect(workflow.execute(params)).rejects.toBeInstanceOf(FilesServiceUnavailableError);
 
-    expect(imageUploadsGateway.releaseReservedImageUploads).not.toHaveBeenCalled();
+    expect(filesGateway.cancelPostImageAttachment).not.toHaveBeenCalled();
     expect(post.deleteMany).not.toHaveBeenCalled();
     expect(post.updateMany).not.toHaveBeenCalled();
   });
@@ -217,24 +202,38 @@ describe('DbosCreatePostWorkflow', () => {
     post.create.mockRejectedValue(error);
 
     await expect(workflow.execute(params)).rejects.toBe(error);
-    expect(imageUploadsGateway.releaseReservedImageUploads).not.toHaveBeenCalled();
+    expect(filesGateway.cancelPostImageAttachment).not.toHaveBeenCalled();
   });
 
-  it('releases images and deletes the unpublished post after a terminal attach failure', async () => {
-    imageUploadsGateway.attachReservedImageUploads.mockRejectedValue(new PostImagesNotAvailableError());
+  it('cancels attachment and deletes the unpublished post after a terminal attach failure', async () => {
+    filesGateway.attachPostImages.mockRejectedValue(new PostImagesNotAvailableError());
 
     await expect(workflow.execute(params)).rejects.toBeInstanceOf(PostImagesNotAvailableError);
-    expect(imageUploadsGateway.releaseReservedImageUploads).toHaveBeenCalledOnce();
+    expect(filesGateway.cancelPostImageAttachment).toHaveBeenCalledOnce();
     expect(post.deleteMany).toHaveBeenCalledWith({ where: { id: 10, publishedAt: null } });
     expect(post.updateMany).not.toHaveBeenCalled();
   });
 
   it('does not compensate an ambiguous infrastructure error', async () => {
-    const error = new ImageUploadsServiceUnavailableError();
-    imageUploadsGateway.attachReservedImageUploads.mockRejectedValue(error);
+    const error = new FilesServiceUnavailableError();
+    filesGateway.attachPostImages.mockRejectedValue(error);
 
-    await expect(workflow.execute(params)).rejects.toBeInstanceOf(ImageUploadsServiceUnavailableError);
-    expect(imageUploadsGateway.releaseReservedImageUploads).not.toHaveBeenCalled();
+    await expect(workflow.execute(params)).rejects.toBeInstanceOf(FilesServiceUnavailableError);
+    expect(filesGateway.cancelPostImageAttachment).not.toHaveBeenCalled();
+    expect(post.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('keeps the hidden post if cancellation fails', async () => {
+    filesGateway.attachPostImages.mockRejectedValue(new PostImagesNotAvailableError());
+    filesGateway.cancelPostImageAttachment.mockRejectedValue(new FilesServiceUnavailableError());
+    await expect(workflow.execute(params)).rejects.toBeInstanceOf(FilesServiceUnavailableError);
+    expect(post.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('does not detach after a publication transaction fails', async () => {
+    post.updateMany.mockRejectedValue(new Error('Database unavailable'));
+    await expect(workflow.execute(params)).rejects.toThrow('Database unavailable');
+    expect(filesGateway.cancelPostImageAttachment).not.toHaveBeenCalled();
     expect(post.deleteMany).not.toHaveBeenCalled();
   });
 
@@ -265,6 +264,6 @@ describe('DbosCreatePostWorkflow', () => {
         }),
     });
 
-    await expect(workflow.execute(params)).rejects.toBeInstanceOf(ImageUploadsServiceUnavailableError);
+    await expect(workflow.execute(params)).rejects.toBeInstanceOf(FilesServiceUnavailableError);
   });
 });

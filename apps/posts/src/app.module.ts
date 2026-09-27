@@ -4,13 +4,13 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { ImageUploadsGateway } from './application/ports/image-uploads.gateway.js';
+import { FilesGateway } from './application/ports/files.gateway.js';
 import { PostsRepository } from './application/ports/posts.repository.js';
 import { CreatePostUseCase } from './application/use-cases/create-post/create-post.use-case.js';
 import { databaseConfig } from './config/database.config.js';
 import { filesGrpcClientConfig } from './config/files-grpc-client.config.js';
 import { postsConfig } from './config/posts.config.js';
-import { GrpcImageUploadsGateway } from './infrastructure/grpc/grpc-image-uploads.gateway.js';
+import { GrpcFilesGateway } from './infrastructure/grpc/grpc-files.gateway.js';
 import { postsMessageBrokerConfig } from './config/message-broker.config.js';
 import { PrismaService } from './infrastructure/prisma/prisma.service.js';
 import { PrismaPostsRepository } from './infrastructure/prisma/repositories/prisma-posts.repository.js';
@@ -115,8 +115,8 @@ import { PostsDbosDataSource } from './infrastructure/dbos/posts-dbos.datasource
       useClass: PrismaPostsRepository,
     },
     {
-      provide: ImageUploadsGateway,
-      useClass: GrpcImageUploadsGateway,
+      provide: FilesGateway,
+      useClass: GrpcFilesGateway,
     },
     {
       provide: CreatePostWorkflow,

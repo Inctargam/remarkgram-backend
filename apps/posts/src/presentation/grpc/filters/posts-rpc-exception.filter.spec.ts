@@ -4,7 +4,7 @@ import type { ArgumentsHost } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 import {
   DuplicatePostImageIdError,
-  ImageUploadsServiceUnavailableError,
+  FilesServiceUnavailableError,
   InvalidPostDescriptionError,
   InvalidPostIdempotencyKeyError,
   InvalidPostImageCountError,
@@ -43,7 +43,7 @@ describe('PostsRpcExceptionFilter', () => {
     [new PostImageNotFoundError(), status.NOT_FOUND],
     [new PostImagesNotAvailableError(), status.FAILED_PRECONDITION],
     [new PostImageAlreadyAttachedError(), status.ALREADY_EXISTS],
-    [new ImageUploadsServiceUnavailableError(), status.UNAVAILABLE],
+    [new FilesServiceUnavailableError(), status.UNAVAILABLE],
     [new PostUpdateForbiddenError(), status.PERMISSION_DENIED],
     [new PostAccessForbiddenError(), status.PERMISSION_DENIED],
     [new PostUpdateConflictError(), status.ALREADY_EXISTS],

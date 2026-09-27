@@ -200,21 +200,21 @@ export type UuidNullableWithAggregatesFilter<$PrismaModel = never> = {
   _max?: Prisma.NestedStringNullableFilter<$PrismaModel>
 }
 
-export type EnumImageUploadReservationStatusFilter<$PrismaModel = never> = {
-  equals?: $Enums.ImageUploadReservationStatus | Prisma.EnumImageUploadReservationStatusFieldRefInput<$PrismaModel>
-  in?: $Enums.ImageUploadReservationStatus[] | Prisma.ListEnumImageUploadReservationStatusFieldRefInput<$PrismaModel>
-  notIn?: $Enums.ImageUploadReservationStatus[] | Prisma.ListEnumImageUploadReservationStatusFieldRefInput<$PrismaModel>
-  not?: Prisma.NestedEnumImageUploadReservationStatusFilter<$PrismaModel> | $Enums.ImageUploadReservationStatus
+export type EnumPostImageAttachmentStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.PostImageAttachmentStatus | Prisma.EnumPostImageAttachmentStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.PostImageAttachmentStatus[] | Prisma.ListEnumPostImageAttachmentStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.PostImageAttachmentStatus[] | Prisma.ListEnumPostImageAttachmentStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumPostImageAttachmentStatusFilter<$PrismaModel> | $Enums.PostImageAttachmentStatus
 }
 
-export type EnumImageUploadReservationStatusWithAggregatesFilter<$PrismaModel = never> = {
-  equals?: $Enums.ImageUploadReservationStatus | Prisma.EnumImageUploadReservationStatusFieldRefInput<$PrismaModel>
-  in?: $Enums.ImageUploadReservationStatus[] | Prisma.ListEnumImageUploadReservationStatusFieldRefInput<$PrismaModel>
-  notIn?: $Enums.ImageUploadReservationStatus[] | Prisma.ListEnumImageUploadReservationStatusFieldRefInput<$PrismaModel>
-  not?: Prisma.NestedEnumImageUploadReservationStatusWithAggregatesFilter<$PrismaModel> | $Enums.ImageUploadReservationStatus
+export type EnumPostImageAttachmentStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.PostImageAttachmentStatus | Prisma.EnumPostImageAttachmentStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.PostImageAttachmentStatus[] | Prisma.ListEnumPostImageAttachmentStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.PostImageAttachmentStatus[] | Prisma.ListEnumPostImageAttachmentStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumPostImageAttachmentStatusWithAggregatesFilter<$PrismaModel> | $Enums.PostImageAttachmentStatus
   _count?: Prisma.NestedIntFilter<$PrismaModel>
-  _min?: Prisma.NestedEnumImageUploadReservationStatusFilter<$PrismaModel>
-  _max?: Prisma.NestedEnumImageUploadReservationStatusFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumPostImageAttachmentStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumPostImageAttachmentStatusFilter<$PrismaModel>
 }
 
 export type JsonFilter<$PrismaModel = never> =
@@ -546,21 +546,21 @@ export type NestedStringNullableFilter<$PrismaModel = never> = {
   not?: Prisma.NestedStringNullableFilter<$PrismaModel> | string | null
 }
 
-export type NestedEnumImageUploadReservationStatusFilter<$PrismaModel = never> = {
-  equals?: $Enums.ImageUploadReservationStatus | Prisma.EnumImageUploadReservationStatusFieldRefInput<$PrismaModel>
-  in?: $Enums.ImageUploadReservationStatus[] | Prisma.ListEnumImageUploadReservationStatusFieldRefInput<$PrismaModel>
-  notIn?: $Enums.ImageUploadReservationStatus[] | Prisma.ListEnumImageUploadReservationStatusFieldRefInput<$PrismaModel>
-  not?: Prisma.NestedEnumImageUploadReservationStatusFilter<$PrismaModel> | $Enums.ImageUploadReservationStatus
+export type NestedEnumPostImageAttachmentStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.PostImageAttachmentStatus | Prisma.EnumPostImageAttachmentStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.PostImageAttachmentStatus[] | Prisma.ListEnumPostImageAttachmentStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.PostImageAttachmentStatus[] | Prisma.ListEnumPostImageAttachmentStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumPostImageAttachmentStatusFilter<$PrismaModel> | $Enums.PostImageAttachmentStatus
 }
 
-export type NestedEnumImageUploadReservationStatusWithAggregatesFilter<$PrismaModel = never> = {
-  equals?: $Enums.ImageUploadReservationStatus | Prisma.EnumImageUploadReservationStatusFieldRefInput<$PrismaModel>
-  in?: $Enums.ImageUploadReservationStatus[] | Prisma.ListEnumImageUploadReservationStatusFieldRefInput<$PrismaModel>
-  notIn?: $Enums.ImageUploadReservationStatus[] | Prisma.ListEnumImageUploadReservationStatusFieldRefInput<$PrismaModel>
-  not?: Prisma.NestedEnumImageUploadReservationStatusWithAggregatesFilter<$PrismaModel> | $Enums.ImageUploadReservationStatus
+export type NestedEnumPostImageAttachmentStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.PostImageAttachmentStatus | Prisma.EnumPostImageAttachmentStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.PostImageAttachmentStatus[] | Prisma.ListEnumPostImageAttachmentStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.PostImageAttachmentStatus[] | Prisma.ListEnumPostImageAttachmentStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumPostImageAttachmentStatusWithAggregatesFilter<$PrismaModel> | $Enums.PostImageAttachmentStatus
   _count?: Prisma.NestedIntFilter<$PrismaModel>
-  _min?: Prisma.NestedEnumImageUploadReservationStatusFilter<$PrismaModel>
-  _max?: Prisma.NestedEnumImageUploadReservationStatusFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumPostImageAttachmentStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumPostImageAttachmentStatusFilter<$PrismaModel>
 }
 
 export type NestedEnumInboxStatusFilter<$PrismaModel = never> = {

@@ -1,6 +1,6 @@
 import { Error as DBOSErrors } from '@dbos-inc/dbos-sdk';
 import {
-  ImageUploadsServiceUnavailableError,
+  FilesServiceUnavailableError,
   PostImageAlreadyAttachedError,
   PostImageNotFoundError,
   PostImagesNotAvailableError,
@@ -14,7 +14,7 @@ const postsErrorTypes = new Map<string, new () => PostsError>([
   [PostsErrorCode.POST_IMAGE_NOT_FOUND, PostImageNotFoundError],
   [PostsErrorCode.POST_IMAGES_NOT_AVAILABLE, PostImagesNotAvailableError],
   [PostsErrorCode.POST_IMAGE_ALREADY_ATTACHED, PostImageAlreadyAttachedError],
-  [PostsErrorCode.IMAGE_UPLOADS_SERVICE_UNAVAILABLE, ImageUploadsServiceUnavailableError],
+  [PostsErrorCode.IMAGE_UPLOADS_SERVICE_UNAVAILABLE, FilesServiceUnavailableError],
 ]);
 
 // Ошибка шага может прийти из БД без исходного класса. При отсутствии code
@@ -45,7 +45,7 @@ export function restorePostsError(error: unknown): unknown {
       (cause: unknown) => getPostsErrorCode(cause) === PostsErrorCode.IMAGE_UPLOADS_SERVICE_UNAVAILABLE,
     )
   ) {
-    return new ImageUploadsServiceUnavailableError();
+    return new FilesServiceUnavailableError();
   }
   if (error instanceof PostsError) return error;
   const code = getPostsErrorCode(error);

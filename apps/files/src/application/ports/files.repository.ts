@@ -31,16 +31,13 @@ export type UpdateImageUploadsStatusParams = ImageUploadsSelection & {
   uploadedAt: Date | null;
 };
 
-export type ReserveImageUploadsRepositoryParams = ImageUploadsSelection & {
-  reservationId: string;
-};
-
-export type ReservationParams = {
+export type PostImageAttachmentParams = {
   userId: number;
-  reservationId: string;
+  fileIds: readonly string[];
+  operationId: string;
 };
 
-export type AttachImageUploadRepositoryParams = {
+export type AttachAvatarFileRepositoryParams = {
   userId: number;
   fileId: string;
   operationId: string;
@@ -82,8 +79,8 @@ export type SoftDeleteFileIdsByUserRepositoryResult = {
 }[];
 export abstract class FilesRepository {
   /** Прикрепляет COMPLETED-файл в текущей транзакции. null — точный повтор операции. */
-  abstract attachImageUpload(
-    params: AttachImageUploadRepositoryParams,
+  abstract attachAvatarFile(
+    params: AttachAvatarFileRepositoryParams,
     ctx: TransactionContext,
   ): Promise<ImageUploadMetadata | null>;
 
@@ -91,12 +88,11 @@ export abstract class FilesRepository {
 
   abstract findImageUploads(params: ImageUploadsSelection): Promise<ImageUploadRecord[]>;
 
+  // Частичный переход откатывается; повтор подтверждения всего набора COMPLETED успешен.
   abstract updateImageUploadsStatusIfAllPending(params: UpdateImageUploadsStatusParams): Promise<void>;
-  abstract reserveImageUploads(params: ReserveImageUploadsRepositoryParams): Promise<void>;
+  abstract attachPostImages(params: PostImageAttachmentParams): Promise<void>;
 
-  abstract attachReservedImageUploads(params: ReservationParams): Promise<void>;
-
-  abstract releaseReservedImageUploads(params: ReservationParams): Promise<void>;
+  abstract cancelPostImageAttachment(params: PostImageAttachmentParams): Promise<void>;
 
   abstract claimExpiredImageUploads(params: ClaimExpiredImageUploadsParams): Promise<ClaimedImageUpload[]>;
 

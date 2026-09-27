@@ -47,10 +47,10 @@ export { Prisma }
  */
 export type File = Prisma.FileModel
 /**
- * Model ImageUploadReservation
+ * Model PostImageAttachmentOperation
  * 
  */
-export type ImageUploadReservation = Prisma.ImageUploadReservationModel
+export type PostImageAttachmentOperation = Prisma.PostImageAttachmentOperationModel
 /**
  * Model InboxEvents
  * 

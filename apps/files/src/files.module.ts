@@ -1,19 +1,18 @@
+import { AttachPostImagesUseCase } from './application/use-cases/attach-post-images/attach-post-images.use-case.js';
+import { CancelPostImageAttachmentUseCase } from './application/use-cases/cancel-post-image-attachment/cancel-post-image-attachment.use-case.js';
 import { AvatarDeletionEventConsumer } from './presentation/messaging/avatar-deletion-event.consumer.js';
 import { S3Client } from '@aws-sdk/client-s3';
-import { AttachAvatarUploadUseCase } from './application/use-cases/attach-avatar-upload/attach-avatar-upload.use-case.js';
+import { AttachAvatarFileUseCase } from './application/use-cases/attach-avatar-file/attach-avatar-file.use-case.js';
 import { ScheduleAttachedFileDeletionUseCase } from './application/use-cases/schedule-attached-file-deletion/schedule-attached-file-deletion.use-case.js';
 import { Module } from '@nestjs/common';
 import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
 import { ScheduleModule } from '@nestjs/schedule';
-import { AttachReservedImageUploadsUseCase } from './application/use-cases/attach-reserved-image-uploads/attach-reserved-image-uploads.use-case.js';
 import { CleanupExpiredImageUploadsUseCase } from './application/use-cases/cleanup-expired-image-uploads/cleanup-expired-image-uploads.use-case.js';
 import { CompleteImageUploadsUseCase } from './application/use-cases/complete-image-uploads/complete-image-uploads.use-case.js';
 import { InitiateImageUploadsUseCase } from './application/use-cases/initiate-image-uploads/initiate-image-uploads.use-case.js';
 import { InitiateAvatarUploadUseCase } from './application/use-cases/initiate-avatar-upload/initiate-avatar-upload.use-case.js';
 import { ImageUploadSessionsService } from './application/services/image-upload-sessions.service.js';
-import { ReserveImageUploadsUseCase } from './application/use-cases/reserve-image-uploads/reserve-image-uploads.use-case.js';
-import { ReleaseReservedImageUploadsUseCase } from './application/use-cases/release-reserved-image-uploads/release-reserved-image-uploads.use-case.js';
 import { filesConfig } from './config/files.config.js';
 import { S3_CLIENT } from './infrastructure/s3/s3.constants.js';
 import { FilesGrpcController } from './presentation/grpc/files-grpc.controller.js';
@@ -70,9 +69,10 @@ import { FileDeletionJobsScheduler } from './infrastructure/scheduling/file-dele
     AvatarDeletionEventConsumer,
   ],
   providers: [
-    AttachAvatarUploadUseCase,
+    AttachPostImagesUseCase,
+    CancelPostImageAttachmentUseCase,
+    AttachAvatarFileUseCase,
     ScheduleAttachedFileDeletionUseCase,
-    AttachReservedImageUploadsUseCase,
     CleanupExpiredImageUploadsUseCase,
     CompleteImageUploadsUseCase,
     DeleteAllDataUseCase,
@@ -80,8 +80,6 @@ import { FileDeletionJobsScheduler } from './infrastructure/scheduling/file-dele
     InitiateAvatarUploadUseCase,
     ImageUploadSessionsService,
     GetFileDownloadUrlQueryHandler,
-    ReleaseReservedImageUploadsUseCase,
-    ReserveImageUploadsUseCase,
     ExpiredImageUploadsCleanupJob,
     PostDeletedInboxScheduler,
     PostDeletedInboxWorker,

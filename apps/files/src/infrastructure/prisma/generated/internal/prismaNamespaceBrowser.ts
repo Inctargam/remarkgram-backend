@@ -52,7 +52,7 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   File: 'File',
-  ImageUploadReservation: 'ImageUploadReservation',
+  PostImageAttachmentOperation: 'PostImageAttachmentOperation',
   InboxEvents: 'InboxEvents',
   FileDeletionJob: 'FileDeletionJob'
 } as const
@@ -83,8 +83,8 @@ export const FileScalarFieldEnum = {
   uploadStatus: 'uploadStatus',
   uploadExpiresAt: 'uploadExpiresAt',
   uploadedAt: 'uploadedAt',
-  reservationId: 'reservationId',
-  attachmentOperationId: 'attachmentOperationId',
+  postImageAttachmentOperationId: 'postImageAttachmentOperationId',
+  avatarAttachmentOperationId: 'avatarAttachmentOperationId',
   deletedAt: 'deletedAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
@@ -93,16 +93,16 @@ export const FileScalarFieldEnum = {
 export type FileScalarFieldEnum = (typeof FileScalarFieldEnum)[keyof typeof FileScalarFieldEnum]
 
 
-export const ImageUploadReservationScalarFieldEnum = {
+export const PostImageAttachmentOperationScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
-  uploadIds: 'uploadIds',
+  fileIdsHash: 'fileIdsHash',
   status: 'status',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
-export type ImageUploadReservationScalarFieldEnum = (typeof ImageUploadReservationScalarFieldEnum)[keyof typeof ImageUploadReservationScalarFieldEnum]
+export type PostImageAttachmentOperationScalarFieldEnum = (typeof PostImageAttachmentOperationScalarFieldEnum)[keyof typeof PostImageAttachmentOperationScalarFieldEnum]
 
 
 export const InboxEventsScalarFieldEnum = {

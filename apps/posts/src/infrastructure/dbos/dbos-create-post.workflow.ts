@@ -1,17 +1,17 @@
 import { ConfiguredInstance, DBOS, type StepConfig } from '@dbos-inc/dbos-sdk';
 import { Injectable } from '@nestjs/common';
 import {
-  ImageUploadsServiceUnavailableError,
+  FilesServiceUnavailableError,
   PostIdempotencyKeyConflictError,
   PostImageAlreadyAttachedError,
 } from '../../application/errors/create-post.errors.js';
 import { PostsError, PostsErrorCode } from '../../application/errors/posts.error.js';
 import { CreatePostWorkflow } from '../../application/ports/create-post.workflow.js';
-import { ImageUploadsGateway } from '../../application/ports/image-uploads.gateway.js';
+import { FilesGateway } from '../../application/ports/files.gateway.js';
 import type {
   CreatePostResult,
   CreatePostWorkflowParams,
-  ReleaseReservedImageUploadsParams,
+  PostImageAttachmentParams,
 } from '../../application/types/posts.types.js';
 import { Prisma } from '../prisma/generated/client.js';
 import { getPostsErrorCode, restorePostsError } from './dbos-posts-error.mapper.js';
@@ -26,13 +26,18 @@ const filesStepRetryOptions = {
     getPostsErrorCode(error) === PostsErrorCode.IMAGE_UPLOADS_SERVICE_UNAVAILABLE,
 } satisfies StepConfig;
 
-type WorkflowInput = Omit<CreatePostWorkflowParams, 'workflowId'>;
+type WorkflowInput = {
+  requestHash: string;
+  userId: number;
+  description: string | null;
+  fileIds: readonly string[];
+};
 
 @Injectable()
 export class DbosCreatePostWorkflow extends ConfiguredInstance implements CreatePostWorkflow {
   constructor(
     private readonly dataSource: PostsDbosDataSource,
-    private readonly imageUploadsGateway: ImageUploadsGateway,
+    private readonly filesGateway: FilesGateway,
   ) {
     // Стабильное имя позволяет DBOS найти NestJS-инстанс с его зависимостями
     // при восстановлении workflow после перезапуска процесса.
@@ -62,43 +67,31 @@ export class DbosCreatePostWorkflow extends ConfiguredInstance implements Create
       return await handle.getResult();
     } catch (cause) {
       const error = restorePostsError(cause);
-      if (!(error instanceof PostsError) || error instanceof ImageUploadsServiceUnavailableError) {
+      if (!(error instanceof PostsError) || error instanceof FilesServiceUnavailableError) {
         DBOS.logger.error(`CreatePost failed; workflowId=${workflowId}: ${String(cause)}`);
       }
       throw error;
     }
   }
 
-  // Порядок durable-операций является частью истории createPostV1. При изменении
+  // Порядок durable-операций является частью истории createPostV2. При изменении
   // последовательности нужно регистрировать новую версию workflow.
-  @DBOS.workflow({ name: 'createPostV1', maxRecoveryAttempts: 100 })
+  @DBOS.workflow({ name: 'createPostV2', maxRecoveryAttempts: 100 })
   async createPost(input: WorkflowInput): Promise<CreatePostResult> {
-    // Значение детерминировано DBOS: recovery снова получит тот же reservationId.
-    const reservationId = await DBOS.randomUUID();
-
-    await this.reserveImages(input, reservationId);
-
-    let postId: number;
-    try {
-      postId = await this.createUnpublishedPost(input);
-    } catch (error) {
-      const code = getPostsErrorCode(error);
-      if (code === PostsErrorCode.POST_IMAGE_ALREADY_ATTACHED) {
-        await this.releaseReservation({ userId: input.userId, reservationId });
-      }
-
-      throw error;
-    }
+    // Recovery и повторы шагов используют один идентификатор операции Files.
+    const operationId = await DBOS.randomUUID();
+    const postId = await this.createUnpublishedPost(input);
+    const attachment = { userId: input.userId, fileIds: input.fileIds, operationId };
 
     try {
-      await this.attachImages(input.userId, reservationId);
+      await this.attachImages(attachment);
     } catch (error) {
       const code = getPostsErrorCode(error);
       if (code === PostsErrorCode.POST_IMAGE_NOT_FOUND || code === PostsErrorCode.POST_IMAGES_NOT_AVAILABLE) {
-        await this.releaseReservation({ userId: input.userId, reservationId });
+        // Сначала запрещаем поздний Attach, затем освобождаем связи скрытого поста.
+        await this.cancelAttachment(attachment);
         await this.deleteUnpublishedPost(postId);
       }
-
       throw error;
     }
 
@@ -107,24 +100,13 @@ export class DbosCreatePostWorkflow extends ConfiguredInstance implements Create
   }
 
   @DBOS.step(filesStepRetryOptions)
-  private async reserveImages(input: WorkflowInput, reservationId: string): Promise<void> {
-    await this.imageUploadsGateway.reserveImageUploads({
-      userId: input.userId,
-      imageIds: input.imageIds,
-      reservationId,
-    });
+  private async attachImages(params: PostImageAttachmentParams): Promise<void> {
+    await this.filesGateway.attachPostImages(params);
   }
 
   @DBOS.step(filesStepRetryOptions)
-  private async attachImages(userId: number, reservationId: string): Promise<void> {
-    await this.imageUploadsGateway.attachReservedImageUploads({ userId, reservationId });
-  }
-
-  @DBOS.step(filesStepRetryOptions)
-  private async releaseReservation(params: ReleaseReservedImageUploadsParams): Promise<void> {
-    // Release тоже checkpointed. Если процесс упадёт после успеха Files, но до
-    // checkpoint DBOS, recovery безопасно повторит вызов с тем же reservationId.
-    await this.imageUploadsGateway.releaseReservedImageUploads(params);
+  private async cancelAttachment(params: PostImageAttachmentParams): Promise<void> {
+    await this.filesGateway.cancelPostImageAttachment(params);
   }
 
   private async createUnpublishedPost(input: WorkflowInput): Promise<number> {
@@ -139,7 +121,7 @@ export class DbosCreatePostWorkflow extends ConfiguredInstance implements Create
               description: input.description,
               publishedAt: null,
               images: {
-                create: input.imageIds.map((fileId, position) => ({ fileId, position })),
+                create: input.fileIds.map((fileId, position) => ({ fileId, position })),
               },
             },
             select: { id: true },

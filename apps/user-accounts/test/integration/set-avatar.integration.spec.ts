@@ -22,9 +22,9 @@ import { PrismaFilesRepository } from '../../../files/src/infrastructure/prisma/
 import { PrismaFileDeletionJobsRepository } from '../../../files/src/infrastructure/prisma/repositories/prisma-file-deletion-jobs.repository.js';
 import { PrismaUnitOfWork } from '../../../files/src/infrastructure/prisma/prisma-unit-of-work.js';
 import {
-  AttachAvatarUploadCommand,
-  AttachAvatarUploadUseCase,
-} from '../../../files/src/application/use-cases/attach-avatar-upload/attach-avatar-upload.use-case.js';
+  AttachAvatarFileCommand,
+  AttachAvatarFileUseCase,
+} from '../../../files/src/application/use-cases/attach-avatar-file/attach-avatar-file.use-case.js';
 import {
   ScheduleAttachedFileDeletionCommand,
   ScheduleAttachedFileDeletionUseCase,
@@ -59,12 +59,12 @@ class FilesGateway extends AvatarFilesGateway {
   ) {
     super();
   }
-  async attachAvatarUpload(params: AttachAvatarParams) {
+  async attachAvatarFile(params: AttachAvatarParams) {
     this.calls.push({ ...params });
     if (this.pauseAttach) await this.pauseAttach();
     try {
-      await new AttachAvatarUploadUseCase(this.repository, this.unitOfWork).execute(
-        new AttachAvatarUploadCommand(params),
+      await new AttachAvatarFileUseCase(this.repository, this.unitOfWork).execute(
+        new AttachAvatarFileCommand(params),
       );
     } catch (error) {
       if (error instanceof FilesError) {
@@ -186,7 +186,7 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
     gateway.pauseAttach = null;
     await files.fileDeletionJob.deleteMany();
     await files.file.deleteMany();
-    await files.imageUploadReservation.deleteMany();
+    await files.postImageAttachmentOperation.deleteMany();
     await prisma.profile.deleteMany();
     await prisma.user.deleteMany();
     await prisma.user.create({
@@ -324,7 +324,7 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
       expect(publisher.publish).not.toHaveBeenCalled();
       expect(await files.file.findUniqueOrThrow({ where: { id: next.id } })).toMatchObject({
         uploadStatus: 'ATTACHED',
-        attachmentOperationId: profile.avatarUpdateId,
+        avatarAttachmentOperationId: profile.avatarUpdateId,
       });
       expect(await files.file.findUniqueOrThrow({ where: { id: old.id } })).toMatchObject({
         deletedAt: null,
@@ -450,11 +450,11 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
       avatarUpdateId: null,
     });
     expect(await files.fileDeletionJob.count()).toBe(0);
-    expect(await files.imageUploadReservation.count()).toBe(0);
+    expect(await files.postImageAttachmentOperation.count()).toBe(0);
     expect(await files.file.findUnique({ where: { id: file.id } })).toMatchObject({
       uploadStatus: file.uploadStatus,
-      reservationId: null,
-      attachmentOperationId: null,
+      postImageAttachmentOperationId: null,
+      avatarAttachmentOperationId: null,
     });
   });
 
@@ -492,8 +492,8 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
       avatarFileId: first.id,
       avatarUpdateId: null,
     });
-    expect(await files.file.count({ where: { attachmentOperationId: { not: null } } })).toBe(1);
-    expect(await files.imageUploadReservation.count()).toBe(0);
+    expect(await files.file.count({ where: { avatarAttachmentOperationId: { not: null } } })).toBe(1);
+    expect(await files.postImageAttachmentOperation.count()).toBe(0);
   });
 
   it.each([null, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'])(
@@ -516,7 +516,7 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
         avatarUpdateId,
       });
       expect(await files.fileDeletionJob.count()).toBe(0);
-      expect(await files.imageUploadReservation.count()).toBe(0);
+      expect(await files.postImageAttachmentOperation.count()).toBe(0);
     },
   );
 
@@ -554,7 +554,7 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
     await workflow.execute(input);
     expect(gateway.calls).toHaveLength(2);
     expect(gateway.calls[1]).toEqual(gateway.calls[0]);
-    expect(await files.file.count({ where: { attachmentOperationId: { not: null } } })).toBe(1);
+    expect(await files.file.count({ where: { avatarAttachmentOperationId: { not: null } } })).toBe(1);
     expect(await prisma.profile.findUniqueOrThrow({ where: { userId } })).toMatchObject({
       avatarFileId: file.id,
       avatarUpdateId: null,
@@ -626,8 +626,8 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
       avatarFileId: file.id,
       avatarUpdateId: null,
     });
-    expect(await files.file.count({ where: { attachmentOperationId: { not: null } } })).toBe(1);
-    expect(await files.imageUploadReservation.count()).toBe(0);
+    expect(await files.file.count({ where: { avatarAttachmentOperationId: { not: null } } })).toBe(1);
+    expect(await files.postImageAttachmentOperation.count()).toBe(0);
   });
 
   it('compensates an attached file when the user was deleted before commit', async () => {
@@ -665,41 +665,41 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
   it('atomically deduplicates concurrent attachment and rejects operation ID reuse', async () => {
     const file = await newFile();
     const other = await newFile();
-    const attach = new AttachAvatarUploadUseCase(repository, new PrismaUnitOfWork(files));
+    const attach = new AttachAvatarFileUseCase(repository, new PrismaUnitOfWork(files));
     const input = { userId, fileId: file.id, operationId: randomUUID() };
     await Promise.all([
-      attach.execute(new AttachAvatarUploadCommand(input)),
-      attach.execute(new AttachAvatarUploadCommand(input)),
+      attach.execute(new AttachAvatarFileCommand(input)),
+      attach.execute(new AttachAvatarFileCommand(input)),
     ]);
-    expect(await files.file.count({ where: { attachmentOperationId: { not: null } } })).toBe(1);
-    expect(await files.imageUploadReservation.count()).toBe(0);
+    expect(await files.file.count({ where: { avatarAttachmentOperationId: { not: null } } })).toBe(1);
+    expect(await files.postImageAttachmentOperation.count()).toBe(0);
     expect(await files.file.findUnique({ where: { id: file.id } })).toMatchObject({
       uploadStatus: 'ATTACHED',
-      reservationId: null,
-      attachmentOperationId: input.operationId,
+      postImageAttachmentOperationId: null,
+      avatarAttachmentOperationId: input.operationId,
       deletedAt: null,
     });
     await expect(
-      attach.execute(new AttachAvatarUploadCommand({ ...input, fileId: other.id })),
-    ).rejects.toMatchObject({ code: FilesErrorCode.IMAGE_UPLOAD_RESERVATION_CONFLICT });
-    await expect(
-      attach.execute(new AttachAvatarUploadCommand({ ...input, userId: 99 })),
-    ).rejects.toMatchObject({ code: FilesErrorCode.IMAGE_UPLOAD_NOT_FOUND });
+      attach.execute(new AttachAvatarFileCommand({ ...input, fileId: other.id })),
+    ).rejects.toMatchObject({ code: FilesErrorCode.AVATAR_ATTACHMENT_OPERATION_CONFLICT });
+    await expect(attach.execute(new AttachAvatarFileCommand({ ...input, userId: 99 }))).rejects.toMatchObject(
+      { code: FilesErrorCode.IMAGE_UPLOAD_NOT_FOUND },
+    );
     expect(await files.file.findUnique({ where: { id: other.id } })).toMatchObject({
       uploadStatus: 'COMPLETED',
-      reservationId: null,
-      attachmentOperationId: null,
+      postImageAttachmentOperationId: null,
+      avatarAttachmentOperationId: null,
     });
     await deletion.execute(new ScheduleAttachedFileDeletionCommand({ userId, fileId: file.id }));
-    await expect(attach.execute(new AttachAvatarUploadCommand(input))).resolves.toBeUndefined();
+    await expect(attach.execute(new AttachAvatarFileCommand(input))).resolves.toBeUndefined();
     expect(await files.file.findUnique({ where: { id: file.id } })).toMatchObject({
       deletedAt: expect.any(Date) as Date,
-      attachmentOperationId: input.operationId,
+      avatarAttachmentOperationId: input.operationId,
     });
     // После физического удаления теряется и информация о выполненном прикреплении.
     await files.fileDeletionJob.deleteMany();
     await files.file.delete({ where: { id: file.id } });
-    await expect(attach.execute(new AttachAvatarUploadCommand(input))).rejects.toMatchObject({
+    await expect(attach.execute(new AttachAvatarFileCommand(input))).rejects.toMatchObject({
       code: FilesErrorCode.IMAGE_UPLOAD_NOT_FOUND,
     });
     expect(await files.file.findUnique({ where: { id: file.id } })).toBeNull();
@@ -709,31 +709,31 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
     const first = await newFile();
     const second = await newFile();
     const operationId = randomUUID();
-    const attach = new AttachAvatarUploadUseCase(repository, new PrismaUnitOfWork(files));
+    const attach = new AttachAvatarFileUseCase(repository, new PrismaUnitOfWork(files));
     const results = await Promise.allSettled(
       [first.id, second.id].map((fileId) =>
-        attach.execute(new AttachAvatarUploadCommand({ userId, fileId, operationId })),
+        attach.execute(new AttachAvatarFileCommand({ userId, fileId, operationId })),
       ),
     );
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
     expect(results.find((result) => result.status === 'rejected')).toMatchObject({
       status: 'rejected',
-      reason: { code: FilesErrorCode.IMAGE_UPLOAD_RESERVATION_CONFLICT },
+      reason: { code: FilesErrorCode.AVATAR_ATTACHMENT_OPERATION_CONFLICT },
     });
-    expect(await files.file.count({ where: { attachmentOperationId: operationId } })).toBe(1);
+    expect(await files.file.count({ where: { avatarAttachmentOperationId: operationId } })).toBe(1);
     expect(
-      await files.file.count({ where: { uploadStatus: 'COMPLETED', attachmentOperationId: null } }),
+      await files.file.count({ where: { uploadStatus: 'COMPLETED', avatarAttachmentOperationId: null } }),
     ).toBe(1);
-    expect(await files.imageUploadReservation.count()).toBe(0);
+    expect(await files.postImageAttachmentOperation.count()).toBe(0);
   });
 
   it('allows only one avatar operation to attach the same file concurrently', async () => {
     const file = await newFile();
     const operationIds = [randomUUID(), randomUUID()];
-    const attach = new AttachAvatarUploadUseCase(repository, new PrismaUnitOfWork(files));
+    const attach = new AttachAvatarFileUseCase(repository, new PrismaUnitOfWork(files));
     const results = await Promise.allSettled(
       operationIds.map((operationId) =>
-        attach.execute(new AttachAvatarUploadCommand({ userId, fileId: file.id, operationId })),
+        attach.execute(new AttachAvatarFileCommand({ userId, fileId: file.id, operationId })),
       ),
     );
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
@@ -742,77 +742,71 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
       reason: { code: FilesErrorCode.IMAGE_UPLOAD_STATE_CONFLICT },
     });
     const attached = await files.file.findUniqueOrThrow({ where: { id: file.id } });
-    expect(operationIds).toContain(attached.attachmentOperationId);
-    expect(attached.reservationId).toBeNull();
-    expect(await files.imageUploadReservation.count()).toBe(0);
+    expect(operationIds).toContain(attached.avatarAttachmentOperationId);
+    expect(attached.postImageAttachmentOperationId).toBeNull();
+    expect(await files.postImageAttachmentOperation.count()).toBe(0);
   });
 
   it('rolls back the attachment marker on invalid metadata and permits a later valid attempt', async () => {
     const file = await newFile({ size: 20 * 1024 * 1024 });
     const valid = await newFile();
     const operationId = randomUUID();
-    const attach = new AttachAvatarUploadUseCase(repository, new PrismaUnitOfWork(files));
+    const attach = new AttachAvatarFileUseCase(repository, new PrismaUnitOfWork(files));
     await expect(
-      attach.execute(new AttachAvatarUploadCommand({ userId, fileId: file.id, operationId })),
+      attach.execute(new AttachAvatarFileCommand({ userId, fileId: file.id, operationId })),
     ).rejects.toMatchObject({ code: FilesErrorCode.INVALID_IMAGE_SIZE });
     expect(await files.file.findUnique({ where: { id: file.id } })).toMatchObject({
       uploadStatus: 'COMPLETED',
-      attachmentOperationId: null,
-      reservationId: null,
+      avatarAttachmentOperationId: null,
+      postImageAttachmentOperationId: null,
     });
     await expect(
-      attach.execute(new AttachAvatarUploadCommand({ userId, fileId: valid.id, operationId })),
+      attach.execute(new AttachAvatarFileCommand({ userId, fileId: valid.id, operationId })),
     ).resolves.toBeUndefined();
     expect(await files.file.findUnique({ where: { id: valid.id } })).toMatchObject({
       uploadStatus: 'ATTACHED',
-      attachmentOperationId: operationId,
-      reservationId: null,
+      avatarAttachmentOperationId: operationId,
+      postImageAttachmentOperationId: null,
     });
   });
 
-  it('keeps the post reservation lifecycle independent from avatar attachment markers', async () => {
+  it('keeps post attachment independent from avatar attachment markers', async () => {
     const file = await newFile();
-    const reservationId = randomUUID();
-    await repository.reserveImageUploads({ userId, uploadIds: [file.id], reservationId });
-    expect(await files.file.findUnique({ where: { id: file.id } })).toMatchObject({
-      uploadStatus: 'RESERVED',
-      reservationId,
-      attachmentOperationId: null,
-    });
-    await repository.releaseReservedImageUploads({ userId, reservationId });
-    expect(await files.file.findUnique({ where: { id: file.id } })).toMatchObject({
-      uploadStatus: 'COMPLETED',
-      reservationId: null,
-      attachmentOperationId: null,
-    });
-    const nextReservationId = randomUUID();
-    await repository.reserveImageUploads({ userId, uploadIds: [file.id], reservationId: nextReservationId });
-    await repository.attachReservedImageUploads({ userId, reservationId: nextReservationId });
+    const operationId = randomUUID();
+    const input = { userId, fileIds: [file.id], operationId };
+    await repository.attachPostImages(input);
     expect(await files.file.findUnique({ where: { id: file.id } })).toMatchObject({
       uploadStatus: 'ATTACHED',
-      reservationId: nextReservationId,
-      attachmentOperationId: null,
+      postImageAttachmentOperationId: operationId,
+      avatarAttachmentOperationId: null,
     });
-    const attach = new AttachAvatarUploadUseCase(repository, new PrismaUnitOfWork(files));
+    await repository.cancelPostImageAttachment(input);
+    expect(await files.file.findUnique({ where: { id: file.id } })).toMatchObject({
+      uploadStatus: 'COMPLETED',
+      postImageAttachmentOperationId: null,
+      avatarAttachmentOperationId: null,
+    });
+    await repository.attachPostImages({ ...input, operationId: randomUUID() });
+    const attach = new AttachAvatarFileUseCase(repository, new PrismaUnitOfWork(files));
     await expect(
-      attach.execute(new AttachAvatarUploadCommand({ userId, fileId: file.id, operationId: randomUUID() })),
+      attach.execute(new AttachAvatarFileCommand({ userId, fileId: file.id, operationId: randomUUID() })),
     ).rejects.toMatchObject({ code: FilesErrorCode.IMAGE_UPLOAD_STATE_CONFLICT });
   });
 
-  it('allows only one winner against a post reservation or expired-upload cleanup', async () => {
+  it('allows only one winner against a post attachment or expired-upload cleanup', async () => {
     const file = await newFile();
     const results = await Promise.allSettled([
-      new AttachAvatarUploadUseCase(repository, new PrismaUnitOfWork(files)).execute(
-        new AttachAvatarUploadCommand({ userId, fileId: file.id, operationId: randomUUID() }),
+      new AttachAvatarFileUseCase(repository, new PrismaUnitOfWork(files)).execute(
+        new AttachAvatarFileCommand({ userId, fileId: file.id, operationId: randomUUID() }),
       ),
-      repository.reserveImageUploads({ userId, uploadIds: [file.id], reservationId: randomUUID() }),
+      repository.attachPostImages({ userId, fileIds: [file.id], operationId: randomUUID() }),
     ]);
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
     const expired = await newFile({ uploadedAt: new Date(0) });
     const now = new Date();
     await Promise.allSettled([
-      new AttachAvatarUploadUseCase(repository, new PrismaUnitOfWork(files)).execute(
-        new AttachAvatarUploadCommand({ userId, fileId: expired.id, operationId: randomUUID() }),
+      new AttachAvatarFileUseCase(repository, new PrismaUnitOfWork(files)).execute(
+        new AttachAvatarFileCommand({ userId, fileId: expired.id, operationId: randomUUID() }),
       ),
       repository.claimExpiredImageUploads({
         pendingExpiredBefore: now,
@@ -827,7 +821,7 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
     expect(result.uploadStatus === 'ATTACHED' && result.deletedAt !== null).toBe(false);
   });
 
-  it.each(['ATTACHED', 'RESERVED'] as const)(
+  it.each(['ATTACHED'] as const)(
     'skips a file locked by a concurrent transition to %s',
     async (uploadStatus) => {
       const expired = await newFile({ uploadedAt: new Date(0) });
@@ -883,7 +877,6 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
       newFile({ uploadStatus: 'PENDING', uploadExpiresAt: future }),
       newFile({ uploadStatus: 'REJECTED', updatedAt: future }),
       newFile({ uploadedAt: cutoff, deletedAt: now }),
-      newFile({ uploadStatus: 'RESERVED', uploadedAt: cutoff }),
       newFile({ uploadStatus: 'ATTACHED', uploadedAt: cutoff }),
     ]);
     const input = {
@@ -977,10 +970,10 @@ describe.runIf(Boolean(adminUrl))('SetAvatar across PostgreSQL databases and DBO
         firstName: 'Kept',
       });
       const attachedFile = await files.file.findUniqueOrThrow({ where: { id: file.id } });
-      expect(attachedFile.attachmentOperationId).toBe(locked.avatarUpdateId);
-      expect(attachedFile.reservationId).toBeNull();
-      expect(await files.file.count({ where: { attachmentOperationId: { not: null } } })).toBe(1);
-      expect(await files.imageUploadReservation.count()).toBe(0);
+      expect(attachedFile.avatarAttachmentOperationId).toBe(locked.avatarUpdateId);
+      expect(attachedFile.postImageAttachmentOperationId).toBeNull();
+      expect(await files.file.count({ where: { avatarAttachmentOperationId: { not: null } } })).toBe(1);
+      expect(await files.postImageAttachmentOperation.count()).toBe(0);
       expect(await files.fileDeletionJob.count({ where: { fileId: old.id } })).toBe(1);
       const afterRecovery = await jobs();
       expect(afterRecovery).toHaveLength(1);

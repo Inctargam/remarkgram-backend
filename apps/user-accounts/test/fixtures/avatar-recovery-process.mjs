@@ -13,7 +13,7 @@ import { PrismaFilesRepository } from '../../../../dist/apps/files/apps/files/sr
 import { PrismaFileDeletionJobsRepository } from '../../../../dist/apps/files/apps/files/src/infrastructure/prisma/repositories/prisma-file-deletion-jobs.repository.js';
 import { PrismaUnitOfWork } from '../../../../dist/apps/files/apps/files/src/infrastructure/prisma/prisma-unit-of-work.js';
 import { ScheduleAttachedFileDeletionUseCase } from '../../../../dist/apps/files/apps/files/src/application/use-cases/schedule-attached-file-deletion/schedule-attached-file-deletion.use-case.js';
-import { AttachAvatarUploadUseCase } from '../../../../dist/apps/files/apps/files/src/application/use-cases/attach-avatar-upload/attach-avatar-upload.use-case.js';
+import { AttachAvatarFileUseCase } from '../../../../dist/apps/files/apps/files/src/application/use-cases/attach-avatar-file/attach-avatar-file.use-case.js';
 
 const input = JSON.parse(process.env.AVATAR_WORKFLOW_INPUT);
 const prisma = new PrismaService({ url: process.env.AVATAR_USERS_URL });
@@ -50,8 +50,8 @@ const worker = new OutboxWorker(new UsersUnitOfWork(prisma), events, {
 const workflow = new DbosSetAvatarWorkflow(
   dataSource,
   {
-    attachAvatarUpload: async (params) => {
-      await new AttachAvatarUploadUseCase(repository, new PrismaUnitOfWork(files)).execute({ params });
+    attachAvatarFile: async (params) => {
+      await new AttachAvatarFileUseCase(repository, new PrismaUnitOfWork(files)).execute({ params });
       if (process.env.AVATAR_CRASH_AT === 'after-attach') process.kill(process.pid, 'SIGKILL');
     },
   },

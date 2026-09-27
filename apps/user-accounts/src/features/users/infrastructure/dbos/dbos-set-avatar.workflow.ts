@@ -127,7 +127,7 @@ export class DbosSetAvatarWorkflow extends ConfiguredInstance implements SetAvat
   private async attachAvatar(params: AttachAvatarParams): Promise<void> {
     // Через gRPC просим Files проверить владельца, статус, размер и MIME файла
     // и атомарно перевести его из COMPLETED в ATTACHED.
-    await this.filesGateway.attachAvatarUpload(params);
+    await this.filesGateway.attachAvatarFile(params);
   }
 
   private async scheduleNewAvatarDeletion(params: AvatarFileParams): Promise<void> {

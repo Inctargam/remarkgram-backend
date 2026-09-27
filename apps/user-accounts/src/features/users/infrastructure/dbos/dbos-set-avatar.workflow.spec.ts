@@ -33,7 +33,7 @@ describe('DbosSetAvatarWorkflow', () => {
     client: { profile, $queryRaw: vi.fn() },
     runTransaction: vi.fn((callback: () => Promise<unknown>) => callback()),
   };
-  const files = { attachAvatarUpload: vi.fn() };
+  const files = { attachAvatarFile: vi.fn() };
   const events = { add: vi.fn() };
   const worker = { publish: vi.fn() };
   const workflow = new DbosSetAvatarWorkflow(
@@ -66,7 +66,7 @@ describe('DbosSetAvatarWorkflow', () => {
 
   it('attaches, updates only avatarFileId, schedules the previous file and unlocks in order', async () => {
     await workflow.setAvatar(input);
-    expect(files.attachAvatarUpload).toHaveBeenCalledExactlyOnceWith({ ...input, operationId });
+    expect(files.attachAvatarFile).toHaveBeenCalledExactlyOnceWith({ ...input, operationId });
     expect(profile.upsert).toHaveBeenCalledWith({
       where: { userId: 42 },
       create: { userId: 42, avatarUpdateId: operationId },
@@ -80,7 +80,7 @@ describe('DbosSetAvatarWorkflow', () => {
       where: { userId: 42, avatarUpdateId: operationId },
       data: { avatarUpdateId: null },
     });
-    expect(files.attachAvatarUpload.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(files.attachAvatarFile.mock.invocationCallOrder[0]).toBeLessThan(
       profile.update.mock.invocationCallOrder[0],
     );
     expect(events.add).toHaveBeenCalledWith(
@@ -118,21 +118,21 @@ describe('DbosSetAvatarWorkflow', () => {
   it('returns without Files calls for the current avatar', async () => {
     profile.findUnique.mockResolvedValue({ avatarFileId: input.fileId, avatarUpdateId: null });
     await workflow.setAvatar(input);
-    expect(files.attachAvatarUpload).not.toHaveBeenCalled();
+    expect(files.attachAvatarFile).not.toHaveBeenCalled();
     expect(profile.upsert).not.toHaveBeenCalled();
   });
 
   it('rejects a concurrent operation even when requesting the current file', async () => {
     profile.findUnique.mockResolvedValue({ avatarFileId: input.fileId, avatarUpdateId: 'other-operation' });
     await expect(workflow.setAvatar(input)).rejects.toMatchObject({ code: Code.AVATAR_UPDATE_CONFLICT });
-    expect(files.attachAvatarUpload).not.toHaveBeenCalled();
+    expect(files.attachAvatarFile).not.toHaveBeenCalled();
     expect(profile.updateMany).not.toHaveBeenCalled();
   });
 
   it.each([new AvatarFileNotFoundError(), new AvatarFileStateConflictError(), new InvalidAvatarImageError()])(
     'unlocks on definitive attach failure $code without deleting any file',
     async (error) => {
-      files.attachAvatarUpload.mockRejectedValueOnce(error);
+      files.attachAvatarFile.mockRejectedValueOnce(error);
       await expect(workflow.setAvatar(input)).rejects.toMatchObject({ code: error.code });
       expect(profile.updateMany).toHaveBeenCalledExactlyOnceWith({
         where: { userId: 42, avatarUpdateId: operationId },
@@ -150,7 +150,7 @@ describe('DbosSetAvatarWorkflow', () => {
     Object.assign(new Error('state conflict'), { name: 'AvatarFileStateConflictError' }),
     Object.assign(new Error('invalid image'), { name: 'InvalidAvatarImageError' }),
   ])('compensates a replayed attach rejection without replacing it: %j', async (error) => {
-    files.attachAvatarUpload.mockRejectedValueOnce(error);
+    files.attachAvatarFile.mockRejectedValueOnce(error);
 
     await expect(workflow.setAvatar(input)).rejects.toBe(error);
 
@@ -167,7 +167,7 @@ describe('DbosSetAvatarWorkflow', () => {
       code: 'UNKNOWN',
       name: 'AvatarFileNotFoundError',
     });
-    files.attachAvatarUpload.mockRejectedValueOnce(error);
+    files.attachAvatarFile.mockRejectedValueOnce(error);
 
     await expect(workflow.setAvatar(input)).rejects.toBe(error);
 
@@ -177,7 +177,7 @@ describe('DbosSetAvatarWorkflow', () => {
 
   it('accepts an already released lock without another profile read', async () => {
     const error = new InvalidAvatarImageError();
-    files.attachAvatarUpload.mockRejectedValueOnce(error);
+    files.attachAvatarFile.mockRejectedValueOnce(error);
     profile.updateMany.mockResolvedValueOnce({ count: 0 });
 
     await expect(workflow.setAvatar(input)).rejects.toBe(error);
@@ -234,7 +234,7 @@ describe('DbosSetAvatarWorkflow', () => {
 
     await workflow.setAvatar(input);
 
-    expect(files.attachAvatarUpload).not.toHaveBeenCalled();
+    expect(files.attachAvatarFile).not.toHaveBeenCalled();
     expect(events.add).not.toHaveBeenCalled();
     expect(profile.updateMany).not.toHaveBeenCalled();
   });
@@ -249,7 +249,7 @@ describe('DbosSetAvatarWorkflow', () => {
     expect(profile.updateMany).toHaveBeenCalledTimes(1);
   });
 
-  it.each(['attachAvatarUpload'] as const)(
+  it.each(['attachAvatarFile'] as const)(
     'does not retry a lost %s response or compensate an unknown outcome',
     async (method) => {
       files[method].mockRejectedValueOnce(new AvatarFilesUnavailableError());
@@ -283,7 +283,7 @@ describe('DbosSetAvatarWorkflow', () => {
     const replay = Object.assign(new Error('Avatar file was not found'), {
       code: Code.AVATAR_FILE_NOT_FOUND,
     });
-    files.attachAvatarUpload.mockRejectedValueOnce(replay);
+    files.attachAvatarFile.mockRejectedValueOnce(replay);
 
     await expect(workflow.execute({ ...input, workflowId: 'test-workflow' })).rejects.toBeInstanceOf(
       AvatarFileNotFoundError,
@@ -313,12 +313,12 @@ describe('DbosSetAvatarWorkflow', () => {
     );
 
     expect(source.runTransaction).not.toHaveBeenCalled();
-    expect(files.attachAvatarUpload).not.toHaveBeenCalled();
+    expect(files.attachAvatarFile).not.toHaveBeenCalled();
     expect(dbos.logger.error).not.toHaveBeenCalled();
   });
 
   it('logs Files unavailability and retains the lock', async () => {
-    files.attachAvatarUpload.mockRejectedValueOnce(new AvatarFilesUnavailableError());
+    files.attachAvatarFile.mockRejectedValueOnce(new AvatarFilesUnavailableError());
 
     await expect(workflow.execute({ ...input, workflowId: 'test-workflow' })).rejects.toBeInstanceOf(
       AvatarFilesUnavailableError,
@@ -333,12 +333,12 @@ describe('DbosSetAvatarWorkflow', () => {
     await expect(workflow.setAvatar(input)).rejects.toMatchObject({ code: 'P1017' });
     expect(profile.update).toHaveBeenCalledTimes(1);
     expect(profile.updateMany).not.toHaveBeenCalled();
-    expect(files.attachAvatarUpload).toHaveBeenCalledTimes(1);
+    expect(files.attachAvatarFile).toHaveBeenCalledTimes(1);
     expect(events.add).not.toHaveBeenCalled();
   });
 
   it('retains the lock and logs unexpected failures for recovery', async () => {
-    files.attachAvatarUpload.mockRejectedValueOnce(new Error('unexpected failure'));
+    files.attachAvatarFile.mockRejectedValueOnce(new Error('unexpected failure'));
     await expect(workflow.execute({ ...input, workflowId: 'test-workflow' })).rejects.toThrow(
       'unexpected failure',
     );
@@ -356,7 +356,7 @@ describe('DbosSetAvatarWorkflow', () => {
     await expect(workflow.execute({ ...input, workflowId: 'same-key' })).rejects.toMatchObject({
       code: Code.AVATAR_IDEMPOTENCY_KEY_CONFLICT,
     });
-    expect(files.attachAvatarUpload).not.toHaveBeenCalled();
+    expect(files.attachAvatarFile).not.toHaveBeenCalled();
   });
 
   it('waits for the workflow result without imposing a timeout', async () => {

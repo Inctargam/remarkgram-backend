@@ -14,7 +14,7 @@ import { UserAccountsErrorCode as Code } from '../../../../common/application/er
 
 describe('GrpcAvatarFilesGateway', () => {
   const client = {
-    attachAvatarUpload: vi.fn(),
+    attachAvatarFile: vi.fn(),
   };
   const gateway = new GrpcAvatarFilesGateway({ getService: () => client } as unknown as ClientGrpc);
   const params = {
@@ -29,8 +29,8 @@ describe('GrpcAvatarFilesGateway', () => {
   });
 
   it('forwards avatar attachment to Files', async () => {
-    await gateway.attachAvatarUpload(params);
-    expect(client.attachAvatarUpload).toHaveBeenCalledWith({ ...params, userId: '42' });
+    await gateway.attachAvatarFile(params);
+    expect(client.attachAvatarFile).toHaveBeenCalledWith({ ...params, userId: '42' });
   });
 
   it.each([
@@ -60,7 +60,7 @@ describe('GrpcAvatarFilesGateway', () => {
     },
     {
       grpcCode: status.ALREADY_EXISTS,
-      fileCode: FilesErrorCode.IMAGE_UPLOAD_RESERVATION_CONFLICT,
+      fileCode: FilesErrorCode.AVATAR_ATTACHMENT_OPERATION_CONFLICT,
       ErrorType: AvatarFileStateConflictError,
       code: Code.AVATAR_FILE_STATE_CONFLICT,
     },
@@ -80,9 +80,9 @@ describe('GrpcAvatarFilesGateway', () => {
     const metadata = new Metadata();
     metadata.set(APP_ERROR_CODE_METADATA_KEY, fileCode);
     const error = Object.assign(new Error('Files error'), { code: grpcCode, metadata });
-    client.attachAvatarUpload.mockReturnValueOnce(throwError(() => error));
+    client.attachAvatarFile.mockReturnValueOnce(throwError(() => error));
 
-    const attach = gateway.attachAvatarUpload(params);
+    const attach = gateway.attachAvatarFile(params);
     await expect(attach).rejects.toBeInstanceOf(ErrorType);
     await expect(attach).rejects.toMatchObject({ code });
   });
@@ -92,7 +92,7 @@ describe('GrpcAvatarFilesGateway', () => {
     { grpcCode: status.ABORTED, fileCode: '' },
     { grpcCode: status.INTERNAL, fileCode: FilesErrorCode.IMAGE_UPLOAD_NOT_FOUND },
     { grpcCode: status.INTERNAL, fileCode: FilesErrorCode.IMAGE_UPLOAD_STATE_CONFLICT },
-    { grpcCode: status.INTERNAL, fileCode: FilesErrorCode.IMAGE_UPLOAD_RESERVATION_CONFLICT },
+    { grpcCode: status.INTERNAL, fileCode: FilesErrorCode.AVATAR_ATTACHMENT_OPERATION_CONFLICT },
     { grpcCode: status.INTERNAL, fileCode: FilesErrorCode.INVALID_IMAGE_SIZE },
     { grpcCode: status.INTERNAL, fileCode: FilesErrorCode.UNSUPPORTED_IMAGE_CONTENT_TYPE },
     { grpcCode: status.NOT_FOUND, fileCode: 'UNKNOWN_FILE_ERROR' },
@@ -100,9 +100,9 @@ describe('GrpcAvatarFilesGateway', () => {
     const metadata = new Metadata();
     metadata.set(APP_ERROR_CODE_METADATA_KEY, fileCode);
     const error = Object.assign(new Error('Files error'), { code: grpcCode, metadata });
-    client.attachAvatarUpload.mockReturnValueOnce(throwError(() => error));
+    client.attachAvatarFile.mockReturnValueOnce(throwError(() => error));
 
-    await expect(gateway.attachAvatarUpload(params)).rejects.toBe(error);
+    await expect(gateway.attachAvatarFile(params)).rejects.toBe(error);
   });
 
   it.each([
@@ -111,14 +111,14 @@ describe('GrpcAvatarFilesGateway', () => {
     { code: String(status.UNAVAILABLE), metadata: new Metadata() },
   ])('preserves errors that do not match the gRPC error shape: %j', async (properties) => {
     const error = Object.assign(new Error('Not a ServiceError'), properties);
-    client.attachAvatarUpload.mockReturnValueOnce(throwError(() => error));
+    client.attachAvatarFile.mockReturnValueOnce(throwError(() => error));
 
-    await expect(gateway.attachAvatarUpload(params)).rejects.toBe(error);
+    await expect(gateway.attachAvatarFile(params)).rejects.toBe(error);
   });
 
   it('preserves unexpected errors so the saga does not compensate blindly', async () => {
     const error = new Error('unexpected');
-    client.attachAvatarUpload.mockReturnValueOnce(throwError(() => error));
-    await expect(gateway.attachAvatarUpload(params)).rejects.toBe(error);
+    client.attachAvatarFile.mockReturnValueOnce(throwError(() => error));
+    await expect(gateway.attachAvatarFile(params)).rejects.toBe(error);
   });
 });

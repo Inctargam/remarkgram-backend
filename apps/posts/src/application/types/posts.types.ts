@@ -7,7 +7,7 @@ export type CreatePostResult = {
 export type CreatePostRepositoryParams = {
   authorId: number;
   description: string | null;
-  imageIds: readonly string[];
+  fileIds: readonly string[];
 };
 
 export type CreatePostWorkflowParams = {
@@ -15,23 +15,13 @@ export type CreatePostWorkflowParams = {
   requestHash: string;
   userId: number;
   description: string | null;
-  imageIds: readonly string[];
+  fileIds: readonly string[];
 };
 
-export type ReserveImageUploadsParams = {
+export type PostImageAttachmentParams = {
   userId: number;
-  imageIds: readonly string[];
-  reservationId: string;
-};
-
-export type AttachReservedImageUploadsParams = {
-  userId: number;
-  reservationId: string;
-};
-
-export type ReleaseReservedImageUploadsParams = {
-  userId: number;
-  reservationId: string;
+  fileIds: readonly string[];
+  operationId: string;
 };
 
 export type AuthorPostsCursor = {

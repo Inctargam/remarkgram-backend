@@ -20,10 +20,12 @@ export const ApiCreatePost = () =>
       summary: 'Create a post with completed image uploads',
       description:
         'Final step of publication creation. Supply the IDs previously confirmed through ' +
-        'files/image-uploads/complete in their display order. Posts asks Files over gRPC to reserve images ' +
-        'that exist, belong to the authenticated author, are not soft-deleted and have status COMPLETED. ' +
-        'The post and its ordered image relations are then created atomically, after which the reservation ' +
-        'is marked as attached. An identical request with the same Idempotency-Key waits for an ongoing workflow ' +
+        'files/image-uploads/complete in their display order. Posts first creates an unpublished post ' +
+        'and its ordered image relations atomically. Files then attaches the entire set of existing, ' +
+        'confirmed, unowned images belonging to the authenticated author in one transaction. ' +
+        'The post becomes visible only after successful attachment. A business rejection cancels the ' +
+        'attachment operation before deleting the unpublished post. An identical request with the same ' +
+        'Idempotency-Key waits for an ongoing workflow ' +
         'or returns its stored result. After success it returns the same post ID; after a final failure it ' +
         'returns the stored error without starting new attempts.',
     }),
@@ -126,13 +128,13 @@ export const ApiCreatePost = () =>
     ApiResponse({
       status: 409,
       description:
-        'The Idempotency-Key conflicts with another payload, or at least one image cannot be reserved in its current state or is already attached to another post.',
+        'The Idempotency-Key conflicts with another payload, or at least one image cannot be attached in its current state or is already attached to another post.',
       content: {
         'application/json': {
           schema: { $ref: getSchemaPath(ApiErrorResponseDto) },
           examples: {
             imagesNotAvailable: {
-              summary: 'At least one image cannot be reserved for this post',
+              summary: 'At least one image cannot be attached to this post',
               value: createApiErrorResponseExample(
                 409,
                 'POST_IMAGES_NOT_AVAILABLE',
@@ -163,7 +165,7 @@ export const ApiCreatePost = () =>
       status: 503,
       description:
         'Files remains unavailable after three attempts for a step, with delays of 1 and 2 seconds. ' +
-        'Retries apply to reservation, attachment and reservation release. The 3 seconds cover only delays ' +
+        'Retries apply to attachment and cancellation of the attachment operation. The 3 seconds cover only delays ' +
         'for one step; call durations and delays across steps add up. No overall request deadline is configured. ' +
         'Repeating the same Idempotency-Key returns the stored error without new attempts.',
       content: {
@@ -171,7 +173,7 @@ export const ApiCreatePost = () =>
           schema: { $ref: getSchemaPath(ApiErrorResponseDto) },
           examples: {
             imageUploadsServiceUnavailable: {
-              summary: 'The Files verification call failed',
+              summary: 'The Files attachment or cancellation call failed',
               value: createApiErrorResponseExample(
                 503,
                 'IMAGE_UPLOADS_SERVICE_UNAVAILABLE',

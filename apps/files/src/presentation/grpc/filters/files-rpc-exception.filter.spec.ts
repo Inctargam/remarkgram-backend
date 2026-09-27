@@ -6,7 +6,7 @@ import {
   DuplicateClientFileIdError,
   DuplicateImageUploadIdError,
   ImageUploadMetadataMismatchError,
-  ImageUploadReservationConflictError,
+  AvatarAttachmentOperationConflictError,
   ImageUploadNotFoundError,
   ImageUploadStateConflictError,
   InvalidUserIdError,
@@ -98,8 +98,8 @@ describe('FilesRpcExceptionFilter', () => {
     },
   );
 
-  it('maps a reservation conflict to ALREADY_EXISTS', async () => {
-    const error = new ImageUploadReservationConflictError();
+  it('maps an avatar attachment operation conflict to ALREADY_EXISTS', async () => {
+    const error = new AvatarAttachmentOperationConflictError();
     const rpcError: unknown = await firstValueFrom(filter.catch(error, host)).catch(
       (caught: unknown) => caught,
     );

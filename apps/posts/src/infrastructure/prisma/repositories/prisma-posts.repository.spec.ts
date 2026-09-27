@@ -20,7 +20,7 @@ describe('PrismaPostsRepository', () => {
   const params = {
     authorId: 42,
     description: 'A new post',
-    imageIds: [imageId, '22222222-2222-4222-8222-222222222222'],
+    fileIds: [imageId, '22222222-2222-4222-8222-222222222222'],
   };
 
   beforeEach(() => {
@@ -46,8 +46,8 @@ describe('PrismaPostsRepository', () => {
         description: 'A new post',
         images: {
           create: [
-            { fileId: params.imageIds[0], position: 0 },
-            { fileId: params.imageIds[1], position: 1 },
+            { fileId: params.fileIds[0], position: 0 },
+            { fileId: params.fileIds[1], position: 1 },
           ],
         },
       },

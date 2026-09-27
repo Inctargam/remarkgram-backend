@@ -22,7 +22,7 @@ export class PrismaPostsRepository implements PostsRepository {
     return (ctx as Prisma.TransactionClient | undefined) ?? this.prisma;
   }
   async create(params: CreatePostRepositoryParams): Promise<number> {
-    const { authorId, description, imageIds } = params;
+    const { authorId, description, fileIds } = params;
 
     try {
       const post = await this.prisma.post.create({
@@ -30,7 +30,7 @@ export class PrismaPostsRepository implements PostsRepository {
           authorId,
           description,
           images: {
-            create: imageIds.map((fileId, position) => ({ fileId, position })),
+            create: fileIds.map((fileId, position) => ({ fileId, position })),
           },
         },
         select: { id: true },

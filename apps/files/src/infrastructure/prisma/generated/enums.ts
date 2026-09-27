@@ -13,20 +13,18 @@ export const FileUploadStatus = {
   PENDING: 'PENDING',
   COMPLETED: 'COMPLETED',
   REJECTED: 'REJECTED',
-  RESERVED: 'RESERVED',
   ATTACHED: 'ATTACHED'
 } as const
 
 export type FileUploadStatus = (typeof FileUploadStatus)[keyof typeof FileUploadStatus]
 
 
-export const ImageUploadReservationStatus = {
-  RESERVED: 'RESERVED',
+export const PostImageAttachmentStatus = {
   ATTACHED: 'ATTACHED',
-  RELEASED: 'RELEASED'
+  CANCELLED: 'CANCELLED'
 } as const
 
-export type ImageUploadReservationStatus = (typeof ImageUploadReservationStatus)[keyof typeof ImageUploadReservationStatus]
+export type PostImageAttachmentStatus = (typeof PostImageAttachmentStatus)[keyof typeof PostImageAttachmentStatus]
 
 
 export const InboxStatus = {

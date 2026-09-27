@@ -4,7 +4,7 @@ import { plainToInstance } from 'class-transformer';
 import { IsNotEmpty, IsString, Matches } from 'class-validator';
 
 export const POSTS_DBOS_APPLICATION_NAME = 'remarkgram-posts';
-export const POSTS_DBOS_APPLICATION_VERSION = 'create-post-v1';
+export const POSTS_DBOS_APPLICATION_VERSION = 'create-post-v2';
 export const POSTS_DBOS_EXECUTOR_ID = 'remarkgram-posts-singleton';
 export const POSTS_DBOS_SYSTEM_DATABASE_POOL_SIZE = 10;
 

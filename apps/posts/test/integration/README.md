@@ -1,41 +1,29 @@
-# Ручные integration-тесты DBOS
+# Интеграционные проверки CreatePost
 
-`dbos-create-post.workflow.integration.spec.ts` использует настоящий PostgreSQL и
-настоящий runtime DBOS. В обычном `pnpm test` набор пропускается, чтобы unit-тесты и
-CI не зависели от локального Docker или внешней базы.
+Использовать только одноразовую PostgreSQL. Без переменных окружения наборы пропускаются.
 
-## Подготовка
-
-Нужна отдельная одноразовая PostgreSQL-база. Тест удаляет только созданные им посты
-и workflow history, но DBOS создаёт в базе системную схему `dbos`, поэтому production
-URL использовать нельзя.
+`dbos-create-post.workflow.integration.spec.ts` проверяет настоящий SDK DBOS и транзакции
+Posts; транспорт Files подменён для управляемой потери ответа. База должна содержать миграции Posts:
 
 ```bash
-export POSTS_DBOS_INTEGRATION_DATABASE_URL='postgresql://postgres:postgres@localhost:5432/posts_dbos_integration'
-export POSTS_DATABASE_URL="$POSTS_DBOS_INTEGRATION_DATABASE_URL"
-
-pnpm prisma:posts:migrate:deploy
-pnpm vitest run apps/posts/test/integration/dbos-create-post.workflow.integration.spec.ts --no-file-parallelism
+export POSTS_DBOS_INTEGRATION_DATABASE_URL='postgresql://postgres:postgres@localhost:5432/posts_test'
+POSTS_DATABASE_URL="$POSTS_DBOS_INTEGRATION_DATABASE_URL" pnpm prisma:posts:migrate:deploy
+pnpm exec vitest run apps/posts/test/integration/dbos-create-post.workflow.integration.spec.ts
 ```
 
-DBOS system schema и `dbos.transaction_completion` тест подготовит сам. Для этого
-пользователь базы должен иметь право создавать schema и tables.
+`create-post-recovery.integration.spec.ts` создаёт и удаляет две отдельные базы. Он запускает
+собранный код Posts и Files в дочернем процессе, убивает его через SIGKILL и проверяет recovery
+до/после транзакций создания и публикации, после прикрепления и на этапах компенсации.
+Проверяются стабильность operationId, отсутствие повторных эффектов и сохранение порядка файлов.
 
-## Что проверяется
+```bash
+pnpm build:posts
+pnpm build:files
+export POST_ATTACHMENT_INTEGRATION_DATABASE_URL='postgresql://postgres:postgres@localhost:5432/postgres'
+pnpm exec vitest run apps/posts/test/integration/create-post-recovery.integration.spec.ts apps/files/test/integration/post-image-attachment.integration.spec.ts
+```
 
-- два конкурентных и один последовательный вызов с одинаковым workflow ID создают
-  один `Post`, один упорядоченный набор `PostImage` и возвращают один результат;
-- `createUnpublishedPost` и `publishPost` оставляют два реальных datasource checkpoint;
-- если Files зафиксировал reserve или attach, но gRPC-ответ потерялся, DBOS повторяет
-  step с прежним `reservationId`, а агрегат резервации делает повтор безопасным;
-- пост становится видимым (`publishedAt != NULL`) только после успешного attach.
-
-## Ограничение harness
-
-Тест честно имитирует ключевое сетевое окно «downstream commit → потеря ответа», но
-не выполняет `SIGKILL` процесса Node.js. Настоящий crash/restart-тест требует второго
-процесса-воркера и внешнего координатора, который убивает его строго в нужной точке,
-после чего запускает новый executor с тем же ID. Эти сценарии следует добавить в
-deployment/e2e-набор, когда для CI появится управляемый PostgreSQL и возможность
-запускать несколько процессов. Наличие текущего теста нельзя трактовать как проверку
-восстановления после OS-level crash.
+Пользователь административного тестового подключения должен иметь право создавать и удалять
+тестовые базы. Проверки Files также тестируют миграцию старых статусов, хеши, атомарный откат,
+конкуренцию Attach/Cancel, двух постов, аватара и очистки. Обе тестовые программы удаляют
+только базы со сгенерированными ими именами.

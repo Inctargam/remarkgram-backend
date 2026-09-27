@@ -1,15 +1,14 @@
+import { AttachPostImagesCommand } from '../../application/use-cases/attach-post-images/attach-post-images.use-case.js';
+import { CancelPostImageAttachmentCommand } from '../../application/use-cases/cancel-post-image-attachment/cancel-post-image-attachment.use-case.js';
 import { RpcException } from '@nestjs/microservices';
-import { AttachAvatarUploadCommand } from '../../application/use-cases/attach-avatar-upload/attach-avatar-upload.use-case.js';
+import { AttachAvatarFileCommand } from '../../application/use-cases/attach-avatar-file/attach-avatar-file.use-case.js';
 import { ScheduleAttachedFileDeletionCommand } from '../../application/use-cases/schedule-attached-file-deletion/schedule-attached-file-deletion.use-case.js';
 import { FilesGrpcController } from './files-grpc.controller.js';
 import { ImageContentType } from '@app/files-grpc';
 import type { CommandBus, QueryBus } from '@nestjs/cqrs';
-import { AttachReservedImageUploadsCommand } from '../../application/use-cases/attach-reserved-image-uploads/attach-reserved-image-uploads.use-case.js';
 import { CompleteImageUploadsCommand } from '../../application/use-cases/complete-image-uploads/complete-image-uploads.use-case.js';
 import { InitiateImageUploadsCommand } from '../../application/use-cases/initiate-image-uploads/initiate-image-uploads.use-case.js';
 import { InitiateAvatarUploadCommand } from '../../application/use-cases/initiate-avatar-upload/initiate-avatar-upload.use-case.js';
-import { ReleaseReservedImageUploadsCommand } from '../../application/use-cases/release-reserved-image-uploads/release-reserved-image-uploads.use-case.js';
-import { ReserveImageUploadsCommand } from '../../application/use-cases/reserve-image-uploads/reserve-image-uploads.use-case.js';
 
 describe('FilesGrpcController', () => {
   const commandBus = { execute: vi.fn() };
@@ -27,9 +26,9 @@ describe('FilesGrpcController', () => {
     const fileId = 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA';
     const operationId = 'BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB';
     const controller = createController();
-    await expect(controller.attachAvatarUpload({ userId: '42', fileId, operationId })).resolves.toEqual({});
+    await expect(controller.attachAvatarFile({ userId: '42', fileId, operationId })).resolves.toEqual({});
     expect(commandBus.execute).toHaveBeenCalledWith(
-      new AttachAvatarUploadCommand({
+      new AttachAvatarFileCommand({
         userId: 42,
         fileId: fileId.toLowerCase(),
         operationId: operationId.toLowerCase(),
@@ -44,7 +43,7 @@ describe('FilesGrpcController', () => {
   it('rejects invalid UUIDs before dispatching new Files commands', async () => {
     const controller = createController();
     await expect(
-      controller.attachAvatarUpload({ userId: '42', fileId: 'bad', operationId: 'bad' }),
+      controller.attachAvatarFile({ userId: '42', fileId: 'bad', operationId: 'bad' }),
     ).rejects.toBeInstanceOf(RpcException);
     await expect(
       controller.scheduleAttachedFileDeletion({ userId: '42', fileId: 'bad' }),
@@ -138,59 +137,27 @@ describe('FilesGrpcController', () => {
     );
   });
 
-  it('delegates image upload reservation to the use case', async () => {
+  it.each([
+    ['attachPostImages', AttachPostImagesCommand],
+    ['cancelPostImageAttachment', CancelPostImageAttachmentCommand],
+  ] as const)('validates and normalizes %s', async (method, Command) => {
     const controller = createController();
     const request = {
       userId: '42',
-      uploadIds: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
-      reservationId: '33333333-3333-4333-8333-333333333333',
+      fileIds: ['AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA'],
+      operationId: 'BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB',
     };
-    commandBus.execute.mockResolvedValue(undefined);
-
-    await expect(controller.reserveImageUploads(request)).resolves.toEqual({});
-
+    await expect(controller[method](request)).resolves.toEqual({});
     expect(commandBus.execute).toHaveBeenCalledWith(
-      new ReserveImageUploadsCommand({
+      new Command({
         userId: 42,
-        uploadIds: request.uploadIds,
-        reservationId: request.reservationId,
+        fileIds: request.fileIds.map((id) => id.toLowerCase()),
+        operationId: request.operationId.toLowerCase(),
       }),
     );
-  });
-
-  it('delegates release of reserved image uploads to the use case', async () => {
-    const controller = createController();
-    const request = {
-      userId: '42',
-      reservationId: '33333333-3333-4333-8333-333333333333',
-    };
-    commandBus.execute.mockResolvedValue(undefined);
-
-    await expect(controller.releaseReservedImageUploads(request)).resolves.toEqual({});
-
-    expect(commandBus.execute).toHaveBeenCalledWith(
-      new ReleaseReservedImageUploadsCommand({
-        userId: 42,
-        reservationId: request.reservationId,
-      }),
-    );
-  });
-
-  it('delegates attachment of reserved image uploads to the use case', async () => {
-    const controller = createController();
-    const request = {
-      userId: '42',
-      reservationId: '33333333-3333-4333-8333-333333333333',
-    };
-    commandBus.execute.mockResolvedValue(undefined);
-
-    await expect(controller.attachReservedImageUploads(request)).resolves.toEqual({});
-
-    expect(commandBus.execute).toHaveBeenCalledWith(
-      new AttachReservedImageUploadsCommand({
-        userId: 42,
-        reservationId: request.reservationId,
-      }),
-    );
+    commandBus.execute.mockClear();
+    await expect(controller[method]({ ...request, operationId: 'invalid' })).rejects.toThrow();
+    await expect(controller[method]({ ...request, fileIds: ['invalid'] })).rejects.toThrow();
+    expect(commandBus.execute).not.toHaveBeenCalled();
   });
 });

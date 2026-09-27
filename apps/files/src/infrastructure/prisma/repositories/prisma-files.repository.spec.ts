@@ -1,13 +1,12 @@
+import { createHash } from 'node:crypto';
 import type { PrismaService } from '../prisma.service.js';
 import {
   ImageUploadNotFoundError,
-  ImageUploadReservationConflictError,
+  PostImageAttachmentConflictError,
   ImageUploadStateConflictError,
   InvalidImageUploadStatusError,
 } from '../../../application/errors/image-upload.errors.js';
 import { FileUploadStatus } from '../../../domain/enums/file-upload-status.enum.js';
-import { Prisma } from '../generated/client.js';
-import { ImageUploadReservationStatus } from '../generated/enums.js';
 import { PrismaFilesRepository } from './prisma-files.repository.js';
 
 describe('PrismaFilesRepository', () => {
@@ -17,20 +16,16 @@ describe('PrismaFilesRepository', () => {
     findMany: vi.fn(),
     updateMany: vi.fn(),
     updateManyAndReturn: vi.fn(),
-    deleteMany: vi.fn(),
+    count: vi.fn(),
   };
-  const imageUploadReservation = {
-    create: vi.fn(),
-    findUnique: vi.fn(),
-    updateMany: vi.fn(),
-  };
-  const transactionClient = { file, imageUploadReservation };
+  const postImageAttachmentOperation = { update: vi.fn(), createManyAndReturn: vi.fn() };
+  const transactionClient = { file, postImageAttachmentOperation, $queryRaw: vi.fn() };
   const transaction = vi.fn<
     (operation: (client: typeof transactionClient) => Promise<void>) => Promise<void>
   >((operation) => operation(transactionClient));
   const prisma = {
     file,
-    imageUploadReservation,
+    postImageAttachmentOperation,
     $transaction: transaction,
     $queryRaw: vi.fn(),
   };
@@ -46,12 +41,15 @@ describe('PrismaFilesRepository', () => {
     file.updateMany.mockResolvedValue({ count: 2 });
     file.updateManyAndReturn.mockReset();
     file.updateManyAndReturn.mockResolvedValue([]);
-    imageUploadReservation.create.mockReset();
-    imageUploadReservation.create.mockResolvedValue({});
-    imageUploadReservation.findUnique.mockReset();
-    imageUploadReservation.findUnique.mockResolvedValue(null);
-    imageUploadReservation.updateMany.mockReset();
-    imageUploadReservation.updateMany.mockResolvedValue({ count: 1 });
+    file.count.mockReset();
+    file.count.mockResolvedValue(2);
+    postImageAttachmentOperation.update.mockReset();
+    postImageAttachmentOperation.createManyAndReturn.mockReset();
+    postImageAttachmentOperation.createManyAndReturn.mockResolvedValue([
+      { ...operation, status: 'ATTACHED' },
+    ]);
+    transactionClient.$queryRaw.mockReset();
+    transactionClient.$queryRaw.mockResolvedValue([{ ...operation, status: 'ATTACHED' }]);
     transaction.mockClear();
     prisma.$queryRaw.mockReset();
   });
@@ -163,6 +161,39 @@ describe('PrismaFilesRepository', () => {
     ).rejects.toThrow(InvalidImageUploadStatusError);
   });
 
+  it('accepts a concurrent confirmation only when the entire owned batch is completed', async () => {
+    file.updateMany.mockResolvedValue({ count: 0 });
+    await expect(
+      repository.updateImageUploadsStatusIfAllPending({
+        uploadIds: [firstFileId, secondFileId],
+        userId: 42,
+        uploadStatus: FileUploadStatus.COMPLETED,
+        uploadedAt: new Date(),
+      }),
+    ).resolves.toBeUndefined();
+    expect(file.count).toHaveBeenCalledWith({
+      where: {
+        id: { in: [firstFileId, secondFileId] },
+        userId: 42,
+        uploadStatus: FileUploadStatus.COMPLETED,
+        deletedAt: null,
+      },
+    });
+  });
+
+  it('rejects confirmation if the batch is still incomplete after rollback', async () => {
+    file.updateMany.mockResolvedValue({ count: 1 });
+    file.count.mockResolvedValue(1);
+    await expect(
+      repository.updateImageUploadsStatusIfAllPending({
+        uploadIds: [firstFileId, secondFileId],
+        userId: 42,
+        uploadStatus: FileUploadStatus.COMPLETED,
+        uploadedAt: new Date(),
+      }),
+    ).rejects.toThrow(InvalidImageUploadStatusError);
+  });
+
   it('propagates unexpected database errors', async () => {
     const error = new Error('Database is unavailable');
     file.updateMany.mockRejectedValue(error);
@@ -177,234 +208,103 @@ describe('PrismaFilesRepository', () => {
     ).rejects.toBe(error);
   });
 
-  const firstUploadId = '11111111-1111-4111-8111-111111111111';
-  const secondUploadId = '22222222-2222-4222-8222-222222222222';
-  const reservationId = '33333333-3333-4333-8333-333333333333';
-
-  const reservedReservation = {
-    id: reservationId,
+  const firstFileId = '11111111-1111-4111-8111-111111111111';
+  const secondFileId = '22222222-2222-4222-8222-222222222222';
+  const params = {
     userId: 42,
-    uploadIds: [firstUploadId, secondUploadId],
-    status: ImageUploadReservationStatus.RESERVED,
+    fileIds: [firstFileId, secondFileId],
+    operationId: '33333333-3333-4333-8333-333333333333',
+  };
+  const operation = {
+    id: params.operationId,
+    userId: 42,
+    fileIdsHash: createHash('sha256').update(params.fileIds.join(',')).digest('hex'),
   };
 
-  it('atomically creates a reservation and reserves the canonical file set', async () => {
-    await expect(
-      repository.reserveImageUploads({
-        uploadIds: [secondUploadId, firstUploadId],
-        userId: 42,
-        reservationId,
-      }),
-    ).resolves.toBeUndefined();
-
-    expect(imageUploadReservation.create).toHaveBeenCalledWith({
-      data: {
-        id: reservationId,
-        userId: 42,
-        uploadIds: [firstUploadId, secondUploadId],
-        status: ImageUploadReservationStatus.RESERVED,
-      },
+  it('attaches only completed, unowned files and records the operation', async () => {
+    await repository.attachPostImages(params);
+    expect(transactionClient.$queryRaw).not.toHaveBeenCalled();
+    expect(postImageAttachmentOperation.createManyAndReturn).toHaveBeenCalledWith({
+      data: { ...operation, status: 'ATTACHED' },
+      skipDuplicates: true,
     });
     expect(file.updateMany).toHaveBeenCalledWith({
       where: {
-        id: { in: [firstUploadId, secondUploadId] },
+        id: { in: params.fileIds },
         userId: 42,
-        uploadStatus: FileUploadStatus.COMPLETED,
-        reservationId: null,
+        uploadStatus: 'COMPLETED',
+        postImageAttachmentOperationId: null,
+        avatarAttachmentOperationId: null,
         deletedAt: null,
       },
-      data: { uploadStatus: FileUploadStatus.RESERVED, reservationId },
+      data: { uploadStatus: 'ATTACHED', postImageAttachmentOperationId: params.operationId },
     });
   });
 
-  it('accepts an exact reserve replay even after the reservation has advanced', async () => {
-    imageUploadReservation.findUnique.mockResolvedValue({
-      ...reservedReservation,
-      status: ImageUploadReservationStatus.ATTACHED,
-    });
-
-    await expect(
-      repository.reserveImageUploads({
-        uploadIds: [secondUploadId, firstUploadId],
-        userId: 42,
-        reservationId,
-      }),
-    ).resolves.toBeUndefined();
+  it('accepts a successful replay without updating the files again', async () => {
+    postImageAttachmentOperation.createManyAndReturn.mockResolvedValueOnce([]);
+    await repository.attachPostImages({ ...params, fileIds: [...params.fileIds].reverse() });
     expect(file.updateMany).not.toHaveBeenCalled();
   });
 
-  it('accepts an exact concurrent reserve after the competing transaction commits', async () => {
-    imageUploadReservation.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(reservedReservation);
-    imageUploadReservation.create.mockRejectedValue(
-      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
-        code: 'P2002',
-        clientVersion: '7.8.0',
-      }),
-    );
-
-    await expect(
-      repository.reserveImageUploads({
-        uploadIds: [firstUploadId, secondUploadId],
-        userId: 42,
-        reservationId,
-      }),
-    ).resolves.toBeUndefined();
+  it('rejects a delayed attach after cancellation', async () => {
+    postImageAttachmentOperation.createManyAndReturn.mockResolvedValueOnce([]);
+    transactionClient.$queryRaw.mockResolvedValue([{ ...operation, status: 'CANCELLED' }]);
+    await expect(repository.attachPostImages(params)).rejects.toThrow(ImageUploadStateConflictError);
+    expect(file.updateMany).not.toHaveBeenCalled();
   });
 
-  it('rejects reuse of a reservation ID with a different file set', async () => {
-    imageUploadReservation.findUnique.mockResolvedValue(reservedReservation);
+  it.each([{ userId: 43 }, { fileIds: [firstFileId] }])(
+    'rejects changed operation parameters: %s',
+    async (change) => {
+      postImageAttachmentOperation.createManyAndReturn.mockResolvedValueOnce([]);
+      await expect(repository.attachPostImages({ ...params, ...change })).rejects.toThrow(
+        PostImageAttachmentConflictError,
+      );
+      expect(file.updateMany).not.toHaveBeenCalled();
+    },
+  );
 
-    await expect(
-      repository.reserveImageUploads({
-        uploadIds: [firstUploadId],
-        userId: 42,
-        reservationId,
-      }),
-    ).rejects.toThrow(ImageUploadReservationConflictError);
-  });
-
-  it('rejects reuse of a reservation ID by another user', async () => {
-    imageUploadReservation.findUnique.mockResolvedValue(reservedReservation);
-
-    await expect(
-      repository.reserveImageUploads({
-        uploadIds: [firstUploadId, secondUploadId],
-        userId: 43,
-        reservationId,
-      }),
-    ).rejects.toThrow(ImageUploadReservationConflictError);
-  });
-
-  it('reports a missing, foreign or deleted file in the requested set', async () => {
+  it('reports missing files when the atomic update is incomplete', async () => {
     file.updateMany.mockResolvedValue({ count: 1 });
-    file.findMany.mockResolvedValue([{ id: firstUploadId }]);
-
-    await expect(
-      repository.reserveImageUploads({
-        uploadIds: [firstUploadId, secondUploadId],
-        userId: 42,
-        reservationId,
-      }),
-    ).rejects.toThrow(ImageUploadNotFoundError);
+    file.count.mockResolvedValue(1);
+    await expect(repository.attachPostImages(params)).rejects.toThrow(ImageUploadNotFoundError);
   });
 
-  it('reports an existing but incompatible file set as unavailable', async () => {
-    file.updateMany.mockResolvedValue({ count: 0 });
-    file.findMany.mockResolvedValue([{ id: firstUploadId }, { id: secondUploadId }]);
-
-    await expect(
-      repository.reserveImageUploads({
-        uploadIds: [firstUploadId, secondUploadId],
-        userId: 42,
-        reservationId,
-      }),
-    ).rejects.toThrow(ImageUploadStateConflictError);
-  });
-
-  it('atomically attaches exactly the files recorded by the reservation', async () => {
-    imageUploadReservation.findUnique.mockResolvedValue(reservedReservation);
-
-    await expect(
-      repository.attachReservedImageUploads({ userId: 42, reservationId }),
-    ).resolves.toBeUndefined();
-
-    expect(imageUploadReservation.updateMany).toHaveBeenCalledWith({
-      where: { id: reservationId, userId: 42, status: ImageUploadReservationStatus.RESERVED },
-      data: { status: ImageUploadReservationStatus.ATTACHED },
-    });
-    expect(file.updateMany).toHaveBeenCalledWith({
-      where: {
-        id: { in: reservedReservation.uploadIds },
-        userId: 42,
-        uploadStatus: FileUploadStatus.RESERVED,
-        reservationId,
-        deletedAt: null,
-      },
-      data: { uploadStatus: FileUploadStatus.ATTACHED },
-    });
-  });
-
-  it('accepts an exact attach replay by reservation state', async () => {
-    imageUploadReservation.updateMany.mockResolvedValue({ count: 0 });
-    imageUploadReservation.findUnique.mockResolvedValue({
-      ...reservedReservation,
-      status: ImageUploadReservationStatus.ATTACHED,
-    });
-
-    await expect(
-      repository.attachReservedImageUploads({ userId: 42, reservationId }),
-    ).resolves.toBeUndefined();
-    expect(file.updateMany).not.toHaveBeenCalled();
-  });
-
-  it('rolls back attach when only part of the recorded file set can be updated', async () => {
-    imageUploadReservation.findUnique.mockResolvedValue(reservedReservation);
+  it('reports incompatible file state when all files exist', async () => {
     file.updateMany.mockResolvedValue({ count: 1 });
-
-    await expect(repository.attachReservedImageUploads({ userId: 42, reservationId })).rejects.toThrow(
-      ImageUploadStateConflictError,
-    );
+    await expect(repository.attachPostImages(params)).rejects.toThrow(ImageUploadStateConflictError);
   });
 
-  it('rejects attach after the reservation was released', async () => {
-    imageUploadReservation.updateMany.mockResolvedValue({ count: 0 });
-    imageUploadReservation.findUnique.mockResolvedValue({
-      ...reservedReservation,
-      status: ImageUploadReservationStatus.RELEASED,
+  it('cancels only its own attached, non-deleted files', async () => {
+    postImageAttachmentOperation.createManyAndReturn.mockResolvedValueOnce([]);
+    await repository.cancelPostImageAttachment(params);
+    expect(postImageAttachmentOperation.update).toHaveBeenCalledWith({
+      where: { id: params.operationId },
+      data: { status: 'CANCELLED' },
     });
-
-    await expect(repository.attachReservedImageUploads({ userId: 42, reservationId })).rejects.toThrow(
-      ImageUploadStateConflictError,
-    );
-  });
-
-  it('atomically releases exactly the files recorded by the reservation', async () => {
-    imageUploadReservation.findUnique.mockResolvedValue(reservedReservation);
-
-    await expect(
-      repository.releaseReservedImageUploads({ userId: 42, reservationId }),
-    ).resolves.toBeUndefined();
-
     expect(file.updateMany).toHaveBeenCalledWith({
       where: {
-        id: { in: reservedReservation.uploadIds },
         userId: 42,
-        uploadStatus: FileUploadStatus.RESERVED,
-        reservationId,
+        postImageAttachmentOperationId: params.operationId,
+        uploadStatus: 'ATTACHED',
         deletedAt: null,
       },
-      data: { uploadStatus: FileUploadStatus.COMPLETED, reservationId: null },
-    });
-    expect(imageUploadReservation.updateMany).toHaveBeenCalledWith({
-      where: { id: reservationId, userId: 42, status: ImageUploadReservationStatus.RESERVED },
-      data: { status: ImageUploadReservationStatus.RELEASED },
+      data: { uploadStatus: 'COMPLETED', postImageAttachmentOperationId: null },
     });
   });
 
-  it('accepts an exact release replay by reservation state', async () => {
-    imageUploadReservation.updateMany.mockResolvedValue({ count: 0 });
-    imageUploadReservation.findUnique.mockResolvedValue({
-      ...reservedReservation,
-      status: ImageUploadReservationStatus.RELEASED,
-    });
-
-    await expect(
-      repository.releaseReservedImageUploads({ userId: 42, reservationId }),
-    ).resolves.toBeUndefined();
-    expect(file.updateMany).not.toHaveBeenCalled();
-  });
-
-  it('rejects release after the reservation was attached', async () => {
-    imageUploadReservation.updateMany.mockResolvedValue({ count: 0 });
-    imageUploadReservation.findUnique.mockResolvedValue({
-      ...reservedReservation,
-      status: ImageUploadReservationStatus.ATTACHED,
-    });
-
-    await expect(repository.releaseReservedImageUploads({ userId: 42, reservationId })).rejects.toThrow(
-      ImageUploadStateConflictError,
-    );
-  });
+  it.each([true, false])(
+    'does not touch files when cancellation is already terminal (created: %s)',
+    async (created) => {
+      postImageAttachmentOperation.createManyAndReturn.mockResolvedValue(
+        created ? [{ ...operation, status: 'CANCELLED' }] : [],
+      );
+      transactionClient.$queryRaw.mockResolvedValue([{ ...operation, status: 'CANCELLED' }]);
+      await repository.cancelPostImageAttachment(params);
+      expect(file.updateMany).not.toHaveBeenCalled();
+    },
+  );
 
   it('returns the uploads atomically claimed by the database', async () => {
     const claimedAt = new Date('2030-01-01T01:00:00Z');

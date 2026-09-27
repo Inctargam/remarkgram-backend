@@ -17,7 +17,7 @@ export type CreatePostParams = {
   userId: number;
   idempotencyKey: string;
   description?: string;
-  imageIds: readonly string[];
+  fileIds: readonly string[];
 };
 
 export class CreatePostCommand extends Command<CreatePostResult> {
@@ -31,9 +31,9 @@ export class CreatePostUseCase implements ICommandHandler<CreatePostCommand> {
   constructor(private readonly createPostWorkflow: CreatePostWorkflow) {}
 
   async execute(command: CreatePostCommand): Promise<CreatePostResult> {
-    const { userId, description, imageIds } = command.params;
+    const { userId, description, fileIds } = command.params;
     const idempotencyKey = command.params.idempotencyKey.toLowerCase();
-    const canonicalImageIds = imageIds.map((imageId) => imageId.toLowerCase());
+    const canonicalFileIds = fileIds.map((fileId) => fileId.toLowerCase());
 
     // После преобразования userId из транспортной строки application-слой принимает
     // только положительное целое, независимо от используемого транспорта и хранилища.
@@ -49,19 +49,19 @@ export class CreatePostUseCase implements ICommandHandler<CreatePostCommand> {
       throw new InvalidPostDescriptionError();
     }
 
-    if (imageIds.length < MIN_IMAGES_PER_POST || imageIds.length > MAX_IMAGES_PER_POST) {
+    if (fileIds.length < MIN_IMAGES_PER_POST || fileIds.length > MAX_IMAGES_PER_POST) {
       throw new InvalidPostImageCountError();
     }
 
-    if (new Set(canonicalImageIds).size !== canonicalImageIds.length) {
+    if (new Set(canonicalFileIds).size !== canonicalFileIds.length) {
       throw new DuplicatePostImageIdError();
     }
 
     const postDescription = description ?? null;
-    // Хеш строится из канонического представления бизнес-запроса. Порядок imageIds
+    // Хеш строится из канонического представления бизнес-запроса. Порядок fileIds
     // сохраняется, потому что он определяет порядок изображений в публикации.
     const requestHash = createHash('sha256')
-      .update(JSON.stringify({ description: postDescription, imageIds: canonicalImageIds }))
+      .update(JSON.stringify({ description: postDescription, fileIds: canonicalFileIds }))
       .digest('hex');
 
     return this.createPostWorkflow.execute({
@@ -69,7 +69,7 @@ export class CreatePostUseCase implements ICommandHandler<CreatePostCommand> {
       requestHash,
       userId,
       description: postDescription,
-      imageIds: canonicalImageIds,
+      fileIds: canonicalFileIds,
     });
   }
 }

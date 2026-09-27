@@ -54,7 +54,7 @@ sequenceDiagram
     participant Profile as Profile DB
     participant Files as Files
     UA->>Profile: Проверить User, занять avatarUpdateId, сохранить прежний fileId
-    UA->>Files: AttachAvatarUpload: проверить метаданные и COMPLETED → ATTACHED
+    UA->>Files: AttachAvatarFile: проверить метаданные и COMPLETED → ATTACHED
     UA->>Profile: Одной транзакцией: avatarFileId + outbox прежнего файла + checkpoint
     UA-->>Files: Фоновая доставка через RabbitMQ
     UA->>Profile: Очистить avatarUpdateId
@@ -77,17 +77,17 @@ sequenceDiagram
 сообщения в фоне. Завершение отправки не блокирует workflow; worker сохраняет ошибки в `lastError`.
 Захват блокировки возвращает `alreadyCurrent` и `previousAvatarFileId`, сохранённые в checkpoint.
 
-`AttachAvatarUpload(userId, fileId, operationId)` атомарно прикрепляет файл и проверяет его
+`AttachAvatarFile(userId, fileId, operationId)` атомарно прикрепляет файл и проверяет его
 размер/формат в одной транзакции Files. Ошибка откатывает все изменения. Условное обновление
-повторно проверяет владельца, `COMPLETED`, отсутствие резерва и `deletedAt`, защищая от
+повторно проверяет владельца, `COMPLETED`, отсутствие прикрепления к посту и `deletedAt`, защищая от
 конкуренции с постами и очисткой. Очистка захватывает пачку одним SQL-запросом:
 `UPDATE ... WHERE id IN (SELECT ... LIMIT ... FOR UPDATE SKIP LOCKED) RETURNING ...`.
 Подзапрос блокирует выбранные строки до завершения обновления и пропускает занятые
 прикреплением или другой очисткой файлы.
 Для дедупликации аватара `operationId` сохраняется непосредственно в nullable UUID-поле
-`File.attachmentOperationId` вместе со статусом `ATTACHED`. Уникальный индекс запрещает
-использовать этот ID для другого существующего файла. `ImageUploadReservation` и
-`File.reservationId` остаются для резервирования изображений постов; аватар их не использует.
+`File.avatarAttachmentOperationId` вместе со статусом `ATTACHED`. Уникальный индекс запрещает
+использовать этот ID для другого существующего файла. `PostImageAttachmentOperation` и
+`File.postImageAttachmentOperationId` используются для прикрепления изображений постов; аватар их не использует.
 Точный повтор успешен, пока запись файла существует, в том числе после soft delete.
 После физического удаления файла повтор RPC получает `IMAGE_UPLOAD_NOT_FOUND`: история
 прикрепления отдельно не хранится. Повтор завершённого HTTP-запроса с тем же ключом
@@ -102,8 +102,8 @@ sequenceDiagram
 Восстановление незавершённого workflow после падения процесса использует прежний operationId.
 Запрос ожидает `handle.getResult()` без собственного таймера ожидания workflow.
 
-При окончательном отказе AttachAvatarUpload снимается только блокировка профиля: транзакция
-Files уже откатила прикрепление. Отдельного резерва и его освобождения для аватара нет.
+При окончательном отказе AttachAvatarFile снимается только блокировка профиля: транзакция
+Files уже откатила прикрепление.
 Освобождение выполняется одним условным UPDATE по `userId` и `avatarUpdateId`: отсутствие
 своей блокировки считается успешным отсутствием действий, блокировка другой операции не меняется.
 Компенсация прикрепления применяется только для ошибок отсутствующего, недоступного файла
@@ -117,7 +117,7 @@ Files атомарно выполняет soft delete принадлежащег
 `FileDeletionJob`. Повтор для удалённого/отсутствующего файла безопасен; чужой файл не изменяется.
 Другой активный статус отклоняется. Существующий worker удаляет объект и запись File.
 Ожидания физического удаления в SetAvatar нет. До установки `COMPLETED` по-прежнему
-подлежит очистке через 24 часа; `RESERVED` и `ATTACHED` этой очисткой не затрагиваются.
+подлежит очистке через 24 часа; `ATTACHED` этой очисткой не затрагивается.
 
 Запрос удаления теперь сохраняется в outbox в БД user-accounts. После commit выполняется немедленная
 фоновая отправка через RabbitMQ; резервный проход — раз в 6 часов. Недоступность брокера
@@ -136,11 +136,14 @@ Files атомарно выполняет soft delete принадлежащег
    Системное подключение DBOS должно быть прямым либо session-pooled.
 2. Применить миграции Files (`pnpm prisma:files:migrate:deploy`) и user-accounts
    (`pnpm prisma:user-accounts:migrate:deploy`) до запуска обновлённых сервисов.
-   Они добавляют nullable `files.attachmentOperationId` с уникальным индексом и
-   `profiles.avatar_update_id`; существующие значения — `NULL`. Миграция удаления аватара
+   В Files nullable `avatarAttachmentOperationId` имеет уникальный индекс; миграция
+   `20260927130000_rename_avatar_attachment_operation_id` переименовывает прежнее поле без потери значений.
+   В user-accounts добавляется `profiles.avatar_update_id`. Миграция удаления аватара
    создаёт `avatar_deletion_requests` в user-accounts. Миграция `20260925120000_avatar_deletion_outbox` создаёт `outbox_events`
    с обязательными `aggregate_type` и `aggregate_id`.
-3. Развернуть Files с новыми RPC, затем user-accounts, затем Gateway.
+3. Согласованно обновить Files и user-accounts, затем Gateway. Конфликт операции прикрепления
+   аватара передаётся внутренним кодом `AVATAR_ATTACHMENT_OPERATION_CONFLICT`; user-accounts
+   преобразует его в прежнюю ошибку состояния аватара с HTTP `409`.
 4. Проверить установку, замену, чтение профиля и редирект изображения.
 
 DBOS использует имя `remarkgram-user-accounts`, версию `set-avatar-v1`, datasource
@@ -158,7 +161,7 @@ DBOS использует имя `remarkgram-user-accounts`, версию `set-a
 Неожиданная ошибка завершает workflow в `ERROR`; лог содержит `workflowId`.
 Блокировка сохраняется, поскольку результат последнего побочного действия может быть неизвестен.
 Для диагностики используются `DBOS.getWorkflowStatus(workflowId)` и
-`DBOS.listWorkflowSteps(workflowId)`, профиль и `File.attachmentOperationId` в Files.
+`DBOS.listWorkflowSteps(workflowId)`, профиль и `File.avatarAttachmentOperationId` в Files.
 Следить за `ERROR`, длительными `PENDING`, а также `DEAD` deletion jobs.
 
 Если нужен ручной разбор завершившейся с ошибкой операции:
@@ -169,7 +172,7 @@ DBOS использует имя `remarkgram-user-accounts`, версию `set-a
    проверить его доставку через outbox и задачу удаления в Files.
    Если ссылка ещё прежняя и новый файл прикреплён этой операцией, выполнить
    `ScheduleAttachedFileDeletion` для нового файла. При неизвестном результате Files сначала
-   проверить `File.attachmentOperationId` и фактическое состояние файла.
+   проверить `File.avatarAttachmentOperationId` и фактическое состояние файла.
 3. После успешного завершения/компенсации очистить `avatarUpdateId` условным обновлением
    только при совпадении с operationId. Не затирать `avatarFileId` или персональные поля.
 4. Старый ключ сохраняет записанную ошибку. После ручного восстановления клиент читает профиль
@@ -192,7 +195,7 @@ AVATAR_INTEGRATION_DATABASE_URL=postgresql://postgres@localhost:5432/postgres \
 ```
 
 Пользователь тестового PostgreSQL должен иметь право создавать БД. Проверяются реальные
-транзакции обоих сервисов, потеря ответа, конкуренция с резервированием поста/очисткой,
+транзакции обоих сервисов, потеря ответа, конкуренция с прикреплением изображений поста/очисткой,
 ожидание завершения, а также SIGKILL и перезапуск отдельного процесса после attach и commit.
 
 Топология RabbitMQ, отложенные повторы Files и DLQ описаны в [отдельной инструкции](avatar-rabbitmq.md).

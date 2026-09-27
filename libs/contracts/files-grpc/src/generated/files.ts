@@ -10,13 +10,13 @@ import { Observable } from "rxjs";
 
 export const protobufPackage = "remarkgram.files.v1";
 
-export interface AttachAvatarUploadRequest {
+export interface AttachAvatarFileRequest {
   userId: string;
   fileId: string;
   operationId: string;
 }
 
-export interface AttachAvatarUploadResponse {
+export interface AttachAvatarFileResponse {
 }
 
 export interface ScheduleAttachedFileDeletionRequest {
@@ -68,22 +68,6 @@ export interface CompleteImageUploadsRequest {
   uploadIds: string[];
 }
 
-export interface ReserveImageUploadsRequest {
-  userId: string;
-  uploadIds: string[];
-  reservationId: string;
-}
-
-export interface ReleaseReservedImageUploadsRequest {
-  userId: string;
-  reservationId: string;
-}
-
-export interface AttachReservedImageUploadsRequest {
-  userId: string;
-  reservationId: string;
-}
-
 export interface CompleteImageUploadsResponse {
 }
 
@@ -91,15 +75,6 @@ export interface DeleteAllDataRequest {
 }
 
 export interface DeleteAllDataResponse {
-}
-
-export interface ReserveImageUploadsResponse {
-}
-
-export interface AttachReservedImageUploadsResponse {
-}
-
-export interface ReleaseReservedImageUploadsResponse {
 }
 
 export interface GetFileDownloadUrlRequest {
@@ -110,10 +85,32 @@ export interface GetFileDownloadUrlResponse {
   url: string;
 }
 
+export interface AttachPostImagesRequest {
+  userId: string;
+  fileIds: string[];
+  operationId: string;
+}
+
+export interface AttachPostImagesResponse {
+}
+
+export interface CancelPostImageAttachmentRequest {
+  userId: string;
+  fileIds: string[];
+  operationId: string;
+}
+
+export interface CancelPostImageAttachmentResponse {
+}
+
 export const REMARKGRAM_FILES_V1_PACKAGE_NAME = "remarkgram.files.v1";
 
 export interface FilesServiceClient {
-  attachAvatarUpload(request: AttachAvatarUploadRequest): Observable<AttachAvatarUploadResponse>;
+  attachPostImages(request: AttachPostImagesRequest): Observable<AttachPostImagesResponse>;
+
+  cancelPostImageAttachment(request: CancelPostImageAttachmentRequest): Observable<CancelPostImageAttachmentResponse>;
+
+  attachAvatarFile(request: AttachAvatarFileRequest): Observable<AttachAvatarFileResponse>;
 
   scheduleAttachedFileDeletion(
     request: ScheduleAttachedFileDeletionRequest,
@@ -125,23 +122,24 @@ export interface FilesServiceClient {
 
   completeImageUploads(request: CompleteImageUploadsRequest): Observable<CompleteImageUploadsResponse>;
 
-  reserveImageUploads(request: ReserveImageUploadsRequest): Observable<ReserveImageUploadsResponse>;
-
-  attachReservedImageUploads(
-    request: AttachReservedImageUploadsRequest,
-  ): Observable<AttachReservedImageUploadsResponse>;
-
-  releaseReservedImageUploads(
-    request: ReleaseReservedImageUploadsRequest,
-  ): Observable<ReleaseReservedImageUploadsResponse>;
-
   getFileDownloadUrl(request: GetFileDownloadUrlRequest): Observable<GetFileDownloadUrlResponse>;
 }
 
 export interface FilesServiceController {
-  attachAvatarUpload(
-    request: AttachAvatarUploadRequest,
-  ): Promise<AttachAvatarUploadResponse> | Observable<AttachAvatarUploadResponse> | AttachAvatarUploadResponse;
+  attachPostImages(
+    request: AttachPostImagesRequest,
+  ): Promise<AttachPostImagesResponse> | Observable<AttachPostImagesResponse> | AttachPostImagesResponse;
+
+  cancelPostImageAttachment(
+    request: CancelPostImageAttachmentRequest,
+  ):
+    | Promise<CancelPostImageAttachmentResponse>
+    | Observable<CancelPostImageAttachmentResponse>
+    | CancelPostImageAttachmentResponse;
+
+  attachAvatarFile(
+    request: AttachAvatarFileRequest,
+  ): Promise<AttachAvatarFileResponse> | Observable<AttachAvatarFileResponse> | AttachAvatarFileResponse;
 
   scheduleAttachedFileDeletion(
     request: ScheduleAttachedFileDeletionRequest,
@@ -162,24 +160,6 @@ export interface FilesServiceController {
     request: CompleteImageUploadsRequest,
   ): Promise<CompleteImageUploadsResponse> | Observable<CompleteImageUploadsResponse> | CompleteImageUploadsResponse;
 
-  reserveImageUploads(
-    request: ReserveImageUploadsRequest,
-  ): Promise<ReserveImageUploadsResponse> | Observable<ReserveImageUploadsResponse> | ReserveImageUploadsResponse;
-
-  attachReservedImageUploads(
-    request: AttachReservedImageUploadsRequest,
-  ):
-    | Promise<AttachReservedImageUploadsResponse>
-    | Observable<AttachReservedImageUploadsResponse>
-    | AttachReservedImageUploadsResponse;
-
-  releaseReservedImageUploads(
-    request: ReleaseReservedImageUploadsRequest,
-  ):
-    | Promise<ReleaseReservedImageUploadsResponse>
-    | Observable<ReleaseReservedImageUploadsResponse>
-    | ReleaseReservedImageUploadsResponse;
-
   getFileDownloadUrl(
     request: GetFileDownloadUrlRequest,
   ): Promise<GetFileDownloadUrlResponse> | Observable<GetFileDownloadUrlResponse> | GetFileDownloadUrlResponse;
@@ -188,14 +168,13 @@ export interface FilesServiceController {
 export function FilesServiceControllerMethods() {
   return function (constructor: Function) {
     const grpcMethods: string[] = [
-      "attachAvatarUpload",
+      "attachPostImages",
+      "cancelPostImageAttachment",
+      "attachAvatarFile",
       "scheduleAttachedFileDeletion",
       "initiateAvatarUpload",
       "initiateImageUploads",
       "completeImageUploads",
-      "reserveImageUploads",
-      "attachReservedImageUploads",
-      "releaseReservedImageUploads",
       "getFileDownloadUrl",
     ];
     for (const method of grpcMethods) {

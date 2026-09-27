@@ -20,10 +20,10 @@ export class GrpcAvatarFilesGateway extends AvatarFilesGateway implements OnModu
     this.filesClient = this.grpcClient.getService<FilesServiceClient>(FILES_SERVICE_NAME);
   }
 
-  async attachAvatarUpload(params: AttachAvatarParams): Promise<void> {
+  async attachAvatarFile(params: AttachAvatarParams): Promise<void> {
     try {
       await firstValueFrom(
-        this.filesClient.attachAvatarUpload({
+        this.filesClient.attachAvatarFile({
           userId: String(params.userId),
           fileId: params.fileId,
           operationId: params.operationId,
