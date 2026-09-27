@@ -130,6 +130,8 @@ export class PrismaOutboxEventsRepository implements OutboxEventsRepository {
     lastError: string,
     maxAttempts: number,
   ): Promise<boolean> {
+    // TODO: привести ветки CASE к "OutboxStatus": сейчас они возвращают text,
+    // и PostgreSQL отклоняет UPDATE (42804). Ошибка публикации и следующий повтор не сохраняются.
     const number = await this.prisma.$executeRaw`
       UPDATE outbox_events
       SET status       = CASE
