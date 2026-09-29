@@ -32,6 +32,10 @@
           {
             "include": "../../../libs/contracts/user-accounts-grpc/src/proto/*.proto",
             "outDir": "dist/apps/api-gateway/libs/contracts/user-accounts-grpc"
+          },
+          {
+            "include": "../../../libs/contracts/payments-grpc/src/proto/*.proto",
+            "outDir": "dist/apps/api-gateway/libs/contracts/payments-grpc"
           }
         ]
       }
@@ -52,6 +56,15 @@
       "sourceRoot": "libs/config/src",
       "compilerOptions": {
         "tsConfigPath": "libs/config/tsconfig.lib.json"
+      }
+    },
+    "contracts/payments-grpc": {
+      "type": "library",
+      "root": "libs/contracts/payments-grpc",
+      "entryFile": "index",
+      "sourceRoot": "libs/contracts/payments-grpc/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/contracts/payments-grpc/tsconfig.lib.json"
       }
     },
     "files": {
@@ -103,7 +116,14 @@
       "entryFile": "main",
       "sourceRoot": "apps/payments/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/payments/tsconfig.app.json"
+        "tsConfigPath": "apps/payments/tsconfig.app.json",
+        "watchAssets": true,
+        "assets": [
+          {
+            "include": "../../../libs/contracts/payments-grpc/src/proto/*.proto",
+            "outDir": "dist/apps/payments/libs/contracts/payments-grpc"
+          }
+        ]
       }
     },
     "posts": {
@@ -133,15 +153,6 @@
       "sourceRoot": "libs/contracts/posts-grpc/src",
       "compilerOptions": {
         "tsConfigPath": "libs/contracts/posts-grpc/tsconfig.lib.json"
-      }
-    },
-    "countries": {
-      "type": "library",
-      "root": "libs/reference-data/countries",
-      "entryFile": "index",
-      "sourceRoot": "libs/reference-data/countries/src",
-      "compilerOptions": {
-        "tsConfigPath": "libs/reference-data/countries/tsconfig.lib.json"
       }
     },
     "user-accounts": {

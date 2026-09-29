@@ -46,6 +46,10 @@ export default defineConfig({
         find: '@libs',
         replacement: resolve(import.meta.dirname, 'libs'),
       },
+      {
+        find: '@app/payments-grpc',
+        replacement: resolve(import.meta.dirname, 'libs/contracts/payments-grpc/src/index.ts'),
+      },
     ],
   },
   plugins: [
