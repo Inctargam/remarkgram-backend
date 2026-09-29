@@ -86,6 +86,72 @@ export interface ResendRegistrationConfirmationRequest {
 export interface ResendRegistrationConfirmationResponse {
 }
 
+export interface DeleteAvatarRequest {
+  userId: number;
+  idempotencyKey: string;
+}
+
+export interface DeleteAvatarResponse {
+}
+
+export interface SetAvatarRequest {
+  userId: number;
+  fileId: string;
+  idempotencyKey: string;
+}
+
+export interface SetAvatarResponse {
+}
+
+export interface GetMyProfileRequest {
+  userId: number;
+}
+
+export interface GetMyProfileResponse {
+  userId: number;
+  username: string;
+  firstName?: string | undefined;
+  lastName?:
+    | string
+    | undefined;
+  /** ISO 8601 calendar date in YYYY-MM-DD format. */
+  dateOfBirth?: string | undefined;
+  aboutMe?: string | undefined;
+  countryCode?: string | undefined;
+  city?: string | undefined;
+  avatarFileId?: string | undefined;
+}
+
+export interface GetPublicProfileResponse {
+  userId: number;
+  username: string;
+  aboutMe?: string | undefined;
+  avatarFileId?: string | undefined;
+}
+
+export interface GetPublicProfileRequest {
+  userId: number;
+}
+
+export interface PersonalInfo {
+  firstName: string;
+  lastName: string;
+  /** ISO 8601 calendar date in YYYY-MM-DD format. */
+  dateOfBirth?: string | undefined;
+  aboutMe?: string | undefined;
+  countryCode?: string | undefined;
+  city?: string | undefined;
+}
+
+export interface UpdateProfileInfoRequest {
+  userId: number;
+  username: string;
+  personalInfo: PersonalInfo | undefined;
+}
+
+export interface UpdateProfileInfoResponse {
+}
+
 export interface GetUsersRequest {
 }
 
@@ -97,6 +163,20 @@ export interface User {
 
 export interface GetUsersResponse {
   users: User[];
+}
+
+export interface GetCurrentUserRequest {
+  userId: string;
+}
+
+export interface GetCurrentUserResponse {
+  id: number;
+  username: string;
+  email: string;
+  emailVerified: boolean;
+  hasPassword: boolean;
+  oauthProviders: OAuthProvider[];
+  createdAt: string;
 }
 
 export interface GetSessionsRequest {
@@ -253,18 +333,60 @@ export const REGISTRATION_SERVICE_NAME = "RegistrationService";
 /** Users */
 
 export interface UsersServiceClient {
+  deleteAvatar(request: DeleteAvatarRequest): Observable<DeleteAvatarResponse>;
+
+  setAvatar(request: SetAvatarRequest): Observable<SetAvatarResponse>;
+
   getUsers(request: GetUsersRequest): Observable<GetUsersResponse>;
+
+  getCurrentUser(request: GetCurrentUserRequest): Observable<GetCurrentUserResponse>;
+
+  updateProfileInfo(request: UpdateProfileInfoRequest): Observable<UpdateProfileInfoResponse>;
+
+  getPublicProfile(request: GetPublicProfileRequest): Observable<GetPublicProfileResponse>;
+
+  getMyProfile(request: GetMyProfileRequest): Observable<GetMyProfileResponse>;
 }
 
 /** Users */
 
 export interface UsersServiceController {
+  deleteAvatar(
+    request: DeleteAvatarRequest,
+  ): Promise<DeleteAvatarResponse> | Observable<DeleteAvatarResponse> | DeleteAvatarResponse;
+
+  setAvatar(request: SetAvatarRequest): Promise<SetAvatarResponse> | Observable<SetAvatarResponse> | SetAvatarResponse;
+
   getUsers(request: GetUsersRequest): Promise<GetUsersResponse> | Observable<GetUsersResponse> | GetUsersResponse;
+
+  getCurrentUser(
+    request: GetCurrentUserRequest,
+  ): Promise<GetCurrentUserResponse> | Observable<GetCurrentUserResponse> | GetCurrentUserResponse;
+
+  updateProfileInfo(
+    request: UpdateProfileInfoRequest,
+  ): Promise<UpdateProfileInfoResponse> | Observable<UpdateProfileInfoResponse> | UpdateProfileInfoResponse;
+
+  getPublicProfile(
+    request: GetPublicProfileRequest,
+  ): Promise<GetPublicProfileResponse> | Observable<GetPublicProfileResponse> | GetPublicProfileResponse;
+
+  getMyProfile(
+    request: GetMyProfileRequest,
+  ): Promise<GetMyProfileResponse> | Observable<GetMyProfileResponse> | GetMyProfileResponse;
 }
 
 export function UsersServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["getUsers"];
+    const grpcMethods: string[] = [
+      "deleteAvatar",
+      "setAvatar",
+      "getUsers",
+      "getCurrentUser",
+      "updateProfileInfo",
+      "getPublicProfile",
+      "getMyProfile",
+    ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("UsersService", method)(constructor.prototype[method], method, descriptor);

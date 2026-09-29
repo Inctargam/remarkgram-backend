@@ -3,23 +3,66 @@ syntax = "proto3";
 package remarkgram.posts.v1;
 
 service PostsService {
-  rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
+    rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
+    rpc UpdatePost(UpdatePostRequest) returns (UpdatePostResponse);
+    rpc GetAuthPostsPaginated(GetAuthPostsPaginatedRequest) returns (GetAuthPostsPaginatedResponse);
+    rpc DeletePost(DeletePostRequest) returns (DeletePostResponse);
 }
 
 service TestingService {
-  rpc DeleteAllData(DeleteAllDataRequest) returns (DeleteAllDataResponse);
+    rpc DeleteAllData(DeleteAllDataRequest) returns (DeleteAllDataResponse);
 }
 
 message CreatePostRequest {
-  string user_id = 1;
-  optional string description = 2;
-  repeated string image_ids = 3;
+    string user_id = 1;
+    optional string description = 2;
+    repeated string image_ids = 3;
+    string idempotency_key = 4;
 }
 
 message CreatePostResponse {
-  int32 id = 1;
+    int32 id = 1;
 }
 
 message DeleteAllDataRequest {}
 
 message DeleteAllDataResponse {}
+
+message UpdatePostResponse {}
+
+message UpdatePostRequest {
+    string user_id = 1;
+    string post_id = 2;
+    string description = 3;
+}
+message PostImage {
+    string file_id = 1;
+    int32 position = 2;
+}
+message Post {
+    string id = 1;
+    string author_id = 2;
+    optional string description = 3;
+    repeated PostImage images = 4;
+    string created_at = 5;
+
+}
+message GetAuthPostsPaginatedRequest {
+    string user_id = 1;
+    int32 limit = 2;
+    optional string cursor = 3;
+}
+message GetAuthPostsPaginatedResponse {
+    repeated Post items = 1;
+    bool has_more = 2;
+    optional string next_cursor = 3;
+}
+
+
+message DeletePostRequest {
+    string user_id = 1;
+    string post_id = 2;
+}
+message DeletePostResponse {}
+
+

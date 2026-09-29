@@ -6,7 +6,7 @@ import {
   validateOAuthEmails,
 } from './oauth-identity-claims.mapper.js';
 
-describe('OAuth identity claims mapper', () => {
+describe('OAuth identity claims mappers', () => {
   it('validates GitHub emails without changing their representation', () => {
     expect(validateOAuthEmails([{ email: ' User@Example.COM ', verified: true, primary: true }])).toEqual([
       { email: ' User@Example.COM ', verified: true, primary: true },

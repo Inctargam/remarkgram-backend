@@ -21,11 +21,6 @@ class AuthConfig {
   @Min(1)
   @Type(() => Number)
   declare readonly confirmationCodeExpiresIn: number;
-
-  @IsInt()
-  @Min(1)
-  @Type(() => Number)
-  declare readonly recoveryCodeExpiresIn: number;
 }
 
 export const authConfig = registerAs('auth', () => {
@@ -34,7 +29,6 @@ export const authConfig = registerAs('auth', () => {
     accessTokenExpiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN,
     refreshTokenExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN,
     confirmationCodeExpiresIn: process.env.CONFIRMATION_CODE_EXPIRES_IN,
-    recoveryCodeExpiresIn: process.env.RECOVERY_CODE_EXPIRES_IN,
   });
 
   configValidationUtility.validateConfig(config);

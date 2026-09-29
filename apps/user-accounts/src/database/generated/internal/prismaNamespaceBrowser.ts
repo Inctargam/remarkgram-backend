@@ -17,8 +17,8 @@
 
 import * as runtime from "@prisma/client/runtime/index-browser"
 
-export type * from '../models.js'
-export type * from './prismaNamespace.js'
+export type * from '../models.ts'
+export type * from './prismaNamespace.ts'
 
 export const Decimal = runtime.Decimal
 
@@ -54,7 +54,10 @@ export const ModelName = {
   User: 'User',
   DeviceSession: 'DeviceSession',
   PasswordResetToken: 'PasswordResetToken',
-  AuthIdentity: 'AuthIdentity'
+  AuthIdentity: 'AuthIdentity',
+  Profile: 'Profile',
+  AvatarDeletionRequest: 'AvatarDeletionRequest',
+  OutboxEvent: 'OutboxEvent'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -133,12 +136,57 @@ export const AuthIdentityScalarFieldEnum = {
 export type AuthIdentityScalarFieldEnum = (typeof AuthIdentityScalarFieldEnum)[keyof typeof AuthIdentityScalarFieldEnum]
 
 
+export const ProfileScalarFieldEnum = {
+  userId: 'userId',
+  firstName: 'firstName',
+  lastName: 'lastName',
+  avatarFileId: 'avatarFileId',
+  avatarUpdateId: 'avatarUpdateId',
+  dateOfBirth: 'dateOfBirth',
+  aboutMe: 'aboutMe',
+  countryCode: 'countryCode',
+  city: 'city'
+} as const
+
+export type ProfileScalarFieldEnum = (typeof ProfileScalarFieldEnum)[keyof typeof ProfileScalarFieldEnum]
+
+
+export const AvatarDeletionRequestScalarFieldEnum = {
+  userId: 'userId',
+  idempotencyKey: 'idempotencyKey',
+  createdAt: 'createdAt'
+} as const
+
+export type AvatarDeletionRequestScalarFieldEnum = (typeof AvatarDeletionRequestScalarFieldEnum)[keyof typeof AvatarDeletionRequestScalarFieldEnum]
+
+
+export const OutboxEventScalarFieldEnum = {
+  id: 'id',
+  eventType: 'eventType',
+  aggregateType: 'aggregateType',
+  aggregateId: 'aggregateId',
+  payload: 'payload',
+  createdAt: 'createdAt',
+  publishedAt: 'publishedAt',
+  lastError: 'lastError'
+} as const
+
+export type OutboxEventScalarFieldEnum = (typeof OutboxEventScalarFieldEnum)[keyof typeof OutboxEventScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
 } as const
 
 export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder]
+
+
+export const JsonNullValueInput = {
+  JsonNull: JsonNull
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
 
 
 export const QueryMode = {
@@ -155,4 +203,13 @@ export const NullsOrder = {
 } as const
 
 export type NullsOrder = (typeof NullsOrder)[keyof typeof NullsOrder]
+
+
+export const JsonNullValueFilter = {
+  DbNull: DbNull,
+  JsonNull: JsonNull,
+  AnyNull: AnyNull
+} as const
+
+export type JsonNullValueFilter = (typeof JsonNullValueFilter)[keyof typeof JsonNullValueFilter]
 

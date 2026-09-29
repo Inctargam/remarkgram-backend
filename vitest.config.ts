@@ -11,6 +11,14 @@ export default defineConfig({
         replacement: resolve(import.meta.dirname, 'libs/config/src/index.ts'),
       },
       {
+        find: '@app/grpc',
+        replacement: resolve(import.meta.dirname, 'libs/contracts/grpc/src/index.ts'),
+      },
+      {
+        find: '@app/message-broker',
+        replacement: resolve(import.meta.dirname, 'libs/contracts/message-broker/src/index.ts'),
+      },
+      {
         find: '@app/files-grpc',
         replacement: resolve(import.meta.dirname, 'libs/contracts/files-grpc/src/index.ts'),
       },
@@ -23,12 +31,24 @@ export default defineConfig({
         replacement: resolve(import.meta.dirname, 'libs/contracts/user-accounts-grpc/src/index.ts'),
       },
       {
+        find: '@app/validation',
+        replacement: resolve(import.meta.dirname, 'libs/validation/src/index.ts'),
+      },
+      {
+        find: '@app/countries',
+        replacement: resolve(import.meta.dirname, 'libs/reference-data/countries/src/index.ts'),
+      },
+      {
         find: /^@libs\/(.+)\.js$/,
         replacement: `${resolve(import.meta.dirname, 'libs')}/$1.ts`,
       },
       {
         find: '@libs',
         replacement: resolve(import.meta.dirname, 'libs'),
+      },
+      {
+        find: '@app/payments-grpc',
+        replacement: resolve(import.meta.dirname, 'libs/contracts/payments-grpc/src/index.ts'),
       },
     ],
   },

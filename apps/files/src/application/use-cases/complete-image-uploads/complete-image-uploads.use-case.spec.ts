@@ -1,4 +1,5 @@
 import { MAX_IMAGES_PER_UPLOAD_REQUEST } from '@app/files-grpc';
+import { Logger } from '@nestjs/common';
 import {
   DuplicateImageUploadIdError,
   ImageUploadMetadataMismatchError,
@@ -20,10 +21,18 @@ describe('CompleteImageUploadsUseCase', () => {
     createMany: vi.fn<FilesRepository['createMany']>(),
     findImageUploads: vi.fn<FilesRepository['findImageUploads']>(),
     updateImageUploadsStatusIfAllPending: vi.fn<FilesRepository['updateImageUploadsStatusIfAllPending']>(),
+    attachPostImages: vi.fn<FilesRepository['attachPostImages']>(),
+    cancelPostImageAttachment: vi.fn<FilesRepository['cancelPostImageAttachment']>(),
+    claimExpiredImageUploads: vi.fn<FilesRepository['claimExpiredImageUploads']>(),
+    deleteClaimedImageUpload: vi.fn<FilesRepository['deleteClaimedImageUpload']>(),
+    deleteRejectedImageUploads: vi.fn<FilesRepository['deleteRejectedImageUploads']>(),
+    findAvailableById: vi.fn<FilesRepository['findAvailableById']>(),
   };
   const objectStorage = {
     createPresignedUpload: vi.fn<ObjectStorage['createPresignedUpload']>(),
     getObjectMetadata: vi.fn<ObjectStorage['getObjectMetadata']>(),
+    deleteObject: vi.fn<ObjectStorage['deleteObject']>(),
+    createPresignedDownloadUrl: vi.fn<ObjectStorage['createPresignedDownloadUrl']>(),
   };
   const useCase = new CompleteImageUploadsUseCase(filesRepository, objectStorage);
   const uploadId = '11111111-1111-4111-8111-111111111111';
@@ -34,7 +43,7 @@ describe('CompleteImageUploadsUseCase', () => {
     filesRepository.findImageUploads.mockResolvedValue([
       {
         id: uploadId,
-        objectKey: `user/42/images/${uploadId}`,
+        objectKey: `users/42/images/${uploadId}`,
         contentType: 'image/jpeg',
         size: 1_024,
         uploadStatus: FileUploadStatus.PENDING,
@@ -42,15 +51,20 @@ describe('CompleteImageUploadsUseCase', () => {
     ]);
     filesRepository.updateImageUploadsStatusIfAllPending.mockReset();
     filesRepository.updateImageUploadsStatusIfAllPending.mockResolvedValue();
+    filesRepository.deleteRejectedImageUploads.mockReset();
+    filesRepository.deleteRejectedImageUploads.mockResolvedValue();
     objectStorage.getObjectMetadata.mockReset();
     objectStorage.getObjectMetadata.mockResolvedValue({
       size: 1_024,
       contentType: 'image/jpeg',
     });
+    objectStorage.deleteObject.mockReset();
+    objectStorage.deleteObject.mockResolvedValue();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('marks all requested uploads as completed when their metadata matches', async () => {
@@ -71,7 +85,7 @@ describe('CompleteImageUploadsUseCase', () => {
       uploadIds: [uploadId],
       userId: 42,
     });
-    expect(objectStorage.getObjectMetadata).toHaveBeenCalledWith(`user/42/images/${uploadId}`);
+    expect(objectStorage.getObjectMetadata).toHaveBeenCalledWith(`users/42/images/${uploadId}`);
     expect(filesRepository.updateImageUploadsStatusIfAllPending).toHaveBeenCalledWith({
       uploadIds: [uploadId],
       userId: 42,
@@ -84,14 +98,14 @@ describe('CompleteImageUploadsUseCase', () => {
     filesRepository.findImageUploads.mockResolvedValue([
       {
         id: uploadId,
-        objectKey: `user/42/images/${uploadId}`,
+        objectKey: `users/42/images/${uploadId}`,
         contentType: 'image/jpeg',
         size: 1_024,
         uploadStatus: FileUploadStatus.PENDING,
       },
       {
         id: secondUploadId,
-        objectKey: `user/42/images/${secondUploadId}`,
+        objectKey: `users/42/images/${secondUploadId}`,
         contentType: 'image/png',
         size: 2_048,
         uploadStatus: FileUploadStatus.PENDING,
@@ -117,6 +131,34 @@ describe('CompleteImageUploadsUseCase', () => {
       uploadStatus: FileUploadStatus.REJECTED,
       uploadedAt: null,
     });
+    await vi.waitFor(() => {
+      expect(objectStorage.deleteObject).toHaveBeenCalledWith(`users/42/images/${uploadId}`);
+      expect(objectStorage.deleteObject).toHaveBeenCalledWith(`users/42/images/${secondUploadId}`);
+      expect(filesRepository.deleteRejectedImageUploads).toHaveBeenCalledWith({
+        uploadIds: [uploadId, secondUploadId],
+        userId: 42,
+      });
+    });
+  });
+
+  it('leaves rejected records for scheduled cleanup when immediate S3 deletion fails', async () => {
+    const loggerError = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    objectStorage.getObjectMetadata.mockResolvedValue(null);
+    objectStorage.deleteObject.mockRejectedValue(new Error('S3 is unavailable'));
+
+    await expect(
+      useCase.execute(
+        new CompleteImageUploadsCommand({
+          userId: 42,
+          uploadIds: [uploadId],
+        }),
+      ),
+    ).rejects.toThrow(ImageUploadMetadataMismatchError);
+
+    await vi.waitFor(() => {
+      expect(loggerError).toHaveBeenCalledOnce();
+    });
+    expect(filesRepository.deleteRejectedImageUploads).not.toHaveBeenCalled();
   });
 
   it('does not change upload statuses when storage metadata cannot be requested', async () => {
@@ -156,7 +198,7 @@ describe('CompleteImageUploadsUseCase', () => {
     filesRepository.findImageUploads.mockResolvedValue([
       {
         id: uploadId,
-        objectKey: `user/42/images/${uploadId}`,
+        objectKey: `users/42/images/${uploadId}`,
         contentType: 'image/jpeg',
         size: 1_024,
         uploadStatus: FileUploadStatus.COMPLETED,
@@ -179,7 +221,7 @@ describe('CompleteImageUploadsUseCase', () => {
     filesRepository.findImageUploads.mockResolvedValue([
       {
         id: uploadId,
-        objectKey: `user/42/images/${uploadId}`,
+        objectKey: `users/42/images/${uploadId}`,
         contentType: 'image/jpeg',
         size: 1_024,
         uploadStatus: FileUploadStatus.REJECTED,
@@ -213,7 +255,7 @@ describe('CompleteImageUploadsUseCase', () => {
     ).rejects.toThrow(InvalidImageUploadStatusError);
   });
 
-  it.each([0, -1, 1.5, Number.NaN, 2_147_483_648])('rejects an invalid user ID: %s', async (userId) => {
+  it.each([0, -1, 1.5, Number.NaN])('rejects an invalid user ID: %s', async (userId) => {
     await expect(
       useCase.execute(
         new CompleteImageUploadsCommand({

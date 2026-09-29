@@ -2,7 +2,7 @@ import type { ArgumentsHost } from '@nestjs/common';
 import { Metadata, status } from '@grpc/grpc-js';
 import type { Response } from 'express';
 import { AuthorizationResponseError } from 'openid-client';
-import { USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
+import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import { OauthRedirectExceptionFilter } from './oauth-redirect-exception.filter.js';
 
 function createHost(response: Partial<Response>): ArgumentsHost {
@@ -46,7 +46,7 @@ describe('OauthRedirectExceptionFilter', () => {
     ['OAUTH_SESSION_CREATION_FAILED', 'SERVICE_UNAVAILABLE'],
   ])('maps %s to the public redirect code %s', (applicationCode, redirectCode) => {
     const metadata = new Metadata();
-    metadata.set(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY, applicationCode);
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, applicationCode);
     const response = { redirect: vi.fn() };
     const filter = new OauthRedirectExceptionFilter({ baseUrl: 'https://frontend.example.com' });
 

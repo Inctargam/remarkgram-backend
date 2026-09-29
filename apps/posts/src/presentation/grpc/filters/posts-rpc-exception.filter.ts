@@ -5,7 +5,7 @@ import { mapPostsErrorToRpcException } from './posts-rpc-error.mapper.js';
 
 @Catch(PostsError)
 export class PostsRpcExceptionFilter extends BaseRpcExceptionFilter {
-  override catch(error: PostsError, host: ArgumentsHost): ReturnType<BaseRpcExceptionFilter['catch']> {
+  override catch(error: PostsError, host: ArgumentsHost) {
     return super.catch(mapPostsErrorToRpcException(error), host);
   }
 }

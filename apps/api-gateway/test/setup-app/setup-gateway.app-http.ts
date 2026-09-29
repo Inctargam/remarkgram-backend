@@ -1,9 +1,8 @@
 import { Test, type TestingModuleBuilder } from '@nestjs/testing';
-import { CanActivate, type INestApplication, ValidationPipe } from '@nestjs/common';
+import { type INestApplication, ValidationPipe } from '@nestjs/common';
 import { ApiGatewayModule } from '../../src/api-gateway.module.js';
 import cookieParser from 'cookie-parser';
 import { API_PREFIX } from '../../src/http-api.constants.js';
-import { GithubAuthGuard } from '../../src/modules/user-accounts/presentation/http/guards/github/github-auth.guard.js';
 
 type SetupGatewayAppHttpReturn = {
   app: INestApplication;

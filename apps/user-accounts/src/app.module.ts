@@ -1,3 +1,25 @@
+import { ScheduleModule } from '@nestjs/schedule';
+import { OutboxEventsRepository } from './features/outbox/application/ports/outbox-events.repository.js';
+import { PrismaOutboxEventsRepository } from './features/outbox/infrastructure/persistence/repositories/prisma-outbox-events.repository.js';
+import { OutboxWorker } from './features/outbox/application/workers/outbox.worker.js';
+import { OutboxScheduler } from './features/outbox/infrastructure/scheduling/outbox.scheduler.js';
+import { AvatarDeletionRequestsRepository } from './features/users/application/ports/avatar-deletion-requests.repository.js';
+import { PrismaAvatarDeletionRequestsRepository } from './features/users/infrastructure/persistence/repositories/prisma-avatar-deletion-requests.repository.js';
+import { userAccountsMessageBrokerConfig } from './config/message-broker.config.js';
+import { DeleteAvatarUseCase } from './features/users/application/use-cases/delete-avatar.use-case.js';
+import { IntegrationEventPublisher } from './features/outbox/application/ports/integration-event.publisher.js';
+import { RmqIntegrationEventPublisher } from './features/outbox/infrastructure/rmq/rmq-integration-event.publisher.js';
+import { FILES_GRPC_PROTO_PATH, REMARKGRAM_FILES_V1_PACKAGE_NAME } from '@app/files-grpc';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { dbosConfig } from './config/dbos.config.js';
+import { filesGrpcClientConfig } from './config/files-grpc-client.config.js';
+import { AvatarFilesGateway } from './features/users/application/ports/avatar-files.gateway.js';
+import { SetAvatarWorkflow } from './features/users/application/ports/set-avatar.workflow.js';
+import { SetAvatarUseCase } from './features/users/application/use-cases/set-avatar.use-case.js';
+import { DbosSetAvatarWorkflow } from './features/users/infrastructure/dbos/dbos-set-avatar.workflow.js';
+import { DbosLifecycleService } from './features/users/infrastructure/dbos/dbos-lifecycle.service.js';
+import { UserAccountsDbosDataSource } from './features/users/infrastructure/dbos/user-accounts-dbos.datasource.js';
+import { GrpcAvatarFilesGateway } from './features/users/infrastructure/grpc/grpc-avatar-files.gateway.js';
 import { Module } from '@nestjs/common';
 import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
@@ -44,21 +66,28 @@ import { DeleteAllDataUseCase } from './features/testing/application/use-cases/d
 import { PrismaTestingRepository } from './features/testing/infrastructure/persistence/prisma-testing.repository.js';
 import { TestingGrpcController } from './features/testing/presentation/grpc/controllers/testing-grpc.controller.js';
 import { UsersRepository } from './features/users/application/ports/users.repository.js';
+import { UsersQueryRepository } from './features/users/application/ports/users-query.repository.js';
 import { CreateUserUseCase } from './features/users/application/use-cases/create-user.use-case.js';
 import { ConfirmRegistrationUseCase } from './features/users/application/use-cases/confirm-registration.use-case.js';
+import { GetCurrentUserUseCase } from './features/users/application/use-cases/get-current-user.use-case.js';
 import { GetUsersUseCase } from './features/users/application/use-cases/get-users.use-case.js';
 import { RegisterUserUseCase } from './features/users/application/use-cases/register-user.use-case.js';
 import { ResendRegistrationConfirmationUseCase } from './features/users/application/use-cases/resend-registration-confirmation.use-case.js';
 import { UsersService } from './features/users/application/users.service.js';
 import { PrismaUsersRepository } from './features/users/infrastructure/persistence/repositories/prisma-users.repository.js';
+import { PrismaUsersQueryRepository } from './features/users/infrastructure/persistence/repositories/prisma-users-query.repository.js';
 import { UsersGrpcController } from './features/users/presentation/grpc/controllers/users-grpc.controller.js';
 import { RegistrationGrpcController } from './features/users/presentation/grpc/controllers/registration-grpc.controller.js';
 import { AuthIdentitiesRepository } from './features/auth-identities/application/ports/auth-identities-repository.js';
 import { PrismaAuthIdentitiesRepository } from './features/auth-identities/infrastucture/persistence/prisma-auth-identities.repository.js';
 import { AuthIdentityService } from './features/auth-identities/application/auth-identity.service.js';
+import { UpdateProfileInfoUseCase } from './features/users/application/use-cases/update-profile-info.use-case.js';
+import { GetMyProfileHandler } from './features/users/application/use-cases/get-my-profile.query-handler.js';
+import { GetPublicProfileHandler } from './features/users/application/use-cases/get-public-profile.query-handler.js';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [
@@ -72,6 +101,9 @@ import { AuthIdentityService } from './features/auth-identities/application/auth
         '.env',
       ],
       load: [
+        dbosConfig,
+        userAccountsMessageBrokerConfig,
+        filesGrpcClientConfig,
         authConfig,
         databaseConfig,
         emailConfig,
@@ -80,6 +112,20 @@ import { AuthIdentityService } from './features/auth-identities/application/auth
         userAccountsGrpcConfig,
       ],
     }),
+    ClientsModule.registerAsync([
+      {
+        name: REMARKGRAM_FILES_V1_PACKAGE_NAME,
+        inject: [filesGrpcClientConfig.KEY],
+        useFactory: (config: ConfigType<typeof filesGrpcClientConfig>) => ({
+          transport: Transport.GRPC,
+          options: {
+            package: REMARKGRAM_FILES_V1_PACKAGE_NAME,
+            protoPath: FILES_GRPC_PROTO_PATH,
+            url: config.url,
+          },
+        }),
+      },
+    ]),
     CqrsModule,
     PrismaModule,
     NotificationsModule,
@@ -100,9 +146,30 @@ import { AuthIdentityService } from './features/auth-identities/application/auth
     TestingGrpcController,
   ],
   providers: [
+    SetAvatarUseCase,
+    DeleteAvatarUseCase,
+    { provide: OutboxEventsRepository, useClass: PrismaOutboxEventsRepository },
+    OutboxWorker,
+    OutboxScheduler,
+    { provide: AvatarDeletionRequestsRepository, useClass: PrismaAvatarDeletionRequestsRepository },
+    {
+      provide: IntegrationEventPublisher,
+      inject: [userAccountsMessageBrokerConfig.KEY],
+      useFactory: (config: ConfigType<typeof userAccountsMessageBrokerConfig>) =>
+        new RmqIntegrationEventPublisher(config.url),
+    },
+    UserAccountsDbosDataSource,
+    DbosSetAvatarWorkflow,
+    DbosLifecycleService,
+    { provide: SetAvatarWorkflow, useExisting: DbosSetAvatarWorkflow },
+    { provide: AvatarFilesGateway, useClass: GrpcAvatarFilesGateway },
     {
       provide: UsersRepository,
       useClass: PrismaUsersRepository,
+    },
+    {
+      provide: UsersQueryRepository,
+      useClass: PrismaUsersQueryRepository,
     },
     {
       provide: SessionsRepository,
@@ -156,6 +223,7 @@ import { AuthIdentityService } from './features/auth-identities/application/auth
     DeleteSessionUseCase,
     DeleteOtherSessionsUseCase,
     CreateUserUseCase,
+    GetCurrentUserUseCase,
     GetUsersUseCase,
     RegisterUserUseCase,
     ConfirmRegistrationUseCase,
@@ -163,6 +231,9 @@ import { AuthIdentityService } from './features/auth-identities/application/auth
     RequestPasswordResetUseCase,
     ConfirmPasswordResetUseCase,
     DeleteAllDataUseCase,
+    UpdateProfileInfoUseCase,
+    GetMyProfileHandler,
+    GetPublicProfileHandler,
   ],
 })
 export class UserAccountsModule {}

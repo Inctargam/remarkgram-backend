@@ -9,6 +9,8 @@ export class PrismaTestingRepository implements TestingRepository {
   async deleteAllData(): Promise<void> {
     // SQL is constant and contains no user input. CASCADE clears every table referencing users,
     // while RESTART IDENTITY resets the numeric user id sequence for repeatable tests.
-    await this.prisma.$executeRawUnsafe('TRUNCATE TABLE "users" RESTART IDENTITY CASCADE');
+    await this.prisma.$executeRawUnsafe(
+      'TRUNCATE TABLE "users", "avatar_deletion_requests", "outbox_events" RESTART IDENTITY CASCADE',
+    );
   }
 }

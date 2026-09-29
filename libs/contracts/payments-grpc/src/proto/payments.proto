@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package remarkgram.payments.v1;
+
+service PaymentsService {
+  rpc CreatePayment(CreatePaymentRequest) returns (CreatePaymentResponse);
+}
+
+message CreatePaymentRequest {}
+
+message CreatePaymentResponse {}

@@ -1,4 +1,7 @@
 import type { ConfirmationInfo } from '../../domain/value-objects/confirmation-info.js';
+import type { AuthIdentityProvider } from '../../../auth-identities/domain/auth-identity.entity.js';
+import type { PersonalInfo } from '../../domain/value-objects/personal-info.js';
+import { type CreatePersonalInfoProps } from '../../domain/value-objects/personal-info.js';
 
 export type CreateUserParams = {
   username: string;
@@ -37,3 +40,46 @@ export type UpdateConfirmationCodeParams = {
   newCode: string;
   expiration: Date;
 };
+
+export type CurrentUserView = {
+  id: number;
+  username: string;
+  email: string;
+  emailVerified: boolean;
+  hasPassword: boolean;
+  oauthProviders: AuthIdentityProvider[];
+  createdAt: Date;
+};
+
+export type UpdateProfileInfoParams = {
+  userId: number;
+  username: string;
+  personalInfo: CreatePersonalInfoProps;
+};
+
+export type UpdateProfileInfoRepositoryParams = {
+  userId: number;
+  username: string;
+  personalInfo: PersonalInfo;
+};
+
+export type PublicUserProfileView = {
+  userId: number;
+  username: string;
+  aboutMe: string | null;
+  avatarFileId: string | null;
+};
+
+export type MyProfileView = {
+  userId: number;
+  username: string;
+  firstName: string | null;
+  lastName: string | null;
+  aboutMe: string | null;
+  avatarFileId: string | null;
+  city: string | null;
+  countryCode: string | null;
+  dateOfBirth: string | null;
+};
+
+export type DeleteAvatarParams = { userId: number; idempotencyKey: string };

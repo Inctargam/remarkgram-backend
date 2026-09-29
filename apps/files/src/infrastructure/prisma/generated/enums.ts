@@ -12,7 +12,34 @@
 export const FileUploadStatus = {
   PENDING: 'PENDING',
   COMPLETED: 'COMPLETED',
-  REJECTED: 'REJECTED'
+  REJECTED: 'REJECTED',
+  ATTACHED: 'ATTACHED'
 } as const
 
 export type FileUploadStatus = (typeof FileUploadStatus)[keyof typeof FileUploadStatus]
+
+
+export const PostImageAttachmentStatus = {
+  ATTACHED: 'ATTACHED',
+  CANCELLED: 'CANCELLED'
+} as const
+
+export type PostImageAttachmentStatus = (typeof PostImageAttachmentStatus)[keyof typeof PostImageAttachmentStatus]
+
+
+export const InboxStatus = {
+  RECEIVED: 'RECEIVED',
+  PROCESSED: 'PROCESSED',
+  DEAD: 'DEAD'
+} as const
+
+export type InboxStatus = (typeof InboxStatus)[keyof typeof InboxStatus]
+
+
+export const FileDeletionJobStatus = {
+  PENDING: 'PENDING',
+  DONE: 'DONE',
+  DEAD: 'DEAD'
+} as const
+
+export type FileDeletionJobStatus = (typeof FileDeletionJobStatus)[keyof typeof FileDeletionJobStatus]

@@ -2,6 +2,7 @@ import { IsEmail, IsString, Length, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsPassword } from '../../../../../../common/http/decorators/is-password.decorator.js';
 import { Trim } from '../../../../../../common/http/decorators/trim.decorator.js';
+import { USERNAME_MAZ_LENGTH, USERNAME_MIN_LENGTH, USERNAME_PATTERN } from '@app/user-accounts-grpc';
 
 export class RegistrationDto {
   @ApiProperty({
@@ -12,8 +13,8 @@ export class RegistrationDto {
   })
   @IsString()
   @Trim()
-  @Length(6, 30)
-  @Matches(/^[A-Za-z0-9_-]+$/)
+  @Length(USERNAME_MIN_LENGTH, USERNAME_MAZ_LENGTH)
+  @Matches(USERNAME_PATTERN)
   declare username: string;
 
   @ApiProperty({ example: 'user@example.com', format: 'email' })
