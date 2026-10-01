@@ -5,6 +5,10 @@ import { type PaymentsError, PaymentsErrorCode } from '../../application/errors/
 
 const PAYMENTS_ERROR_TO_RPC_EXCEPTION_MAP = {
   [PaymentsErrorCode.INVALID_PAYMENT_METHOD]: status.INVALID_ARGUMENT,
+  [PaymentsErrorCode.INVALID_PLAN_ID]: status.INVALID_ARGUMENT,
+  [PaymentsErrorCode.INVALID_PLAN_PRICE]: status.INVALID_ARGUMENT,
+  [PaymentsErrorCode.INVALID_PLAN_CURRENCY]: status.INVALID_ARGUMENT,
+  [PaymentsErrorCode.INVALID_PLAN_PERIOD]: status.INVALID_ARGUMENT,
 } satisfies Record<PaymentsErrorCode, status>;
 
 export const mapPaymentsErrorToRpcException = (error: PaymentsError): RpcException => {

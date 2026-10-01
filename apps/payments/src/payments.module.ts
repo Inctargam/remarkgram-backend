@@ -5,6 +5,8 @@ import { databaseConfig } from './config/database.config.js';
 import { paymentsConfig } from './config/payments.config.js';
 import { PrismaModule } from './database/prisma.module.js';
 import { PaymentsGrpcController } from './features/payments/presentation/grpc/payments-grpc.controller.js';
+import { PlansRepository } from './features/plans/application/ports/plans.repository.js';
+import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-plans.repository.js';
 
 @Module({
   imports: [
@@ -27,6 +29,6 @@ import { PaymentsGrpcController } from './features/payments/presentation/grpc/pa
     PrismaModule,
   ],
   controllers: [PaymentsGrpcController],
-  providers: [],
+  providers: [{ provide: PlansRepository, useClass: PrismaPlansRepository }],
 })
 export class PaymentsModule {}
