@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/database/prisma/generated"
@@ -10,4 +5,81 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum Currency {
+  USD
+}
+
+enum PeriodUnit {
+  DAY
+  WEEK
+  MONTH
+}
+
+enum PaymentProvider {
+  STRIPE
+  PAYPAL
+}
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  REQUIRES_ACTION
+  PAID
+  FAILED
+  CANCELED
+}
+
+model Plan {
+  id          Int        @id @default(autoincrement())
+  price       Int
+  currency    Currency   @default(USD)
+  periodCount Int        @default(1) @map("period_count")
+  periodUnit  PeriodUnit @map("period_unit")
+  payments    Payment[]
+
+  @@map("plans")
+}
+
+model Payment {
+  id               String          @id @default(uuid()) @db.Uuid
+  userId           Int             @map("user_id")
+  planId           Int             @map("plan_id")
+  amount           Int
+  currency         Currency
+  periodCount      Int             @default(1) @map("period_count")
+  periodUnit       PeriodUnit      @map("period_unit")
+  providerId       String          @map("provider_id")
+  providerType     PaymentProvider @map("provider_type")
+  providerSnapshot Json?           @map("provider_snapshot") @db.JsonB
+  idempotentKey    String          @unique @default(uuid()) @map("idempotent_key") @db.Uuid
+  subscriptionId   String?         @map("subscription_id") @db.Uuid
+  status           PaymentStatus   @default(CREATED)
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  paidAt           DateTime?       @map("paid_at") @db.Timestamptz
+
+  plan     Plan             @relation(fields: [planId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  webhooks PaymentWebhook[]
+
+  @@index([planId])
+  @@index([subscriptionId])
+  @@map("payments")
+}
+
+model PaymentWebhook {
+  id              String          @id @default(uuid()) @db.Uuid
+  paymentId       String?         @map("payment_id") @db.Uuid
+  providerType    PaymentProvider @map("provider_type")
+  providerEventId String          @map("provider_event_id")
+  eventType       String          @map("event_type")
+  payload         Json            @db.JsonB
+  receivedAt      DateTime        @default(now()) @map("received_at") @db.Timestamptz
+  processedAt     DateTime?       @map("processed_at") @db.Timestamptz
+
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@unique([providerType, providerEventId])
+  @@index([paymentId])
+  @@map("payment_webhooks")
 }
