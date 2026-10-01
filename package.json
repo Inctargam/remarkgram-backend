@@ -63,6 +63,7 @@
     "prisma:payments:migrate:create": "prisma migrate dev --create-only --config apps/payments/prisma.config.ts",
     "prisma:payments:migrate:deploy": "prisma migrate deploy --config apps/payments/prisma.config.ts",
     "prisma:payments:status": "prisma migrate status --config apps/payments/prisma.config.ts",
+    "prisma:payments:seed": "prisma db seed --config apps/payments/prisma.config.ts",
     "lint": "eslint .",
     "lint:fix": "eslint \"**/*.ts\" --fix",
     "test": "vitest run --exclude \"apps/**/*.e2e-spec.ts\"",
