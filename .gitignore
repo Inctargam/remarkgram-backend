@@ -9,6 +9,9 @@
 /libs/**/*.js
 /libs/**/*.js.map
 
+# Prisma generated clients
+/apps/**/database/prisma/generated/
+
 # Logs
 logs
 *.log
