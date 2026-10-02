@@ -10,27 +10,50 @@ import { Observable } from "rxjs";
 
 export const protobufPackage = "remarkgram.payments.v1";
 
-export interface CreatePaymentRequest {
+export interface CreateCheckoutRequest {
+  userId: number;
+  planId: number;
+  idempotencyKey: string;
 }
 
-export interface CreatePaymentResponse {
+export interface CreateCheckoutResponse {
+  paymentId: string;
+  checkoutUrl: string;
+  status: string;
+}
+
+export interface GetPaymentStatusRequest {
+  userId: number;
+  paymentId: string;
+}
+
+export interface GetPaymentStatusResponse {
+  paymentId: string;
+  status: string;
+  paidAt?: string | undefined;
 }
 
 export const REMARKGRAM_PAYMENTS_V1_PACKAGE_NAME = "remarkgram.payments.v1";
 
 export interface PaymentsServiceClient {
-  createPayment(request: CreatePaymentRequest): Observable<CreatePaymentResponse>;
+  createCheckout(request: CreateCheckoutRequest): Observable<CreateCheckoutResponse>;
+
+  getPaymentStatus(request: GetPaymentStatusRequest): Observable<GetPaymentStatusResponse>;
 }
 
 export interface PaymentsServiceController {
-  createPayment(
-    request: CreatePaymentRequest,
-  ): Promise<CreatePaymentResponse> | Observable<CreatePaymentResponse> | CreatePaymentResponse;
+  createCheckout(
+    request: CreateCheckoutRequest,
+  ): Promise<CreateCheckoutResponse> | Observable<CreateCheckoutResponse> | CreateCheckoutResponse;
+
+  getPaymentStatus(
+    request: GetPaymentStatusRequest,
+  ): Promise<GetPaymentStatusResponse> | Observable<GetPaymentStatusResponse> | GetPaymentStatusResponse;
 }
 
 export function PaymentsServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["createPayment"];
+    const grpcMethods: string[] = ["createCheckout", "getPaymentStatus"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("PaymentsService", method)(constructor.prototype[method], method, descriptor);

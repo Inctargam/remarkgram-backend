@@ -107,7 +107,8 @@
     "passport-github2": "^0.1.12",
     "pg": "^8.21.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "stripe": "^22.6.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",

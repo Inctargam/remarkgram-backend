@@ -29,6 +29,7 @@ const HTTP_STATUS_BY_GRPC_STATUS: Partial<Record<status, HttpStatus>> = {
 
 const HTTP_STATUS_BY_APP_ERROR_CODE: Readonly<Record<string, HttpStatus>> = {
   POST_IDEMPOTENCY_KEY_CONFLICT: HttpStatus.CONFLICT,
+  PAYMENT_IDEMPOTENCY_CONFLICT: HttpStatus.CONFLICT,
 };
 
 export const mapGrpcErrorToHttpException = (error: ServiceError): HttpException => {

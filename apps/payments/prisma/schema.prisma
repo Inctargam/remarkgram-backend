@@ -25,8 +25,7 @@ enum PaymentProvider {
 enum PaymentStatus {
   CREATED
   PENDING
-  REQUIRES_ACTION
-  PAID
+  SUCCEEDED
   FAILED
   CANCELED
 }
@@ -50,10 +49,11 @@ model Payment {
   currency         Currency
   periodCount      Int             @default(1) @map("period_count")
   periodUnit       PeriodUnit      @map("period_unit")
-  providerId       String          @map("provider_id")
-  providerType     PaymentProvider @map("provider_type")
+  providerCheckoutId String?       @map("provider_checkout_id")
+  providerPaymentId  String?       @map("provider_payment_id")
+  providerType       PaymentProvider @map("provider_type")
   providerSnapshot Json?           @map("provider_snapshot") @db.JsonB
-  idempotentKey    String          @unique @default(uuid()) @map("idempotent_key") @db.Uuid
+  idempotentKey    String          @default(uuid()) @map("idempotent_key") @db.Uuid
   subscriptionId   String?         @map("subscription_id") @db.Uuid
   status           PaymentStatus   @default(CREATED)
   createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz
@@ -62,7 +62,14 @@ model Payment {
   plan     Plan             @relation(fields: [planId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   webhooks PaymentWebhook[]
 
+//составные ограничения
+  @@unique([userId, idempotentKey])
+  @@unique([providerType, providerCheckoutId])
+  @@unique([providerType, providerPaymentId])
   @@index([planId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
   @@index([subscriptionId])
   @@map("payments")
 }
@@ -76,6 +83,7 @@ model PaymentWebhook {
   payload         Json            @db.JsonB
   receivedAt      DateTime        @default(now()) @map("received_at") @db.Timestamptz
   processedAt     DateTime?       @map("processed_at") @db.Timestamptz
+  processingError String?         @map("processing_error")
 
   payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 

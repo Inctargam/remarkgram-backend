@@ -18,6 +18,8 @@ import { postsGrpcClientConfig } from './modules/posts/config/posts-grpc-client.
 import { PostsModule } from './modules/posts/posts.module.js';
 import { TestingModule } from './modules/testing/testing.module.js';
 import { CountriesModule } from './modules/countries/countries.module.js';
+import { PaymentsModule } from './modules/payments/payments.module.js';
+import { paymentsGrpcClientConfig } from './modules/payments/config/payments-grpc-client.config.js';
 
 @Module({
   imports: [
@@ -43,6 +45,7 @@ import { CountriesModule } from './modules/countries/countries.module.js';
         githubOauthConfig,
         googleOidcConfig,
         frontendConfig,
+        paymentsGrpcClientConfig,
       ],
     }),
     JwtModule.registerAsync({
@@ -58,6 +61,7 @@ import { CountriesModule } from './modules/countries/countries.module.js';
     TestingModule,
     UserAccountsModule,
     CountriesModule,
+    PaymentsModule,
   ],
   providers: [
     {

@@ -3,9 +3,29 @@ syntax = "proto3";
 package remarkgram.payments.v1;
 
 service PaymentsService {
-  rpc CreatePayment(CreatePaymentRequest) returns (CreatePaymentResponse);
+  rpc CreateCheckout(CreateCheckoutRequest) returns (CreateCheckoutResponse);
+  rpc GetPaymentStatus(GetPaymentStatusRequest) returns (GetPaymentStatusResponse);
 }
 
-message CreatePaymentRequest {}
+message CreateCheckoutRequest {
+  int64 user_id = 1;
+  int32 plan_id = 2;
+  string idempotency_key = 3;
+}
 
-message CreatePaymentResponse {}
+message CreateCheckoutResponse {
+  string payment_id = 1;
+  string checkout_url = 2;
+  string status = 3;
+}
+
+message GetPaymentStatusRequest {
+  int64 user_id = 1;
+  string payment_id = 2;
+}
+
+message GetPaymentStatusResponse {
+  string payment_id = 1;
+  string status = 2;
+  optional string paid_at = 3;
+}
