@@ -6,6 +6,7 @@ import {
   CheckoutPurpose,
   PaymentStatus,
   PaymentType,
+  type RestorePaymentProps,
 } from '../../domain/payment.entity.js';
 import type { PlansRepository } from '../../../plans/application/ports/plans.repository.js';
 import type { PaymentsRepository } from '../ports/payments.repository.js';
@@ -36,7 +37,7 @@ describe('CreateCheckoutUseCase', () => {
       periodCount: 1,
       periodUnit: PeriodUnit.MONTH,
     });
-    const stored: { payment?: Parameters<PaymentsRepository['create']>[0] } = {};
+    const stored: { payment?: Payment } = {};
     const payments = {
       findByUserAndIdempotency: vi.fn().mockResolvedValue(null),
       create: vi.fn<PaymentsRepository['create']>((payment) => {
@@ -60,16 +61,19 @@ describe('CreateCheckoutUseCase', () => {
       ),
     } as unknown as PaymentsRepository;
     const createCheckout = vi.fn<PaymentProviderPort['createCheckout']>().mockResolvedValue({
-      checkoutId: 'cs_test',
-      checkoutUrl: 'https://checkout.stripe.com/test',
-      providerPaymentId: 'pi_test',
-      providerSubscriptionId: null,
-      providerInvoiceId: null,
-      providerCustomerId: 'cus_test',
-      checkoutExpiresAt: new Date('2030-01-01T00:00:00Z'),
-      snapshot: {},
+      outcome: 'CREATED',
+      checkout: {
+        checkoutId: 'cs_test',
+        checkoutUrl: 'https://checkout.stripe.com/test',
+        providerPaymentId: 'pi_test',
+        providerSubscriptionId: null,
+        providerInvoiceId: null,
+        providerCustomerId: 'cus_test',
+        checkoutExpiresAt: new Date('2030-01-01T00:00:00Z'),
+        snapshot: {},
+      },
     });
-    const provider = { createCheckout } as PaymentProviderPort;
+    const provider = { createCheckout } as unknown as PaymentProviderPort;
     const useCase = new CreateCheckoutUseCase(
       { getByIdOrThrow: vi.fn().mockResolvedValue(plan) } as unknown as PlansRepository,
       payments,
@@ -203,14 +207,17 @@ function checkoutUseCase(
 function providerPort(): PaymentProviderPort {
   return {
     createCheckout: vi.fn().mockResolvedValue({
-      checkoutId: 'cs_test',
-      checkoutUrl: 'https://checkout.stripe.com/test',
-      providerPaymentId: null,
-      providerSubscriptionId: null,
-      providerInvoiceId: null,
-      providerCustomerId: 'cus_test',
-      checkoutExpiresAt: new Date('2030-01-01T00:00:00Z'),
-      snapshot: {},
+      outcome: 'CREATED',
+      checkout: {
+        checkoutId: 'cs_test',
+        checkoutUrl: 'https://checkout.stripe.com/test',
+        providerPaymentId: null,
+        providerSubscriptionId: null,
+        providerInvoiceId: null,
+        providerCustomerId: 'cus_test',
+        checkoutExpiresAt: new Date('2030-01-01T00:00:00Z'),
+        snapshot: {},
+      },
     }),
   } as unknown as PaymentProviderPort;
 }
@@ -247,11 +254,11 @@ function subscriptionContext(): SubscriptionContextPort {
 
 function PaymentWithCreatedAt(
   payment: Parameters<PaymentsRepository['create']>[0],
-  override: Partial<ReturnType<typeof paymentShape>> = {},
+  override: Partial<RestorePaymentProps> = {},
 ) {
   return Payment.restore({ ...paymentShape(payment), ...override });
 }
-function paymentShape(payment: Parameters<PaymentsRepository['create']>[0]) {
+function paymentShape(payment: Parameters<PaymentsRepository['create']>[0]): RestorePaymentProps {
   return {
     id: payment.id,
     userId: payment.userId,

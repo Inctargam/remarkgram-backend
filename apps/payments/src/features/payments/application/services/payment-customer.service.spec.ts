@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PaymentProvider } from '../../domain/payment.entity.js';
 import type { PaymentProviderPort } from '../ports/payment-provider.js';
-import type {
-  PaymentCustomer,
-  PaymentCustomersRepository,
-} from '../ports/payment-customers.repository.js';
+import type { PaymentCustomer, PaymentCustomersRepository } from '../ports/payment-customers.repository.js';
 import { PaymentCustomerService } from './payment-customer.service.js';
 
 describe('PaymentCustomerService', () => {
@@ -17,7 +14,9 @@ describe('PaymentCustomerService', () => {
     const provider = { createCustomer: vi.fn() } as unknown as PaymentProviderPort;
     const service = new PaymentCustomerService(customers, provider);
 
-    await expect(service.getOrCreate({ userId: 42 })).resolves.toEqual(existing);
+    await expect(service.getOrCreate({ userId: 42, providerType: PaymentProvider.STRIPE })).resolves.toEqual(
+      existing,
+    );
     expect(provider.createCustomer).not.toHaveBeenCalled();
   });
 
@@ -28,11 +27,13 @@ describe('PaymentCustomerService', () => {
       create: vi.fn().mockResolvedValue(created),
     } as unknown as PaymentCustomersRepository;
     const provider = {
-      createCustomer: vi.fn().mockResolvedValue({ providerCustomerId: 'cus_123' }),
+      createCustomer: vi.fn().mockResolvedValue({ outcome: 'CREATED', providerCustomerId: 'cus_123' }),
     } as unknown as PaymentProviderPort;
     const service = new PaymentCustomerService(customers, provider);
 
-    await expect(service.getOrCreate({ userId: 42 })).resolves.toEqual(created);
+    await expect(service.getOrCreate({ userId: 42, providerType: PaymentProvider.STRIPE })).resolves.toEqual(
+      created,
+    );
     expect(provider.createCustomer).toHaveBeenCalledWith({
       internalUserId: '42',
     });

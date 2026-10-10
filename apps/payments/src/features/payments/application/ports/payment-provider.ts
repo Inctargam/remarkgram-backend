@@ -11,6 +11,10 @@ export type CreateProviderCheckoutInput = {
   customerId: string;
   checkoutPurpose: CheckoutPurpose;
 };
+export type ProviderOperationFailure =
+  | { outcome: 'VALIDATION_ERROR'; message: string }
+  | { outcome: 'UNAVAILABLE' }
+  | { outcome: 'UNKNOWN' };
 export type ProviderCheckout = {
   checkoutId: string;
   checkoutUrl: string;
@@ -21,6 +25,9 @@ export type ProviderCheckout = {
   checkoutExpiresAt: Date;
   snapshot: Record<string, unknown>;
 };
+export type CreateProviderCheckoutResult =
+  | { outcome: 'CREATED'; checkout: ProviderCheckout }
+  | ProviderOperationFailure;
 export type VerifiedProviderEvent = {
   eventId: string;
   eventType: string;
@@ -43,11 +50,11 @@ export type VerifiedProviderEvent = {
 export type CreatePaymentCustomerProps = {
   internalUserId: string;
 };
-export type CreatePaymentCustomerResult = Promise<{
-  providerCustomerId: string;
-}>;
+export type CreatePaymentCustomerResult = Promise<
+  { outcome: 'CREATED'; providerCustomerId: string } | ProviderOperationFailure
+>;
 export abstract class PaymentProviderPort {
-  abstract createCheckout(input: CreateProviderCheckoutInput): Promise<ProviderCheckout>;
+  abstract createCheckout(input: CreateProviderCheckoutInput): Promise<CreateProviderCheckoutResult>;
   abstract verifyWebhook(rawBody: Buffer, signature: string): VerifiedProviderEvent;
   abstract createCustomer(props: CreatePaymentCustomerProps): CreatePaymentCustomerResult;
 }

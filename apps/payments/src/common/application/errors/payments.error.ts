@@ -20,6 +20,13 @@ export enum PaymentsErrorCode {
   PAYMENT_CHECKOUT_RECONCILIATION_REQUIRED = 'PAYMENT_CHECKOUT_RECONCILIATION_REQUIRED',
   PAYMENT_ACCESS_DENIED = 'PAYMENT_ACCESS_DENIED',
   PAYMENT_PROVIDER_UNAVAILABLE = 'PAYMENT_PROVIDER_UNAVAILABLE',
+  PAYMENT_PROVIDER_VALIDATION_FAILED = 'PAYMENT_PROVIDER_VALIDATION_FAILED',
+  PAYMENT_PROVIDER_OUTCOME_UNKNOWN = 'PAYMENT_PROVIDER_OUTCOME_UNKNOWN',
+  PAYMENT_CUSTOMER_PROVIDER_FAILED = 'PAYMENT_CUSTOMER_PROVIDER_FAILED',
+  PAYMENT_SUBSCRIPTION_CONTEXT_FAILED = 'PAYMENT_SUBSCRIPTION_CONTEXT_FAILED',
+  PAYMENT_PLAN_UNAVAILABLE = 'PAYMENT_PLAN_UNAVAILABLE',
+  PAYMENT_PERSISTENCE_FAILED = 'PAYMENT_PERSISTENCE_FAILED',
+  PAYMENT_INCONSISTENT_STATE = 'PAYMENT_INCONSISTENT_STATE',
   INVALID_PROVIDER_EVENT = 'INVALID_PROVIDER_EVENT',
 }
 
@@ -41,7 +48,7 @@ export class PaymentNotFoundError extends PaymentsError {
 export class PaymentIdempotencyConflictError extends PaymentsError {
   readonly code = PaymentsErrorCode.PAYMENT_IDEMPOTENCY_CONFLICT;
   constructor() {
-    super('Idempotency-Key was already used with another plan');
+    super('Idempotency-Key was already used with different checkout parameters');
   }
 }
 
@@ -70,6 +77,55 @@ export class PaymentProviderUnavailableError extends PaymentsError {
   readonly code = PaymentsErrorCode.PAYMENT_PROVIDER_UNAVAILABLE;
   constructor() {
     super('Payment provider is temporarily unavailable');
+  }
+}
+
+export class PaymentProviderValidationError extends PaymentsError {
+  readonly code = PaymentsErrorCode.PAYMENT_PROVIDER_VALIDATION_FAILED;
+  constructor(message = 'Payment provider rejected the checkout parameters') {
+    super(message);
+  }
+}
+
+export class PaymentProviderOutcomeUnknownError extends PaymentsError {
+  readonly code = PaymentsErrorCode.PAYMENT_PROVIDER_OUTCOME_UNKNOWN;
+  constructor() {
+    super('Payment provider outcome is unknown; retry with the same idempotency key');
+  }
+}
+
+export class PaymentCustomerProviderError extends PaymentsError {
+  readonly code = PaymentsErrorCode.PAYMENT_CUSTOMER_PROVIDER_FAILED;
+  constructor(message = 'Payment customer could not be created') {
+    super(message);
+  }
+}
+
+export class PaymentSubscriptionContextError extends PaymentsError {
+  readonly code = PaymentsErrorCode.PAYMENT_SUBSCRIPTION_CONTEXT_FAILED;
+  constructor() {
+    super('Subscription purchase context is unavailable');
+  }
+}
+
+export class PaymentPlanUnavailableError extends PaymentsError {
+  readonly code = PaymentsErrorCode.PAYMENT_PLAN_UNAVAILABLE;
+  constructor() {
+    super('Plan is temporarily unavailable');
+  }
+}
+
+export class PaymentPersistenceError extends PaymentsError {
+  readonly code = PaymentsErrorCode.PAYMENT_PERSISTENCE_FAILED;
+  constructor() {
+    super('Payment could not be persisted');
+  }
+}
+
+export class PaymentInconsistentStateError extends PaymentsError {
+  readonly code = PaymentsErrorCode.PAYMENT_INCONSISTENT_STATE;
+  constructor(paymentId: string) {
+    super(`Payment ${paymentId} is in an inconsistent checkout state`);
   }
 }
 

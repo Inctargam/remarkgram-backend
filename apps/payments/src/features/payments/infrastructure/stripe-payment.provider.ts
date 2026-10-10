@@ -9,7 +9,7 @@ import {
   type CreatePaymentCustomerProps,
   type CreatePaymentCustomerResult,
   type CreateProviderCheckoutInput,
-  type ProviderCheckout,
+  type CreateProviderCheckoutResult,
   type VerifiedProviderEvent,
 } from '../application/ports/payment-provider.js';
 import { CheckoutPurpose } from '../domain/payment.entity.js';
@@ -23,33 +23,41 @@ export class StripePaymentProvider extends PaymentProviderPort {
     this.stripe = new Stripe(config.secretKey);
   }
 
-  async createCheckout(input: CreateProviderCheckoutInput): Promise<ProviderCheckout> {
+  async createCheckout(input: CreateProviderCheckoutInput): Promise<CreateProviderCheckoutResult> {
     // Режим Checkout определяется локальным бизнес-контекстом до обращения к Stripe.
     // Чтение Stripe Schedule здесь не защищало от конкурентного создания двух первых подписок.
-    const session =
-      input.checkoutPurpose === CheckoutPurpose.INITIAL_SUBSCRIPTION
-        ? await this.createSubscriptionCheckout(input)
-        : await this.createOneTimeCheckout(input);
+    let session: Stripe.Checkout.Session;
+    try {
+      session =
+        input.checkoutPurpose === CheckoutPurpose.INITIAL_SUBSCRIPTION
+          ? await this.createSubscriptionCheckout(input)
+          : await this.createOneTimeCheckout(input);
+    } catch (error) {
+      return this.classifyOperationError(error);
+    }
 
-    if (!session.url) throw new Error('Stripe did not return a Checkout URL');
+    if (!session.url) return { outcome: 'UNKNOWN' };
     const providerPaymentId =
       typeof session.payment_intent === 'string'
         ? session.payment_intent
         : (session.payment_intent?.id ?? null);
     return {
-      checkoutId: session.id,
-      checkoutUrl: session.url,
-      providerPaymentId,
-      providerSubscriptionId: this.getExpandableId(session.subscription),
-      providerInvoiceId: this.getExpandableId(session.invoice),
-      providerCustomerId: input.customerId,
-      checkoutExpiresAt: new Date(session.expires_at * 1000),
-      snapshot: {
-        id: session.id,
-        url: session.url,
-        mode: session.mode,
-        paymentStatus: session.payment_status,
-        status: session.status,
+      outcome: 'CREATED',
+      checkout: {
+        checkoutId: session.id,
+        checkoutUrl: session.url,
+        providerPaymentId,
+        providerSubscriptionId: this.getExpandableId(session.subscription),
+        providerInvoiceId: this.getExpandableId(session.invoice),
+        providerCustomerId: input.customerId,
+        checkoutExpiresAt: new Date(session.expires_at * 1000),
+        snapshot: {
+          id: session.id,
+          url: session.url,
+          mode: session.mode,
+          paymentStatus: session.payment_status,
+          status: session.status,
+        },
       },
     };
   }
@@ -220,17 +228,31 @@ export class StripePaymentProvider extends PaymentProviderPort {
   }
 
   async createCustomer(props: CreatePaymentCustomerProps): CreatePaymentCustomerResult {
-    const customer = await this.stripe.customers.create(
-      {
-        metadata: {
-          internalUserId: String(props.internalUserId),
+    try {
+      const customer = await this.stripe.customers.create(
+        {
+          metadata: {
+            internalUserId: String(props.internalUserId),
+          },
         },
-      },
-      { idempotencyKey: `customer:create:${props.internalUserId}` },
-    );
+        { idempotencyKey: `customer:create:${props.internalUserId}` },
+      );
 
-    return {
-      providerCustomerId: customer.id,
-    };
+      return { outcome: 'CREATED', providerCustomerId: customer.id };
+    } catch (error) {
+      return this.classifyOperationError(error);
+    }
+  }
+
+  private classifyOperationError(error: unknown) {
+    if (
+      error instanceof Stripe.errors.StripeInvalidRequestError ||
+      error instanceof Stripe.errors.StripeIdempotencyError
+    )
+      return { outcome: 'VALIDATION_ERROR' as const, message: error.message };
+    if (error instanceof Stripe.errors.StripeConnectionError) return { outcome: 'UNKNOWN' as const };
+    if (error instanceof Stripe.errors.StripeAPIError || error instanceof Stripe.errors.StripeRateLimitError)
+      return { outcome: 'UNAVAILABLE' as const };
+    return { outcome: 'UNKNOWN' as const };
   }
 }
