@@ -16,6 +16,8 @@ export enum PaymentsErrorCode {
   PLAN_NOT_FOUND = 'PLAN_NOT_FOUND',
   PAYMENT_NOT_FOUND = 'PAYMENT_NOT_FOUND',
   PAYMENT_IDEMPOTENCY_CONFLICT = 'PAYMENT_IDEMPOTENCY_CONFLICT',
+  PAYMENT_INITIAL_RESERVATION_CONFLICT = 'PAYMENT_INITIAL_RESERVATION_CONFLICT',
+  PAYMENT_CHECKOUT_RECONCILIATION_REQUIRED = 'PAYMENT_CHECKOUT_RECONCILIATION_REQUIRED',
   PAYMENT_ACCESS_DENIED = 'PAYMENT_ACCESS_DENIED',
   PAYMENT_PROVIDER_UNAVAILABLE = 'PAYMENT_PROVIDER_UNAVAILABLE',
   INVALID_PROVIDER_EVENT = 'INVALID_PROVIDER_EVENT',
@@ -40,6 +42,20 @@ export class PaymentIdempotencyConflictError extends PaymentsError {
   readonly code = PaymentsErrorCode.PAYMENT_IDEMPOTENCY_CONFLICT;
   constructor() {
     super('Idempotency-Key was already used with another plan');
+  }
+}
+
+export class PaymentInitialReservationConflictError extends PaymentsError {
+  readonly code = PaymentsErrorCode.PAYMENT_INITIAL_RESERVATION_CONFLICT;
+  constructor() {
+    super('An initial subscription checkout is already in progress');
+  }
+}
+
+export class PaymentCheckoutReconciliationRequiredError extends PaymentsError {
+  readonly code = PaymentsErrorCode.PAYMENT_CHECKOUT_RECONCILIATION_REQUIRED;
+  constructor() {
+    super('Checkout correlation conflicts with an existing provider operation');
   }
 }
 

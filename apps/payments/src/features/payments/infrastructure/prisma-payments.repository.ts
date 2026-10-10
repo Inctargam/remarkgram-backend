@@ -4,16 +4,19 @@ import { Prisma } from '../../../database/prisma/generated/client.js';
 import type { ProviderCheckout, VerifiedProviderEvent } from '../application/ports/payment-provider.js';
 import {
   PaymentsRepository,
+  type AttachCheckoutResult,
+  type CreatePaymentResult,
   type WebhookProcessingResult,
 } from '../application/ports/payments.repository.js';
-import { Payment, PaymentProvider, PaymentStatus } from '../domain/payment.entity.js';
+import { CheckoutPurpose, Payment, PaymentProvider, PaymentStatus } from '../domain/payment.entity.js';
+import { PaymentProviderFactory } from '../domain/payment-provider.factory.js';
 import { PaymentPrismaMapper } from './payment-prisma.mapper.js';
 
 @Injectable()
 export class PrismaPaymentsRepository implements PaymentsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(payment: Payment): Promise<Payment> {
+  async create(payment: Payment): Promise<CreatePaymentResult> {
     try {
       const row = await this.prisma.payment.create({
         data: {
@@ -38,13 +41,44 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
           checkoutExpiresAt: payment.checkoutExpiresAt,
         },
       });
-      return PaymentPrismaMapper.toDomain(row);
+      return { outcome: 'CREATED', payment: PaymentPrismaMapper.toDomain(row) };
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          console.error(error?.meta);
-        }
+      if (!this.isUniqueConflict(error)) throw error;
+
+      // Classify by persisted facts instead of leaking Prisma's provider-specific
+      // `target`/constraint metadata into the application layer.
+      const idempotent = await this.prisma.payment.findUnique({
+        where: {
+          userId_idempotentKey: { userId: payment.userId, idempotentKey: payment.idempotentKey },
+        },
+      });
+      if (idempotent)
+        return {
+          outcome: 'IDEMPOTENCY_CONFLICT',
+          payment: PaymentPrismaMapper.toDomain(idempotent),
+        };
+
+      if (payment.checkoutPurpose === CheckoutPurpose.INITIAL_SUBSCRIPTION) {
+        const reservation = await this.prisma.payment.findFirst({
+          where: {
+            userId: payment.userId,
+            checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION,
+            OR: [
+              { status: { in: [PaymentStatus.CREATED, PaymentStatus.PENDING] } },
+              { status: PaymentStatus.SUCCEEDED, subscriptionId: null },
+            ],
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (reservation)
+          return {
+            outcome: 'INITIAL_RESERVATION_CONFLICT',
+            payment: PaymentPrismaMapper.toDomain(reservation),
+          };
       }
+
+      // A P2002 not explained by a create-flow invariant is a schema/programming
+      // error and must remain an infrastructure failure.
       throw error;
     }
   }
@@ -61,21 +95,50 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
     return row ? PaymentPrismaMapper.toDomain(row) : null;
   }
 
-  async attachCheckout(paymentId: string, checkout: ProviderCheckout): Promise<Payment> {
-    const row = await this.prisma.payment.update({
-      where: { id: paymentId },
-      data: {
-        providerCheckoutId: checkout.checkoutId,
-        providerPaymentId: checkout.providerPaymentId,
-        providerSubscriptionId: checkout.providerSubscriptionId,
-        providerInvoiceId: checkout.providerInvoiceId,
-        checkoutExpiresAt: checkout.checkoutExpiresAt,
-        providerCustomerId: checkout.providerCustomerId,
-        providerSnapshot: checkout.snapshot as Prisma.InputJsonValue,
-        status: PaymentStatus.PENDING,
-      },
-    });
-    return PaymentPrismaMapper.toDomain(row);
+  async attachCheckout(paymentId: string, checkout: ProviderCheckout): Promise<AttachCheckoutResult> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const updated = await tx.payment.updateMany({
+          where: {
+            id: paymentId,
+            status: PaymentStatus.CREATED,
+            providerCheckoutId: null,
+          },
+          data: {
+            providerCheckoutId: checkout.checkoutId,
+            providerPaymentId: checkout.providerPaymentId,
+            providerSubscriptionId: checkout.providerSubscriptionId,
+            providerInvoiceId: checkout.providerInvoiceId,
+            checkoutExpiresAt: checkout.checkoutExpiresAt,
+            providerCustomerId: checkout.providerCustomerId,
+            providerSnapshot: checkout.snapshot as Prisma.InputJsonValue,
+            status: PaymentStatus.PENDING,
+          },
+        });
+        const row = await tx.payment.findUnique({ where: { id: paymentId } });
+        if (!row) return { outcome: 'PAYMENT_NOT_FOUND' };
+        if (updated.count === 1) return { outcome: 'ATTACHED', payment: PaymentPrismaMapper.toDomain(row) };
+        if (row.providerCheckoutId === checkout.checkoutId)
+          return { outcome: 'ALREADY_ATTACHED', payment: PaymentPrismaMapper.toDomain(row) };
+        if (row.providerCheckoutId !== null) return { outcome: 'CHECKOUT_CONFLICT' };
+        return { outcome: 'INVALID_STATE' };
+      });
+    } catch (error) {
+      if (!this.isUniqueConflict(error)) throw error;
+      const payment = await this.prisma.payment.findUnique({
+        where: { id: paymentId },
+        select: { providerType: true },
+      });
+      return {
+        outcome: 'PROVIDER_REFERENCE_CONFLICT',
+        reference: payment
+          ? await this.findConflictingProviderReference(
+              PaymentProviderFactory.create(payment.providerType),
+              checkout,
+            )
+          : 'UNKNOWN',
+      };
+    }
   }
 
   async markStatus(paymentId: string, status: PaymentStatus): Promise<void> {
@@ -172,8 +235,7 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
           data: {
             status: nextStatus,
             providerPaymentId: event.providerPaymentId ?? payment.providerPaymentId,
-            providerSubscriptionId:
-              event.providerSubscriptionId ?? payment.providerSubscriptionId,
+            providerSubscriptionId: event.providerSubscriptionId ?? payment.providerSubscriptionId,
             providerInvoiceId: event.providerInvoiceId ?? payment.providerInvoiceId,
             // Повторный успешный факт не должен менять первоначальное время оплаты.
             paidAt: nextStatus === PaymentStatus.SUCCEEDED ? (payment.paidAt ?? new Date()) : payment.paidAt,
@@ -194,5 +256,30 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
 
   private isUuid(value: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  }
+
+  private isUniqueConflict(error: unknown): boolean {
+    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+  }
+
+  private async findConflictingProviderReference(
+    providerType: PaymentProvider,
+    checkout: ProviderCheckout,
+  ): Promise<'CHECKOUT' | 'PAYMENT' | 'SUBSCRIPTION' | 'INVOICE' | 'UNKNOWN'> {
+    const candidates = [
+      ['CHECKOUT', 'providerCheckoutId', checkout.checkoutId],
+      ['PAYMENT', 'providerPaymentId', checkout.providerPaymentId],
+      ['SUBSCRIPTION', 'providerSubscriptionId', checkout.providerSubscriptionId],
+      ['INVOICE', 'providerInvoiceId', checkout.providerInvoiceId],
+    ] as const;
+    for (const [reference, field, value] of candidates) {
+      if (!value) continue;
+      const collision = await this.prisma.payment.findFirst({
+        where: { providerType, [field]: value },
+        select: { id: true },
+      });
+      if (collision) return reference;
+    }
+    return 'UNKNOWN';
   }
 }

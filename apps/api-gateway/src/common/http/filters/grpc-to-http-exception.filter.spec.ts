@@ -49,9 +49,14 @@ describe('mapGrpcErrorToHttpException', () => {
     },
   );
 
-  it('maps an idempotency-key conflict to HTTP 409 by its application error code', () => {
+  it.each([
+    'POST_IDEMPOTENCY_KEY_CONFLICT',
+    'PAYMENT_IDEMPOTENCY_CONFLICT',
+    'PAYMENT_INITIAL_RESERVATION_CONFLICT',
+    'PAYMENT_CHECKOUT_RECONCILIATION_REQUIRED',
+  ])('maps application conflict %s to HTTP 409', (errorCode) => {
     const metadata = new Metadata();
-    metadata.set(APP_ERROR_CODE_METADATA_KEY, 'POST_IDEMPOTENCY_KEY_CONFLICT');
+    metadata.set(APP_ERROR_CODE_METADATA_KEY, errorCode);
 
     const exception = mapGrpcErrorToHttpException(
       createServiceError(status.INVALID_ARGUMENT, 'Idempotency-Key conflict', metadata),
@@ -60,7 +65,7 @@ describe('mapGrpcErrorToHttpException', () => {
     expect(exception.getStatus()).toBe(HttpStatus.CONFLICT);
     expect(exception.getResponse()).toEqual({
       statusCode: HttpStatus.CONFLICT,
-      code: 'POST_IDEMPOTENCY_KEY_CONFLICT',
+      code: errorCode,
       message: 'Idempotency-Key conflict',
     });
   });

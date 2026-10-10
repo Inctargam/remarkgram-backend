@@ -3,7 +3,9 @@ import { PlansRepository } from '../../../plans/application/ports/plans.reposito
 import { CheckoutPurpose, Payment, PaymentProvider, PaymentStatus } from '../../domain/payment.entity.js';
 import { PaymentProviderFactory } from '../../domain/payment-provider.factory.js';
 import {
+  PaymentCheckoutReconciliationRequiredError,
   PaymentIdempotencyConflictError,
+  PaymentInitialReservationConflictError,
   PaymentProviderUnavailableError,
 } from '../../../../common/application/errors/payments.error.js';
 import { PaymentProviderPort } from '../ports/payment-provider.js';
@@ -89,18 +91,19 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
         targetSubscriptionId:
           localSubscription.kind === 'ADDITIONAL_PURCHASE' ? localSubscription.subscriptionId : null,
       });
-      try {
-        payment = await this.payments.create(newPayment);
-      } catch (error) {
-        payment = await this.payments.findByUserAndIdempotency(input.userId, input.idempotencyKey);
-        if (!payment) throw error;
-        if (payment.planId !== input.planId) throw new PaymentIdempotencyConflictError();
+      const created = await this.payments.create(newPayment);
+      if (created.outcome === 'INITIAL_RESERVATION_CONFLICT') {
+        throw new PaymentInitialReservationConflictError();
       }
+      payment = created.payment;
+      this.assertSameIntent(payment, input, providerType);
+      if (payment.status !== PaymentStatus.CREATED) return this.mapToResult(payment);
     }
     const customer = await this.customerService.getOrCreate({ userId: input.userId });
     // Payment может остаться в статусе Created это один из вариантов точки отказа. Тогда для этого платежа нужно так же сформировать checkout
+    let checkout;
     try {
-      const checkout = await this.provider.createCheckout({
+      checkout = await this.provider.createCheckout({
         paymentId: payment.id,
         amount: payment.amount,
         currency: payment.currency,
@@ -110,13 +113,33 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
         customerId: customer.providerCustomerId,
         checkoutPurpose: payment.checkoutPurpose!,
       });
-      const saved = await this.payments.attachCheckout(payment.id, {
-        ...checkout,
-        snapshot: { ...checkout.snapshot, checkoutUrl: checkout.checkoutUrl },
-      });
-      return { paymentId: saved.id, checkoutUrl: checkout.checkoutUrl, status: saved.status };
     } catch {
       throw new PaymentProviderUnavailableError();
     }
+    const attached = await this.payments.attachCheckout(payment.id, {
+      ...checkout,
+      snapshot: { ...checkout.snapshot, checkoutUrl: checkout.checkoutUrl },
+    });
+    if (attached.outcome === 'ATTACHED' || attached.outcome === 'ALREADY_ATTACHED') {
+      return {
+        paymentId: attached.payment.id,
+        checkoutUrl: checkout.checkoutUrl,
+        status: attached.payment.status,
+      };
+    }
+    throw new PaymentCheckoutReconciliationRequiredError();
+  }
+
+  private assertSameIntent(
+    payment: Payment,
+    input: CreateCheckoutInput,
+    providerType: Payment['providerType'],
+  ): void {
+    if (
+      payment.planId !== input.planId ||
+      payment.providerType !== providerType ||
+      payment.autoRenewalRequested !== input.autoRenewal
+    )
+      throw new PaymentIdempotencyConflictError();
   }
 }
