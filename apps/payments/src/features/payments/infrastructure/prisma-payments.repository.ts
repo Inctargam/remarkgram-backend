@@ -14,20 +14,39 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(payment: Payment): Promise<Payment> {
-    const row = await this.prisma.payment.create({
-      data: {
-        id: payment.id,
-        userId: payment.userId,
-        planId: payment.planId,
-        amount: payment.amount,
-        currency: payment.currency,
-        periodCount: payment.periodCount,
-        periodUnit: payment.periodUnit,
-        providerType: payment.providerType,
-        idempotentKey: payment.idempotentKey,
-      },
-    });
-    return PaymentPrismaMapper.toDomain(row);
+    try {
+      const row = await this.prisma.payment.create({
+        data: {
+          id: payment.id,
+          userId: payment.userId,
+          planId: payment.planId,
+          amount: payment.amount,
+          currency: payment.currency,
+          periodCount: payment.periodCount,
+          periodUnit: payment.periodUnit,
+          providerType: payment.providerType,
+          idempotentKey: payment.idempotentKey,
+          type: payment.type,
+          checkoutPurpose: payment.checkoutPurpose,
+          autoRenewalRequested: payment.autoRenewalRequested,
+          targetSubscriptionId: payment.targetSubscriptionId,
+          providerCheckoutId: payment.providerCheckoutId,
+          providerPaymentId: payment.providerPaymentId,
+          providerSubscriptionId: payment.providerSubscriptionId,
+          providerInvoiceId: payment.providerInvoiceId,
+          providerCustomerId: payment.providerCustomerId,
+          checkoutExpiresAt: payment.checkoutExpiresAt,
+        },
+      });
+      return PaymentPrismaMapper.toDomain(row);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          console.error(error?.meta);
+        }
+      }
+      throw error;
+    }
   }
 
   async findByUserAndIdempotency(userId: number, idempotencyKey: string): Promise<Payment | null> {
@@ -47,7 +66,11 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
       where: { id: paymentId },
       data: {
         providerCheckoutId: checkout.checkoutId,
-        providerPaymentId: checkout.paymentId,
+        providerPaymentId: checkout.providerPaymentId,
+        providerSubscriptionId: checkout.providerSubscriptionId,
+        providerInvoiceId: checkout.providerInvoiceId,
+        checkoutExpiresAt: checkout.checkoutExpiresAt,
+        providerCustomerId: checkout.providerCustomerId,
         providerSnapshot: checkout.snapshot as Prisma.InputJsonValue,
         status: PaymentStatus.PENDING,
       },
@@ -71,8 +94,24 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
           },
         });
 
-        if (event.outcome === 'IGNORED' || !event.internalPaymentId) {
-          await tx.paymentWebhook.update({ where: { id: webhook.id }, data: { processedAt: new Date() } });
+        if (event.outcome === 'IGNORED') {
+          await tx.paymentWebhook.update({
+            where: { id: webhook.id },
+            // TODO: Разделить обобщенную причину на UNSUPPORTED_EVENT_TYPE,
+            // UNSUPPORTED_PAYMENT_STATUS и UNSUPPORTED_CHECKOUT_MODE после того,
+            // как нормализация события начнет возвращать гранулярную причину IGNORE.
+            data: { processedAt: new Date(), processingError: 'UNSUPPORTED_EVENT_OR_PAYMENT_STATUS' },
+          });
+          return 'IGNORED';
+        }
+
+        // Metadata приходит из внешнего события. До запроса UUID-колонки проверяем формат,
+        // иначе некорректное значение приведет к ошибке PostgreSQL вместо безопасного IGNORE.
+        if (!event.internalPaymentId || !this.isUuid(event.internalPaymentId)) {
+          await tx.paymentWebhook.update({
+            where: { id: webhook.id },
+            data: { processedAt: new Date(), processingError: 'INVALID_OR_MISSING_PAYMENT_ID' },
+          });
           return 'IGNORED';
         }
 
@@ -85,8 +124,20 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
           return 'IGNORED';
         }
 
+        const paymentCustomer = await tx.paymentCustomer.findUnique({
+          where: {
+            userId_providerType: {
+              userId: payment.userId,
+              providerType: PaymentProvider.STRIPE,
+            },
+          },
+        });
+
         const mismatch =
           (event.checkoutId !== null && payment.providerCheckoutId !== event.checkoutId) ||
+          !event.customerId ||
+          !paymentCustomer ||
+          paymentCustomer.providerCustomerId !== event.customerId ||
           (event.amount !== null && payment.amount !== event.amount) ||
           (event.currency !== null && payment.currency.toLowerCase() !== event.currency.toLowerCase());
         if (mismatch) {
@@ -95,6 +146,16 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
             data: { processedAt: new Date(), processingError: 'PAYMENT_DETAILS_MISMATCH' },
           });
           return 'IGNORED';
+        }
+
+        // completed/unpaid — промежуточный достоверный факт. Событие обработано,
+        // но Payment остается PENDING до async_payment_succeeded/failed.
+        if (event.outcome === 'PENDING') {
+          await tx.paymentWebhook.update({
+            where: { id: webhook.id },
+            data: { paymentId: payment.id, processedAt: new Date() },
+          });
+          return 'PROCESSED';
         }
 
         const nextStatus = PaymentStatus[event.outcome];
@@ -111,7 +172,11 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
           data: {
             status: nextStatus,
             providerPaymentId: event.providerPaymentId ?? payment.providerPaymentId,
-            paidAt: nextStatus === PaymentStatus.SUCCEEDED ? new Date() : payment.paidAt,
+            providerSubscriptionId:
+              event.providerSubscriptionId ?? payment.providerSubscriptionId,
+            providerInvoiceId: event.providerInvoiceId ?? payment.providerInvoiceId,
+            // Повторный успешный факт не должен менять первоначальное время оплаты.
+            paidAt: nextStatus === PaymentStatus.SUCCEEDED ? (payment.paidAt ?? new Date()) : payment.paidAt,
             providerSnapshot: event.snapshot as Prisma.InputJsonValue,
           },
         });
@@ -125,5 +190,9 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return 'DUPLICATE';
       throw error;
     }
+  }
+
+  private isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
   }
 }

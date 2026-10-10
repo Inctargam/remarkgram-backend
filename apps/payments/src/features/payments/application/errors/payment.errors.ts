@@ -68,7 +68,17 @@ export class InvalidPaymentStateError extends PaymentsError {
   readonly code = PaymentsErrorCode.INVALID_PAYMENT_STATE;
 
   constructor(
-    field: 'status' | 'createdAt' | 'paidAt' | 'providerCheckoutId' | 'providerPaymentId' | 'period',
+    field:
+      | 'status'
+      | 'createdAt'
+      | 'paidAt'
+      | 'providerCheckoutId'
+      | 'providerPaymentId'
+      | 'providerSubscriptionId'
+      | 'providerInvoiceId'
+      | 'providerCustomerId'
+      | 'checkoutExpiresAt'
+      | 'period',
     value: unknown,
   ) {
     super(`Invalid payment ${field}: ${String(value)}`);

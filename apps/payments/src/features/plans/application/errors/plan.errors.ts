@@ -31,3 +31,10 @@ export class InvalidPlanPeriodError extends PaymentsError {
     super(`Invalid plan period combination: ${String(periodUnit)}/${periodCount}`);
   }
 }
+
+export class PlanNotFoundError extends PaymentsError {
+  readonly code = PaymentsErrorCode.PLAN_NOT_FOUND;
+  constructor(planId: number) {
+    super(`Plan ${planId} was not found`);
+  }
+}

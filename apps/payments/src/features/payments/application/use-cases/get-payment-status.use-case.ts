@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PaymentsRepository } from '../ports/payments.repository.js';
-import { PaymentNotFoundError } from '../errors/payment-use-case.errors.js';
+import { PaymentNotFoundError } from '../../../../common/application/errors/payments.error.js';
 
 @Injectable()
 export class GetPaymentStatusUseCase {

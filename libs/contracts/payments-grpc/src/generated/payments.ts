@@ -14,6 +14,8 @@ export interface CreateCheckoutRequest {
   userId: number;
   planId: number;
   idempotencyKey: string;
+  provider: string;
+  autoRenewal: boolean;
 }
 
 export interface CreateCheckoutResponse {

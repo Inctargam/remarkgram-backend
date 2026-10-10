@@ -1,47 +1,77 @@
-import { Injectable } from '@nestjs/common';
+import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import { PlansRepository } from '../../../plans/application/ports/plans.repository.js';
-import { Payment, PaymentProvider, PaymentStatus } from '../../domain/payment.entity.js';
+import { CheckoutPurpose, Payment, PaymentProvider, PaymentStatus } from '../../domain/payment.entity.js';
+import { PaymentProviderFactory } from '../../domain/payment-provider.factory.js';
 import {
   PaymentIdempotencyConflictError,
   PaymentProviderUnavailableError,
-  PlanNotFoundError,
-} from '../errors/payment-use-case.errors.js';
+} from '../../../../common/application/errors/payments.error.js';
 import { PaymentProviderPort } from '../ports/payment-provider.js';
 import { PaymentsRepository } from '../ports/payments.repository.js';
+import type { SubscriptionContextPort } from '../ports/subscription-context.port.ts';
+import { PaymentCustomerService } from '../services/payment-customer.service.js';
 
-export type CreateCheckoutInput = { userId: number; planId: number; idempotencyKey: string };
-export type CreateCheckoutOutput = { paymentId: string; checkoutUrl: string; status: PaymentStatus };
+export type CreateCheckoutInput = {
+  userId: number;
+  planId: number;
+  idempotencyKey: string;
+  provider: string;
+  autoRenewal: boolean;
+};
+export type CreateCheckoutOutput = { paymentId: string; checkoutUrl: string | null; status: PaymentStatus };
 
-@Injectable()
-export class CreateCheckoutUseCase {
+export class CreateCheckoutCommand extends Command<CreateCheckoutOutput> {
+  constructor(public readonly input: CreateCheckoutInput) {
+    super();
+  }
+}
+
+@CommandHandler(CreateCheckoutCommand)
+export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutCommand> {
   constructor(
     private readonly plans: PlansRepository,
     private readonly payments: PaymentsRepository,
     private readonly provider: PaymentProviderPort,
+    private readonly customerService: PaymentCustomerService,
+    private readonly subsctiption: SubscriptionContextPort,
   ) {}
+  private mapToResult(payment: Payment): CreateCheckoutOutput {
+    const snapshotCheckoutUrl = payment.providerSnapshot?.checkoutUrl;
+    const checkoutUrl = typeof snapshotCheckoutUrl === 'string' ? snapshotCheckoutUrl : null;
+    return {
+      paymentId: payment.id,
+      checkoutUrl: [PaymentStatus.CREATED, PaymentStatus.PENDING].includes(payment.status)
+        ? checkoutUrl
+        : null,
+      status: payment.status,
+    };
+  }
 
-  async execute(input: CreateCheckoutInput): Promise<CreateCheckoutOutput> {
-    let payment = await this.payments.findByUserAndIdempotency(input.userId, input.idempotencyKey);
+  async execute(command: CreateCheckoutCommand): Promise<CreateCheckoutOutput> {
+    const input = command.input;
+    const { userId, idempotencyKey, planId } = input;
 
-    // Поврторная операция на создание оплаты. Оплата находиться в состояние CREATED и содержит все знания о провайдере
-    if (payment && payment.providerSnapshot && [PaymentStatus.CREATED].includes(payment.status)) {
-      const checkoutUrl = payment.providerSnapshot.checkoutUrl;
-      if (typeof checkoutUrl === 'string')
-        return { paymentId: payment.id, checkoutUrl, status: payment.status };
-    }
-    // Повторная операция на создание оплаты. Но оплата уже находиться не в консистентном состоянии для продолжения.
-    // Например: оплата уже подтверждена
-    if (payment && PaymentStatus.PENDING !== payment.status) {
+    const providerType = PaymentProviderFactory.create(input.provider);
+    if (providerType !== PaymentProvider.STRIPE) throw new PaymentProviderUnavailableError();
+    // Один ключ обозначает одну попытку покупки
+    let payment = await this.payments.findByUserAndIdempotency(userId, idempotencyKey);
+
+    if (
+      payment &&
+      (payment.planId !== input.planId ||
+        payment.providerType !== providerType ||
+        payment.autoRenewalRequested !== input.autoRenewal)
+    ) {
       throw new PaymentIdempotencyConflictError();
     }
 
-    if (payment && payment?.planId !== input.planId) {
-      throw new PaymentIdempotencyConflictError();
-    }
+    // Повтор неизменённого запроса возвращает сохранённый результат; терминальное состояние
+    // не запускает новый Checkout.
+    if (payment && payment.status !== PaymentStatus.CREATED) return this.mapToResult(payment);
 
     if (!payment) {
-      const plan = await this.plans.findById({ id: input.planId });
-      if (!plan) throw new PlanNotFoundError(input.planId);
+      const plan = await this.plans.getByIdOrThrow(planId);
+      const localSubscription = await this.subsctiption.getPurchaseContext(userId);
       const newPayment = Payment.create({
         userId: input.userId,
         planId: plan.id,
@@ -49,8 +79,15 @@ export class CreateCheckoutUseCase {
         currency: plan.currency,
         periodCount: plan.periodCount,
         periodUnit: plan.periodUnit,
-        providerType: PaymentProvider.STRIPE,
+        providerType,
         idempotentKey: input.idempotencyKey,
+        checkoutPurpose:
+          localSubscription.kind === 'FIRST_PURCHASE'
+            ? CheckoutPurpose.INITIAL_SUBSCRIPTION
+            : CheckoutPurpose.SUBSCRIPTION_EXTENSION,
+        autoRenewalRequested: input.autoRenewal,
+        targetSubscriptionId:
+          localSubscription.kind === 'ADDITIONAL_PURCHASE' ? localSubscription.subscriptionId : null,
       });
       try {
         payment = await this.payments.create(newPayment);
@@ -60,13 +97,18 @@ export class CreateCheckoutUseCase {
         if (payment.planId !== input.planId) throw new PaymentIdempotencyConflictError();
       }
     }
-    // Выше Payment либо создаеться либо извлекаеться по idempotencyKey в статусе Pending и создаеться checkout
+    const customer = await this.customerService.getOrCreate({ userId: input.userId });
+    // Payment может остаться в статусе Created это один из вариантов точки отказа. Тогда для этого платежа нужно так же сформировать checkout
     try {
       const checkout = await this.provider.createCheckout({
         paymentId: payment.id,
         amount: payment.amount,
         currency: payment.currency,
+        periodCount: payment.periodCount,
+        periodUnit: payment.periodUnit,
         idempotencyKey: payment.idempotentKey,
+        customerId: customer.providerCustomerId,
+        checkoutPurpose: payment.checkoutPurpose!,
       });
       const saved = await this.payments.attachCheckout(payment.id, {
         ...checkout,

@@ -1,6 +1,12 @@
 import type { Payment as PrismaPayment } from '../../../database/prisma/generated/client.js';
-import { Currency, PeriodUnit } from '../../plans/domain/plan.entity.js';
-import { Payment, PaymentProvider, PaymentStatus } from '../domain/payment.entity.js';
+import type { Currency, PeriodUnit } from '../../plans/domain/plan.entity.js';
+import {
+  Payment,
+  type CheckoutPurpose,
+  type PaymentStatus,
+  type PaymentType,
+} from '../domain/payment.entity.js';
+import { PaymentProviderFactory } from '../domain/payment-provider.factory.js';
 
 export class PaymentPrismaMapper {
   static toDomain(row: PrismaPayment): Payment {
@@ -12,12 +18,20 @@ export class PaymentPrismaMapper {
       currency: row.currency as Currency,
       periodCount: row.periodCount,
       periodUnit: row.periodUnit as PeriodUnit,
-      providerType: row.providerType as PaymentProvider,
+      providerType: PaymentProviderFactory.create(row.providerType),
       idempotentKey: row.idempotentKey,
       providerCheckoutId: row.providerCheckoutId,
       providerPaymentId: row.providerPaymentId,
+      providerSubscriptionId: row.providerSubscriptionId,
+      providerInvoiceId: row.providerInvoiceId,
+      providerCustomerId: row.providerCustomerId,
+      checkoutExpiresAt: row.checkoutExpiresAt,
       providerSnapshot: row.providerSnapshot as Record<string, unknown> | null,
       subscriptionId: row.subscriptionId,
+      targetSubscriptionId: row.targetSubscriptionId,
+      type: row.type as PaymentType,
+      checkoutPurpose: row.checkoutPurpose as CheckoutPurpose | null,
+      autoRenewalRequested: row.autoRenewalRequested,
       status: row.status as PaymentStatus,
       createdAt: row.createdAt,
       paidAt: row.paidAt,

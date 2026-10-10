@@ -1,7 +1,7 @@
 import type { RawBodyRequest } from '@nestjs/common';
 import { BadRequestException, Controller, Headers, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
-import { InvalidProviderEventError } from '../../application/errors/payment-use-case.errors.js';
+import { InvalidProviderEventError } from '../../../../common/application/errors/payments.error.js';
 import { ProcessStripeWebhookUseCase } from '../../application/use-cases/process-stripe-webhook.use-case.js';
 
 @Controller('payments/webhooks')

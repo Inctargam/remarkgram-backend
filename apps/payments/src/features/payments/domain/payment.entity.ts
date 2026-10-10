@@ -5,14 +5,20 @@ import {
   InvalidPaymentCurrencyError,
   InvalidPaymentIdempotentKeyError,
   InvalidPaymentIdError,
-  InvalidPaymentProviderError,
   InvalidPaymentReferenceError,
   InvalidPaymentStateError,
   InvalidPaymentSubscriptionIdError,
 } from '../application/errors/payment.errors.js';
+import { PaymentProviderFactory, type PaymentProvider } from './payment-provider.factory.js';
 
-export enum PaymentProvider {
-  STRIPE = 'STRIPE',
+export { PaymentProvider } from './payment-provider.factory.js';
+export enum PaymentType {
+  PURCHASE = 'PURCHASE',
+  RENEWAL = 'RENEWAL',
+}
+export enum CheckoutPurpose {
+  INITIAL_SUBSCRIPTION = 'INITIAL_SUBSCRIPTION',
+  SUBSCRIPTION_EXTENSION = 'SUBSCRIPTION_EXTENSION',
 }
 export enum PaymentStatus {
   CREATED = 'CREATED',
@@ -32,16 +38,24 @@ export type CreatePaymentProps = {
   periodUnit: PeriodUnit;
   providerType: PaymentProvider;
   idempotentKey: string;
+  checkoutPurpose: CheckoutPurpose | null;
+  autoRenewalRequested: boolean | null;
+  targetSubscriptionId: string | null;
 };
 export type RestorePaymentProps = CreatePaymentProps & {
   id: string;
   providerCheckoutId: string | null;
   providerPaymentId: string | null;
+  providerSubscriptionId: string | null;
+  providerInvoiceId: string | null;
+  providerCustomerId: string | null;
+  checkoutExpiresAt: Date | null;
   providerSnapshot: PaymentProviderSnapshot | null;
   subscriptionId: string | null;
   status: PaymentStatus;
   createdAt: Date;
   paidAt: Date | null;
+  type: PaymentType;
 };
 
 export class Payment {
@@ -56,11 +70,19 @@ export class Payment {
   readonly idempotentKey: string;
   readonly providerCheckoutId: string | null;
   readonly providerPaymentId: string | null;
+  readonly providerSubscriptionId: string | null;
+  readonly providerInvoiceId: string | null;
   readonly providerSnapshot: PaymentProviderSnapshot | null;
   readonly subscriptionId: string | null;
+  readonly targetSubscriptionId: string | null;
   readonly status: PaymentStatus;
   readonly createdAt: Date | null;
   readonly paidAt: Date | null;
+  readonly checkoutPurpose: CheckoutPurpose | null;
+  readonly autoRenewalRequested: boolean | null;
+  readonly providerCustomerId: string | null;
+  readonly checkoutExpiresAt: Date | null;
+  readonly type: PaymentType;
 
   private constructor(props: RestorePaymentProps | (CreatePaymentProps & { id: string })) {
     this.id = props.id;
@@ -74,16 +96,28 @@ export class Payment {
     this.idempotentKey = props.idempotentKey.toLowerCase();
     this.providerCheckoutId = 'providerCheckoutId' in props ? props.providerCheckoutId : null;
     this.providerPaymentId = 'providerPaymentId' in props ? props.providerPaymentId : null;
+    this.providerSubscriptionId = 'providerSubscriptionId' in props ? props.providerSubscriptionId : null;
+    this.providerInvoiceId = 'providerInvoiceId' in props ? props.providerInvoiceId : null;
+    this.providerCustomerId = 'providerCustomerId' in props ? props.providerCustomerId : null;
+    this.checkoutExpiresAt = 'checkoutExpiresAt' in props ? props.checkoutExpiresAt : null;
     this.providerSnapshot = 'providerSnapshot' in props ? props.providerSnapshot : null;
-    this.subscriptionId = 'subscriptionId' in props ? (props.subscriptionId?.toLowerCase() ?? null) : null;
+    this.subscriptionId = 'subscriptionId' in props ? (props.subscriptionId ?? null) : null;
+    this.targetSubscriptionId = props.targetSubscriptionId;
+    this.type = 'type' in props ? props.type : PaymentType.PURCHASE;
     this.status = 'status' in props ? props.status : PaymentStatus.CREATED;
     this.createdAt = 'createdAt' in props ? new Date(props.createdAt) : null;
     this.paidAt = 'paidAt' in props && props.paidAt ? new Date(props.paidAt) : null;
+    this.checkoutPurpose = props.checkoutPurpose;
+    this.autoRenewalRequested = props.autoRenewalRequested;
   }
 
   static create(props: CreatePaymentProps): Payment {
     Payment.assertCommonProps(props);
-    return new Payment({ ...props, id: randomUUID() });
+    return new Payment({
+      ...props,
+      providerType: PaymentProviderFactory.create(props.providerType),
+      id: randomUUID(),
+    });
   }
   static restore(props: RestorePaymentProps): Payment {
     Payment.assertId(props.id);
@@ -93,10 +127,22 @@ export class Payment {
     Payment.assertDate('paidAt', props.paidAt, true);
     Payment.assertOptionalString('providerCheckoutId', props.providerCheckoutId);
     Payment.assertOptionalString('providerPaymentId', props.providerPaymentId);
+    Payment.assertOptionalString('providerSubscriptionId', props.providerSubscriptionId);
+    Payment.assertOptionalString('providerInvoiceId', props.providerInvoiceId);
+    Payment.assertOptionalString('providerCustomerId', props.providerCustomerId);
+    Payment.assertDate('checkoutExpiresAt', props.checkoutExpiresAt, true);
     Payment.assertSubscriptionId(props.subscriptionId);
     if (props.status === PaymentStatus.SUCCEEDED && props.paidAt === null)
       throw new InvalidPaymentStateError('paidAt', props.paidAt);
-    return new Payment(props);
+    Payment.assertScenario(props);
+    if (props.type === PaymentType.RENEWAL && props.providerCheckoutId !== null)
+      throw new InvalidPaymentStateError('providerCheckoutId', props.providerCheckoutId);
+    if (props.type === PaymentType.RENEWAL && props.providerInvoiceId === null)
+      throw new InvalidPaymentStateError('providerInvoiceId', props.providerInvoiceId);
+    return new Payment({
+      ...props,
+      providerType: PaymentProviderFactory.create(props.providerType),
+    });
   }
 
   static canTransition(from: PaymentStatus, to: PaymentStatus): boolean {
@@ -121,10 +167,30 @@ export class Payment {
       !Object.values(PeriodUnit).includes(props.periodUnit)
     )
       throw new InvalidPaymentStateError('period', `${props.periodUnit}/${props.periodCount}`);
-    if (!Object.values(PaymentProvider).includes(props.providerType))
-      throw new InvalidPaymentProviderError(props.providerType, null);
+    PaymentProviderFactory.create(props.providerType);
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(props.idempotentKey))
       throw new InvalidPaymentIdempotentKeyError(props.idempotentKey);
+    Payment.assertScenario({ ...props, type: PaymentType.PURCHASE });
+  }
+  private static assertScenario(props: CreatePaymentProps & { type: PaymentType }): void {
+    if (props.type === PaymentType.RENEWAL) {
+      if (
+        props.checkoutPurpose !== null ||
+        props.autoRenewalRequested !== null ||
+        props.targetSubscriptionId !== null
+      )
+        throw new InvalidPaymentStateError('status', 'invalid renewal context');
+      return;
+    }
+    if (props.checkoutPurpose === null || typeof props.autoRenewalRequested !== 'boolean')
+      throw new InvalidPaymentStateError('status', 'purchase requires checkout context');
+    if (props.checkoutPurpose === CheckoutPurpose.INITIAL_SUBSCRIPTION && props.targetSubscriptionId !== null)
+      throw new InvalidPaymentStateError('status', 'initial purchase cannot target a subscription');
+    if (
+      props.checkoutPurpose === CheckoutPurpose.SUBSCRIPTION_EXTENSION &&
+      props.targetSubscriptionId === null
+    )
+      throw new InvalidPaymentStateError('status', 'extension requires target subscription');
   }
   private static assertId(id: string): void {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))
@@ -136,12 +202,21 @@ export class Payment {
   private static assertStatus(status: PaymentStatus): void {
     if (!Object.values(PaymentStatus).includes(status)) throw new InvalidPaymentStateError('status', status);
   }
-  private static assertDate(field: 'createdAt' | 'paidAt', value: Date | null, nullable: boolean): void {
+  private static assertDate(
+    field: 'createdAt' | 'paidAt' | 'checkoutExpiresAt',
+    value: Date | null,
+    nullable: boolean,
+  ): void {
     if ((value === null && !nullable) || (value !== null && Number.isNaN(value.getTime())))
       throw new InvalidPaymentStateError(field, value);
   }
   private static assertOptionalString(
-    field: 'providerCheckoutId' | 'providerPaymentId',
+    field:
+      | 'providerCheckoutId'
+      | 'providerPaymentId'
+      | 'providerSubscriptionId'
+      | 'providerInvoiceId'
+      | 'providerCustomerId',
     value: string | null,
   ): void {
     if (value !== null && value.trim().length === 0) throw new InvalidPaymentStateError(field, value);

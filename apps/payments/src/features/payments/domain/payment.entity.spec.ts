@@ -5,7 +5,15 @@ import {
   InvalidPaymentIdempotentKeyError,
   InvalidPaymentStateError,
 } from '../application/errors/payment.errors.js';
-import { Payment, PaymentProvider, PaymentStatus, type CreatePaymentProps } from './payment.entity.js';
+import {
+  Payment,
+  PaymentProvider,
+  CheckoutPurpose,
+  PaymentStatus,
+  PaymentType,
+  type CreatePaymentProps,
+} from './payment.entity.js';
+import { PaymentProviderFactory } from './payment-provider.factory.js';
 
 const props: CreatePaymentProps = {
   userId: 42,
@@ -16,9 +24,20 @@ const props: CreatePaymentProps = {
   periodUnit: PeriodUnit.MONTH,
   providerType: PaymentProvider.STRIPE,
   idempotentKey: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION,
+  autoRenewalRequested: true,
+  targetSubscriptionId: null,
 };
 
 describe('Payment', () => {
+  it('maps a supported external provider to the domain enum', () => {
+    expect(PaymentProviderFactory.create('STRIPE')).toBe(PaymentProvider.STRIPE);
+  });
+
+  it('rejects an unsupported external provider', () => {
+    expect(() => PaymentProviderFactory.create('UNKNOWN')).toThrow('Invalid payment provider');
+  });
+
   it('creates a local payment before provider identifiers exist', () => {
     const payment = Payment.create(props);
     expect(payment).toEqual(
@@ -26,6 +45,8 @@ describe('Payment', () => {
         ...props,
         providerCheckoutId: null,
         providerPaymentId: null,
+        providerSubscriptionId: null,
+        providerInvoiceId: null,
         status: PaymentStatus.CREATED,
         createdAt: null,
         paidAt: null,
@@ -64,12 +85,39 @@ describe('Payment', () => {
         id: '11111111-1111-4111-8111-111111111111',
         providerCheckoutId: 'cs_1',
         providerPaymentId: 'pi_1',
+        providerSubscriptionId: 'sub_1',
+        providerInvoiceId: 'in_1',
+        providerCustomerId: 'cus_1',
+        checkoutExpiresAt: new Date(),
         providerSnapshot: null,
         subscriptionId: null,
         status: PaymentStatus.SUCCEEDED,
         createdAt: new Date(),
         paidAt: null,
+        type: PaymentType.PURCHASE,
       }),
     ).toThrow(InvalidPaymentStateError);
+  });
+
+  it('restores provider subscription and invoice references', () => {
+    const payment = Payment.restore({
+      ...props,
+      id: '11111111-1111-4111-8111-111111111111',
+      providerCheckoutId: 'cs_1',
+      providerPaymentId: 'pi_1',
+      providerSubscriptionId: 'sub_1',
+      providerInvoiceId: 'in_1',
+      providerCustomerId: 'cus_1',
+      checkoutExpiresAt: new Date(),
+      providerSnapshot: null,
+      subscriptionId: null,
+      status: PaymentStatus.PENDING,
+      createdAt: new Date(),
+      paidAt: null,
+      type: PaymentType.PURCHASE,
+    });
+
+    expect(payment.providerSubscriptionId).toBe('sub_1');
+    expect(payment.providerInvoiceId).toBe('in_1');
   });
 });

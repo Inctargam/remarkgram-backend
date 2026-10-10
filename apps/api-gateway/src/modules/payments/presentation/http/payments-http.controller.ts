@@ -40,6 +40,8 @@ export class PaymentsHttpController implements OnModuleInit {
       userId: Number(request.userId),
       planId: input.planId,
       idempotencyKey,
+      provider: input.provider,
+      autoRenewal: input.autoRenewal,
     });
   }
 

@@ -6,8 +6,9 @@ import {
   PaymentsServiceControllerMethods,
 } from '@app/payments-grpc';
 import { Controller, UseFilters } from '@nestjs/common';
+import { CommandBus } from '@nestjs/cqrs';
 import { PaymentsRpcExceptionFilter } from '../../../../common/grpc/payments-rpc-exception.filter.js';
-import { CreateCheckoutUseCase } from '../../application/use-cases/create-checkout.use-case.js';
+import { CreateCheckoutCommand } from '../../application/use-cases/create-checkout.use-case.js';
 import { GetPaymentStatusUseCase } from '../../application/use-cases/get-payment-status.use-case.js';
 
 @Controller()
@@ -15,16 +16,20 @@ import { GetPaymentStatusUseCase } from '../../application/use-cases/get-payment
 @UseFilters(PaymentsRpcExceptionFilter)
 export class PaymentsGrpcController {
   constructor(
-    private readonly createCheckoutUseCase: CreateCheckoutUseCase,
+    private readonly commandBus: CommandBus,
     private readonly getPaymentStatusUseCase: GetPaymentStatusUseCase,
   ) {}
-  createCheckout(request: CreateCheckoutRequest): Promise<CreateCheckoutResponse> {
-    console.log(request);
-    return this.createCheckoutUseCase.execute({
-      userId: Number(request.userId),
-      planId: request.planId,
-      idempotencyKey: request.idempotencyKey,
-    });
+  async createCheckout(request: CreateCheckoutRequest): Promise<CreateCheckoutResponse> {
+    const result = await this.commandBus.execute(
+      new CreateCheckoutCommand({
+        userId: Number(request.userId),
+        planId: request.planId,
+        idempotencyKey: request.idempotencyKey,
+        provider: request.provider,
+        autoRenewal: request.autoRenewal,
+      }),
+    );
+    return { ...result, checkoutUrl: result.checkoutUrl ?? '' };
   }
   getPaymentStatus(request: GetPaymentStatusRequest): Promise<GetPaymentStatusResponse> {
     return this.getPaymentStatusUseCase.execute({

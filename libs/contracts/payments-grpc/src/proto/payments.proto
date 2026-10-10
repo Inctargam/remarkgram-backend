@@ -11,6 +11,8 @@ message CreateCheckoutRequest {
   int64 user_id = 1;
   int32 plan_id = 2;
   string idempotency_key = 3;
+  string provider = 4;
+  bool auto_renewal = 5;
 }
 
 message CreateCheckoutResponse {
