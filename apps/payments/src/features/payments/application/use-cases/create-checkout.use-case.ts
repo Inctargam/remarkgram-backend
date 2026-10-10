@@ -101,11 +101,16 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
     } catch {
       throw new PaymentProviderOutcomeUnknownError();
     }
+    // Provider adapter классифицирует инфраструктурную ошибку в стабильный application outcome.
+    // Детерминированная validation error означает, что продолжать тот же Checkout нельзя.
     if (result.outcome === 'VALIDATION_ERROR') {
       await this.markDeterministicFailure(payment.id);
       throw new PaymentProviderValidationError(result.message);
     }
+    // Временная недоступность Stripe не меняет финансовый статус Payment.
     if (result.outcome === 'UNAVAILABLE') throw new PaymentProviderUnavailableError();
+    // При UNKNOWN неизвестно, создал ли Stripe Checkout: Payment остаётся CREATED,
+    // а повтор выполняется с тем же provider idempotency key.
     if (result.outcome === 'UNKNOWN') throw new PaymentProviderOutcomeUnknownError();
 
     const checkout = result.checkout;
@@ -118,8 +123,9 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
     } catch {
       throw new PaymentPersistenceError();
     }
-    if (attached.outcome === 'ATTACHED' || attached.outcome === 'ALREADY_ATTACHED')
+    if (attached.outcome === 'ATTACHED' || attached.outcome === 'ALREADY_ATTACHED') {
       return this.mapStoredResult(attached.payment);
+    }
     throw new PaymentCheckoutReconciliationRequiredError();
   }
 
@@ -163,6 +169,7 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
   private resultForExisting(payment: Payment): CreateCheckoutOutput | null {
     if (payment.status === PaymentStatus.CREATED) return null;
     if (payment.status === PaymentStatus.PENDING) return this.mapStoredResult(payment);
+    // Для терминальной записи нельзя создавать новый Checkout: финансовый snapshot уже зафиксирован.
     if ([PaymentStatus.SUCCEEDED, PaymentStatus.FAILED, PaymentStatus.CANCELED].includes(payment.status))
       return { paymentId: payment.id, checkoutUrl: null, status: payment.status };
     throw new PaymentInconsistentStateError(payment.id);
