@@ -1,13 +1,13 @@
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
-import { PlansRepository } from '../../../plans/application/ports/plans.repository.js';
-import { CheckoutPurpose, Payment, PaymentProvider, PaymentStatus } from '../../domain/payment.entity.js';
-import { PaymentProviderFactory } from '../../domain/payment-provider.factory.js';
 import {
   PaymentCheckoutReconciliationRequiredError,
   PaymentIdempotencyConflictError,
   PaymentInitialReservationConflictError,
   PaymentProviderUnavailableError,
 } from '../../../../common/application/errors/payments.error.js';
+import { PlansRepository } from '../../../plans/application/ports/plans.repository.js';
+import { PaymentProviderFactory } from '../../domain/payment-provider.factory.js';
+import { CheckoutPurpose, Payment, PaymentStatus } from '../../domain/payment.entity.js';
 import { PaymentProviderPort } from '../ports/payment-provider.js';
 import { PaymentsRepository } from '../ports/payments.repository.js';
 import type { SubscriptionContextPort } from '../ports/subscription-context.port.ts';
@@ -54,7 +54,6 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
     const { userId, idempotencyKey, planId } = input;
 
     const providerType = PaymentProviderFactory.create(input.provider);
-    if (providerType !== PaymentProvider.STRIPE) throw new PaymentProviderUnavailableError();
     // Один ключ обозначает одну попытку покупки
     let payment = await this.payments.findByUserAndIdempotency(userId, idempotencyKey);
 
