@@ -10,9 +10,9 @@ import {
   type CreatePaymentCustomerResult,
   type CreateProviderCheckoutInput,
   type CreateProviderCheckoutResult,
-  type VerifiedProviderEvent,
+  type VerifiedProviderWebhook,
 } from '../application/ports/payment-provider.js';
-import { CheckoutPurpose } from '../domain/payment.entity.js';
+import { CheckoutPurpose, PaymentProvider } from '../domain/payment.entity.js';
 
 @Injectable()
 export class StripePaymentProvider extends PaymentProviderPort {
@@ -140,7 +140,7 @@ export class StripePaymentProvider extends PaymentProviderPort {
     return typeof value === 'string' ? value : (value?.id ?? null);
   }
 
-  verifyWebhook(rawBody: Buffer, signature: string): VerifiedProviderEvent {
+  verifyWebhook(rawBody: Buffer, signature: string): VerifiedProviderWebhook {
     // Проверка выполняется по исходному raw body: любое предварительное JSON-преобразование
     // изменит байты запроса, и Stripe не сможет подтвердить подпись. При неверной подписи
     // constructEvent выбросит исключение, поэтому недоверенные данные дальше не обрабатываются.
@@ -156,77 +156,14 @@ export class StripePaymentProvider extends PaymentProviderPort {
       throw error;
     }
 
-    // В текущей итерации поддерживаются только события Checkout Session. Остальные события
-    // нормализуются как IGNORED, но сохраняют eventId и snapshot для аудита и идемпотентности.
-    if (!event.type.startsWith('checkout.session.')) return this.ignored(event);
-
-    // После успешной проверки подписи data.object можно интерпретировать как Checkout Session.
-    // Метод outcome переводит Stripe event type и payment_status во внутренний результат платежа.
-    const session = event.data.object as Stripe.Checkout.Session;
-    const outcome = this.outcome(event.type, session);
-
-    // В режиме payment Checkout содержит PaymentIntent. Stripe может вернуть expandable-поле
-    // строкой или развернутым объектом, поэтому извлекаем идентификатор из обоих вариантов.
-    // Для mode=subscription это поле обычно null: Subscription ID обрабатывается отдельно.
-    const providerPaymentId =
-      typeof session.payment_intent === 'string'
-        ? session.payment_intent
-        : (session.payment_intent?.id ?? null);
-
-    // На границе инфраструктуры Stripe-событие преобразуется в нейтральный контракт приложения.
-    // Use case затем проверит существование Payment, checkoutId, сумму, валюту и допустимость
-    // перехода состояния; сам provider не изменяет локальную базу данных.
+    const snapshot = JSON.parse(JSON.stringify(event)) as Record<string, unknown>;
     return {
-      eventId: event.id,
-      eventType: event.type,
-      // paymentId был записан backend в metadata при создании Checkout Session.
-      internalPaymentId: session.metadata?.paymentId ?? null,
-      customerId: this.getExpandableId(session.customer),
-      checkoutId: session.id,
-      checkoutMode: session.mode,
-      paymentStatus: session.payment_status,
-      providerPaymentId,
-      providerSubscriptionId: this.getExpandableId(session.subscription),
-      providerInvoiceId: this.getExpandableId(session.invoice),
-      amount: session.amount_total,
-      currency: session.currency,
-      outcome,
-      // Полный снимок нужен для финансового аудита, диагностики и повторной обработки события.
-      snapshot: JSON.parse(JSON.stringify(event)) as Record<string, unknown>,
-    };
-  }
-
-  private outcome(type: string, session: Stripe.Checkout.Session): VerifiedProviderEvent['outcome'] {
-    if (type === 'checkout.session.completed') {
-      if (session.payment_status === 'paid') return 'SUCCEEDED';
-      // Завершенный Checkout с unpaid еще может получить итоговое async-событие.
-      // Поэтому финансовое состояние остается PENDING, а не FAILED или CANCELED.
-      if (session.payment_status === 'unpaid') return 'PENDING';
-      // Платные планы текущей итерации не допускают no_payment_required.
-      return 'IGNORED';
-    }
-    if (type === 'checkout.session.async_payment_succeeded') return 'SUCCEEDED';
-    if (type === 'checkout.session.async_payment_failed') return 'FAILED';
-    if (type === 'checkout.session.expired') return 'CANCELED';
-    return 'IGNORED';
-  }
-
-  private ignored(event: Stripe.Event): VerifiedProviderEvent {
-    return {
-      eventId: event.id,
-      eventType: event.type,
-      internalPaymentId: null,
-      customerId: null,
-      checkoutId: null,
-      checkoutMode: null,
-      paymentStatus: null,
-      providerPaymentId: null,
-      providerSubscriptionId: null,
-      providerInvoiceId: null,
-      amount: null,
-      currency: null,
-      outcome: 'IGNORED',
-      snapshot: JSON.parse(JSON.stringify(event)) as Record<string, unknown>,
+      provider: PaymentProvider.STRIPE,
+      id: event.id,
+      type: event.type,
+      createdAt: new Date(event.created * 1000),
+      payload: event.data.object,
+      snapshot,
     };
   }
 

@@ -53,55 +53,31 @@ describe('StripePaymentProvider.createCheckout', () => {
 });
 
 describe('StripePaymentProvider.verifyWebhook', () => {
-  it('нормализует успешный subscription Checkout и сохраняет все внешние ссылки', () => {
-    const provider = providerWithEvent(
-      checkoutEvent('checkout.session.completed', {
-        mode: 'subscription',
-        payment_status: 'paid',
-        payment_intent: null,
-        subscription: 'sub_test',
-        invoice: 'in_test',
-      }),
-    );
+  it('после проверки подписи возвращает нейтральную оболочку без интерпретации payload', () => {
+    const rawEvent = checkoutEvent('checkout.session.completed', { payment_status: 'paid' });
+    const provider = providerWithEvent(rawEvent);
 
     expect(provider.verifyWebhook(Buffer.from('{}'), 'valid-signature')).toEqual(
       expect.objectContaining({
-        eventId: 'evt_test',
-        internalPaymentId: input.paymentId,
-        customerId: input.customerId,
-        checkoutId: 'cs_test',
-        checkoutMode: 'subscription',
-        paymentStatus: 'paid',
-        providerPaymentId: null,
-        providerSubscriptionId: 'sub_test',
-        providerInvoiceId: 'in_test',
-        outcome: 'SUCCEEDED',
+        id: 'evt_test',
+        type: 'checkout.session.completed',
+        createdAt: new Date('2026-10-11T12:00:00.000Z'),
+        payload: rawEvent.data.object,
+        snapshot: rawEvent,
       }),
     );
   });
 
-  it.each([
-    ['checkout.session.completed', 'unpaid', 'PENDING'],
-    ['checkout.session.async_payment_succeeded', 'paid', 'SUCCEEDED'],
-    ['checkout.session.async_payment_failed', 'unpaid', 'FAILED'],
-    ['checkout.session.expired', 'unpaid', 'CANCELED'],
-  ])('преобразует %s/%s в %s', (eventType, paymentStatus, outcome) => {
-    const provider = providerWithEvent(
-      checkoutEvent(eventType, { payment_status: paymentStatus }),
-    );
-
-    expect(provider.verifyWebhook(Buffer.from('{}'), 'valid-signature').outcome).toBe(outcome);
-  });
-
-  it('безопасно игнорирует событие вне текущей Checkout-итерации', () => {
+  it('не фильтрует неподдерживаемый тип события', () => {
     const provider = providerWithEvent({
       id: 'evt_invoice',
       type: 'invoice.paid',
+      created: 1_791_720_000,
       data: { object: {} },
     });
 
     expect(provider.verifyWebhook(Buffer.from('{}'), 'valid-signature')).toEqual(
-      expect.objectContaining({ eventId: 'evt_invoice', outcome: 'IGNORED', checkoutId: null }),
+      expect.objectContaining({ id: 'evt_invoice', type: 'invoice.paid', payload: {} }),
     );
   });
 });
@@ -154,6 +130,7 @@ function checkoutEvent(type: string, override: Record<string, unknown> = {}) {
   return {
     id: 'evt_test',
     type,
+    created: 1_791_720_000,
     data: {
       object: {
         id: 'cs_test',

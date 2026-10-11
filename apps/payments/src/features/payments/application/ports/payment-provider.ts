@@ -1,5 +1,5 @@
 import type { Currency, PeriodUnit } from '../../../plans/domain/plan.entity.js';
-import type { CheckoutPurpose } from '../../domain/payment.entity.js';
+import type { CheckoutPurpose, PaymentProvider } from '../../domain/payment.entity.js';
 
 export type CreateProviderCheckoutInput = {
   paymentId: string;
@@ -28,22 +28,12 @@ export type ProviderCheckout = {
 export type CreateProviderCheckoutResult =
   | { outcome: 'CREATED'; checkout: ProviderCheckout }
   | ProviderOperationFailure;
-export type VerifiedProviderEvent = {
-  eventId: string;
-  eventType: string;
-  internalPaymentId: string | null;
-  customerId: string | null;
-  checkoutId: string | null;
-  // Stripe SDK допускает появление новых строковых значений раньше обновления нашего контракта.
-  // Неизвестные значения сохраняются для аудита и не должны подтверждать платеж автоматически.
-  checkoutMode: string | null;
-  paymentStatus: string | null;
-  providerPaymentId: string | null;
-  providerSubscriptionId: string | null;
-  providerInvoiceId: string | null;
-  amount: number | null;
-  currency: string | null;
-  outcome: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED' | 'IGNORED';
+export type VerifiedProviderWebhook = {
+  provider: PaymentProvider;
+  id: string;
+  type: string;
+  createdAt: Date;
+  payload: unknown;
   snapshot: Record<string, unknown>;
 };
 
@@ -55,6 +45,6 @@ export type CreatePaymentCustomerResult = Promise<
 >;
 export abstract class PaymentProviderPort {
   abstract createCheckout(input: CreateProviderCheckoutInput): Promise<CreateProviderCheckoutResult>;
-  abstract verifyWebhook(rawBody: Buffer, signature: string): VerifiedProviderEvent;
+  abstract verifyWebhook(rawBody: Buffer, signature: string): VerifiedProviderWebhook;
   abstract createCustomer(props: CreatePaymentCustomerProps): CreatePaymentCustomerResult;
 }
