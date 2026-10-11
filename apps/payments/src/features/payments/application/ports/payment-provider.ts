@@ -12,7 +12,7 @@ export type CreateProviderCheckoutInput = {
   checkoutPurpose: CheckoutPurpose;
 };
 export type ProviderOperationFailure =
-  | { outcome: 'VALIDATION_ERROR'; message: string }
+  | { outcome: 'VALIDATION_ERROR' }
   | { outcome: 'UNAVAILABLE' }
   | { outcome: 'UNKNOWN' };
 export type ProviderCheckout = {

@@ -2,6 +2,7 @@ import type { Payment, PaymentStatus } from '../../domain/payment.entity.js';
 import type { ProviderCheckout, VerifiedProviderEvent } from './payment-provider.js';
 
 export type WebhookProcessingResult = 'PROCESSED' | 'DUPLICATE' | 'IGNORED';
+
 export type CreatePaymentResult =
   | { outcome: 'CREATED'; payment: Payment }
   | { outcome: 'IDEMPOTENCY_CONFLICT'; payment: Payment }

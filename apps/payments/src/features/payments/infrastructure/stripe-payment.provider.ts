@@ -33,7 +33,10 @@ export class StripePaymentProvider extends PaymentProviderPort {
           ? await this.createSubscriptionCheckout(input)
           : await this.createOneTimeCheckout(input);
     } catch (error) {
-      return this.classifyOperationError(error);
+      return this.classifyOperationError(error, {
+        operation: 'CREATE_CHECKOUT',
+        paymentId: input.paymentId,
+      });
     }
 
     if (!session.url) return { outcome: 'UNKNOWN' };
@@ -240,19 +243,53 @@ export class StripePaymentProvider extends PaymentProviderPort {
 
       return { outcome: 'CREATED', providerCustomerId: customer.id };
     } catch (error) {
-      return this.classifyOperationError(error);
+      return this.classifyOperationError(error, {
+        operation: 'CREATE_CUSTOMER',
+        internalUserId: props.internalUserId,
+      });
     }
   }
 
-  private classifyOperationError(error: unknown) {
+  private classifyOperationError(
+    error: unknown,
+    context:
+      | { operation: 'CREATE_CHECKOUT'; paymentId: string }
+      | { operation: 'CREATE_CUSTOMER'; internalUserId: string },
+  ) {
+    let outcome: 'VALIDATION_ERROR' | 'UNAVAILABLE' | 'UNKNOWN';
     if (
       error instanceof Stripe.errors.StripeInvalidRequestError ||
       error instanceof Stripe.errors.StripeIdempotencyError
-    )
-      return { outcome: 'VALIDATION_ERROR' as const, message: error.message };
-    if (error instanceof Stripe.errors.StripeConnectionError) return { outcome: 'UNKNOWN' as const };
-    if (error instanceof Stripe.errors.StripeAPIError || error instanceof Stripe.errors.StripeRateLimitError)
-      return { outcome: 'UNAVAILABLE' as const };
-    return { outcome: 'UNKNOWN' as const };
+    ) {
+      outcome = 'VALIDATION_ERROR';
+    } else if (error instanceof Stripe.errors.StripeConnectionError) {
+      outcome = 'UNKNOWN';
+    } else if (
+      error instanceof Stripe.errors.StripeAPIError ||
+      error instanceof Stripe.errors.StripeRateLimitError
+    ) {
+      outcome = 'UNAVAILABLE';
+    } else {
+      outcome = 'UNKNOWN';
+    }
+
+    const providerError = error instanceof Stripe.errors.StripeError ? error : null;
+    const details = {
+      event: 'payment_provider_operation_failed',
+      provider: 'STRIPE',
+      ...context,
+      classification: outcome,
+      errorName: error instanceof Error ? error.name : typeof error,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+      providerErrorType: providerError?.type,
+      providerErrorCode: providerError?.code,
+      providerRequestId: providerError?.requestId,
+      providerStatusCode: providerError?.statusCode,
+    };
+    if (outcome === 'UNKNOWN') this.logger.error(details);
+    else this.logger.warn(details);
+
+    return { outcome };
   }
 }

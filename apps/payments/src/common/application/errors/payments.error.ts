@@ -82,8 +82,8 @@ export class PaymentProviderUnavailableError extends PaymentsError {
 
 export class PaymentProviderValidationError extends PaymentsError {
   readonly code = PaymentsErrorCode.PAYMENT_PROVIDER_VALIDATION_FAILED;
-  constructor(message = 'Payment provider rejected the checkout parameters') {
-    super(message);
+  constructor() {
+    super('Payment provider rejected the checkout request');
   }
 }
 
@@ -96,8 +96,8 @@ export class PaymentProviderOutcomeUnknownError extends PaymentsError {
 
 export class PaymentCustomerProviderError extends PaymentsError {
   readonly code = PaymentsErrorCode.PAYMENT_CUSTOMER_PROVIDER_FAILED;
-  constructor(message = 'Payment customer could not be created') {
-    super(message);
+  constructor() {
+    super('Payment customer could not be created');
   }
 }
 

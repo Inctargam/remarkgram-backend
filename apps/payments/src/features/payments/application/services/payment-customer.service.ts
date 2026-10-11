@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PaymentProvider } from '../../domain/payment.entity.js';
 import { PaymentCustomersRepository, type PaymentCustomer } from '../ports/payment-customers.repository.js';
 import { PaymentProviderPort } from '../ports/payment-provider.js';
@@ -17,6 +17,8 @@ export type GetOrCreatePaymentCustomerParams = {
 
 @Injectable()
 export class PaymentCustomerService {
+  private readonly logger = new Logger(PaymentCustomerService.name);
+
   constructor(
     private readonly customers: PaymentCustomersRepository,
     private readonly provider: PaymentProviderPort,
@@ -34,12 +36,21 @@ export class PaymentCustomerService {
     let result: Awaited<ReturnType<PaymentProviderPort['createCustomer']>>;
     try {
       result = await this.provider.createCustomer({ internalUserId: String(params.userId) });
-    } catch {
+    } catch (error) {
+      this.logger.error({
+        event: 'payment_provider_contract_violation',
+        operation: 'CREATE_CUSTOMER',
+        userId: params.userId,
+        providerType: params.providerType,
+        errorName: error instanceof Error ? error.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+      });
       throw new PaymentProviderOutcomeUnknownError();
     }
     if (result.outcome === 'UNAVAILABLE') throw new PaymentCustomerProviderError();
     if (result.outcome === 'UNKNOWN') throw new PaymentProviderOutcomeUnknownError();
-    if (result.outcome === 'VALIDATION_ERROR') throw new PaymentCustomerProviderError(result.message);
+    if (result.outcome === 'VALIDATION_ERROR') throw new PaymentCustomerProviderError();
 
     let customer: PaymentCustomer;
     try {

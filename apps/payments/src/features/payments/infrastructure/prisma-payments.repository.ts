@@ -9,8 +9,50 @@ import {
   type WebhookProcessingResult,
 } from '../application/ports/payments.repository.js';
 import { CheckoutPurpose, Payment, PaymentProvider, PaymentStatus } from '../domain/payment.entity.js';
-import { PaymentProviderFactory } from '../domain/payment-provider.factory.js';
 import { PaymentPrismaMapper } from './payment-prisma.mapper.js';
+
+type ProviderReference = 'CHECKOUT' | 'PAYMENT' | 'SUBSCRIPTION' | 'INVOICE' | 'UNKNOWN';
+
+const PROVIDER_REFERENCE_BY_FIELD: Readonly<Record<string, Exclude<ProviderReference, 'UNKNOWN'>>> = {
+  providercheckoutid: 'CHECKOUT',
+  providerpaymentid: 'PAYMENT',
+  providersubscriptionid: 'SUBSCRIPTION',
+  providerinvoiceid: 'INVOICE',
+};
+
+/**
+ * Normalizes both the classic query-engine `meta.target` and Prisma 7
+ * driver-adapter metadata. The latter is driver-specific, so unknown shapes
+ * deliberately degrade to UNKNOWN instead of escaping into application code.
+ */
+export function classifyProviderReferenceConflict(meta: unknown): ProviderReference {
+  const metadata = asRecord(meta);
+  const target = metadata ? toStringArray(metadata.target) : [];
+  const adapterError = asRecord(metadata?.driverAdapterError);
+  const cause = asRecord(adapterError?.cause);
+  const constraint = asRecord(cause?.constraint);
+  const fields = target.length > 0 ? target : toStringArray(constraint?.fields);
+
+  for (const field of fields) {
+    const reference = PROVIDER_REFERENCE_BY_FIELD[normalizeIdentifier(field)];
+    if (reference) return reference;
+  }
+
+  return 'UNKNOWN';
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+function toStringArray(value: unknown): string[] {
+  if (typeof value === 'string') return [value];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function normalizeIdentifier(value: string): string {
+  return value.replaceAll('"', '').split('.').at(-1)!.replaceAll('_', '').toLowerCase();
+}
 
 @Injectable()
 export class PrismaPaymentsRepository implements PaymentsRepository {
@@ -45,6 +87,7 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
     } catch (error) {
       if (!this.isUniqueConflict(error)) throw error;
 
+      // Типизировать результат конфликта БД
       // Classify by persisted facts instead of leaking Prisma's provider-specific
       // `target`/constraint metadata into the application layer.
       const idempotent = await this.prisma.payment.findUnique({
@@ -97,6 +140,7 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
 
   async attachCheckout(paymentId: string, checkout: ProviderCheckout): Promise<AttachCheckoutResult> {
     try {
+      // атомарное обновление платежа защита для конкурентного attach без read/update TOCTOU
       return await this.prisma.$transaction(async (tx) => {
         const updated = await tx.payment.updateMany({
           where: {
@@ -125,18 +169,10 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
       });
     } catch (error) {
       if (!this.isUniqueConflict(error)) throw error;
-      const payment = await this.prisma.payment.findUnique({
-        where: { id: paymentId },
-        select: { providerType: true },
-      });
+      // Collision по provider checkout/payment/subscription/invoice возвращает типизированный результат.
       return {
         outcome: 'PROVIDER_REFERENCE_CONFLICT',
-        reference: payment
-          ? await this.findConflictingProviderReference(
-              PaymentProviderFactory.create(payment.providerType),
-              checkout,
-            )
-          : 'UNKNOWN',
+        reference: classifyProviderReferenceConflict(error.meta),
       };
     }
   }
@@ -258,28 +294,7 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
   }
 
-  private isUniqueConflict(error: unknown): boolean {
+  private isUniqueConflict(error: unknown): error is Prisma.PrismaClientKnownRequestError {
     return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
-  }
-
-  private async findConflictingProviderReference(
-    providerType: PaymentProvider,
-    checkout: ProviderCheckout,
-  ): Promise<'CHECKOUT' | 'PAYMENT' | 'SUBSCRIPTION' | 'INVOICE' | 'UNKNOWN'> {
-    const candidates = [
-      ['CHECKOUT', 'providerCheckoutId', checkout.checkoutId],
-      ['PAYMENT', 'providerPaymentId', checkout.providerPaymentId],
-      ['SUBSCRIPTION', 'providerSubscriptionId', checkout.providerSubscriptionId],
-      ['INVOICE', 'providerInvoiceId', checkout.providerInvoiceId],
-    ] as const;
-    for (const [reference, field, value] of candidates) {
-      if (!value) continue;
-      const collision = await this.prisma.payment.findFirst({
-        where: { providerType, [field]: value },
-        select: { id: true },
-      });
-      if (collision) return reference;
-    }
-    return 'UNKNOWN';
   }
 }

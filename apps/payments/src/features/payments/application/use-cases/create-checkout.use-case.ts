@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import {
   PaymentCheckoutReconciliationRequiredError,
@@ -28,6 +29,9 @@ export type CreateCheckoutInput = {
   autoRenewal: boolean;
 };
 export type CreateCheckoutOutput = { paymentId: string; checkoutUrl: string | null; status: PaymentStatus };
+type PaymentResolution =
+  | { kind: 'CONTINUE'; payment: Payment }
+  | { kind: 'RETURN'; result: CreateCheckoutOutput };
 
 export class CreateCheckoutCommand extends Command<CreateCheckoutOutput> {
   constructor(public readonly input: CreateCheckoutInput) {
@@ -37,6 +41,8 @@ export class CreateCheckoutCommand extends Command<CreateCheckoutOutput> {
 
 @CommandHandler(CreateCheckoutCommand)
 export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutCommand> {
+  private readonly logger = new Logger(CreateCheckoutUseCase.name);
+
   constructor(
     private readonly plans: PlansRepository,
     private readonly payments: PaymentsRepository,
@@ -48,40 +54,83 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
   async execute(command: CreateCheckoutCommand): Promise<CreateCheckoutOutput> {
     const input = command.input;
     const providerType = PaymentProviderFactory.create(input.provider);
-    let payment = await this.findExisting(input.userId, input.idempotencyKey);
-    if (payment) {
-      this.assertSameFingerprint(payment, input, providerType);
-      const existingResult = this.resultForExisting(payment);
-      if (existingResult) return existingResult;
-    } else {
-      const plan = await this.loadPlan(input.planId);
-      const context = await this.loadSubscriptionContext(input.userId);
-      const candidate = Payment.create({
-        userId: input.userId,
-        planId: plan.id,
-        amount: plan.price,
-        currency: plan.currency,
-        periodCount: plan.periodCount,
-        periodUnit: plan.periodUnit,
-        providerType,
-        idempotentKey: input.idempotencyKey,
-        checkoutPurpose:
-          context.kind === 'FIRST_PURCHASE'
-            ? CheckoutPurpose.INITIAL_SUBSCRIPTION
-            : CheckoutPurpose.SUBSCRIPTION_EXTENSION,
-        autoRenewalRequested: input.autoRenewal,
-        targetSubscriptionId: context.kind === 'ADDITIONAL_PURCHASE' ? context.subscriptionId : null,
-      });
-      const created = await this.createPayment(candidate);
-      if (created.outcome === 'INITIAL_RESERVATION_CONFLICT')
-        throw new PaymentInitialReservationConflictError();
-      payment = created.payment;
-      this.assertSameFingerprint(payment, input, providerType);
-      const concurrentResult = this.resultForExisting(payment);
-      if (concurrentResult) return concurrentResult;
+    const resolution = await this.resolvePayment(input, providerType);
+    if (resolution.kind === 'RETURN') return resolution.result;
+    return this.createAndAttachCheckout(resolution.payment);
+  }
+
+  private async resolvePayment(
+    input: CreateCheckoutInput,
+    providerType: Payment['providerType'],
+  ): Promise<PaymentResolution> {
+    let payment: Payment | null;
+    try {
+      payment = await this.payments.findByUserAndIdempotency(input.userId, input.idempotencyKey);
+    } catch {
+      throw new PaymentPersistenceError();
     }
 
-    this.assertRecoverableCreatedState(payment);
+    if (!payment) return this.createNewPayment(input, providerType);
+
+    this.assertSameFingerprint(payment, input, providerType);
+    const existingResult = this.mapExistingPayment(payment);
+    return existingResult ? { kind: 'RETURN', result: existingResult } : { kind: 'CONTINUE', payment };
+  }
+
+  private async createNewPayment(
+    input: CreateCheckoutInput,
+    providerType: Payment['providerType'],
+  ): Promise<PaymentResolution> {
+    let plan: Awaited<ReturnType<PlansRepository['getByIdOrThrow']>>;
+    try {
+      plan = await this.plans.getByIdOrThrow(input.planId);
+    } catch (error) {
+      if (error instanceof PaymentsError) throw error;
+      throw new PaymentPlanUnavailableError();
+    }
+
+    let context: Awaited<ReturnType<SubscriptionContextPort['getPurchaseContext']>>;
+    try {
+      context = await this.subscription.getPurchaseContext(input.userId);
+    } catch {
+      throw new PaymentSubscriptionContextError();
+    }
+
+    const candidate = Payment.create({
+      userId: input.userId,
+      planId: plan.id,
+      amount: plan.price,
+      currency: plan.currency,
+      periodCount: plan.periodCount,
+      periodUnit: plan.periodUnit,
+      providerType,
+      idempotentKey: input.idempotencyKey,
+      checkoutPurpose:
+        context.kind === 'FIRST_PURCHASE'
+          ? CheckoutPurpose.INITIAL_SUBSCRIPTION
+          : CheckoutPurpose.SUBSCRIPTION_EXTENSION,
+      autoRenewalRequested: input.autoRenewal,
+      targetSubscriptionId: context.kind === 'ADDITIONAL_PURCHASE' ? context.subscriptionId : null,
+    });
+
+    let created: Awaited<ReturnType<PaymentsRepository['create']>>;
+    try {
+      created = await this.payments.create(candidate);
+    } catch {
+      throw new PaymentPersistenceError();
+    }
+    if (created.outcome === 'INITIAL_RESERVATION_CONFLICT') {
+      throw new PaymentInitialReservationConflictError();
+    }
+
+    const payment = created.payment;
+    this.assertSameFingerprint(payment, input, providerType);
+    const concurrentResult = this.mapExistingPayment(payment);
+    return concurrentResult ? { kind: 'RETURN', result: concurrentResult } : { kind: 'CONTINUE', payment };
+  }
+
+  private async createAndAttachCheckout(payment: Payment): Promise<CreateCheckoutOutput> {
+    this.assertCanCreateCheckoutForPayment(payment);
     const customer = await this.customerService.getOrCreate({
       userId: payment.userId,
       providerType: payment.providerType,
@@ -98,19 +147,24 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
         customerId: customer.providerCustomerId,
         checkoutPurpose: payment.checkoutPurpose!,
       });
-    } catch {
+    } catch (error) {
+      this.logger.error({
+        event: 'payment_provider_contract_violation',
+        operation: 'CREATE_CHECKOUT',
+        paymentId: payment.id,
+        errorName: error instanceof Error ? error.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+      });
       throw new PaymentProviderOutcomeUnknownError();
     }
-    // Provider adapter классифицирует инфраструктурную ошибку в стабильный application outcome.
-    // Детерминированная validation error означает, что продолжать тот же Checkout нельзя.
+    // Отказ создать Checkout не является финансовым результатом: Payment остаётся CREATED.
     if (result.outcome === 'VALIDATION_ERROR') {
-      await this.markDeterministicFailure(payment.id);
-      throw new PaymentProviderValidationError(result.message);
+      throw new PaymentProviderValidationError();
     }
-    // Временная недоступность Stripe не меняет финансовый статус Payment.
+    // UNAVAILABLE- временная проблема Stripe; Payment остаётся в текущем финансовом статусе;
     if (result.outcome === 'UNAVAILABLE') throw new PaymentProviderUnavailableError();
-    // При UNKNOWN неизвестно, создал ли Stripe Checkout: Payment остаётся CREATED,
-    // а повтор выполняется с тем же provider idempotency key.
+    // UNKNOWN — неизвестно, создал ли Stripe Checkout; Payment остаётся CREATED, повтор выполняется с тем же provider idempotency key;
     if (result.outcome === 'UNKNOWN') throw new PaymentProviderOutcomeUnknownError();
 
     const checkout = result.checkout;
@@ -129,47 +183,10 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
     throw new PaymentCheckoutReconciliationRequiredError();
   }
 
-  private async findExisting(userId: number, idempotencyKey: string): Promise<Payment | null> {
-    try {
-      return await this.payments.findByUserAndIdempotency(userId, idempotencyKey);
-    } catch {
-      throw new PaymentPersistenceError();
-    }
-  }
-  private async loadPlan(planId: number) {
-    try {
-      return await this.plans.getByIdOrThrow(planId);
-    } catch (error) {
-      if (error instanceof PaymentsError) throw error;
-      throw new PaymentPlanUnavailableError();
-    }
-  }
-  private async loadSubscriptionContext(userId: number) {
-    try {
-      return await this.subscription.getPurchaseContext(userId);
-    } catch {
-      throw new PaymentSubscriptionContextError();
-    }
-  }
-  private async createPayment(payment: Payment) {
-    try {
-      return await this.payments.create(payment);
-    } catch {
-      throw new PaymentPersistenceError();
-    }
-  }
-  private async markDeterministicFailure(paymentId: string): Promise<void> {
-    try {
-      await this.payments.markStatus(paymentId, PaymentStatus.FAILED);
-    } catch {
-      throw new PaymentPersistenceError();
-    }
-  }
-
-  private resultForExisting(payment: Payment): CreateCheckoutOutput | null {
+  private mapExistingPayment(payment: Payment): CreateCheckoutOutput | null {
     if (payment.status === PaymentStatus.CREATED) return null;
     if (payment.status === PaymentStatus.PENDING) return this.mapStoredResult(payment);
-    // Для терминальной записи нельзя создавать новый Checkout: финансовый snapshot уже зафиксирован.
+    // создавать новый Checkout для этой же записи нельзя так как snapshot и времени оплаты начнут противоречить друг другу.
     if ([PaymentStatus.SUCCEEDED, PaymentStatus.FAILED, PaymentStatus.CANCELED].includes(payment.status))
       return { paymentId: payment.id, checkoutUrl: null, status: payment.status };
     throw new PaymentInconsistentStateError(payment.id);
@@ -183,11 +200,16 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
       !payment.checkoutExpiresAt ||
       typeof checkoutUrl !== 'string' ||
       checkoutUrl.length === 0
-    )
+    ) {
       throw new PaymentInconsistentStateError(payment.id);
+    }
     return { paymentId: payment.id, checkoutUrl, status: payment.status };
   }
-  private assertRecoverableCreatedState(payment: Payment): void {
+
+  // Checkout можно создавать только для чистого CREATED Payment.
+  // Частично сохранённая provider-корреляция требует reconciliation,
+  // а не повторного создания внешней финансовой операции.
+  private assertCanCreateCheckoutForPayment(payment: Payment): void {
     if (
       payment.status !== PaymentStatus.CREATED ||
       payment.providerCheckoutId !== null ||
@@ -201,6 +223,9 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
     )
       throw new PaymentInconsistentStateError(payment.id);
   }
+  // Один Idempotency-Key может продолжать только исходное пользовательское намерение.
+  // Fingerprint проверяется до любого раннего возврата; сохранённые purpose и subscription context
+  // при повторе не пересчитываются.
   private assertSameFingerprint(
     payment: Payment,
     input: CreateCheckoutInput,
