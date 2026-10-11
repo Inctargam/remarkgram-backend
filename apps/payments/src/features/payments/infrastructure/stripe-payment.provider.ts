@@ -179,7 +179,6 @@ export class StripePaymentProvider extends PaymentProviderPort {
     return {
       eventId: event.id,
       eventType: event.type,
-      providerCreatedAt: event.created ? new Date(event.created * 1000) : null,
       // paymentId был записан backend в metadata при создании Checkout Session.
       internalPaymentId: session.metadata?.paymentId ?? null,
       customerId: this.getExpandableId(session.customer),
@@ -216,7 +215,6 @@ export class StripePaymentProvider extends PaymentProviderPort {
     return {
       eventId: event.id,
       eventType: event.type,
-      providerCreatedAt: event.created ? new Date(event.created * 1000) : null,
       internalPaymentId: null,
       customerId: null,
       checkoutId: null,

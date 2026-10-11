@@ -2,7 +2,6 @@ import type { Payment as PrismaPayment } from '../../../database/prisma/generate
 import type { Currency, PeriodUnit } from '../../plans/domain/plan.entity.js';
 import {
   Payment,
-  type PaymentApplicationStatus,
   type CheckoutPurpose,
   type PaymentStatus,
   type PaymentType,
@@ -34,7 +33,6 @@ export class PaymentPrismaMapper {
       checkoutPurpose: row.checkoutPurpose as CheckoutPurpose | null,
       autoRenewalRequested: row.autoRenewalRequested,
       status: row.status as PaymentStatus,
-      applicationStatus: row.applicationStatus as PaymentApplicationStatus,
       createdAt: row.createdAt,
       paidAt: row.paidAt,
     });

@@ -31,23 +31,6 @@ enum PaymentStatus {
   CANCELED
 }
 
-enum PaymentWebhookStatus {
-  RECEIVED
-  PROCESSING
-  PROCESSED
-  IGNORED
-  ERROR
-  DEAD
-}
-
-enum PaymentApplicationStatus {
-  NOT_READY
-  PENDING
-  APPLYING
-  APPLIED
-  ERROR
-}
-
 model Plan {
   id          Int        @id @default(autoincrement())
   price       Int
@@ -96,16 +79,10 @@ model Payment {
   targetSubscriptionId String?  @map("target_subscription_id") @db.Uuid
   autoRenewalRequested Boolean? @map("auto_renewal_requested")
 
-  status                 PaymentStatus            @default(CREATED)
-  applicationStatus      PaymentApplicationStatus @default(NOT_READY) @map("application_status")
-  applicationAttempts    Int                      @default(0) @map("application_attempts")
-  applicationAvailableAt DateTime?                @map("application_available_at") @db.Timestamptz
-  applicationLeaseUntil  DateTime?                @map("application_lease_until") @db.Timestamptz
-  applicationErrorCode   String?                  @map("application_error_code")
-  applicationError       String?                  @map("application_error")
-  createdAt              DateTime                 @default(now()) @map("created_at") @db.Timestamptz
-  paidAt                 DateTime?                @map("paid_at") @db.Timestamptz
-  checkoutExpiresAt      DateTime?                @map("checkout_expires_at") @db.Timestamptz
+  status            PaymentStatus @default(CREATED)
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  paidAt            DateTime?     @map("paid_at") @db.Timestamptz
+  checkoutExpiresAt DateTime?     @map("checkout_expires_at") @db.Timestamptz
 
   type            PaymentType
   checkoutPurpose CheckoutPurpose? @map("checkout_purpose")
@@ -125,36 +102,26 @@ model Payment {
   @@index([planId])
   @@index([userId])
   @@index([status])
-  @@index([status, applicationStatus, applicationAvailableAt])
   @@index([createdAt])
   @@index([subscriptionId])
   @@map("payments")
 }
 
 model PaymentWebhook {
-  id                  String               @id @default(uuid()) @db.Uuid
-  paymentId           String?              @map("payment_id") @db.Uuid
-  providerType        PaymentProvider      @map("provider_type")
-  providerEventId     String               @map("provider_event_id")
-  eventType           String               @map("event_type")
-  providerCreatedAt   DateTime?            @map("provider_created_at") @db.Timestamptz
-  payload             Json                 @db.JsonB
-  processingStatus    PaymentWebhookStatus @default(RECEIVED) @map("processing_status")
-  processingAttempts  Int                  @default(0) @map("processing_attempts")
-  processingErrorCode String?              @map("processing_error_code")
-  receivedAt          DateTime             @default(now()) @map("received_at") @db.Timestamptz
-  availableAt         DateTime             @default(now()) @map("available_at") @db.Timestamptz
-  processingStartedAt DateTime?            @map("processing_started_at") @db.Timestamptz
-  leaseUntil          DateTime?            @map("lease_until") @db.Timestamptz
-  processedAt         DateTime?            @map("processed_at") @db.Timestamptz
-  processingError     String?              @map("processing_error")
+  id              String          @id @default(uuid()) @db.Uuid
+  paymentId       String?         @map("payment_id") @db.Uuid
+  providerType    PaymentProvider @map("provider_type")
+  providerEventId String          @map("provider_event_id")
+  eventType       String          @map("event_type")
+  payload         Json            @db.JsonB
+  receivedAt      DateTime        @default(now()) @map("received_at") @db.Timestamptz
+  processedAt     DateTime?       @map("processed_at") @db.Timestamptz
+  processingError String?         @map("processing_error")
 
   payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 
   @@unique([providerType, providerEventId])
-  @@index([processingStatus, availableAt, receivedAt])
   @@index([paymentId])
-  @@index([eventType, receivedAt])
   @@map("payment_webhooks")
 }
 
