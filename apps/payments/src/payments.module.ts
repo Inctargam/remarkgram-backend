@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
+import { ScheduleModule } from '@nestjs/schedule';
 import { databaseConfig } from './config/database.config.js';
 import { paymentsConfig } from './config/payments.config.js';
 import { stripeConfig } from './config/stripe.config.js';
@@ -13,6 +14,12 @@ import { PaymentCustomerService } from './features/payments/application/services
 import { CreateCheckoutUseCase } from './features/payments/application/use-cases/create-checkout.use-case.js';
 import { GetPaymentStatusUseCase } from './features/payments/application/use-cases/get-payment-status.use-case.js';
 import { ProcessStripeWebhookUseCase } from './features/payments/application/use-cases/process-stripe-webhook.use-case.js';
+import { ProcessProviderWebhookUseCase } from './features/payments/application/use-cases/process-provider-webhook.use-case.js';
+import { ApplySuccessfulPaymentUseCase } from './features/payments/application/use-cases/apply-successful-payment.use-case.js';
+import { PaymentWebhookWorker } from './features/payments/application/workers/payment-webhook.worker.js';
+import { PaymentSubscriptionLinkerWorker } from './features/payments/application/workers/payment-subscription-linker.worker.js';
+import { SubscriptionPaymentHandler } from './features/payments/application/ports/subscription-payment-handler.js';
+import { UnavailableSubscriptionPaymentHandler } from './features/payments/infrastructure/unavailable-subscription-payment.handler.js';
 import { PrismaPaymentsRepository } from './features/payments/infrastructure/prisma-payments.repository.js';
 import { PrismaPaymentCustomersRepository } from './features/payments/infrastructure/prisma-payment-customers.repository.js';
 import { StripePaymentProvider } from './features/payments/infrastructure/stripe-payment.provider.js';
@@ -25,6 +32,7 @@ import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-pl
 @Module({
   imports: [
     CqrsModule,
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
@@ -48,12 +56,17 @@ import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-pl
     { provide: PaymentsRepository, useClass: PrismaPaymentsRepository },
     { provide: PaymentCustomersRepository, useClass: PrismaPaymentCustomersRepository },
     { provide: PaymentProviderPort, useClass: StripePaymentProvider },
+    { provide: SubscriptionPaymentHandler, useClass: UnavailableSubscriptionPaymentHandler },
     // TODO: заменить на адаптер Subscription Module после появления межмодульного контракта.
     { provide: SubscriptionContextPort, useClass: TemporarySubscriptionContextAdapter },
     PaymentCustomerService,
     CreateCheckoutUseCase,
     GetPaymentStatusUseCase,
     ProcessStripeWebhookUseCase,
+    ProcessProviderWebhookUseCase,
+    ApplySuccessfulPaymentUseCase,
+    PaymentWebhookWorker,
+    PaymentSubscriptionLinkerWorker,
   ],
 })
 export class PaymentsModule {}

@@ -27,6 +27,13 @@ export enum PaymentStatus {
   FAILED = 'FAILED',
   CANCELED = 'CANCELED',
 }
+export enum PaymentApplicationStatus {
+  NOT_READY = 'NOT_READY',
+  PENDING = 'PENDING',
+  APPLYING = 'APPLYING',
+  APPLIED = 'APPLIED',
+  ERROR = 'ERROR',
+}
 export type PaymentProviderSnapshot = Readonly<Record<string, unknown>>;
 
 export type CreatePaymentProps = {
@@ -56,6 +63,7 @@ export type RestorePaymentProps = CreatePaymentProps & {
   createdAt: Date;
   paidAt: Date | null;
   type: PaymentType;
+  applicationStatus?: PaymentApplicationStatus;
 };
 
 export class Payment {
@@ -83,6 +91,7 @@ export class Payment {
   readonly providerCustomerId: string | null;
   readonly checkoutExpiresAt: Date | null;
   readonly type: PaymentType;
+  readonly applicationStatus: PaymentApplicationStatus;
 
   private constructor(props: RestorePaymentProps | (CreatePaymentProps & { id: string })) {
     this.id = props.id;
@@ -104,6 +113,10 @@ export class Payment {
     this.subscriptionId = 'subscriptionId' in props ? (props.subscriptionId ?? null) : null;
     this.targetSubscriptionId = props.targetSubscriptionId;
     this.type = 'type' in props ? props.type : PaymentType.PURCHASE;
+    this.applicationStatus =
+      'applicationStatus' in props && props.applicationStatus
+        ? props.applicationStatus
+        : PaymentApplicationStatus.NOT_READY;
     this.status = 'status' in props ? props.status : PaymentStatus.CREATED;
     this.createdAt = 'createdAt' in props ? new Date(props.createdAt) : null;
     this.paidAt = 'paidAt' in props && props.paidAt ? new Date(props.paidAt) : null;

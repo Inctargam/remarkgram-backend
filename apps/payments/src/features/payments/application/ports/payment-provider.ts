@@ -31,6 +31,7 @@ export type CreateProviderCheckoutResult =
 export type VerifiedProviderEvent = {
   eventId: string;
   eventType: string;
+  providerCreatedAt: Date | null;
   internalPaymentId: string | null;
   customerId: string | null;
   checkoutId: string | null;
