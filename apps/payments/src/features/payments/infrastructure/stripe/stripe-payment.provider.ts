@@ -1,9 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import Stripe from 'stripe';
-import { stripeConfig } from '../../../config/stripe.config.js';
-import { PeriodUnit } from '../../plans/domain/plan.entity.js';
-import { InvalidProviderEventError } from '../../../common/application/errors/payments.error.js';
+import { stripeConfig } from '../../../../config/stripe.config.js';
+import { PeriodUnit } from '../../../plans/domain/plan.entity.js';
+import { InvalidProviderEventError } from '../../../../common/application/errors/payments.error.js';
 import {
   PaymentProviderPort,
   type CreatePaymentCustomerProps,
@@ -11,8 +11,8 @@ import {
   type CreateProviderCheckoutInput,
   type CreateProviderCheckoutResult,
   type VerifiedProviderWebhook,
-} from '../application/ports/payment-provider.js';
-import { CheckoutPurpose, PaymentProvider } from '../domain/payment.entity.js';
+} from '../../application/ports/payment-provider.js';
+import { CheckoutPurpose, PaymentProvider } from '../../domain/payment.entity.js';
 
 @Injectable()
 export class StripePaymentProvider extends PaymentProviderPort {

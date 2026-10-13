@@ -67,7 +67,8 @@ describe('Payment', () => {
 
   it.each([
     [PaymentStatus.CREATED, PaymentStatus.PENDING, true],
-    [PaymentStatus.CREATED, PaymentStatus.SUCCEEDED, false],
+    // Financial webhook may be processed before checkout.session.completed.
+    [PaymentStatus.CREATED, PaymentStatus.SUCCEEDED, true],
     [PaymentStatus.PENDING, PaymentStatus.SUCCEEDED, true],
     [PaymentStatus.PENDING, PaymentStatus.FAILED, true],
     [PaymentStatus.PENDING, PaymentStatus.CANCELED, true],

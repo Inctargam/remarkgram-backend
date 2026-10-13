@@ -20,16 +20,22 @@ export class PaymentsGrpcController {
     private readonly getPaymentStatusUseCase: GetPaymentStatusUseCase,
   ) {}
   async createCheckout(request: CreateCheckoutRequest): Promise<CreateCheckoutResponse> {
-    const result = await this.commandBus.execute(
-      new CreateCheckoutCommand({
-        userId: Number(request.userId),
-        planId: request.planId,
-        idempotencyKey: request.idempotencyKey,
-        provider: request.provider,
-        autoRenewal: request.autoRenewal,
-      }),
-    );
-    return { ...result, checkoutUrl: result.checkoutUrl ?? '' };
+    console.log('call procedure', request);
+    try {
+      const result = await this.commandBus.execute(
+        new CreateCheckoutCommand({
+          userId: Number(request.userId),
+          planId: request.planId,
+          idempotencyKey: request.idempotencyKey,
+          provider: request.provider,
+          autoRenewal: request.autoRenewal,
+        }),
+      );
+      return { ...result, checkoutUrl: result.checkoutUrl ?? '' };
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
   }
   getPaymentStatus(request: GetPaymentStatusRequest): Promise<GetPaymentStatusResponse> {
     return this.getPaymentStatusUseCase.execute({

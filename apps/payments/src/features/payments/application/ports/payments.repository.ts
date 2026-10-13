@@ -1,5 +1,10 @@
-import type { Payment, PaymentStatus } from '../../domain/payment.entity.js';
+import type {
+  Payment,
+  PaymentProvider,
+  PaymentStatus,
+} from '../../domain/payment.entity.js';
 import type { ProviderCheckout } from './payment-provider.js';
+import type { PaymentsTransactionContext } from './payments-unit-of-work.js';
 
 export type CreatePaymentResult =
   | { outcome: 'CREATED'; payment: Payment }
@@ -14,10 +19,87 @@ export type AttachCheckoutResult =
       reference: 'CHECKOUT' | 'PAYMENT' | 'SUBSCRIPTION' | 'INVOICE' | 'UNKNOWN';
     };
 
+type ApplyCheckoutCompletedCommandBase = {
+  paymentId: string;
+  providerCheckoutId: string;
+  providerCustomerId?: string | null;
+};
+
+export type ApplyCheckoutCompletedCommand = ApplyCheckoutCompletedCommandBase &
+  (
+    | { providerPaymentId: string | null; providerSubscriptionId?: never }
+    | { providerPaymentId?: never; providerSubscriptionId: string | null }
+  );
+
+export type ApplyCheckoutCompletedUpdateResult =
+  | { outcome: 'APPLIED' }
+  | { outcome: 'REFERENCE_CONFLICT' };
+
+export type ConfirmSuccessfulPaymentCommand = {
+  paymentId: string;
+  paidAt: Date;
+  providerPaymentId?: string | null;
+  providerSubscriptionId?: string | null;
+  providerInvoiceId?: string | null;
+  providerCustomerId?: string | null;
+};
+
+export type ConfirmSuccessfulPaymentUpdateResult =
+  | { outcome: 'SUCCEEDED' }
+  | { outcome: 'INVALID_TRANSITION' | 'REFERENCE_CONFLICT' };
+
+export type CreateSuccessfulRenewalCommand = {
+  userId: number;
+  planId: number;
+  amount: number;
+  currency: Payment['currency'];
+  periodCount: number;
+  periodUnit: Payment['periodUnit'];
+  providerType: PaymentProvider;
+  providerPaymentId: string | null;
+  providerSubscriptionId: string;
+  providerInvoiceId: string;
+  providerCustomerId: string | null;
+  subscriptionId: string;
+  paidAt: Date;
+};
+
+export type CreateSuccessfulRenewalResult = {
+  outcome: 'PERSISTED';
+  payment: Payment;
+} | { outcome: 'REFERENCE_CONFLICT' };
+
 export abstract class PaymentsRepository {
   abstract create(payment: Payment): Promise<CreatePaymentResult>;
   abstract findByUserAndIdempotency(userId: number, idempotencyKey: string): Promise<Payment | null>;
-  abstract findById(paymentId: string): Promise<Payment | null>;
+  abstract findById(paymentId: string, ctx?: PaymentsTransactionContext): Promise<Payment | null>;
+  abstract findByProviderPaymentId(
+    provider: PaymentProvider,
+    providerPaymentId: string,
+    ctx: PaymentsTransactionContext,
+  ): Promise<Payment | null>;
+  abstract findByProviderInvoiceId(
+    provider: PaymentProvider,
+    providerInvoiceId: string,
+    ctx: PaymentsTransactionContext,
+  ): Promise<Payment | null>;
+  abstract findByProviderSubscriptionId(
+    provider: PaymentProvider,
+    providerSubscriptionId: string,
+    ctx: PaymentsTransactionContext,
+  ): Promise<Payment | null>;
   abstract attachCheckout(paymentId: string, checkout: ProviderCheckout): Promise<AttachCheckoutResult>;
+  abstract applyCheckoutCompleted(
+    command: ApplyCheckoutCompletedCommand,
+    ctx: PaymentsTransactionContext,
+  ): Promise<ApplyCheckoutCompletedUpdateResult>;
+  abstract confirmSuccessfulPayment(
+    command: ConfirmSuccessfulPaymentCommand,
+    ctx: PaymentsTransactionContext,
+  ): Promise<ConfirmSuccessfulPaymentUpdateResult>;
+  abstract createSuccessfulRenewal(
+    command: CreateSuccessfulRenewalCommand,
+    ctx: PaymentsTransactionContext,
+  ): Promise<CreateSuccessfulRenewalResult>;
   abstract markStatus(paymentId: string, status: PaymentStatus): Promise<void>;
 }

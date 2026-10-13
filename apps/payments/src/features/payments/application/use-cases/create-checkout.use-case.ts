@@ -18,7 +18,7 @@ import { PaymentProviderFactory } from '../../domain/payment-provider.factory.js
 import { CheckoutPurpose, Payment, PaymentStatus } from '../../domain/payment.entity.js';
 import { PaymentProviderPort } from '../ports/payment-provider.js';
 import { PaymentsRepository } from '../ports/payments.repository.js';
-import type { SubscriptionContextPort } from '../ports/subscription-context.port.js';
+import { SubscriptionContextPort } from '../ports/subscription-context.port.js';
 import { PaymentCustomerService } from '../services/payment-customer.service.js';
 
 export type CreateCheckoutInput = {
@@ -66,7 +66,8 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
     let payment: Payment | null;
     try {
       payment = await this.payments.findByUserAndIdempotency(input.userId, input.idempotencyKey);
-    } catch {
+    } catch (e) {
+      console.error(e);
       throw new PaymentPersistenceError();
     }
 

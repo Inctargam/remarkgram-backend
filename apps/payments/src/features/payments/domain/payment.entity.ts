@@ -148,7 +148,10 @@ export class Payment {
   static canTransition(from: PaymentStatus, to: PaymentStatus): boolean {
     if (from === to) return true;
     return (
-      (from === PaymentStatus.CREATED && [PaymentStatus.PENDING, PaymentStatus.FAILED].includes(to)) ||
+      (from === PaymentStatus.CREATED &&
+        [PaymentStatus.PENDING, PaymentStatus.SUCCEEDED, PaymentStatus.FAILED, PaymentStatus.CANCELED].includes(
+          to,
+        )) ||
       (from === PaymentStatus.PENDING &&
         [PaymentStatus.SUCCEEDED, PaymentStatus.FAILED, PaymentStatus.CANCELED].includes(to))
     );

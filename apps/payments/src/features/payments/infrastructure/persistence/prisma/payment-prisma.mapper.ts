@@ -1,12 +1,12 @@
-import type { Payment as PrismaPayment } from '../../../database/prisma/generated/client.js';
-import type { Currency, PeriodUnit } from '../../plans/domain/plan.entity.js';
+import type { Payment as PrismaPayment } from '../../../../../database/prisma/generated/client.js';
+import type { Currency, PeriodUnit } from '../../../../plans/domain/plan.entity.js';
 import {
   Payment,
   type CheckoutPurpose,
   type PaymentStatus,
   type PaymentType,
-} from '../domain/payment.entity.js';
-import { PaymentProviderFactory } from '../domain/payment-provider.factory.js';
+} from '../../../domain/payment.entity.js';
+import { PaymentProviderFactory } from '../../../domain/payment-provider.factory.js';
 
 export class PaymentPrismaMapper {
   static toDomain(row: PrismaPayment): Payment {

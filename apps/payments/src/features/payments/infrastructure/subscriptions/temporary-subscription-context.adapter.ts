@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   SubscriptionContextPort,
   type SubscriptionPurchaseContext,
-} from '../application/ports/subscription-context.port.js';
+} from '../../application/ports/subscription-context.port.js';
 
 /**
  * Временная реализация до подключения Subscription Module.

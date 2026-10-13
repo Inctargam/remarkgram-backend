@@ -1,43 +1,44 @@
 import { Injectable } from '@nestjs/common';
 import type Stripe from 'stripe';
-import type { CheckoutSessionCompletedEvent } from '../application/events/payment-event.js';
-import type { VerifiedProviderWebhook } from '../application/ports/payment-provider.js';
-import type { ProviderEventAdapter } from '../application/ports/provider-event-adapter.js';
-import { PaymentProvider } from '../domain/payment.entity.js';
+import type { CheckoutSessionCompletedEvent } from '../../../application/events/payment-event.js';
+import type { VerifiedProviderWebhook } from '../../../application/ports/payment-provider.js';
+import type { ProviderEventAdapter } from '../../../application/ports/provider-event-adapter.js';
+import { PaymentEventKind } from '../../../domain/payment-event-kind.js';
+import { PaymentProvider } from '../../../domain/payment.entity.js';
+import { StripeEventType } from './stripe-event-type.js';
 
 @Injectable()
 export class StripeCheckoutSessionCompletedAdapter implements ProviderEventAdapter {
   supports(webhook: VerifiedProviderWebhook): boolean {
-    return webhook.provider === PaymentProvider.STRIPE && webhook.type === 'checkout.session.completed';
+    return (
+      webhook.provider === PaymentProvider.STRIPE &&
+      webhook.type === StripeEventType.CHECKOUT_SESSION_COMPLETED
+    );
   }
 
   adapt(webhook: VerifiedProviderWebhook): CheckoutSessionCompletedEvent {
     const session = webhook.payload as Stripe.Checkout.Session;
     return {
-      kind: 'CHECKOUT_SESSION_COMPLETED',
+      kind: PaymentEventKind.CHECKOUT_SESSION_COMPLETED,
       provider: webhook.provider,
       providerEventId: webhook.id,
-      providerEventType: 'checkout.session.completed',
+      providerEventType: StripeEventType.CHECKOUT_SESSION_COMPLETED,
       providerCreatedAt: webhook.createdAt,
-      checkout: {
+      // Stripe-specific способ корреляции остаётся внутри адаптера.
+      paymentId: session.metadata?.paymentId ?? null,
+      payload: {
         id: session.id,
-        internalPaymentId: session.metadata?.paymentId ?? null,
         customerId: expandableId(session.customer),
         mode: stringOrNull(session.mode),
         paymentStatus: stringOrNull(session.payment_status),
         providerPaymentId: expandableId(session.payment_intent),
         providerSubscriptionId: expandableId(session.subscription),
-        providerInvoiceId: expandableId(session.invoice),
         amount: numberOrNull(session.amount_total),
         currency: stringOrNull(session.currency),
       },
       snapshot: webhook.snapshot,
     };
   }
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
 }
 
 function stringOrNull(value: unknown): string | null {

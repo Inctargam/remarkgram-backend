@@ -2,12 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '../../src/database/prisma/generated/client.js';
-import { PrismaPaymentsRepository } from '../../src/features/payments/infrastructure/prisma-payments.repository.js';
+import { PrismaPaymentsRepository } from '../../src/features/payments/infrastructure/persistence/prisma/prisma-payments.repository.js';
 import {
   CheckoutPurpose,
   Payment,
   PaymentProvider,
   PaymentStatus,
+  PaymentType,
 } from '../../src/features/payments/domain/payment.entity.js';
 import { Currency, PeriodUnit } from '../../src/features/plans/domain/plan.entity.js';
 
@@ -122,6 +123,43 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
       status: PaymentStatus.CREATED,
       providerCheckoutId: null,
     });
+  });
+
+  it('creates only one successful renewal for concurrent deliveries of the same Invoice', async () => {
+    const userId = nextUser();
+    const localSubscriptionId = randomUUID();
+    const command = {
+      userId,
+      planId,
+      amount: 1_000,
+      currency: Currency.USD,
+      periodCount: 1,
+      periodUnit: PeriodUnit.MONTH,
+      providerType: PaymentProvider.STRIPE,
+      providerPaymentId: `pi_${randomUUID()}`,
+      providerSubscriptionId: `sub_${randomUUID()}`,
+      providerInvoiceId: `in_${randomUUID()}`,
+      providerCustomerId: `cus_${randomUUID()}`,
+      subscriptionId: localSubscriptionId,
+      paidAt: new Date('2026-10-13T12:00:00.000Z'),
+    };
+
+    const [left, right] = await Promise.all([
+      repository.createSuccessfulRenewal(command, prisma as never),
+      repository.createSuccessfulRenewal(command, prisma as never),
+    ]);
+
+    expect(left.outcome).toBe('PERSISTED');
+    expect(right.outcome).toBe('PERSISTED');
+    await expect(
+      prisma.payment.count({
+        where: {
+          providerType: command.providerType,
+          providerInvoiceId: command.providerInvoiceId,
+          type: PaymentType.RENEWAL,
+        },
+      }),
+    ).resolves.toBe(1);
   });
 
   function nextUser(): number {

@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../database/prisma.service.js';
+import { PrismaService } from '../../../../../database/prisma.service.js';
 import {
   PaymentCustomersRepository,
   type CreatePaymentCustomerParams,
   type PaymentCustomer,
-} from '../application/ports/payment-customers.repository.js';
-import { PaymentProvider } from '../domain/payment.entity.js';
+} from '../../../application/ports/payment-customers.repository.js';
+import { PaymentProvider } from '../../../domain/payment.entity.js';
 
 @Injectable()
 export class PrismaPaymentCustomersRepository implements PaymentCustomersRepository {

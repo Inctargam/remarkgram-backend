@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Currency, PeriodUnit } from '../../plans/domain/plan.entity.js';
-import type { CreateProviderCheckoutInput } from '../application/ports/payment-provider.js';
-import { CheckoutPurpose } from '../domain/payment.entity.js';
+import { Currency, PeriodUnit } from '../../../plans/domain/plan.entity.js';
+import type { CreateProviderCheckoutInput } from '../../application/ports/payment-provider.js';
+import { CheckoutPurpose } from '../../domain/payment.entity.js';
 import { StripePaymentProvider } from './stripe-payment.provider.js';
 
 const input: CreateProviderCheckoutInput = {
