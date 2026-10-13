@@ -31,6 +31,14 @@ enum PaymentStatus {
   CANCELED
 }
 
+enum WebhookProcessingStatus {
+  RECEIVED
+  RETRYING
+  PROCESSED
+  IGNORED
+  DEAD
+}
+
 model Plan {
   id          Int        @id @default(autoincrement())
   price       Int
@@ -104,6 +112,7 @@ model Payment {
   @@index([status])
   @@index([createdAt])
   @@index([subscriptionId])
+  @@index([providerType, providerSubscriptionId])
   @@map("payments")
 }
 
@@ -114,14 +123,21 @@ model PaymentWebhook {
   providerEventId String          @map("provider_event_id")
   eventType       String          @map("event_type")
   payload         Json            @db.JsonB
+  providerCreatedAt DateTime      @map("provider_created_at") @db.Timestamptz
   receivedAt      DateTime        @default(now()) @map("received_at") @db.Timestamptz
+  processingStatus WebhookProcessingStatus @default(RECEIVED) @map("processing_status")
+  processingAttempts Int          @default(0) @map("processing_attempts")
+  workflowId       String         @unique @map("workflow_id")
   processedAt     DateTime?       @map("processed_at") @db.Timestamptz
+  processingErrorCode String?     @map("processing_error_code")
   processingError String?         @map("processing_error")
 
   payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 
   @@unique([providerType, providerEventId])
   @@index([paymentId])
+  @@index([processingStatus, receivedAt])
+  @@index([eventType, receivedAt])
   @@map("payment_webhooks")
 }
 

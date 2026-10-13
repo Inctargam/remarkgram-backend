@@ -4,7 +4,7 @@ import { PaymentProviderPort } from '../ports/payment-provider.js';
 import { PROVIDER_EVENT_ADAPTERS, type ProviderEventAdapter } from '../ports/provider-event-adapter.js';
 import { ReceivePaymentEventUseCase } from './receive-payment-event.use-case.js';
 
-// export type ProcessProviderWebhookResult = 'RECEIVED' | 'DUPLICATE' | 'IGNORED';
+export type ProcessProviderWebhookResult = 'RECEIVED' | 'IGNORED';
 
 @Injectable()
 export class ProcessStripeWebhookUseCase {
@@ -15,21 +15,64 @@ export class ProcessStripeWebhookUseCase {
     private readonly adapters: readonly ProviderEventAdapter[],
     private readonly receivePaymentEvent: ReceivePaymentEventUseCase,
   ) {}
-  async execute(rawBody: Buffer, signature: string): Promise<void> {
+  async execute(rawBody: Buffer, signature: string): Promise<ProcessProviderWebhookResult> {
+    let providerEventId: string | undefined;
+    let providerEventType: string | undefined;
+    let paymentId: string | null | undefined;
+
     try {
       const webhook = this.provider.verifyWebhook(rawBody, signature);
+      providerEventId = webhook.id;
+      providerEventType = webhook.type;
+      this.logger.log({
+        event: 'stripe_webhook_verified',
+        providerEventId,
+        providerEventType,
+        providerCreatedAt: webhook.createdAt.toISOString(),
+      });
+
       const adapter = this.adapters.find((candidate) => candidate.supports(webhook));
-      if (!adapter) return;
-      const adapt = adapter.adapt(webhook);
-      await this.receivePaymentEvent.execute(adapt);
-      if (adapt.kind === 'CHECKOUT_SESSION_COMPLETED') {
-        this.logger.log('statr link payment with local sub');
+      if (!adapter) {
+        this.logger.log({
+          event: 'stripe_webhook_ignored',
+          providerEventId,
+          providerEventType,
+          reason: 'UNSUPPORTED_EVENT_TYPE',
+        });
+        return 'IGNORED';
       }
-      return;
+
+      const adapted = adapter.adapt(webhook);
+      paymentId = adapted.paymentId;
+
+      this.logger.log({
+        event: 'stripe_webhook_adapted',
+        adapted,
+      });
+
+      const result = await this.receivePaymentEvent.execute(adapted);
+      this.logger.log({
+        event: 'stripe_webhook_durably_enqueued',
+        providerEventId,
+        providerEventType,
+        paymentId,
+        result,
+      });
+      return result;
     } catch (error) {
       if (error instanceof InvalidProviderEventError) throw error;
       if (error instanceof Error && error.name.includes('Signature'))
         throw new InvalidProviderEventError('Invalid Stripe webhook signature');
+
+      this.logger.error({
+        event: 'stripe_webhook_processing_failed',
+        providerEventId,
+        providerEventType,
+        paymentId,
+        errorName: error instanceof Error ? error.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+      });
       throw error;
     }
   }

@@ -7,7 +7,7 @@ import type { ProcessStripeWebhookUseCase } from '../../application/use-cases/pr
 import { StripeWebhookController } from './stripe-webhook.controller.js';
 
 describe('StripeWebhookController', () => {
-  it.each(['RECEIVED', 'DUPLICATE', 'IGNORED'] as const)(
+  it.each(['RECEIVED', 'IGNORED'] as const)(
     'возвращает результат webhook-сценария: %s',
     async (result) => {
       const execute = vi.fn().mockResolvedValue(result);
