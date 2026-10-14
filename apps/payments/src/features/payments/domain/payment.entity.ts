@@ -16,6 +16,12 @@ export enum PaymentType {
   PURCHASE = 'PURCHASE',
   RENEWAL = 'RENEWAL',
 }
+
+/**
+ * Local purchase intent used for subscription-context decisions and concurrency protection.
+ * It does not represent Stripe Checkout mode. Provider mode must be persisted and reconciled
+ * independently instead of being inferred from this value.
+ */
 export enum CheckoutPurpose {
   INITIAL_SUBSCRIPTION = 'INITIAL_SUBSCRIPTION',
   SUBSCRIPTION_EXTENSION = 'SUBSCRIPTION_EXTENSION',
