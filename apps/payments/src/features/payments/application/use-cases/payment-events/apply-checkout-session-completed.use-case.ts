@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CheckoutPurpose, Payment } from '../../../domain/payment.entity.js';
+import { Payment } from '../../../domain/payment.entity.js';
 import type { CheckoutSessionCompletedEvent } from '../../events/payment-event.js';
 import type { PaymentsTransactionContext } from '../../ports/payments-unit-of-work.js';
 import { PaymentsRepository } from '../../ports/payments.repository.js';
@@ -42,12 +42,7 @@ export class ApplyCheckoutSessionCompletedUseCase {
     event: CheckoutSessionCompletedEvent,
   ): CheckoutReconciliationConflict | null {
     if (payment.providerType !== event.provider) return 'PROVIDER_MISMATCH';
-    const expectedMode =
-      payment.checkoutPurpose === CheckoutPurpose.INITIAL_SUBSCRIPTION ? 'subscription' : 'payment';
-    if (event.payload.mode !== null && event.payload.mode !== expectedMode)
-      return 'CHECKOUT_MODE_MISMATCH';
-    if (event.payload.amount !== null && payment.amount !== event.payload.amount)
-      return 'AMOUNT_MISMATCH';
+    if (event.payload.amount !== null && payment.amount !== event.payload.amount) return 'AMOUNT_MISMATCH';
     if (
       event.payload.currency !== null &&
       payment.currency.toLowerCase() !== event.payload.currency.toLowerCase()
@@ -66,7 +61,9 @@ export class ApplyCheckoutSessionCompletedUseCase {
       [payment.providerSubscriptionId, event.payload.providerSubscriptionId],
       [payment.providerInvoiceId, event.payload.providerInvoiceId],
     ] as const;
-    return references.some(([current, incoming]) => current !== null && incoming !== null && current !== incoming)
+    return references.some(
+      ([current, incoming]) => current !== null && incoming !== null && current !== incoming,
+    )
       ? 'REFERENCE_CONFLICT'
       : null;
   }
@@ -74,10 +71,12 @@ export class ApplyCheckoutSessionCompletedUseCase {
   private isAlreadyApplied(payment: Payment, event: CheckoutSessionCompletedEvent): boolean {
     return (
       payment.providerCheckoutId === event.payload.id &&
-      (event.payload.providerPaymentId === null || payment.providerPaymentId === event.payload.providerPaymentId) &&
+      (event.payload.providerPaymentId === null ||
+        payment.providerPaymentId === event.payload.providerPaymentId) &&
       (event.payload.providerSubscriptionId === null ||
         payment.providerSubscriptionId === event.payload.providerSubscriptionId) &&
-      (event.payload.providerInvoiceId === null || payment.providerInvoiceId === event.payload.providerInvoiceId) &&
+      (event.payload.providerInvoiceId === null ||
+        payment.providerInvoiceId === event.payload.providerInvoiceId) &&
       (event.payload.customerId === null || payment.providerCustomerId === event.payload.customerId)
     );
   }

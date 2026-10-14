@@ -21,6 +21,7 @@ import type { PaymentEventRepository } from '../../application/ports/payment-eve
 import type { ConfirmPaymentIntentSucceededUseCase } from '../../application/use-cases/payment-events/confirm-payment-intent-succeeded.use-case.js';
 import type { ConfirmInvoicePaidUseCase } from '../../application/use-cases/payment-events/confirm-invoice-paid.use-case.js';
 import type { ApplyCheckoutSessionCompletedUseCase } from '../../application/use-cases/payment-events/apply-checkout-session-completed.use-case.js';
+import type { CancelExpiredCheckoutSessionUseCase } from '../../application/use-cases/payment-events/cancel-expired-checkout-session/cancel-expired-checkout-session.use-case.js';
 import type { RecordPaymentIntentFailedUseCase } from '../../application/use-cases/payment-events/record-payment-intent-failed.use-case.js';
 import type { RecordInvoicePaymentFailedUseCase } from '../../application/use-cases/payment-events/record-invoice-payment-failed.use-case.js';
 import { PaymentEventKind } from '../../domain/payment-event-kind.js';
@@ -41,6 +42,9 @@ describe('DbosPaymentWebhookWorkflow', () => {
   const confirmPaymentIntentSucceeded = {
     execute: vi.fn<ConfirmPaymentIntentSucceededUseCase['execute']>(),
   };
+  const cancelExpiredCheckoutSession = {
+    execute: vi.fn<CancelExpiredCheckoutSessionUseCase['execute']>(),
+  };
   const confirmInvoicePaid = {
     execute: vi.fn<ConfirmInvoicePaidUseCase['execute']>(),
   };
@@ -54,6 +58,7 @@ describe('DbosPaymentWebhookWorkflow', () => {
     dataSource as unknown as PaymentsDbosDataSource,
     events,
     applyCheckoutSessionCompleted as ApplyCheckoutSessionCompletedUseCase,
+    cancelExpiredCheckoutSession as CancelExpiredCheckoutSessionUseCase,
     confirmPaymentIntentSucceeded as ConfirmPaymentIntentSucceededUseCase,
     confirmInvoicePaid as ConfirmInvoicePaidUseCase,
     recordPaymentIntentFailed as RecordPaymentIntentFailedUseCase,
@@ -71,6 +76,7 @@ describe('DbosPaymentWebhookWorkflow', () => {
     events.markRetrying.mockResolvedValue();
     events.markDead.mockResolvedValue();
     applyCheckoutSessionCompleted.execute.mockReset();
+    cancelExpiredCheckoutSession.execute.mockReset();
     confirmPaymentIntentSucceeded.execute.mockReset();
     confirmInvoicePaid.execute.mockReset();
     recordPaymentIntentFailed.execute.mockReset();
@@ -149,6 +155,24 @@ describe('DbosPaymentWebhookWorkflow', () => {
     expect(events.markProcessed).toHaveBeenCalledWith('webhook-id', dataSource.client);
     expect(events.markIgnored).not.toHaveBeenCalled();
     expect(events.markDead).not.toHaveBeenCalled();
+  });
+
+  it('cancels a payment when its Checkout Session expires', async () => {
+    const event = checkoutSessionExpiredEvent();
+    cancelExpiredCheckoutSession.execute.mockResolvedValue({
+      outcome: 'CANCELED',
+      paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    });
+
+    await workflow.process(event);
+
+    expect(cancelExpiredCheckoutSession.execute).toHaveBeenCalledWith(event, dataSource.client);
+    expect(events.attachPayment).toHaveBeenCalledWith(
+      'webhook-id',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      dataSource.client,
+    );
+    expect(events.markProcessed).toHaveBeenCalledWith('webhook-id', dataSource.client);
   });
 
   it('confirms invoice.paid and completes its webhook in the same transaction', async () => {
@@ -252,6 +276,25 @@ function paymentIntentSucceededEvent(): PaymentEvent {
       currency: 'usd',
       paidAt: new Date('2026-10-12T12:00:00.000Z'),
     },
+  };
+}
+
+function checkoutSessionExpiredEvent(): PaymentEvent {
+  return {
+    kind: PaymentEventKind.CHECKOUT_SESSION_EXPIRED,
+    provider: PaymentProvider.STRIPE,
+    providerEventId: 'evt_expired',
+    providerEventType: 'checkout.session.expired',
+    providerCreatedAt: new Date('2026-10-14T12:00:00.000Z'),
+    paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    payload: {
+      id: 'cs_expired',
+      customerId: 'cus_test',
+      mode: 'payment',
+      amount: 10_000,
+      currency: 'usd',
+    },
+    snapshot: { id: 'evt_expired' },
   };
 }
 

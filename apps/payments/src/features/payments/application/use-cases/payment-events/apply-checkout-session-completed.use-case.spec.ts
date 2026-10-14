@@ -64,6 +64,23 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
     );
   });
 
+  it('does not derive Stripe mode from CheckoutPurpose', async () => {
+    const payments = repository();
+    payments.findById.mockResolvedValue(
+      payment({ checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION }),
+    );
+    payments.applyCheckoutCompleted.mockResolvedValue({ outcome: 'APPLIED' });
+    const useCase = new ApplyCheckoutSessionCompletedUseCase(
+      payments as unknown as PaymentsRepository,
+    );
+    const providerEvent: CheckoutSessionCompletedEvent = {
+      ...event('paid'),
+      payload: { ...event('paid').payload, mode: 'subscription' },
+    };
+
+    await expect(useCase.execute(providerEvent, {})).resolves.toEqual({ outcome: 'APPLIED' });
+  });
+
   it.each([PaymentStatus.CREATED, PaymentStatus.FAILED, PaymentStatus.CANCELED])(
     'enriches compatible references without changing local status %s',
     async (status) => {

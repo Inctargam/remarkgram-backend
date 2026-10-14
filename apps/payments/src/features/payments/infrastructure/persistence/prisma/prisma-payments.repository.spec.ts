@@ -96,6 +96,32 @@ describe('PrismaPaymentsRepository.applyCheckoutCompleted', () => {
   });
 });
 
+describe('PrismaPaymentsRepository.cancelPendingPayment', () => {
+  it('atomically cancels only a compatible non-terminal payment', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const repository = new PrismaPaymentsRepository({} as PrismaService);
+
+    await expect(
+      repository.cancelPendingPayment(
+        {
+          paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          providerCheckoutId: 'cs_expired',
+          providerCustomerId: 'cus_test',
+        },
+        { payment: { updateMany } },
+      ),
+    ).resolves.toEqual({ outcome: 'CANCELED' });
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: [PaymentStatus.CREATED, PaymentStatus.PENDING] },
+        }),
+        data: expect.objectContaining({ status: PaymentStatus.CANCELED }),
+      }),
+    );
+  });
+});
+
 describe('PrismaPaymentsRepository.createSuccessfulRenewal', () => {
   it('upserts by provider Invoice without changing an existing renewal', async () => {
     const upsert = vi.fn().mockResolvedValue(renewalRow());

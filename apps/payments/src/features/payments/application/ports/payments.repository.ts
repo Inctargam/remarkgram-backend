@@ -48,6 +48,16 @@ export type ConfirmSuccessfulPaymentUpdateResult =
   | { outcome: 'SUCCEEDED' }
   | { outcome: 'INVALID_TRANSITION' | 'REFERENCE_CONFLICT' };
 
+export type CancelPendingPaymentCommand = {
+  paymentId: string;
+  providerCheckoutId: string;
+  providerCustomerId?: string | null;
+};
+
+export type CancelPendingPaymentUpdateResult =
+  | { outcome: 'CANCELED' }
+  | { outcome: 'INVALID_TRANSITION' | 'REFERENCE_CONFLICT' };
+
 export type CreateSuccessfulRenewalCommand = {
   userId: number;
   planId: number;
@@ -78,6 +88,11 @@ export abstract class PaymentsRepository {
     providerPaymentId: string,
     ctx: PaymentsTransactionContext,
   ): Promise<Payment | null>;
+  abstract findByProviderCheckoutId(
+    provider: PaymentProvider,
+    providerCheckoutId: string,
+    ctx: PaymentsTransactionContext,
+  ): Promise<Payment | null>;
   abstract findByProviderInvoiceId(
     provider: PaymentProvider,
     providerInvoiceId: string,
@@ -97,6 +112,10 @@ export abstract class PaymentsRepository {
     command: ConfirmSuccessfulPaymentCommand,
     ctx: PaymentsTransactionContext,
   ): Promise<ConfirmSuccessfulPaymentUpdateResult>;
+  abstract cancelPendingPayment(
+    command: CancelPendingPaymentCommand,
+    ctx: PaymentsTransactionContext,
+  ): Promise<CancelPendingPaymentUpdateResult>;
   abstract createSuccessfulRenewal(
     command: CreateSuccessfulRenewalCommand,
     ctx: PaymentsTransactionContext,

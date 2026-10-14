@@ -2,6 +2,7 @@ import { ConfiguredInstance, DBOS } from '@dbos-inc/dbos-sdk';
 import { Injectable } from '@nestjs/common';
 import type {
   CheckoutSessionCompletedEvent,
+  CheckoutSessionExpiredEvent,
   InvoicePaymentFailedEvent,
   InvoicePaidEvent,
   PaymentEvent,
@@ -11,6 +12,7 @@ import type {
 import { ConfirmPaymentIntentSucceededUseCase } from '../../application/use-cases/payment-events/confirm-payment-intent-succeeded.use-case.js';
 import { ConfirmInvoicePaidUseCase } from '../../application/use-cases/payment-events/confirm-invoice-paid.use-case.js';
 import { ApplyCheckoutSessionCompletedUseCase } from '../../application/use-cases/payment-events/apply-checkout-session-completed.use-case.js';
+import { CancelExpiredCheckoutSessionUseCase } from '../../application/use-cases/payment-events/cancel-expired-checkout-session/cancel-expired-checkout-session.use-case.js';
 import { RecordPaymentIntentFailedUseCase } from '../../application/use-cases/payment-events/record-payment-intent-failed.use-case.js';
 import { RecordInvoicePaymentFailedUseCase } from '../../application/use-cases/payment-events/record-invoice-payment-failed.use-case.js';
 import {
@@ -24,6 +26,7 @@ import {
 import type { PaymentsTransactionContext } from '../../application/ports/payments-unit-of-work.js';
 import type {
   ApplyCheckoutCompletedResult,
+  CancelExpiredCheckoutSessionResult,
   ConfirmSuccessfulPaymentResult,
 } from '../../application/use-cases/payment-events/payment-event-processing.types.js';
 import { PaymentEventKind } from '../../domain/payment-event-kind.js';
@@ -42,6 +45,7 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
     private readonly dataSource: PaymentsDbosDataSource,
     private readonly events: PaymentEventRepository,
     private readonly applyCheckoutSessionCompleted: ApplyCheckoutSessionCompletedUseCase,
+    private readonly cancelExpiredCheckoutSession: CancelExpiredCheckoutSessionUseCase,
     private readonly confirmPaymentIntentSucceeded: ConfirmPaymentIntentSucceededUseCase,
     private readonly confirmInvoicePaid: ConfirmInvoicePaidUseCase,
     private readonly recordPaymentIntentFailed: RecordPaymentIntentFailedUseCase,
@@ -134,6 +138,14 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
             ctx,
           );
           return this.finishCheckoutCompleted(eventId, result, ctx);
+        }
+
+        if (eventKind === (PaymentEventKind.CHECKOUT_SESSION_EXPIRED as string)) {
+          const result = await this.cancelExpiredCheckoutSession.execute(
+            event as CheckoutSessionExpiredEvent,
+            ctx,
+          );
+          return this.finishCheckoutExpired(eventId, result, ctx);
         }
 
         if (eventKind === (PaymentEventKind.PAYMENT_INTENT_SUCCEEDED as string)) {
@@ -240,6 +252,38 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
     await this.events.markDead(
       eventId,
       { code: result.outcome, message: `Successful payment event rejected: ${result.outcome}` },
+      ctx,
+    );
+    return 'FINISHED';
+  }
+
+  private async finishCheckoutExpired(
+    eventId: string,
+    result: CancelExpiredCheckoutSessionResult,
+    ctx: PaymentsTransactionContext,
+  ): Promise<AttemptResult> {
+    if (result.outcome === 'CANCELED' || result.outcome === 'ALREADY_CANCELED') {
+      await this.events.attachPayment(eventId, result.paymentId, ctx);
+      await this.events.markProcessed(eventId, ctx);
+      return 'FINISHED';
+    }
+    if (result.outcome === 'PAYMENT_NOT_FOUND' || result.outcome === 'INVALID_TRANSITION') {
+      await this.events.markIgnored(
+        eventId,
+        {
+          code: result.outcome,
+          message:
+            result.outcome === 'PAYMENT_NOT_FOUND'
+              ? 'Expired Checkout Session has no local payment'
+              : 'Expired Checkout Session cannot cancel a terminal payment',
+        },
+        ctx,
+      );
+      return 'FINISHED';
+    }
+    await this.events.markDead(
+      eventId,
+      { code: result.outcome, message: `Checkout expiration rejected: ${result.outcome}` },
       ctx,
     );
     return 'FINISHED';

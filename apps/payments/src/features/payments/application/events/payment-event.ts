@@ -29,6 +29,18 @@ export type CheckoutSessionCompletedEvent = PaymentEventEnvelope & {
   snapshot: Record<string, unknown>;
 };
 
+export type CheckoutSessionExpiredEvent = PaymentEventEnvelope & {
+  kind: PaymentEventKind.CHECKOUT_SESSION_EXPIRED;
+  payload: {
+    id: string;
+    customerId: string | null;
+    mode: string | null;
+    amount: number | null;
+    currency: string | null;
+  };
+  snapshot: Record<string, unknown>;
+};
+
 export type SuccessfulPaymentPayload = {
   customerId: string | null;
   amount: number;
@@ -83,6 +95,7 @@ export type InvoicePaymentFailedEvent = PaymentEventEnvelope & {
 export type SuccessfulPaymentEvent = PaymentIntentSucceededEvent | InvoicePaidEvent;
 export type PaymentEvent =
   | CheckoutSessionCompletedEvent
+  | CheckoutSessionExpiredEvent
   | SuccessfulPaymentEvent
   | PaymentIntentPaymentFailedEvent
   | InvoicePaymentFailedEvent;

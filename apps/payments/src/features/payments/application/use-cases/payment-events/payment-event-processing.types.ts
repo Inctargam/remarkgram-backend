@@ -10,14 +10,21 @@ export type PaymentEventCorrelationResult =
   | { outcome: 'CORRELATED'; paymentId: string }
   | { outcome: 'UNCORRELATED' };
 
-export type CheckoutReconciliationConflict =
-  | Exclude<PaymentReconciliationConflict, 'PURPOSE_MISMATCH'>
-  | 'CHECKOUT_MODE_MISMATCH';
+export type CheckoutReconciliationConflict = Exclude<
+  PaymentReconciliationConflict,
+  'PURPOSE_MISMATCH'
+>;
 
 export type ApplyCheckoutCompletedResult =
   | { outcome: 'APPLIED' | 'ALREADY_APPLIED' }
   | {
       outcome: 'PAYMENT_NOT_FOUND' | 'PAYMENT_ID_MISSING' | CheckoutReconciliationConflict;
+    };
+
+export type CancelExpiredCheckoutSessionResult =
+  | { outcome: 'CANCELED' | 'ALREADY_CANCELED'; paymentId: string }
+  | {
+      outcome: 'PAYMENT_NOT_FOUND' | 'INVALID_TRANSITION' | CheckoutReconciliationConflict;
     };
 
 export type ConfirmSuccessfulPaymentResult =

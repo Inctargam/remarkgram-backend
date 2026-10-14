@@ -8,6 +8,8 @@ import {
   type ApplyCheckoutCompletedCommand,
   type ApplyCheckoutCompletedUpdateResult,
   type AttachCheckoutResult,
+  type CancelPendingPaymentCommand,
+  type CancelPendingPaymentUpdateResult,
   type ConfirmSuccessfulPaymentCommand,
   type ConfirmSuccessfulPaymentUpdateResult,
   type CreateSuccessfulRenewalCommand,
@@ -153,6 +155,18 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
     const client = ctx as Prisma.TransactionClient;
     const row = await client.payment.findFirst({
       where: { providerType: provider, providerPaymentId },
+    });
+    return row ? PaymentPrismaMapper.toDomain(row) : null;
+  }
+
+  async findByProviderCheckoutId(
+    provider: Payment['providerType'],
+    providerCheckoutId: string,
+    ctx: PaymentsTransactionContext,
+  ): Promise<Payment | null> {
+    const client = ctx as Prisma.TransactionClient;
+    const row = await client.payment.findFirst({
+      where: { providerType: provider, providerCheckoutId },
     });
     return row ? PaymentPrismaMapper.toDomain(row) : null;
   }
@@ -303,6 +317,34 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
         },
       });
       return updated.count === 1 ? { outcome: 'SUCCEEDED' } : { outcome: 'INVALID_TRANSITION' };
+    } catch (error) {
+      if (this.isUniqueConflict(error)) return { outcome: 'REFERENCE_CONFLICT' };
+      throw error;
+    }
+  }
+
+  async cancelPendingPayment(
+    command: CancelPendingPaymentCommand,
+    ctx: PaymentsTransactionContext,
+  ): Promise<CancelPendingPaymentUpdateResult> {
+    const client = ctx as Prisma.TransactionClient;
+    try {
+      const updated = await client.payment.updateMany({
+        where: {
+          id: command.paymentId,
+          status: { in: [PaymentStatus.CREATED, PaymentStatus.PENDING] },
+          AND: [
+            this.compatibleReference('providerCheckoutId', command.providerCheckoutId),
+            this.compatibleReference('providerCustomerId', command.providerCustomerId),
+          ],
+        },
+        data: {
+          providerCheckoutId: command.providerCheckoutId,
+          providerCustomerId: command.providerCustomerId ?? undefined,
+          status: PaymentStatus.CANCELED,
+        },
+      });
+      return updated.count === 1 ? { outcome: 'CANCELED' } : { outcome: 'INVALID_TRANSITION' };
     } catch (error) {
       if (this.isUniqueConflict(error)) return { outcome: 'REFERENCE_CONFLICT' };
       throw error;
