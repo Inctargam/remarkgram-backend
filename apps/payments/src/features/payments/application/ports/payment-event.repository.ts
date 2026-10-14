@@ -21,16 +21,8 @@ export abstract class PaymentEventRepository {
     workflowId: string,
     ctx: PaymentsTransactionContext,
   ): Promise<PersistPaymentEventResult>;
-  abstract recordAttempt(
-    eventId: string,
-    attempt: number,
-    ctx: PaymentsTransactionContext,
-  ): Promise<void>;
-  abstract attachPayment(
-    eventId: string,
-    paymentId: string,
-    ctx: PaymentsTransactionContext,
-  ): Promise<void>;
+  abstract recordAttempt(eventId: string, attempt: number, ctx: PaymentsTransactionContext): Promise<void>;
+  abstract attachPayment(eventId: string, paymentId: string, ctx: PaymentsTransactionContext): Promise<void>;
   abstract markProcessed(eventId: string, ctx: PaymentsTransactionContext): Promise<void>;
   abstract markIgnored(
     eventId: string,

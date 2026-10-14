@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PaymentEventKind } from '../../../domain/payment-event-kind.js';
-import { type Payment, PaymentProvider, PaymentStatus } from '../../../domain/payment.entity.js';
-import type { PaymentIntentPaymentFailedEvent } from '../../events/payment-event.js';
-import type { PaymentsRepository } from '../../ports/payments.repository.js';
+import { PaymentEventKind } from '../../../../domain/payment-event-kind.js';
+import { type Payment, PaymentProvider, PaymentStatus } from '../../../../domain/payment.entity.js';
+import type { PaymentIntentPaymentFailedEvent } from '../../../events/payment-event.js';
+import type { PaymentsRepository } from '../../../ports/payments.repository.js';
 import { RecordPaymentIntentFailedUseCase } from './record-payment-intent-failed.use-case.js';
 
 describe('RecordPaymentIntentFailedUseCase', () => {
@@ -47,6 +47,16 @@ describe('RecordPaymentIntentFailedUseCase', () => {
     await expect(useCase.execute(event({ paymentId: null }), {})).resolves.toEqual({
       outcome: 'UNCORRELATED',
     });
+  });
+
+  it('does not correlate metadata to a conflicting PaymentIntent reference', async () => {
+    const payments = repository();
+    payments.findById.mockResolvedValue(payment({ providerPaymentId: 'pi_other' }));
+    const useCase = new RecordPaymentIntentFailedUseCase(
+      payments as unknown as PaymentsRepository,
+    );
+
+    await expect(useCase.execute(event(), {})).resolves.toEqual({ outcome: 'UNCORRELATED' });
   });
 });
 

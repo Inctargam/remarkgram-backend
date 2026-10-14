@@ -4,6 +4,7 @@ import { PrismaPaymentsRepository } from './prisma-payments.repository.js';
 import type { PrismaService } from '../../../../../database/prisma.service.js';
 import { Currency, PeriodUnit } from '../../../../plans/domain/plan.entity.js';
 import {
+  CheckoutPurpose,
   PaymentProvider,
   PaymentStatus,
   PaymentType,
@@ -49,12 +50,19 @@ describe('classifyProviderReferenceConflict', () => {
 describe('PrismaPaymentsRepository.confirmSuccessfulPayment', () => {
   it('updates only persistence fields supplied by the application command', async () => {
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const findUnique = vi.fn().mockResolvedValue(successfulPurchaseRow());
     const repository = new PrismaPaymentsRepository({} as PrismaService);
 
     await expect(
-      repository.confirmSuccessfulPayment(successCommand(), { payment: { updateMany } }),
-    ).resolves.toEqual({ outcome: 'SUCCEEDED' });
+      repository.confirmSuccessfulPayment(successCommand(), { payment: { updateMany, findUnique } }),
+    ).resolves.toMatchObject({
+      outcome: 'SUCCEEDED',
+      payment: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', status: PaymentStatus.SUCCEEDED },
+    });
     expect(updateMany).toHaveBeenCalledOnce();
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+    });
   });
 
   it('returns INVALID_TRANSITION when the conditional Prisma update changes no row', async () => {
@@ -117,6 +125,87 @@ describe('PrismaPaymentsRepository.cancelPendingPayment', () => {
           status: { in: [PaymentStatus.CREATED, PaymentStatus.PENDING] },
         }),
         data: expect.objectContaining({ status: PaymentStatus.CANCELED }),
+      }),
+    );
+  });
+});
+
+describe('PrismaPaymentsRepository.linkSuccessfulPaymentToSubscription', () => {
+  it('links a successful unbound payment and permits an idempotent replay', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const repository = new PrismaPaymentsRepository({} as PrismaService);
+
+    await expect(
+      repository.linkSuccessfulPaymentToSubscription(
+        {
+          paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        },
+        { payment: { updateMany } },
+      ),
+    ).resolves.toEqual({ outcome: 'LINKED' });
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: PaymentStatus.SUCCEEDED,
+          OR: [
+            { subscriptionId: null },
+            { subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' },
+          ],
+        }),
+        data: { subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' },
+      }),
+    );
+  });
+
+  it('не перезаписывает subscription-A значением subscription-B при повторном или конкурентном handler', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 0 });
+    const repository = new PrismaPaymentsRepository({} as PrismaService);
+
+    await expect(
+      repository.linkSuccessfulPaymentToSubscription(
+        {
+          paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          subscriptionId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        },
+        { payment: { updateMany } },
+      ),
+    ).resolves.toEqual({ outcome: 'NOT_LINKED' });
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [
+            { subscriptionId: null },
+            { subscriptionId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' },
+          ],
+        }),
+      }),
+    );
+  });
+});
+
+describe('PrismaPaymentsRepository.bindPaymentProviderSubscription', () => {
+  it('атомарно сохраняет новый provider ID и разрешает replay с тем же ID', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const repository = new PrismaPaymentsRepository({} as PrismaService);
+
+    await expect(
+      repository.bindPaymentProviderSubscription(
+        {
+          paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          providerSubscriptionId: 'sub_new',
+        },
+        { payment: { updateMany } },
+      ),
+    ).resolves.toEqual({ outcome: 'BOUND' });
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          OR: [{ providerSubscriptionId: null }, { providerSubscriptionId: 'sub_new' }],
+        }),
+        data: { providerSubscriptionId: 'sub_new' },
       }),
     );
   });
@@ -214,5 +303,23 @@ function renewalRow() {
     checkoutExpiresAt: null,
     type: PaymentType.RENEWAL,
     checkoutPurpose: null,
+  };
+}
+
+function successfulPurchaseRow() {
+  return {
+    ...renewalRow(),
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    providerCheckoutId: 'cs_test',
+    providerPaymentId: 'pi_test',
+    providerSubscriptionId: null,
+    providerInvoiceId: null,
+    idempotentKey: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    subscriptionId: null,
+    targetSubscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    autoRenewalRequested: true,
+    paidAt: new Date('2026-10-12T12:00:00.000Z'),
+    type: PaymentType.PURCHASE,
+    checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION,
   };
 }

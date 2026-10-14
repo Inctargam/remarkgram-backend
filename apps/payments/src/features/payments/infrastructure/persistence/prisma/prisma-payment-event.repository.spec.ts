@@ -47,6 +47,32 @@ describe('PrismaPaymentEventRepository', () => {
     );
   });
 
+  it.each([
+    { attempt: 1, status: 'RECEIVED' },
+    { attempt: 2, status: 'RETRYING' },
+  ])('records technical attempt $attempt as $status', async ({ attempt, status }) => {
+    const ctx = {
+      paymentWebhook: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+
+    await repository.recordAttempt('webhook-id', attempt, ctx);
+
+    expect(ctx.paymentWebhook.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'webhook-id',
+        processingStatus: { in: ['RECEIVED', 'RETRYING'] },
+      },
+      data: {
+        processingStatus: status,
+        processingAttempts: attempt,
+        processingErrorCode: null,
+        processingError: null,
+      },
+    });
+  });
+
   it('attaches a correlated Payment without overwriting another correlation', async () => {
     const ctx = {
       paymentWebhook: {

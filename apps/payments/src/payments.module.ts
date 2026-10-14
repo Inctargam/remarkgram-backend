@@ -13,14 +13,19 @@ import { PaymentCustomersRepository } from './features/payments/application/port
 import { PaymentsRepository } from './features/payments/application/ports/payments.repository.js';
 import { PaymentWebhookWorkflow } from './features/payments/application/ports/payment-webhook.workflow.js';
 import { SubscriptionContextPort } from './features/payments/application/ports/subscription-context.port.js';
+import { SubscriptionPaymentHandler } from './features/payments/application/ports/subscription-payment.handler.js';
 import { PaymentCustomerService } from './features/payments/application/services/payment-customer.service.js';
 import { CreateCheckoutUseCase } from './features/payments/application/use-cases/create-checkout.use-case.js';
-import { ConfirmPaymentIntentSucceededUseCase } from './features/payments/application/use-cases/payment-events/confirm-payment-intent-succeeded.use-case.js';
-import { ConfirmInvoicePaidUseCase } from './features/payments/application/use-cases/payment-events/confirm-invoice-paid.use-case.js';
-import { ApplyCheckoutSessionCompletedUseCase } from './features/payments/application/use-cases/payment-events/apply-checkout-session-completed.use-case.js';
+import { ConfirmPaymentIntentSucceededUseCase } from './features/payments/application/use-cases/payment-events/confirm-payment-intent-succeeded/confirm-payment-intent-succeeded.use-case.js';
+import { ConfirmInvoicePaidUseCase } from './features/payments/application/use-cases/payment-events/confirm-invoice-paid/confirm-invoice-paid.use-case.js';
+import { ApplyCheckoutSessionCompletedUseCase } from './features/payments/application/use-cases/payment-events/apply-checkout-session-completed/apply-checkout-session-completed.use-case.js';
 import { CancelExpiredCheckoutSessionUseCase } from './features/payments/application/use-cases/payment-events/cancel-expired-checkout-session/cancel-expired-checkout-session.use-case.js';
-import { RecordPaymentIntentFailedUseCase } from './features/payments/application/use-cases/payment-events/record-payment-intent-failed.use-case.js';
-import { RecordInvoicePaymentFailedUseCase } from './features/payments/application/use-cases/payment-events/record-invoice-payment-failed.use-case.js';
+import { RecordPaymentIntentFailedUseCase } from './features/payments/application/use-cases/payment-events/record-payment-intent-failed/record-payment-intent-failed.use-case.js';
+import { RecordInvoicePaymentFailedUseCase } from './features/payments/application/use-cases/payment-events/record-invoice-payment-failed/record-invoice-payment-failed.use-case.js';
+import { ApplyPaymentEventUseCase } from './features/payments/application/use-cases/process-payment-webhook/apply-payment-event.use-case.js';
+import { CreateDeferredProviderSubscriptionUseCase } from './features/payments/application/use-cases/process-payment-webhook/create-deferred-provider-subscription.use-case.js';
+import { LinkPaymentToSubscriptionUseCase } from './features/payments/application/use-cases/process-payment-webhook/link-payment-to-subscription.use-case.js';
+import { ScheduleProviderSubscriptionCancellationUseCase } from './features/payments/application/use-cases/process-payment-webhook/schedule-provider-subscription-cancellation.use-case.js';
 import { GetPaymentStatusUseCase } from './features/payments/application/use-cases/get-payment-status.use-case.js';
 import { ProcessStripeWebhookUseCase } from './features/payments/application/use-cases/process-stripe-webhook.use-case.js';
 import { ReceivePaymentEventUseCase } from './features/payments/application/use-cases/receive-payment-event.use-case.js';
@@ -38,6 +43,7 @@ import { DbosLifecycleService } from './features/payments/infrastructure/dbos/db
 import { DbosPaymentWebhookWorkflow } from './features/payments/infrastructure/dbos/dbos-payment-webhook.workflow.js';
 import { PaymentsDbosDataSource } from './features/payments/infrastructure/dbos/payments-dbos.datasource.js';
 import { TemporarySubscriptionContextAdapter } from './features/payments/infrastructure/subscriptions/temporary-subscription-context.adapter.js';
+import { TemporarySubscriptionPaymentHandlerAdapter } from './features/payments/infrastructure/subscriptions/temporary-subscription-payment-handler.adapter.js';
 import { PaymentsGrpcController } from './features/payments/presentation/grpc/payments-grpc.controller.js';
 import { StripeWebhookController } from './features/payments/presentation/http/stripe-webhook.controller.js';
 import { PlansRepository } from './features/plans/application/ports/plans.repository.js';
@@ -104,6 +110,10 @@ import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-pl
     },
     // TODO: заменить на адаптер Subscription Module после появления межмодульного контракта.
     { provide: SubscriptionContextPort, useClass: TemporarySubscriptionContextAdapter },
+    {
+      provide: SubscriptionPaymentHandler,
+      useClass: TemporarySubscriptionPaymentHandlerAdapter,
+    },
     PaymentCustomerService,
     CreateCheckoutUseCase,
     ApplyCheckoutSessionCompletedUseCase,
@@ -112,6 +122,10 @@ import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-pl
     ConfirmInvoicePaidUseCase,
     RecordPaymentIntentFailedUseCase,
     RecordInvoicePaymentFailedUseCase,
+    ApplyPaymentEventUseCase,
+    CreateDeferredProviderSubscriptionUseCase,
+    LinkPaymentToSubscriptionUseCase,
+    ScheduleProviderSubscriptionCancellationUseCase,
     GetPaymentStatusUseCase,
     ReceivePaymentEventUseCase,
     ProcessStripeWebhookUseCase,

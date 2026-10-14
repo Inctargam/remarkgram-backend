@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Currency, PeriodUnit } from '../../../../plans/domain/plan.entity.js';
-import { PaymentEventKind } from '../../../domain/payment-event-kind.js';
+import { Currency, PeriodUnit } from '../../../../../plans/domain/plan.entity.js';
+import { PaymentEventKind } from '../../../../domain/payment-event-kind.js';
 import {
   CheckoutPurpose,
   type Payment,
   PaymentProvider,
   PaymentStatus,
   PaymentType,
-} from '../../../domain/payment.entity.js';
-import type { InvoicePaidEvent } from '../../events/payment-event.js';
-import type { PaymentsRepository } from '../../ports/payments.repository.js';
+} from '../../../../domain/payment.entity.js';
+import type { InvoicePaidEvent } from '../../../events/payment-event.js';
+import type { PaymentsRepository } from '../../../ports/payments.repository.js';
 import { ConfirmInvoicePaidUseCase } from './confirm-invoice-paid.use-case.js';
 
 describe('ConfirmInvoicePaidUseCase', () => {
@@ -23,10 +23,14 @@ describe('ConfirmInvoicePaidUseCase', () => {
         providerInvoiceId: null,
       }),
     );
-    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'SUCCEEDED' });
+    const confirmed = initialPayment();
+    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'SUCCEEDED', payment: confirmed });
     const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(invoiceEvent(), {})).resolves.toEqual({ outcome: 'SUCCEEDED' });
+    await expect(useCase.execute(invoiceEvent(), {})).resolves.toEqual({
+      outcome: 'SUCCEEDED',
+      payment: confirmed,
+    });
     expect(payments.confirmSuccessfulPayment).toHaveBeenCalledWith(
       expect.objectContaining({
         paymentId: INITIAL_PAYMENT_ID,
@@ -41,17 +45,48 @@ describe('ConfirmInvoicePaidUseCase', () => {
   it('falls back from absent metadata to a saved Invoice reference', async () => {
     const payments = repository();
     payments.findByProviderInvoiceId.mockResolvedValue(initialPayment());
-    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'SUCCEEDED' });
+    const confirmed = initialPayment();
+    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'SUCCEEDED', payment: confirmed });
     const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(invoiceEvent({ paymentId: null }), {})).resolves.toEqual({
       outcome: 'SUCCEEDED',
+      payment: confirmed,
     });
     expect(payments.findByProviderInvoiceId).toHaveBeenCalledWith(
       PaymentProvider.STRIPE,
       'in_test',
       {},
     );
+  });
+
+  it('rejects subscription_create for a non-initial purchase', async () => {
+    const payments = repository();
+    payments.findById.mockResolvedValue(
+      initialPayment({ checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION }),
+    );
+    const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
+
+    await expect(useCase.execute(invoiceEvent(), {})).resolves.toEqual({
+      outcome: 'PURPOSE_MISMATCH',
+    });
+    expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
+  });
+
+  it('requires a Subscription reference for subscription_create', async () => {
+    const payments = repository();
+    const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
+
+    await expect(
+      useCase.execute(
+        {
+          ...invoiceEvent(),
+          payload: { ...invoiceEvent().payload, providerSubscriptionId: null },
+        },
+        {},
+      ),
+    ).resolves.toEqual({ outcome: 'SUBSCRIPTION_REFERENCE_MISSING' });
+    expect(payments.findById).not.toHaveBeenCalled();
   });
 
   it('creates a successful renewal from a payment with the same Subscription', async () => {
@@ -65,6 +100,7 @@ describe('ConfirmInvoicePaidUseCase', () => {
 
     await expect(useCase.execute(invoiceEvent({ billingReason: 'subscription_cycle' }), {})).resolves.toEqual({
       outcome: 'SUCCEEDED',
+      payment: renewalPayment(),
     });
     expect(payments.createSuccessfulRenewal).toHaveBeenCalledWith(
       {
@@ -97,6 +133,7 @@ describe('ConfirmInvoicePaidUseCase', () => {
 
     await expect(useCase.execute(invoiceEvent({ billingReason: 'subscription_cycle' }), {})).resolves.toEqual({
       outcome: 'SUCCEEDED',
+      payment: renewalPayment(),
     });
     expect(payments.createSuccessfulRenewal).toHaveBeenCalledOnce();
   });

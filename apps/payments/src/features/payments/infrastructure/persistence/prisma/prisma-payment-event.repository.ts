@@ -45,6 +45,7 @@ export class PrismaPaymentEventRepository extends PaymentEventRepository {
           processingStatus: { in: ['RECEIVED', 'RETRYING'] },
         },
         data: {
+          processingStatus: attempt > 1 ? 'RETRYING' : 'RECEIVED',
           processingAttempts: attempt,
           processingErrorCode: null,
           processingError: null,
@@ -55,11 +56,7 @@ export class PrismaPaymentEventRepository extends PaymentEventRepository {
     );
   }
 
-  async attachPayment(
-    eventId: string,
-    paymentId: string,
-    ctx: PaymentsTransactionContext,
-  ): Promise<void> {
+  async attachPayment(eventId: string, paymentId: string, ctx: PaymentsTransactionContext): Promise<void> {
     await this.updateExactlyOne(
       this.getClient(ctx).paymentWebhook.updateMany({
         where: {

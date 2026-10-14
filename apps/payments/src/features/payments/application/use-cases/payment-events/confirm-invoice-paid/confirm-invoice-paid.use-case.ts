@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { PaymentStatus, PaymentType, type Payment } from '../../../domain/payment.entity.js';
-import type { InvoicePaidEvent } from '../../events/payment-event.js';
-import type { PaymentsTransactionContext } from '../../ports/payments-unit-of-work.js';
-import { PaymentsRepository } from '../../ports/payments.repository.js';
-import type {
-  ConfirmSuccessfulPaymentResult,
-  PaymentReconciliationConflict,
-} from './payment-event-processing.types.js';
+import { CheckoutPurpose, PaymentStatus, PaymentType, type Payment } from '../../../../domain/payment.entity.js';
+import type { InvoicePaidEvent } from '../../../events/payment-event.js';
+import type { PaymentsTransactionContext } from '../../../ports/payments-unit-of-work.js';
+import { PaymentsRepository } from '../../../ports/payments.repository.js';
+import type { ConfirmSuccessfulPaymentResult } from '../payment-event-processing.types.js';
+import {
+  PAYMENT_RECONCILIATION_CONFLICT,
+  hasProviderReferenceConflict,
+  paymentReconciliationConflictResult,
+  type PaymentReconciliationConflict,
+} from '../payment-reconciliation.policy.js';
 
 @Injectable()
 export class ConfirmInvoicePaidUseCase {
@@ -25,11 +28,13 @@ export class ConfirmInvoicePaidUseCase {
     event: InvoicePaidEvent,
     ctx: PaymentsTransactionContext,
   ): Promise<ConfirmSuccessfulPaymentResult> {
+    if (!event.payload.providerSubscriptionId) return { outcome: 'SUBSCRIPTION_REFERENCE_MISSING' };
     const payment = await this.findInitialPurchase(event, ctx);
     if (!payment) return { outcome: 'PAYMENT_NOT_FOUND' };
     const reconciliationConflict = this.findInitialReconciliationConflict(payment, event);
-    if (reconciliationConflict) return { outcome: reconciliationConflict };
-    if (payment.status === PaymentStatus.SUCCEEDED) return { outcome: 'ALREADY_SUCCEEDED' };
+    if (reconciliationConflict) return paymentReconciliationConflictResult(reconciliationConflict);
+    if (payment.status === PaymentStatus.SUCCEEDED)
+      return { outcome: 'ALREADY_SUCCEEDED', payment };
     if (![PaymentStatus.CREATED, PaymentStatus.PENDING].includes(payment.status))
       return { outcome: 'INVALID_TRANSITION' };
 
@@ -62,7 +67,7 @@ export class ConfirmInvoicePaidUseCase {
     if (!sourcePayment.subscriptionId) return { outcome: 'SUBSCRIPTION_ID_MISSING' };
 
     const reconciliationConflict = this.findRenewalContextConflict(sourcePayment, event);
-    if (reconciliationConflict) return { outcome: reconciliationConflict };
+    if (reconciliationConflict) return paymentReconciliationConflictResult(reconciliationConflict);
 
     const persisted = await this.payments.createSuccessfulRenewal(
       {
@@ -82,13 +87,14 @@ export class ConfirmInvoicePaidUseCase {
       },
       ctx,
     );
-    if (persisted.outcome === 'REFERENCE_CONFLICT') return persisted;
+    if (persisted.outcome === PAYMENT_RECONCILIATION_CONFLICT.REFERENCE_CONFLICT)
+      return paymentReconciliationConflictResult(PAYMENT_RECONCILIATION_CONFLICT.REFERENCE_CONFLICT);
 
     const persistedConflict = this.findRenewalReconciliationConflict(persisted.payment, event);
-    if (persistedConflict) return { outcome: persistedConflict };
+    if (persistedConflict) return paymentReconciliationConflictResult(persistedConflict);
     return persisted.payment.subscriptionId === sourcePayment.subscriptionId
-      ? { outcome: 'SUCCEEDED' }
-      : { outcome: 'REFERENCE_CONFLICT' };
+      ? { outcome: 'SUCCEEDED', payment: persisted.payment }
+      : paymentReconciliationConflictResult(PAYMENT_RECONCILIATION_CONFLICT.REFERENCE_CONFLICT);
   }
 
   private async findInitialPurchase(
@@ -109,23 +115,31 @@ export class ConfirmInvoicePaidUseCase {
     payment: Payment,
     event: InvoicePaidEvent,
   ): ReconciliationConflict {
-    if (payment.providerType !== event.provider) return 'PROVIDER_MISMATCH';
-    if (payment.type !== PaymentType.PURCHASE) return 'PURPOSE_MISMATCH';
+    if (payment.providerType !== event.provider) return PAYMENT_RECONCILIATION_CONFLICT.PROVIDER_MISMATCH;
+    if (
+      payment.type !== PaymentType.PURCHASE ||
+      payment.checkoutPurpose !== CheckoutPurpose.INITIAL_SUBSCRIPTION
+    )
+      return PAYMENT_RECONCILIATION_CONFLICT.PURPOSE_MISMATCH;
     return this.findFinancialOrReferenceConflict(payment, event);
   }
 
   private findRenewalContextConflict(payment: Payment, event: InvoicePaidEvent): ReconciliationConflict {
-    if (payment.providerType !== event.provider) return 'PROVIDER_MISMATCH';
-    if (payment.amount !== event.payload.amount) return 'AMOUNT_MISMATCH';
-    if (payment.currency.toLowerCase() !== event.payload.currency.toLowerCase()) return 'CURRENCY_MISMATCH';
+    if (payment.providerType !== event.provider) return PAYMENT_RECONCILIATION_CONFLICT.PROVIDER_MISMATCH;
+    if (payment.amount !== event.payload.amount) return PAYMENT_RECONCILIATION_CONFLICT.AMOUNT_MISMATCH;
+    if (payment.currency.toLowerCase() !== event.payload.currency.toLowerCase())
+      return PAYMENT_RECONCILIATION_CONFLICT.CURRENCY_MISMATCH;
     if (
       payment.providerCustomerId !== null &&
       event.payload.customerId !== null &&
       payment.providerCustomerId !== event.payload.customerId
     )
-      return 'CUSTOMER_MISMATCH';
-    return payment.providerSubscriptionId !== event.payload.providerSubscriptionId
-      ? 'REFERENCE_CONFLICT'
+      return PAYMENT_RECONCILIATION_CONFLICT.CUSTOMER_MISMATCH;
+    return hasProviderReferenceConflict([
+      payment.providerSubscriptionId,
+      event.payload.providerSubscriptionId,
+    ])
+      ? PAYMENT_RECONCILIATION_CONFLICT.REFERENCE_CONFLICT
       : null;
   }
 
@@ -133,8 +147,8 @@ export class ConfirmInvoicePaidUseCase {
     renewal: Payment,
     event: InvoicePaidEvent,
   ): ReconciliationConflict {
-    if (renewal.providerType !== event.provider) return 'PROVIDER_MISMATCH';
-    if (renewal.type !== PaymentType.RENEWAL) return 'PURPOSE_MISMATCH';
+    if (renewal.providerType !== event.provider) return PAYMENT_RECONCILIATION_CONFLICT.PROVIDER_MISMATCH;
+    if (renewal.type !== PaymentType.RENEWAL) return PAYMENT_RECONCILIATION_CONFLICT.PURPOSE_MISMATCH;
     if (renewal.subscriptionId === null) return 'SUBSCRIPTION_ID_MISSING';
     if (renewal.status !== PaymentStatus.SUCCEEDED || renewal.paidAt === null) return 'INVALID_TRANSITION';
     return this.findFinancialOrReferenceConflict(renewal, event);
@@ -144,24 +158,22 @@ export class ConfirmInvoicePaidUseCase {
     payment: Payment,
     event: InvoicePaidEvent,
   ): ReconciliationConflict {
-    if (payment.amount !== event.payload.amount) return 'AMOUNT_MISMATCH';
-    if (payment.currency.toLowerCase() !== event.payload.currency.toLowerCase()) return 'CURRENCY_MISMATCH';
+    if (payment.amount !== event.payload.amount) return PAYMENT_RECONCILIATION_CONFLICT.AMOUNT_MISMATCH;
+    if (payment.currency.toLowerCase() !== event.payload.currency.toLowerCase())
+      return PAYMENT_RECONCILIATION_CONFLICT.CURRENCY_MISMATCH;
     if (
       payment.providerCustomerId !== null &&
       event.payload.customerId !== null &&
       payment.providerCustomerId !== event.payload.customerId
     )
-      return 'CUSTOMER_MISMATCH';
+      return PAYMENT_RECONCILIATION_CONFLICT.CUSTOMER_MISMATCH;
 
-    const references = [
+    return hasProviderReferenceConflict(
       [payment.providerPaymentId, event.payload.providerPaymentId],
       [payment.providerSubscriptionId, event.payload.providerSubscriptionId],
       [payment.providerInvoiceId, event.payload.providerInvoiceId],
-    ] as const;
-    return references.some(
-      ([current, incoming]) => current !== null && incoming !== null && current !== incoming,
     )
-      ? 'REFERENCE_CONFLICT'
+      ? PAYMENT_RECONCILIATION_CONFLICT.REFERENCE_CONFLICT
       : null;
   }
 }

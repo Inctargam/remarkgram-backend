@@ -1,10 +1,6 @@
-export type PaymentReconciliationConflict =
-  | 'PURPOSE_MISMATCH'
-  | 'PROVIDER_MISMATCH'
-  | 'AMOUNT_MISMATCH'
-  | 'CURRENCY_MISMATCH'
-  | 'CUSTOMER_MISMATCH'
-  | 'REFERENCE_CONFLICT';
+import type { Payment } from '../../../domain/payment.entity.js';
+import type { PAYMENT_RECONCILIATION_CONFLICT } from './payment-reconciliation.policy.js';
+import { type PaymentReconciliationConflict } from './payment-reconciliation.policy.js';
 
 export type PaymentEventCorrelationResult =
   | { outcome: 'CORRELATED'; paymentId: string }
@@ -12,8 +8,12 @@ export type PaymentEventCorrelationResult =
 
 export type CheckoutReconciliationConflict = Exclude<
   PaymentReconciliationConflict,
-  'PURPOSE_MISMATCH'
+  typeof PAYMENT_RECONCILIATION_CONFLICT.PURPOSE_MISMATCH
 >;
+
+export const PAYMENT_ID_MISSING_RESULT = {
+  outcome: 'PAYMENT_ID_MISSING',
+} as const;
 
 export type ApplyCheckoutCompletedResult =
   | { outcome: 'APPLIED' | 'ALREADY_APPLIED' }
@@ -28,7 +28,7 @@ export type CancelExpiredCheckoutSessionResult =
     };
 
 export type ConfirmSuccessfulPaymentResult =
-  | { outcome: 'SUCCEEDED' | 'ALREADY_SUCCEEDED' }
+  | { outcome: 'SUCCEEDED' | 'ALREADY_SUCCEEDED'; payment: Payment }
   | {
       outcome:
         | 'PAYMENT_NOT_FOUND'

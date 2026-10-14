@@ -7,6 +7,11 @@ import type {
   CancelExpiredCheckoutSessionResult,
   CheckoutReconciliationConflict,
 } from '../payment-event-processing.types.js';
+import {
+  PAYMENT_RECONCILIATION_CONFLICT,
+  hasProviderReferenceConflict,
+  paymentReconciliationConflictResult,
+} from '../payment-reconciliation.policy.js';
 
 @Injectable()
 export class CancelExpiredCheckoutSessionUseCase {
@@ -22,7 +27,7 @@ export class CancelExpiredCheckoutSessionUseCase {
     if (!payment) return { outcome: 'PAYMENT_NOT_FOUND' };
 
     const conflict = this.reconciliationConflict(payment, event);
-    if (conflict) return { outcome: conflict };
+    if (conflict) return paymentReconciliationConflictResult(conflict);
     if (payment.status === PaymentStatus.CANCELED)
       return { outcome: 'ALREADY_CANCELED', paymentId: payment.id };
     if (![PaymentStatus.CREATED, PaymentStatus.PENDING].includes(payment.status))
@@ -43,21 +48,23 @@ export class CancelExpiredCheckoutSessionUseCase {
     payment: Payment,
     event: CheckoutSessionExpiredEvent,
   ): CheckoutReconciliationConflict | null {
-    if (payment.providerType !== event.provider) return 'PROVIDER_MISMATCH';
-    if (event.payload.amount !== null && payment.amount !== event.payload.amount) return 'AMOUNT_MISMATCH';
+    if (payment.providerType !== event.provider)
+      return PAYMENT_RECONCILIATION_CONFLICT.PROVIDER_MISMATCH;
+    if (event.payload.amount !== null && payment.amount !== event.payload.amount)
+      return PAYMENT_RECONCILIATION_CONFLICT.AMOUNT_MISMATCH;
     if (
       event.payload.currency !== null &&
       payment.currency.toLowerCase() !== event.payload.currency.toLowerCase()
     )
-      return 'CURRENCY_MISMATCH';
+      return PAYMENT_RECONCILIATION_CONFLICT.CURRENCY_MISMATCH;
     if (
       payment.providerCustomerId !== null &&
       event.payload.customerId !== null &&
       payment.providerCustomerId !== event.payload.customerId
     )
-      return 'CUSTOMER_MISMATCH';
-    if (payment.providerCheckoutId !== null && payment.providerCheckoutId !== event.payload.id)
-      return 'REFERENCE_CONFLICT';
+      return PAYMENT_RECONCILIATION_CONFLICT.CUSTOMER_MISMATCH;
+    if (hasProviderReferenceConflict([payment.providerCheckoutId, event.payload.id]))
+      return PAYMENT_RECONCILIATION_CONFLICT.REFERENCE_CONFLICT;
     return null;
   }
 }

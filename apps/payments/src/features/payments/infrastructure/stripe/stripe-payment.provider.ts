@@ -6,10 +6,13 @@ import { PeriodUnit } from '../../../plans/domain/plan.entity.js';
 import { InvalidProviderEventError } from '../../../../common/application/errors/payments.error.js';
 import {
   PaymentProviderPort,
+  type CreateDeferredProviderSubscriptionInput,
+  type CreateDeferredProviderSubscriptionResult,
   type CreatePaymentCustomerProps,
   type CreatePaymentCustomerResult,
   type CreateProviderCheckoutInput,
   type CreateProviderCheckoutResult,
+  type ScheduleProviderSubscriptionCancellationResult,
   type VerifiedProviderWebhook,
 } from '../../application/ports/payment-provider.js';
 import { CheckoutPurpose, PaymentProvider } from '../../domain/payment.entity.js';
@@ -185,6 +188,65 @@ export class StripePaymentProvider extends PaymentProviderPort {
         internalUserId: props.internalUserId,
       });
     }
+  }
+
+  async scheduleSubscriptionCancellation(
+    providerSubscriptionId: string,
+  ): Promise<ScheduleProviderSubscriptionCancellationResult> {
+    const subscription = await this.stripe.subscriptions.update(providerSubscriptionId, {
+      cancel_at_period_end: true,
+    });
+    if (!subscription.cancel_at_period_end)
+      throw new Error(`Stripe did not schedule cancellation for Subscription ${providerSubscriptionId}`);
+    const periodEnds = subscription.items.data.map((item) => item.current_period_end);
+    const currentPeriodEnd = periodEnds.length === 0 ? null : Math.max(...periodEnds);
+
+    return {
+      providerSubscriptionId: subscription.id,
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd:
+        currentPeriodEnd === null ? null : new Date(currentPeriodEnd * 1000).toISOString(),
+    };
+  }
+
+  async createDeferredSubscription(
+    input: CreateDeferredProviderSubscriptionInput,
+  ): Promise<CreateDeferredProviderSubscriptionResult> {
+    const billingCycleAnchor = Math.floor(new Date(input.billingCycleAnchor).getTime() / 1000);
+    const product = await this.stripe.products.create(
+      {
+        name: 'Remarkgram subscription period',
+        metadata: { paymentId: input.paymentId, subscriptionId: input.subscriptionId },
+      },
+      { idempotencyKey: `subscription-product:${input.paymentId}` },
+    );
+    const subscription = await this.stripe.subscriptions.create(
+      {
+        customer: input.customerId,
+        items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: input.currency.toLowerCase(),
+              unit_amount: input.amount,
+              recurring: {
+                interval: this.toStripeInterval(input.periodUnit),
+                interval_count: input.periodCount,
+              },
+              product: product.id,
+            },
+          },
+        ],
+        billing_cycle_anchor: billingCycleAnchor,
+        proration_behavior: 'none',
+        metadata: {
+          paymentId: input.paymentId,
+          subscriptionId: input.subscriptionId,
+        },
+      },
+      { idempotencyKey: input.idempotencyKey },
+    );
+    return { providerSubscriptionId: subscription.id };
   }
 
   private classifyOperationError(

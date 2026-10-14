@@ -52,6 +52,68 @@ describe('StripePaymentProvider.createCheckout', () => {
   });
 });
 
+describe('StripePaymentProvider.scheduleSubscriptionCancellation', () => {
+  it('устанавливает cancel_at_period_end без немедленной отмены Subscription', async () => {
+    const { provider } = providerWithStripe();
+    const update = vi.fn().mockResolvedValue({
+      id: 'sub_previous',
+      cancel_at_period_end: true,
+      items: { data: [{ current_period_end: 1_793_440_800 }] },
+    });
+    Object.assign(provider as unknown as Record<string, unknown>, {
+      stripe: { subscriptions: { update } },
+    });
+
+    await expect(provider.scheduleSubscriptionCancellation('sub_previous')).resolves.toEqual({
+      providerSubscriptionId: 'sub_previous',
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: new Date(1_793_440_800 * 1000).toISOString(),
+    });
+    expect(update).toHaveBeenCalledWith('sub_previous', { cancel_at_period_end: true });
+  });
+});
+
+describe('StripePaymentProvider.createDeferredSubscription', () => {
+  it('создаёт Subscription с будущим billing anchor без proration', async () => {
+    const { provider } = providerWithStripe();
+    const createProduct = vi.fn().mockResolvedValue({ id: 'prod_test' });
+    const createSubscription = vi.fn().mockResolvedValue({ id: 'sub_new' });
+    Object.assign(provider as unknown as Record<string, unknown>, {
+      stripe: {
+        products: { create: createProduct },
+        subscriptions: { create: createSubscription },
+      },
+    });
+
+    await expect(
+      provider.createDeferredSubscription({
+        paymentId: input.paymentId,
+        subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        customerId: input.customerId,
+        amount: input.amount,
+        currency: input.currency,
+        periodCount: input.periodCount,
+        periodUnit: input.periodUnit,
+        billingCycleAnchor: '2026-11-14T10:00:00.000Z',
+        idempotencyKey: `subscription:create:${input.paymentId}`,
+      }),
+    ).resolves.toEqual({ providerSubscriptionId: 'sub_new' });
+    expect(createSubscription).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customer: input.customerId,
+        billing_cycle_anchor: Math.floor(new Date('2026-11-14T10:00:00.000Z').getTime() / 1000),
+        proration_behavior: 'none',
+        metadata: {
+          paymentId: input.paymentId,
+          subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        },
+        items: [expect.objectContaining({ price_data: expect.objectContaining({ product: 'prod_test' }) })],
+      }),
+      { idempotencyKey: `subscription:create:${input.paymentId}` },
+    );
+  });
+});
+
 describe('StripePaymentProvider.verifyWebhook', () => {
   it('после проверки подписи возвращает нейтральную оболочку без интерпретации payload', () => {
     const rawEvent = checkoutEvent('checkout.session.completed', { payment_status: 'paid' });

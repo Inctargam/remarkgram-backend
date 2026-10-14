@@ -8,13 +8,17 @@ import {
   type ApplyCheckoutCompletedCommand,
   type ApplyCheckoutCompletedUpdateResult,
   type AttachCheckoutResult,
+  type BindPaymentProviderSubscriptionCommand,
+  type BindPaymentProviderSubscriptionResult,
   type CancelPendingPaymentCommand,
   type CancelPendingPaymentUpdateResult,
   type ConfirmSuccessfulPaymentCommand,
   type ConfirmSuccessfulPaymentUpdateResult,
+  type CreatePaymentResult,
   type CreateSuccessfulRenewalCommand,
   type CreateSuccessfulRenewalResult,
-  type CreatePaymentResult,
+  type LinkPaymentSubscriptionCommand,
+  type LinkPaymentSubscriptionResult,
 } from '../../../application/ports/payments.repository.js';
 import { CheckoutPurpose, Payment, PaymentStatus, PaymentType } from '../../../domain/payment.entity.js';
 import { PaymentPrismaMapper } from './payment-prisma.mapper.js';
@@ -245,18 +249,16 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
     ctx: PaymentsTransactionContext,
   ): Promise<ApplyCheckoutCompletedUpdateResult> {
     const client = ctx as Prisma.TransactionClient;
-    const purposeReferences: Prisma.PaymentWhereInput[] = [];
+    const providerReferences: Prisma.PaymentWhereInput[] = [];
     if (command.providerPaymentId !== undefined) {
-      purposeReferences.push(
-        this.compatibleReference('providerPaymentId', command.providerPaymentId),
-      );
+      providerReferences.push(this.compatibleReference('providerPaymentId', command.providerPaymentId));
     }
     if (command.providerSubscriptionId !== undefined) {
-      purposeReferences.push(
+      providerReferences.push(
         this.compatibleReference('providerSubscriptionId', command.providerSubscriptionId),
       );
     }
-    const purposeData: Prisma.PaymentUpdateManyMutationInput = {
+    const providerData: Prisma.PaymentUpdateManyMutationInput = {
       ...(command.providerPaymentId === undefined
         ? {}
         : { providerPaymentId: command.providerPaymentId ?? undefined }),
@@ -271,13 +273,13 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
           AND: [
             this.compatibleReference('providerCheckoutId', command.providerCheckoutId),
             this.compatibleReference('providerCustomerId', command.providerCustomerId),
-            ...purposeReferences,
+            ...providerReferences,
           ],
         },
         data: {
           providerCheckoutId: command.providerCheckoutId,
           providerCustomerId: command.providerCustomerId ?? undefined,
-          ...purposeData,
+          ...providerData,
         },
       });
       if (updated.count !== 1) return { outcome: 'REFERENCE_CONFLICT' };
@@ -316,7 +318,11 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
           paidAt: command.paidAt,
         },
       });
-      return updated.count === 1 ? { outcome: 'SUCCEEDED' } : { outcome: 'INVALID_TRANSITION' };
+      if (updated.count !== 1) return { outcome: 'INVALID_TRANSITION' };
+
+      const payment = await this.findById(command.paymentId, ctx);
+      if (!payment) throw new Error(`Confirmed Payment ${command.paymentId} cannot be reloaded`);
+      return { outcome: 'SUCCEEDED', payment };
     } catch (error) {
       if (this.isUniqueConflict(error)) return { outcome: 'REFERENCE_CONFLICT' };
       throw error;
@@ -349,6 +355,42 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
       if (this.isUniqueConflict(error)) return { outcome: 'REFERENCE_CONFLICT' };
       throw error;
     }
+  }
+
+  async linkSuccessfulPaymentToSubscription(
+    command: LinkPaymentSubscriptionCommand,
+    ctx: PaymentsTransactionContext,
+  ): Promise<LinkPaymentSubscriptionResult> {
+    const client = ctx as Prisma.TransactionClient;
+    const updated = await client.payment.updateMany({
+      where: {
+        id: command.paymentId,
+        status: PaymentStatus.SUCCEEDED,
+        OR: [{ subscriptionId: null }, { subscriptionId: command.subscriptionId }],
+      },
+      data: { subscriptionId: command.subscriptionId },
+    });
+    return updated.count === 1 ? { outcome: 'LINKED' } : { outcome: 'NOT_LINKED' };
+  }
+
+  async bindPaymentProviderSubscription(
+    command: BindPaymentProviderSubscriptionCommand,
+    ctx: PaymentsTransactionContext,
+  ): Promise<BindPaymentProviderSubscriptionResult> {
+    const client = ctx as Prisma.TransactionClient;
+    const updated = await client.payment.updateMany({
+      where: {
+        id: command.paymentId,
+        status: PaymentStatus.SUCCEEDED,
+        subscriptionId: command.subscriptionId,
+        OR: [
+          { providerSubscriptionId: null },
+          { providerSubscriptionId: command.providerSubscriptionId },
+        ],
+      },
+      data: { providerSubscriptionId: command.providerSubscriptionId },
+    });
+    return updated.count === 1 ? { outcome: 'BOUND' } : { outcome: 'NOT_BOUND' };
   }
 
   async createSuccessfulRenewal(

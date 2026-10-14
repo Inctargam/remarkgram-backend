@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PaymentEventKind } from '../../../domain/payment-event-kind.js';
-import { type Payment, PaymentProvider, PaymentStatus } from '../../../domain/payment.entity.js';
-import type { InvoicePaymentFailedEvent } from '../../events/payment-event.js';
-import type { PaymentsRepository } from '../../ports/payments.repository.js';
+import { PaymentEventKind } from '../../../../domain/payment-event-kind.js';
+import { type Payment, PaymentProvider, PaymentStatus } from '../../../../domain/payment.entity.js';
+import type { InvoicePaymentFailedEvent } from '../../../events/payment-event.js';
+import type { PaymentsRepository } from '../../../ports/payments.repository.js';
 import { RecordInvoicePaymentFailedUseCase } from './record-invoice-payment-failed.use-case.js';
 
 describe('RecordInvoicePaymentFailedUseCase', () => {
@@ -47,6 +47,20 @@ describe('RecordInvoicePaymentFailedUseCase', () => {
     await expect(
       useCase.execute(event({ paymentId: null, billingReason: 'subscription_cycle' }), {}),
     ).resolves.toEqual({ outcome: 'UNCORRELATED' });
+  });
+
+  it('does not correlate metadata to conflicting Invoice references', async () => {
+    const payments = repository();
+    payments.findById.mockResolvedValue(
+      payment({ providerInvoiceId: 'in_other', providerCustomerId: 'cus_test' }),
+    );
+    payments.findByProviderInvoiceId.mockResolvedValue(null);
+    payments.findByProviderSubscriptionId.mockResolvedValue(null);
+    const useCase = new RecordInvoicePaymentFailedUseCase(
+      payments as unknown as PaymentsRepository,
+    );
+
+    await expect(useCase.execute(event(), {})).resolves.toEqual({ outcome: 'UNCORRELATED' });
   });
 });
 

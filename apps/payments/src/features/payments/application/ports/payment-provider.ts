@@ -43,8 +43,33 @@ export type CreatePaymentCustomerProps = {
 export type CreatePaymentCustomerResult = Promise<
   { outcome: 'CREATED'; providerCustomerId: string } | ProviderOperationFailure
 >;
+export type ScheduleProviderSubscriptionCancellationResult = {
+  providerSubscriptionId: string;
+  cancelAtPeriodEnd: true;
+  currentPeriodEnd: string | null;
+};
+export type CreateDeferredProviderSubscriptionInput = {
+  paymentId: string;
+  subscriptionId: string;
+  customerId: string;
+  amount: number;
+  currency: Currency;
+  periodCount: number;
+  periodUnit: PeriodUnit;
+  billingCycleAnchor: string;
+  idempotencyKey: string;
+};
+export type CreateDeferredProviderSubscriptionResult = {
+  providerSubscriptionId: string;
+};
 export abstract class PaymentProviderPort {
   abstract createCheckout(input: CreateProviderCheckoutInput): Promise<CreateProviderCheckoutResult>;
   abstract verifyWebhook(rawBody: Buffer, signature: string): VerifiedProviderWebhook;
   abstract createCustomer(props: CreatePaymentCustomerProps): CreatePaymentCustomerResult;
+  abstract scheduleSubscriptionCancellation(
+    providerSubscriptionId: string,
+  ): Promise<ScheduleProviderSubscriptionCancellationResult>;
+  abstract createDeferredSubscription(
+    input: CreateDeferredProviderSubscriptionInput,
+  ): Promise<CreateDeferredProviderSubscriptionResult>;
 }

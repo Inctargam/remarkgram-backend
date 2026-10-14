@@ -45,8 +45,23 @@ export type ConfirmSuccessfulPaymentCommand = {
 };
 
 export type ConfirmSuccessfulPaymentUpdateResult =
-  | { outcome: 'SUCCEEDED' }
+  | { outcome: 'SUCCEEDED'; payment: Payment }
   | { outcome: 'INVALID_TRANSITION' | 'REFERENCE_CONFLICT' };
+
+export type LinkPaymentSubscriptionCommand = {
+  paymentId: string;
+  subscriptionId: string;
+};
+
+export type LinkPaymentSubscriptionResult = { outcome: 'LINKED' | 'NOT_LINKED' };
+
+export type BindPaymentProviderSubscriptionCommand = {
+  paymentId: string;
+  subscriptionId: string;
+  providerSubscriptionId: string;
+};
+
+export type BindPaymentProviderSubscriptionResult = { outcome: 'BOUND' | 'NOT_BOUND' };
 
 export type CancelPendingPaymentCommand = {
   paymentId: string;
@@ -112,6 +127,14 @@ export abstract class PaymentsRepository {
     command: ConfirmSuccessfulPaymentCommand,
     ctx: PaymentsTransactionContext,
   ): Promise<ConfirmSuccessfulPaymentUpdateResult>;
+  abstract linkSuccessfulPaymentToSubscription(
+    command: LinkPaymentSubscriptionCommand,
+    ctx: PaymentsTransactionContext,
+  ): Promise<LinkPaymentSubscriptionResult>;
+  abstract bindPaymentProviderSubscription(
+    command: BindPaymentProviderSubscriptionCommand,
+    ctx: PaymentsTransactionContext,
+  ): Promise<BindPaymentProviderSubscriptionResult>;
   abstract cancelPendingPayment(
     command: CancelPendingPaymentCommand,
     ctx: PaymentsTransactionContext,

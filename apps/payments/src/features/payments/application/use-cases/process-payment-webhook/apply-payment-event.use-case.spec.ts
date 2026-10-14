@@ -1,0 +1,198 @@
+import type { PaymentEventRepository } from '../../ports/payment-event.repository.js';
+import type { ApplyCheckoutSessionCompletedUseCase } from '../payment-events/apply-checkout-session-completed/apply-checkout-session-completed.use-case.js';
+import type { CancelExpiredCheckoutSessionUseCase } from '../payment-events/cancel-expired-checkout-session/cancel-expired-checkout-session.use-case.js';
+import type { ConfirmInvoicePaidUseCase } from '../payment-events/confirm-invoice-paid/confirm-invoice-paid.use-case.js';
+import type { ConfirmPaymentIntentSucceededUseCase } from '../payment-events/confirm-payment-intent-succeeded/confirm-payment-intent-succeeded.use-case.js';
+import type { RecordInvoicePaymentFailedUseCase } from '../payment-events/record-invoice-payment-failed/record-invoice-payment-failed.use-case.js';
+import type { RecordPaymentIntentFailedUseCase } from '../payment-events/record-payment-intent-failed/record-payment-intent-failed.use-case.js';
+import { ApplyPaymentEventUseCase } from './apply-payment-event.use-case.js';
+import { PaymentEventKind } from '../../../domain/payment-event-kind.js';
+import {
+  CheckoutPurpose,
+  type Payment,
+  PaymentProvider,
+  PaymentStatus,
+  PaymentType,
+} from '../../../domain/payment.entity.js';
+import { Currency, PeriodUnit } from '../../../../plans/domain/plan.entity.js';
+import type { PaymentEvent } from '../../events/payment-event.js';
+
+describe('ApplyPaymentEventUseCase', () => {
+  const events = eventRepository();
+  const checkoutCompleted = { execute: vi.fn<ApplyCheckoutSessionCompletedUseCase['execute']>() };
+  const checkoutExpired = { execute: vi.fn<CancelExpiredCheckoutSessionUseCase['execute']>() };
+  const paymentSucceeded = { execute: vi.fn<ConfirmPaymentIntentSucceededUseCase['execute']>() };
+  const invoicePaid = { execute: vi.fn<ConfirmInvoicePaidUseCase['execute']>() };
+  const paymentFailed = { execute: vi.fn<RecordPaymentIntentFailedUseCase['execute']>() };
+  const invoiceFailed = { execute: vi.fn<RecordInvoicePaymentFailedUseCase['execute']>() };
+  const useCase = new ApplyPaymentEventUseCase(
+    events,
+    checkoutCompleted as ApplyCheckoutSessionCompletedUseCase,
+    checkoutExpired as CancelExpiredCheckoutSessionUseCase,
+    paymentSucceeded as ConfirmPaymentIntentSucceededUseCase,
+    invoicePaid as ConfirmInvoicePaidUseCase,
+    paymentFailed as RecordPaymentIntentFailedUseCase,
+    invoiceFailed as RecordInvoicePaymentFailedUseCase,
+  );
+  const ctx = {};
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    events.recordAttempt.mockResolvedValue();
+    events.attachPayment.mockResolvedValue();
+    events.markProcessed.mockResolvedValue();
+    events.markIgnored.mockResolvedValue();
+    events.markDead.mockResolvedValue();
+  });
+
+  it('applies checkout completion and finishes the webhook', async () => {
+    const event = checkoutCompletedEvent();
+    checkoutCompleted.execute.mockResolvedValue({ outcome: 'APPLIED' });
+
+    await expect(useCase.execute({ eventId: 'webhook-id', event }, ctx)).resolves.toEqual({
+      outcome: 'FINISHED',
+    });
+
+    expect(checkoutCompleted.execute).toHaveBeenCalledWith(event, ctx);
+    expect(events.markProcessed).toHaveBeenCalledWith('webhook-id', ctx);
+  });
+
+  it('returns a successful Payment for the next durable step without completing the webhook', async () => {
+    const event = paymentIntentSucceededEvent();
+    paymentSucceeded.execute.mockResolvedValue({
+      outcome: 'SUCCEEDED',
+      payment: successfulPayment(),
+    });
+
+    await expect(useCase.execute({ eventId: 'webhook-id', event }, ctx)).resolves.toEqual({
+      outcome: 'SUCCESSFUL_PAYMENT',
+      eventId: 'webhook-id',
+      payment: expect.objectContaining({
+        paymentId: PAYMENT_ID,
+        paidAt: '2026-10-14T10:00:00.000Z',
+      }),
+    });
+
+    expect(paymentSucceeded.execute).toHaveBeenCalledWith(event, ctx);
+    expect(events.markProcessed).not.toHaveBeenCalled();
+  });
+
+  it('attaches a correlated failed attempt without changing Payment lifecycle', async () => {
+    const event = paymentIntentFailedEvent();
+    paymentFailed.execute.mockResolvedValue({ outcome: 'CORRELATED', paymentId: PAYMENT_ID });
+
+    await useCase.execute({ eventId: 'webhook-id', event }, ctx);
+
+    expect(events.attachPayment).toHaveBeenCalledWith('webhook-id', PAYMENT_ID, ctx);
+    expect(events.markProcessed).toHaveBeenCalledWith('webhook-id', ctx);
+  });
+
+  it('marks a reconciliation conflict as dead', async () => {
+    checkoutCompleted.execute.mockResolvedValue({ outcome: 'AMOUNT_MISMATCH' });
+
+    await useCase.execute(
+      { eventId: 'webhook-id', event: checkoutCompletedEvent() },
+      ctx,
+    );
+
+    expect(events.markDead).toHaveBeenCalledWith(
+      'webhook-id',
+      {
+        code: 'AMOUNT_MISMATCH',
+        message: 'Checkout completion rejected: AMOUNT_MISMATCH',
+      },
+      ctx,
+    );
+  });
+});
+
+const PAYMENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+function successfulPayment(): Payment {
+  return {
+    id: PAYMENT_ID,
+    userId: 10,
+    planId: 20,
+    type: PaymentType.PURCHASE,
+    checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION,
+    autoRenewalRequested: true,
+    amount: 1_000,
+    currency: Currency.USD,
+    periodCount: 1,
+    periodUnit: PeriodUnit.MONTH,
+    providerType: PaymentProvider.STRIPE,
+    providerCustomerId: 'cus_test',
+    status: PaymentStatus.SUCCEEDED,
+    paidAt: new Date('2026-10-14T10:00:00.000Z'),
+  } as Payment;
+}
+
+function eventRepository() {
+  return {
+    saveIfAbsent: vi.fn<PaymentEventRepository['saveIfAbsent']>(),
+    recordAttempt: vi.fn<PaymentEventRepository['recordAttempt']>(),
+    attachPayment: vi.fn<PaymentEventRepository['attachPayment']>(),
+    markProcessed: vi.fn<PaymentEventRepository['markProcessed']>(),
+    markIgnored: vi.fn<PaymentEventRepository['markIgnored']>(),
+    markRetrying: vi.fn<PaymentEventRepository['markRetrying']>(),
+    markDead: vi.fn<PaymentEventRepository['markDead']>(),
+  } satisfies PaymentEventRepository;
+}
+
+function checkoutCompletedEvent(): PaymentEvent {
+  return {
+    kind: PaymentEventKind.CHECKOUT_SESSION_COMPLETED,
+    provider: PaymentProvider.STRIPE,
+    providerEventId: 'evt_checkout',
+    providerEventType: 'checkout.session.completed',
+    providerCreatedAt: new Date('2026-10-14T10:00:00.000Z'),
+    paymentId: PAYMENT_ID,
+    payload: {
+      id: 'cs_test',
+      customerId: 'cus_test',
+      mode: 'payment',
+      paymentStatus: 'paid',
+      providerPaymentId: 'pi_test',
+      providerSubscriptionId: null,
+      amount: 1_000,
+      currency: 'usd',
+    },
+    snapshot: { id: 'evt_checkout' },
+  };
+}
+
+function paymentIntentSucceededEvent(): PaymentEvent {
+  return {
+    kind: PaymentEventKind.PAYMENT_INTENT_SUCCEEDED,
+    provider: PaymentProvider.STRIPE,
+    providerEventId: 'evt_success',
+    providerEventType: 'payment_intent.succeeded',
+    providerCreatedAt: new Date('2026-10-14T10:00:00.000Z'),
+    paymentId: PAYMENT_ID,
+    payload: {
+      id: 'pi_test',
+      customerId: 'cus_test',
+      amount: 1_000,
+      currency: 'usd',
+      paidAt: new Date('2026-10-14T10:00:00.000Z'),
+    },
+  };
+}
+
+function paymentIntentFailedEvent(): PaymentEvent {
+  return {
+    kind: PaymentEventKind.PAYMENT_INTENT_PAYMENT_FAILED,
+    provider: PaymentProvider.STRIPE,
+    providerEventId: 'evt_failed',
+    providerEventType: 'payment_intent.payment_failed',
+    providerCreatedAt: new Date('2026-10-14T10:00:00.000Z'),
+    paymentId: PAYMENT_ID,
+    payload: {
+      id: 'pi_test',
+      providerCode: 'card_declined',
+      declineCode: 'insufficient_funds',
+      message: 'Declined',
+      failedAt: new Date('2026-10-14T10:00:00.000Z'),
+    },
+  };
+}
