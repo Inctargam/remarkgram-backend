@@ -17,9 +17,7 @@ describe('CancelExpiredCheckoutSessionUseCase', () => {
       const payments = repository();
       payments.findById.mockResolvedValue(payment({ status }));
       payments.cancelPendingPayment.mockResolvedValue({ outcome: 'CANCELED' });
-      const useCase = new CancelExpiredCheckoutSessionUseCase(
-        payments as unknown as PaymentsRepository,
-      );
+      const useCase = new CancelExpiredCheckoutSessionUseCase(payments as unknown as PaymentsRepository);
 
       await expect(useCase.execute(event(), {})).resolves.toEqual({
         outcome: 'CANCELED',
@@ -40,25 +38,17 @@ describe('CancelExpiredCheckoutSessionUseCase', () => {
     const payments = repository();
     payments.findByProviderCheckoutId.mockResolvedValue(payment());
     payments.cancelPendingPayment.mockResolvedValue({ outcome: 'CANCELED' });
-    const useCase = new CancelExpiredCheckoutSessionUseCase(
-      payments as unknown as PaymentsRepository,
-    );
+    const useCase = new CancelExpiredCheckoutSessionUseCase(payments as unknown as PaymentsRepository);
 
     await useCase.execute(event({ paymentId: null }), {});
 
-    expect(payments.findByProviderCheckoutId).toHaveBeenCalledWith(
-      PaymentProvider.STRIPE,
-      'cs_expired',
-      {},
-    );
+    expect(payments.findByProviderCheckoutId).toHaveBeenCalledWith(PaymentProvider.STRIPE, 'cs_expired', {});
   });
 
   it('keeps a succeeded payment unchanged for a late expired event', async () => {
     const payments = repository();
     payments.findById.mockResolvedValue(payment({ status: PaymentStatus.SUCCEEDED }));
-    const useCase = new CancelExpiredCheckoutSessionUseCase(
-      payments as unknown as PaymentsRepository,
-    );
+    const useCase = new CancelExpiredCheckoutSessionUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual({ outcome: 'INVALID_TRANSITION' });
     expect(payments.cancelPendingPayment).not.toHaveBeenCalled();
@@ -67,12 +57,10 @@ describe('CancelExpiredCheckoutSessionUseCase', () => {
   it('handles duplicate expiration idempotently', async () => {
     const payments = repository();
     payments.findById.mockResolvedValue(payment({ status: PaymentStatus.CANCELED }));
-    const useCase = new CancelExpiredCheckoutSessionUseCase(
-      payments as unknown as PaymentsRepository,
-    );
+    const useCase = new CancelExpiredCheckoutSessionUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual({
-      outcome: 'ALREADY_CANCELED',
+      outcome: 'CANCELED',
       paymentId: PAYMENT_ID,
     });
     expect(payments.cancelPendingPayment).not.toHaveBeenCalled();
@@ -81,9 +69,7 @@ describe('CancelExpiredCheckoutSessionUseCase', () => {
   it('rejects conflicting references before mutation', async () => {
     const payments = repository();
     payments.findById.mockResolvedValue(payment({ providerCheckoutId: 'cs_other' }));
-    const useCase = new CancelExpiredCheckoutSessionUseCase(
-      payments as unknown as PaymentsRepository,
-    );
+    const useCase = new CancelExpiredCheckoutSessionUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual({ outcome: 'REFERENCE_CONFLICT' });
     expect(payments.cancelPendingPayment).not.toHaveBeenCalled();
@@ -91,13 +77,9 @@ describe('CancelExpiredCheckoutSessionUseCase', () => {
 
   it('does not derive Stripe mode from CheckoutPurpose', async () => {
     const payments = repository();
-    payments.findById.mockResolvedValue(
-      payment({ checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION }),
-    );
+    payments.findById.mockResolvedValue(payment({ checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION }));
     payments.cancelPendingPayment.mockResolvedValue({ outcome: 'CANCELED' });
-    const useCase = new CancelExpiredCheckoutSessionUseCase(
-      payments as unknown as PaymentsRepository,
-    );
+    const useCase = new CancelExpiredCheckoutSessionUseCase(payments as unknown as PaymentsRepository);
 
     await expect(
       useCase.execute(event({ payload: { ...event().payload, mode: 'subscription' } }), {}),

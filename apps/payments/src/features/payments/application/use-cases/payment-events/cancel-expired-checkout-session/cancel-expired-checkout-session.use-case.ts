@@ -29,7 +29,7 @@ export class CancelExpiredCheckoutSessionUseCase {
     const conflict = this.reconciliationConflict(payment, event);
     if (conflict) return paymentReconciliationConflictResult(conflict);
     if (payment.status === PaymentStatus.CANCELED)
-      return { outcome: 'ALREADY_CANCELED', paymentId: payment.id };
+      return { outcome: 'CANCELED', paymentId: payment.id };
     if (![PaymentStatus.CREATED, PaymentStatus.PENDING].includes(payment.status))
       return { outcome: 'INVALID_TRANSITION' };
 
@@ -48,8 +48,7 @@ export class CancelExpiredCheckoutSessionUseCase {
     payment: Payment,
     event: CheckoutSessionExpiredEvent,
   ): CheckoutReconciliationConflict | null {
-    if (payment.providerType !== event.provider)
-      return PAYMENT_RECONCILIATION_CONFLICT.PROVIDER_MISMATCH;
+    if (payment.providerType !== event.provider) return PAYMENT_RECONCILIATION_CONFLICT.PROVIDER_MISMATCH;
     if (event.payload.amount !== null && payment.amount !== event.payload.amount)
       return PAYMENT_RECONCILIATION_CONFLICT.AMOUNT_MISMATCH;
     if (

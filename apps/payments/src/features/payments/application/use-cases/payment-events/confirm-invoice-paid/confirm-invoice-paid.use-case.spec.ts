@@ -53,11 +53,20 @@ describe('ConfirmInvoicePaidUseCase', () => {
       outcome: 'SUCCEEDED',
       payment: confirmed,
     });
-    expect(payments.findByProviderInvoiceId).toHaveBeenCalledWith(
-      PaymentProvider.STRIPE,
-      'in_test',
-      {},
-    );
+    expect(payments.findByProviderInvoiceId).toHaveBeenCalledWith(PaymentProvider.STRIPE, 'in_test', {});
+  });
+
+  it('returns SUCCEEDED without mutating an already successful initial purchase', async () => {
+    const payments = repository();
+    const confirmed = initialPayment({ paidAt: new Date('2026-10-12T11:00:00.000Z') });
+    payments.findById.mockResolvedValue(confirmed);
+    const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
+
+    await expect(useCase.execute(invoiceEvent(), {})).resolves.toEqual({
+      outcome: 'SUCCEEDED',
+      payment: confirmed,
+    });
+    expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
   });
 
   it('rejects subscription_create for a non-initial purchase', async () => {
@@ -98,10 +107,12 @@ describe('ConfirmInvoicePaidUseCase', () => {
     });
     const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(invoiceEvent({ billingReason: 'subscription_cycle' }), {})).resolves.toEqual({
-      outcome: 'SUCCEEDED',
-      payment: renewalPayment(),
-    });
+    await expect(useCase.execute(invoiceEvent({ billingReason: 'subscription_cycle' }), {})).resolves.toEqual(
+      {
+        outcome: 'SUCCEEDED',
+        payment: renewalPayment(),
+      },
+    );
     expect(payments.createSuccessfulRenewal).toHaveBeenCalledWith(
       {
         userId: 42,
@@ -131,10 +142,12 @@ describe('ConfirmInvoicePaidUseCase', () => {
     });
     const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(invoiceEvent({ billingReason: 'subscription_cycle' }), {})).resolves.toEqual({
-      outcome: 'SUCCEEDED',
-      payment: renewalPayment(),
-    });
+    await expect(useCase.execute(invoiceEvent({ billingReason: 'subscription_cycle' }), {})).resolves.toEqual(
+      {
+        outcome: 'SUCCEEDED',
+        payment: renewalPayment(),
+      },
+    );
     expect(payments.createSuccessfulRenewal).toHaveBeenCalledOnce();
   });
 
@@ -143,9 +156,11 @@ describe('ConfirmInvoicePaidUseCase', () => {
     payments.findByProviderSubscriptionId.mockResolvedValue(initialPayment({ subscriptionId: null }));
     const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(invoiceEvent({ billingReason: 'subscription_cycle' }), {})).resolves.toEqual({
-      outcome: 'SUBSCRIPTION_ID_MISSING',
-    });
+    await expect(useCase.execute(invoiceEvent({ billingReason: 'subscription_cycle' }), {})).resolves.toEqual(
+      {
+        outcome: 'SUBSCRIPTION_ID_MISSING',
+      },
+    );
     expect(payments.createSuccessfulRenewal).not.toHaveBeenCalled();
   });
 
@@ -154,9 +169,11 @@ describe('ConfirmInvoicePaidUseCase', () => {
     payments.findByProviderSubscriptionId.mockResolvedValue(initialPayment({ amount: 20_000 }));
     const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(invoiceEvent({ billingReason: 'subscription_cycle' }), {})).resolves.toEqual({
-      outcome: 'AMOUNT_MISMATCH',
-    });
+    await expect(useCase.execute(invoiceEvent({ billingReason: 'subscription_cycle' }), {})).resolves.toEqual(
+      {
+        outcome: 'AMOUNT_MISMATCH',
+      },
+    );
     expect(payments.createSuccessfulRenewal).not.toHaveBeenCalled();
   });
 
@@ -218,7 +235,7 @@ function renewalPayment(overrides: Partial<Payment> = {}): Payment {
     type: PaymentType.RENEWAL,
     checkoutPurpose: null,
     ...overrides,
-  } as Payment;
+  };
 }
 
 function invoiceEvent(
@@ -240,8 +257,7 @@ function invoiceEvent(
       providerPaymentId: 'pi_invoice',
       providerSubscriptionId: 'sub_test',
       providerInvoiceId: 'in_test',
-      billingReason:
-        overrides.billingReason === undefined ? 'subscription_create' : overrides.billingReason,
+      billingReason: overrides.billingReason === undefined ? 'subscription_create' : overrides.billingReason,
     },
   };
 }

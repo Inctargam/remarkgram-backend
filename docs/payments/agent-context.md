@@ -411,18 +411,24 @@ use case и spec, например `payment-events/confirm-invoice-paid/` или
 Step 1 передаёт дальше provider-independent `SuccessfulPayment` со следующими полями:
 
 - `paymentId`, `userId`, `planId`;
-- `type`, `checkoutPurpose`, `autoRenewalRequested`;
+- `type`, `checkoutPurpose`, `autoRenewalRequested`, nullable `targetSubscriptionId`;
 - `amount`, `currency`, `periodCount`, `periodUnit`;
 - `provider`, `providerCustomerId`;
 - `paidAt` как ISO-8601 string.
+
+`targetSubscriptionId` передаётся в D2 только как необязательный контекст исходного purchase intent.
+Его nullability не определяется `CheckoutPurpose` или `PaymentType`, он не выбирает ветку workflow и
+не ограничивает решение D2. Фактический `subscriptionId` выбирает и возвращает D2, после чего D1
+атомарно фиксирует его в Payment.
 
 Результат step 1 является discriminated union:
 
 - `FINISHED` — событие полностью обработано как non-success, ignored или dead;
 - `SUCCESSFUL_PAYMENT` — содержит `eventId` и `SuccessfulPayment` для step 2.
 
-При `ALREADY_SUCCEEDED` step 1 также возвращает существующий Payment: replay финансового изменения не
-должен пропустить ещё не завершённое применение Payment в D2.
+При replay уже успешного Payment step 1 также возвращает `SUCCEEDED` с существующим Payment:
+повтор финансового события не должен пропустить ещё не завершённое применение Payment в D2. При этом
+финансовая запись повторно не изменяется и исходный `paidAt` сохраняется.
 
 ### Step 1: financial reconciliation
 
@@ -430,7 +436,8 @@ Step 1 передаёт дальше provider-independent `SuccessfulPayment` с
 - в собственной транзакции выполнить существующую event-specific reconciliation и изменить только
   финансовое состояние Payment;
 - для `invoice.paid/subscription_cycle` идемпотентно создать или найти `RENEWAL` Payment;
-- вернуть `SuccessfulPayment` только для доказанного `SUCCEEDED` или совместимого `ALREADY_SUCCEEDED`;
+- вернуть `SuccessfulPayment` только для доказанного `SUCCEEDED`, включая совместимый replay уже
+  успешного Payment;
 - не ставить успешному webhook `PROCESSED`, пока не завершены следующие обязательные steps;
 - сохранить действующие правила `IGNORED`/`DEAD` для terminal, unsupported и reconciliation outcomes.
 

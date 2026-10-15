@@ -3,9 +3,7 @@ import { CheckoutPurpose, Payment, PaymentStatus, PaymentType } from '../../../.
 import type { PaymentIntentSucceededEvent } from '../../../events/payment-event.js';
 import type { PaymentsTransactionContext } from '../../../ports/payments-unit-of-work.js';
 import { PaymentsRepository } from '../../../ports/payments.repository.js';
-import type {
-  ConfirmSuccessfulPaymentResult,
-} from '../payment-event-processing.types.js';
+import type { ConfirmSuccessfulPaymentResult } from '../payment-event-processing.types.js';
 import {
   PAYMENT_RECONCILIATION_CONFLICT,
   hasProviderReferenceConflict,
@@ -27,10 +25,8 @@ export class ConfirmPaymentIntentSucceededUseCase {
 
     if (!payment) return { outcome: 'PAYMENT_NOT_FOUND' };
     const reconciliationConflict = this.findReconciliationConflict(payment, event);
-    if (reconciliationConflict)
-      return paymentReconciliationConflictResult(reconciliationConflict);
-    if (payment.status === PaymentStatus.SUCCEEDED)
-      return { outcome: 'ALREADY_SUCCEEDED', payment };
+    if (reconciliationConflict) return paymentReconciliationConflictResult(reconciliationConflict);
+    if (payment.status === PaymentStatus.SUCCEEDED) return { outcome: 'SUCCEEDED', payment };
     if (![PaymentStatus.CREATED, PaymentStatus.PENDING].includes(payment.status))
       return { outcome: 'INVALID_TRANSITION' };
 
@@ -49,15 +45,13 @@ export class ConfirmPaymentIntentSucceededUseCase {
     payment: Payment,
     event: PaymentIntentSucceededEvent,
   ): PaymentReconciliationConflict | null {
-    if (payment.providerType !== event.provider)
-      return PAYMENT_RECONCILIATION_CONFLICT.PROVIDER_MISMATCH;
+    if (payment.providerType !== event.provider) return PAYMENT_RECONCILIATION_CONFLICT.PROVIDER_MISMATCH;
     if (
       payment.type !== PaymentType.PURCHASE ||
       payment.checkoutPurpose !== CheckoutPurpose.SUBSCRIPTION_EXTENSION
     )
       return PAYMENT_RECONCILIATION_CONFLICT.PURPOSE_MISMATCH;
-    if (payment.amount !== event.payload.amount)
-      return PAYMENT_RECONCILIATION_CONFLICT.AMOUNT_MISMATCH;
+    if (payment.amount !== event.payload.amount) return PAYMENT_RECONCILIATION_CONFLICT.AMOUNT_MISMATCH;
     if (payment.currency.toLowerCase() !== event.payload.currency.toLowerCase())
       return PAYMENT_RECONCILIATION_CONFLICT.CURRENCY_MISMATCH;
     if (

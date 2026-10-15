@@ -20,6 +20,7 @@ describe('createSuccessfulPayment workflow DTO factory', () => {
       type: PaymentType.PURCHASE,
       checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION,
       autoRenewalRequested: true,
+      targetSubscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
       amount: 1_500,
       currency: Currency.USD,
       periodCount: 2,
@@ -46,6 +47,7 @@ describe('createSuccessfulPayment workflow DTO factory', () => {
         type: PaymentType.RENEWAL,
         checkoutPurpose: null,
         autoRenewalRequested: null,
+        targetSubscriptionId: null,
       }),
     );
   });

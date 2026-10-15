@@ -7,9 +7,7 @@ const dbosMock = vi.hoisted(() => ({
   workflow: vi.fn(
     () => (_target: object, _propertyKey: string, descriptor: PropertyDescriptor) => descriptor,
   ),
-  step: vi.fn(
-    () => (_target: object, _propertyKey: string, descriptor: PropertyDescriptor) => descriptor,
-  ),
+  step: vi.fn(() => (_target: object, _propertyKey: string, descriptor: PropertyDescriptor) => descriptor),
   startWorkflow: vi.fn(() => ({ process: vi.fn().mockResolvedValue({}) })),
   sleepSeconds: vi.fn(),
 }));
@@ -46,8 +44,7 @@ describe('DbosPaymentWebhookWorkflow', () => {
     execute: vi.fn<LinkPaymentToSubscriptionUseCase['execute']>(),
   };
   const scheduleProviderSubscriptionCancellation = {
-    scheduleAtProvider:
-      vi.fn<ScheduleProviderSubscriptionCancellationUseCase['scheduleAtProvider']>(),
+    scheduleAtProvider: vi.fn<ScheduleProviderSubscriptionCancellationUseCase['scheduleAtProvider']>(),
     recordScheduled: vi.fn<ScheduleProviderSubscriptionCancellationUseCase['recordScheduled']>(),
   };
   const createDeferredProviderSubscription = {
@@ -130,6 +127,7 @@ describe('DbosPaymentWebhookWorkflow', () => {
         type: PaymentType.PURCHASE,
         checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION,
         autoRenewalRequested: true,
+        targetSubscriptionId: null,
         amount: 1_000,
         currency: Currency.USD,
         periodCount: 1,
@@ -212,6 +210,7 @@ function successfulPayment() {
     type: PaymentType.PURCHASE,
     checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION,
     autoRenewalRequested: true,
+    targetSubscriptionId: null,
     amount: 1_000,
     currency: Currency.USD,
     periodCount: 1,

@@ -90,6 +90,7 @@ function deferredParams() {
       type: PaymentType.PURCHASE,
       checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION,
       autoRenewalRequested: true,
+      targetSubscriptionId: null,
       amount: 1_000,
       currency: Currency.USD,
       periodCount: 1,

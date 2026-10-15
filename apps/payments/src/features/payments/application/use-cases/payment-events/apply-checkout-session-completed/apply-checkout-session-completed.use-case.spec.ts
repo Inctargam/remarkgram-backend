@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CheckoutPurpose, type Payment, PaymentProvider, PaymentStatus } from '../../../../domain/payment.entity.js';
+import {
+  CheckoutPurpose,
+  type Payment,
+  PaymentProvider,
+  PaymentStatus,
+} from '../../../../domain/payment.entity.js';
 import { PaymentEventKind } from '../../../../domain/payment-event-kind.js';
 import type { CheckoutSessionCompletedEvent } from '../../../events/payment-event.js';
 import type { PaymentsRepository } from '../../../ports/payments.repository.js';
@@ -54,6 +59,7 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
     const useCase = new ApplyCheckoutSessionCompletedUseCase(payments as unknown as PaymentsRepository);
     await expect(useCase.execute(event('paid'), {})).resolves.toEqual({ outcome: 'APPLIED' });
     expect(payments.applyCheckoutCompleted).toHaveBeenCalledWith(
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       expect.not.objectContaining({ providerSubscriptionId: expect.anything() }),
       {},
     );
@@ -61,13 +67,9 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
 
   it('does not derive Stripe mode from CheckoutPurpose', async () => {
     const payments = repository();
-    payments.findById.mockResolvedValue(
-      payment({ checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION }),
-    );
+    payments.findById.mockResolvedValue(payment({ checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION }));
     payments.applyCheckoutCompleted.mockResolvedValue({ outcome: 'APPLIED' });
-    const useCase = new ApplyCheckoutSessionCompletedUseCase(
-      payments as unknown as PaymentsRepository,
-    );
+    const useCase = new ApplyCheckoutSessionCompletedUseCase(payments as unknown as PaymentsRepository);
     const providerEvent: CheckoutSessionCompletedEvent = {
       ...event('paid'),
       payload: { ...event('paid').payload, mode: 'subscription' },
@@ -100,7 +102,7 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
     );
     const useCase = new ApplyCheckoutSessionCompletedUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event('paid'), {})).resolves.toEqual({ outcome: 'ALREADY_APPLIED' });
+    await expect(useCase.execute(event('paid'), {})).resolves.toEqual({ outcome: 'APPLIED' });
     expect(payments.applyCheckoutCompleted).not.toHaveBeenCalled();
   });
 
@@ -115,15 +117,13 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
     );
     const useCase = new ApplyCheckoutSessionCompletedUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event('paid'), {})).resolves.toEqual({ outcome: 'ALREADY_APPLIED' });
+    await expect(useCase.execute(event('paid'), {})).resolves.toEqual({ outcome: 'APPLIED' });
     expect(payments.applyCheckoutCompleted).not.toHaveBeenCalled();
   });
 
   it('persists only the subscription reference for an initial subscription checkout', async () => {
     const payments = repository();
-    payments.findById.mockResolvedValue(
-      payment({ checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION }),
-    );
+    payments.findById.mockResolvedValue(payment({ checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION }));
     payments.applyCheckoutCompleted.mockResolvedValue({ outcome: 'APPLIED' });
     const useCase = new ApplyCheckoutSessionCompletedUseCase(payments as unknown as PaymentsRepository);
     const initialEvent: CheckoutSessionCompletedEvent = {
@@ -157,9 +157,7 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
         providerInvoiceId: 'in_existing',
       }),
     );
-    const useCase = new ApplyCheckoutSessionCompletedUseCase(
-      payments as unknown as PaymentsRepository,
-    );
+    const useCase = new ApplyCheckoutSessionCompletedUseCase(payments as unknown as PaymentsRepository);
     const initialEvent: CheckoutSessionCompletedEvent = {
       ...event('paid'),
       payload: {

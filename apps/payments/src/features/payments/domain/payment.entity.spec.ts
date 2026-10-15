@@ -55,6 +55,47 @@ describe('Payment', () => {
     expect(payment.id).toMatch(/^[0-9a-f-]{36}$/);
   });
 
+  it('does not derive targetSubscriptionId nullability from CheckoutPurpose', () => {
+    expect(
+      Payment.create({
+        ...props,
+        checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION,
+        targetSubscriptionId: '22222222-2222-4222-8222-222222222222',
+      }).targetSubscriptionId,
+    ).toBe('22222222-2222-4222-8222-222222222222');
+    expect(
+      Payment.create({
+        ...props,
+        checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION,
+        targetSubscriptionId: null,
+      }).targetSubscriptionId,
+    ).toBeNull();
+  });
+
+  it('allows optional targetSubscriptionId for a restored renewal', () => {
+    const payment = Payment.restore({
+      ...props,
+      id: '11111111-1111-4111-8111-111111111111',
+      providerCheckoutId: null,
+      providerPaymentId: 'pi_renewal',
+      providerSubscriptionId: 'sub_renewal',
+      providerInvoiceId: 'in_renewal',
+      providerCustomerId: 'cus_1',
+      checkoutExpiresAt: null,
+      providerSnapshot: null,
+      subscriptionId: null,
+      targetSubscriptionId: '22222222-2222-4222-8222-222222222222',
+      status: PaymentStatus.PENDING,
+      createdAt: new Date(),
+      paidAt: null,
+      type: PaymentType.RENEWAL,
+      checkoutPurpose: null,
+      autoRenewalRequested: null,
+    });
+
+    expect(payment.targetSubscriptionId).toBe('22222222-2222-4222-8222-222222222222');
+  });
+
   it.each([0, -1, 1.5])('rejects invalid amount %s', (amount) => {
     expect(() => Payment.create({ ...props, amount })).toThrow(InvalidPaymentAmountError);
   });

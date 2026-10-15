@@ -10,11 +10,10 @@ describe('TemporarySubscriptionPaymentHandlerAdapter', () => {
     const payments = {
       findById: vi.fn<PaymentsRepository['findById']>().mockResolvedValue(null),
     };
-    const adapter = new TemporarySubscriptionPaymentHandlerAdapter(
-      payments as unknown as PaymentsRepository,
-    );
+    const adapter = new TemporarySubscriptionPaymentHandlerAdapter(payments as unknown as PaymentsRepository);
 
     await expect(adapter.applySuccessfulPayment(successfulPayment(), {})).resolves.toMatchObject({
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       subscriptionId: expect.stringMatching(
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
       ),
@@ -33,6 +32,7 @@ function successfulPayment(): SuccessfulPayment {
     type: PaymentType.PURCHASE,
     checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION,
     autoRenewalRequested: true,
+    targetSubscriptionId: null,
     amount: 1_000,
     currency: Currency.USD,
     periodCount: 1,

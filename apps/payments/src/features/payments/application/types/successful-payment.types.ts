@@ -8,6 +8,7 @@ export type SuccessfulPayment = Readonly<{
   type: Payment['type'];
   checkoutPurpose: Payment['checkoutPurpose'];
   autoRenewalRequested: Payment['autoRenewalRequested'];
+  targetSubscriptionId: string | null;
   amount: number;
   currency: Payment['currency'];
   periodCount: number;

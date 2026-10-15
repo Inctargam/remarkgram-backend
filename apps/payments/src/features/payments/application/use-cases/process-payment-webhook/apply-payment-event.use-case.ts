@@ -116,7 +116,7 @@ export class ApplyPaymentEventUseCase {
     result: ApplyCheckoutCompletedResult,
     ctx: PaymentsTransactionContext,
   ): Promise<void> {
-    if (result.outcome === 'APPLIED' || result.outcome === 'ALREADY_APPLIED') {
+    if (result.outcome === 'APPLIED') {
       await this.events.markProcessed(eventId, ctx);
       return;
     }
@@ -140,7 +140,7 @@ export class ApplyPaymentEventUseCase {
     result: ConfirmSuccessfulPaymentResult,
     ctx: PaymentsTransactionContext,
   ): Promise<ApplyPaymentEventResult> {
-    if (result.outcome === 'SUCCEEDED' || result.outcome === 'ALREADY_SUCCEEDED') {
+    if (result.outcome === 'SUCCEEDED') {
       return {
         outcome: 'SUCCESSFUL_PAYMENT',
         eventId,
@@ -176,7 +176,7 @@ export class ApplyPaymentEventUseCase {
     result: CancelExpiredCheckoutSessionResult,
     ctx: PaymentsTransactionContext,
   ): Promise<void> {
-    if (result.outcome === 'CANCELED' || result.outcome === 'ALREADY_CANCELED') {
+    if (result.outcome === 'CANCELED') {
       await this.events.attachPayment(eventId, result.paymentId, ctx);
       await this.events.markProcessed(eventId, ctx);
       return;

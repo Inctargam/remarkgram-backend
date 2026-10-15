@@ -28,7 +28,7 @@ export class ApplyCheckoutSessionCompletedUseCase {
 
     const validation = this.validate(payment, event);
     if (validation) return paymentReconciliationConflictResult(validation);
-    if (this.isAlreadyApplied(payment, event)) return { outcome: 'ALREADY_APPLIED' };
+    if (this.isAlreadyApplied(payment, event)) return { outcome: 'APPLIED' };
 
     const command =
       event.payload.mode === 'subscription'
@@ -51,8 +51,7 @@ export class ApplyCheckoutSessionCompletedUseCase {
     payment: Payment,
     event: CheckoutSessionCompletedEvent,
   ): CheckoutReconciliationConflict | null {
-    if (payment.providerType !== event.provider)
-      return PAYMENT_RECONCILIATION_CONFLICT.PROVIDER_MISMATCH;
+    if (payment.providerType !== event.provider) return PAYMENT_RECONCILIATION_CONFLICT.PROVIDER_MISMATCH;
     if (event.payload.amount !== null && payment.amount !== event.payload.amount)
       return PAYMENT_RECONCILIATION_CONFLICT.AMOUNT_MISMATCH;
     if (

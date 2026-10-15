@@ -119,6 +119,7 @@ export class Payment {
 
   static create(props: CreatePaymentProps): Payment {
     Payment.assertCommonProps(props);
+    Payment.assertScenario({ ...props, type: PaymentType.PURCHASE });
     return new Payment({
       ...props,
       providerType: PaymentProviderFactory.create(props.providerType),
@@ -155,9 +156,12 @@ export class Payment {
     if (from === to) return true;
     return (
       (from === PaymentStatus.CREATED &&
-        [PaymentStatus.PENDING, PaymentStatus.SUCCEEDED, PaymentStatus.FAILED, PaymentStatus.CANCELED].includes(
-          to,
-        )) ||
+        [
+          PaymentStatus.PENDING,
+          PaymentStatus.SUCCEEDED,
+          PaymentStatus.FAILED,
+          PaymentStatus.CANCELED,
+        ].includes(to)) ||
       (from === PaymentStatus.PENDING &&
         [PaymentStatus.SUCCEEDED, PaymentStatus.FAILED, PaymentStatus.CANCELED].includes(to))
     );
@@ -179,27 +183,15 @@ export class Payment {
     PaymentProviderFactory.create(props.providerType);
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(props.idempotentKey))
       throw new InvalidPaymentIdempotentKeyError(props.idempotentKey);
-    Payment.assertScenario({ ...props, type: PaymentType.PURCHASE });
   }
   private static assertScenario(props: CreatePaymentProps & { type: PaymentType }): void {
     if (props.type === PaymentType.RENEWAL) {
-      if (
-        props.checkoutPurpose !== null ||
-        props.autoRenewalRequested !== null ||
-        props.targetSubscriptionId !== null
-      )
+      if (props.checkoutPurpose !== null || props.autoRenewalRequested !== null)
         throw new InvalidPaymentStateError('status', 'invalid renewal context');
       return;
     }
     if (props.checkoutPurpose === null || typeof props.autoRenewalRequested !== 'boolean')
       throw new InvalidPaymentStateError('status', 'purchase requires checkout context');
-    if (props.checkoutPurpose === CheckoutPurpose.INITIAL_SUBSCRIPTION && props.targetSubscriptionId !== null)
-      throw new InvalidPaymentStateError('status', 'initial purchase cannot target a subscription');
-    if (
-      props.checkoutPurpose === CheckoutPurpose.SUBSCRIPTION_EXTENSION &&
-      props.targetSubscriptionId === null
-    )
-      throw new InvalidPaymentStateError('status', 'extension requires target subscription');
   }
   private static assertId(id: string): void {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))

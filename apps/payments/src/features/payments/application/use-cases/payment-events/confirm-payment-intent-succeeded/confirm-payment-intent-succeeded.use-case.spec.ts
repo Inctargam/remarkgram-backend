@@ -47,11 +47,7 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
       outcome: 'SUCCEEDED',
       payment: confirmed,
     });
-    expect(payments.findByProviderPaymentId).toHaveBeenCalledWith(
-      PaymentProvider.STRIPE,
-      'pi_test',
-      {},
-    );
+    expect(payments.findByProviderPaymentId).toHaveBeenCalledWith(PaymentProvider.STRIPE, 'pi_test', {});
   });
 
   it('allows success before checkout completion for a metadata-correlated CREATED payment', async () => {
@@ -71,23 +67,21 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
 
   it('rejects PaymentIntent success for an initial purchase before repository mutation', async () => {
     const payments = repository();
-    payments.findById.mockResolvedValue(
-      candidate({ checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION }),
-    );
+    payments.findById.mockResolvedValue(candidate({ checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION }));
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual({ outcome: 'PURPOSE_MISMATCH' });
     expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
   });
 
-  it('returns ALREADY_SUCCEEDED without overwriting paidAt', async () => {
+  it('returns SUCCEEDED without overwriting paidAt on replay', async () => {
     const payments = repository();
     const confirmed = confirmedPayment({ paidAt: new Date('2026-10-12T11:00:00.000Z') });
     payments.findById.mockResolvedValue(confirmed);
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual({
-      outcome: 'ALREADY_SUCCEEDED',
+      outcome: 'SUCCEEDED',
       payment: confirmed,
     });
     expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
@@ -105,9 +99,7 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
   it('rejects a conflicting PaymentIntent reference before repository mutation', async () => {
     const payments = repository();
     payments.findById.mockResolvedValue(candidate({ providerPaymentId: 'pi_other' }));
-    const useCase = new ConfirmPaymentIntentSucceededUseCase(
-      payments as unknown as PaymentsRepository,
-    );
+    const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual({ outcome: 'REFERENCE_CONFLICT' });
     expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
@@ -155,7 +147,8 @@ function event(overrides: { paymentId?: string | null } = {}): PaymentIntentSucc
     providerEventId: 'evt_success',
     providerEventType: 'payment_intent.succeeded',
     providerCreatedAt: new Date('2026-10-12T12:00:00.000Z'),
-    paymentId: overrides.paymentId === undefined ? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' : overrides.paymentId,
+    paymentId:
+      overrides.paymentId === undefined ? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' : overrides.paymentId,
     payload: {
       id: 'pi_test',
       customerId: 'cus_test',

@@ -16,19 +16,19 @@ export const PAYMENT_ID_MISSING_RESULT = {
 } as const;
 
 export type ApplyCheckoutCompletedResult =
-  | { outcome: 'APPLIED' | 'ALREADY_APPLIED' }
+  | { outcome: 'APPLIED' }
   | {
       outcome: 'PAYMENT_NOT_FOUND' | 'PAYMENT_ID_MISSING' | CheckoutReconciliationConflict;
     };
 
 export type CancelExpiredCheckoutSessionResult =
-  | { outcome: 'CANCELED' | 'ALREADY_CANCELED'; paymentId: string }
+  | { outcome: 'CANCELED'; paymentId: string }
   | {
       outcome: 'PAYMENT_NOT_FOUND' | 'INVALID_TRANSITION' | CheckoutReconciliationConflict;
     };
 
 export type ConfirmSuccessfulPaymentResult =
-  | { outcome: 'SUCCEEDED' | 'ALREADY_SUCCEEDED'; payment: Payment }
+  | { outcome: 'SUCCEEDED'; payment: Payment }
   | {
       outcome:
         | 'PAYMENT_NOT_FOUND'

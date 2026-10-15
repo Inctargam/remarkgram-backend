@@ -67,6 +67,7 @@ describe('ApplyPaymentEventUseCase', () => {
     await expect(useCase.execute({ eventId: 'webhook-id', event }, ctx)).resolves.toEqual({
       outcome: 'SUCCESSFUL_PAYMENT',
       eventId: 'webhook-id',
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       payment: expect.objectContaining({
         paymentId: PAYMENT_ID,
         paidAt: '2026-10-14T10:00:00.000Z',
@@ -90,10 +91,7 @@ describe('ApplyPaymentEventUseCase', () => {
   it('marks a reconciliation conflict as dead', async () => {
     checkoutCompleted.execute.mockResolvedValue({ outcome: 'AMOUNT_MISMATCH' });
 
-    await useCase.execute(
-      { eventId: 'webhook-id', event: checkoutCompletedEvent() },
-      ctx,
-    );
+    await useCase.execute({ eventId: 'webhook-id', event: checkoutCompletedEvent() }, ctx);
 
     expect(events.markDead).toHaveBeenCalledWith(
       'webhook-id',
@@ -116,6 +114,7 @@ function successfulPayment(): Payment {
     type: PaymentType.PURCHASE,
     checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION,
     autoRenewalRequested: true,
+    targetSubscriptionId: null,
     amount: 1_000,
     currency: Currency.USD,
     periodCount: 1,
