@@ -11,9 +11,8 @@ export type CreateDeferredProviderSubscriptionParams = {
   eventId: string;
   payment: SuccessfulPayment;
   subscriptionId: string;
-  paidUntil: string;
+  nextSubscriptionStartsAt: string;
   previousProviderSubscriptionId: string;
-  providerCurrentPeriodEnd: string | null;
 };
 
 export type CreatedDeferredProviderSubscription = {
@@ -48,8 +47,8 @@ export class CreateDeferredProviderSubscriptionUseCase {
       currency: params.payment.currency,
       periodCount: params.payment.periodCount,
       periodUnit: params.payment.periodUnit,
-      billingCycleAnchor: params.paidUntil,
-      idempotencyKey: `subscription:create:${params.payment.paymentId}`,
+      billingCycleAnchor: params.nextSubscriptionStartsAt,
+      operationId: params.payment.paymentId,
     });
     if (!result.providerSubscriptionId.trim())
       throw new PaymentSubscriptionApplicationConflictError(

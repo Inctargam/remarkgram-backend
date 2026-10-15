@@ -7,7 +7,7 @@ export type CreateProviderCheckoutInput = {
   currency: Currency;
   periodCount: number;
   periodUnit: PeriodUnit;
-  idempotencyKey: string;
+  operationId: string;
   customerId: string;
   checkoutPurpose: CheckoutPurpose;
 };
@@ -46,7 +46,6 @@ export type CreatePaymentCustomerResult = Promise<
 export type ScheduleProviderSubscriptionCancellationResult = {
   providerSubscriptionId: string;
   cancelAtPeriodEnd: true;
-  currentPeriodEnd: string | null;
 };
 export type CreateDeferredProviderSubscriptionInput = {
   paymentId: string;
@@ -57,10 +56,19 @@ export type CreateDeferredProviderSubscriptionInput = {
   periodCount: number;
   periodUnit: PeriodUnit;
   billingCycleAnchor: string;
-  idempotencyKey: string;
+  operationId: string;
 };
 export type CreateDeferredProviderSubscriptionResult = {
   providerSubscriptionId: string;
+};
+export type SetProviderSubscriptionAutoRenewalInput = {
+  providerSubscriptionId: string;
+  autoRenewalEnabled: boolean;
+  autoRenewalChangeId: string;
+};
+export type SetProviderSubscriptionAutoRenewalResult = {
+  providerSubscriptionId: string;
+  autoRenewalEnabled: boolean;
 };
 export abstract class PaymentProviderPort {
   abstract createCheckout(input: CreateProviderCheckoutInput): Promise<CreateProviderCheckoutResult>;
@@ -72,4 +80,7 @@ export abstract class PaymentProviderPort {
   abstract createDeferredSubscription(
     input: CreateDeferredProviderSubscriptionInput,
   ): Promise<CreateDeferredProviderSubscriptionResult>;
+  abstract setSubscriptionAutoRenewal(
+    input: SetProviderSubscriptionAutoRenewalInput,
+  ): Promise<SetProviderSubscriptionAutoRenewalResult>;
 }

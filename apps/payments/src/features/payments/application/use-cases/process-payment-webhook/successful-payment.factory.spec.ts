@@ -18,7 +18,6 @@ describe('createSuccessfulPayment workflow DTO factory', () => {
       userId: 10,
       planId: 20,
       type: PaymentType.PURCHASE,
-      checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION,
       autoRenewalRequested: true,
       targetSubscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
       amount: 1_500,
@@ -45,7 +44,6 @@ describe('createSuccessfulPayment workflow DTO factory', () => {
     expect(createSuccessfulPayment(renewal)).toEqual(
       expect.objectContaining({
         type: PaymentType.RENEWAL,
-        checkoutPurpose: null,
         autoRenewalRequested: null,
         targetSubscriptionId: null,
       }),

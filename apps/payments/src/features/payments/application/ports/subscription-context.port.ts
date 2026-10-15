@@ -1,11 +1,6 @@
-export type SubscriptionPurchaseContext =
-  | {
-      kind: 'FIRST_PURCHASE';
-    }
-  | {
-      kind: 'ADDITIONAL_PURCHASE';
-      subscriptionId: string;
-    };
+export type ActiveSubscriptionForPurchase = {
+  subscriptionId: string;
+};
 
 /**
  * Граница чтения контекста подписки.
@@ -13,15 +8,18 @@ export type SubscriptionPurchaseContext =
  */
 export abstract class SubscriptionContextPort {
   /**
-   * Возвращает контекст покупки подписки для пользователя.
+   * Ищет активную локальную Subscription пользователя перед созданием Payment.
    *
-   * FIRST_PURCHASE означает, что локальная подписка ещё не создана.
-   * ADDITIONAL_PURCHASE содержит идентификатор существующей подписки,
-   * к которой после успешной оплаты должен быть применён купленный период.
+   * null означает, что активной Subscription нет и покупка является кандидатом
+   * на создание первой Subscription. Ненулевой результат содержит идентификатор
+   * существующей активной Subscription. D1 использует факт её наличия, чтобы
+   * отличить первую покупку от дополнительной, и сохраняет локальную связь как
+   * targetSubscriptionId. Порядок и фактическую Subscription определяет D2 после
+   * подтверждения оплаты.
    *
    * Метод только читает состояние Subscription Module. Его результат сам по себе
    * не защищает от гонки: право создать первую подписку должно резервироваться
    * атомарно при создании Payment внутри Payments Module.
    */
-  abstract getPurchaseContext(userId: number): Promise<SubscriptionPurchaseContext>;
+  abstract findActiveSubscriptionForPurchase(userId: number): Promise<ActiveSubscriptionForPurchase | null>;
 }

@@ -21,16 +21,16 @@ OAuth-фича реализует единый сценарий входа ил�
 
 ## 2. Термины
 
-| Термин | Значение |
-|---|---|
-| Пользователь (`User`) | Локальная учётная запись Remarkgram. |
-| OAuth provider | Внешний поставщик идентификации. Допустимые значения: `github`, `google`. |
-| Provider subject | Стабильный идентификатор пользователя на стороне конкретного провайдера. В gRPC передаётся как `subject`. |
-| OAuth identity (`AuthIdentity`) | Связь локального пользователя с учётной записью внешнего провайдера. |
-| Provider email | Email, полученный от OAuth-провайдера. Это снимок профиля провайдера, а не самостоятельный ключ владельца identity. |
-| Primary email | Email, у которого в ответе провайдера установлен `primary = true`. Только он используется для регистрации и поиска локального пользователя. |
-| Verified email | Email, владение которым подтверждено OAuth-провайдером (`verified = true`). |
-| Автоматическое объединение | Создание новой `AuthIdentity` для уже существующего локального пользователя, найденного по подтверждённому primary email. Физического объединения двух записей `User` не происходит. |
+| Термин                          | Значение                                                                                                                                                                             |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Пользователь (`User`)           | Локальная учётная запись Remarkgram.                                                                                                                                                 |
+| OAuth provider                  | Внешний поставщик идентификации. Допустимые значения: `github`, `google`.                                                                                                            |
+| Provider subject                | Стабильный идентификатор пользователя на стороне конкретного провайдера. В gRPC передаётся как `subject`.                                                                            |
+| OAuth identity (`AuthIdentity`) | Связь локального пользователя с учётной записью внешнего провайдера.                                                                                                                 |
+| Provider email                  | Email, полученный от OAuth-провайдера. Это снимок профиля провайдера, а не самостоятельный ключ владельца identity.                                                                  |
+| Primary email                   | Email, у которого в ответе провайдера установлен `primary = true`. Только он используется для регистрации и поиска локального пользователя.                                          |
+| Verified email                  | Email, владение которым подтверждено OAuth-провайдером (`verified = true`).                                                                                                          |
+| Автоматическое объединение      | Создание новой `AuthIdentity` для уже существующего локального пользователя, найденного по подтверждённому primary email. Физического объединения двух записей `User` не происходит. |
 
 ## 3. Доменная модель
 
@@ -40,18 +40,18 @@ OAuth-фича реализует единый сценарий входа ил�
 
 `apps/user-accounts/src/features/auth-identities/domain/auth-identity.entity.ts`
 
-| Поле | Тип | Назначение |
-|---|---|---|
-| `id` | `string` (UUID) | Идентификатор identity внутри Remarkgram. |
-| `userId` | `number` | Владелец identity — локальный пользователь. |
-| `provider` | `'github' \| 'google'` | Внешний OAuth-провайдер. |
-| `providerSubject` | `string` | Идентификатор пользователя у провайдера. |
-| `providerEmail` | `string \| null` | Последний сохранённый email из профиля провайдера. |
-| `providerEmailVerified` | `boolean` | Был ли сохранённый provider email подтверждён провайдером. |
-| `username` | `string \| null` | Последнее сохранённое имя пользователя из профиля провайдера. Не является локальным `User.username`. |
-| `avatarUrl` | `string \| null` | Последний сохранённый URL аватара из профиля провайдера. |
-| `createdAt` | `Date` | Дата создания связи. |
-| `updatedAt` | `Date` | Дата последнего обновления связи или профиля провайдера. |
+| Поле                    | Тип                    | Назначение                                                                                           |
+| ----------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| `id`                    | `string` (UUID)        | Идентификатор identity внутри Remarkgram.                                                            |
+| `userId`                | `number`               | Владелец identity — локальный пользователь.                                                          |
+| `provider`              | `'github' \| 'google'` | Внешний OAuth-провайдер.                                                                             |
+| `providerSubject`       | `string`               | Идентификатор пользователя у провайдера.                                                             |
+| `providerEmail`         | `string \| null`       | Последний сохранённый email из профиля провайдера.                                                   |
+| `providerEmailVerified` | `boolean`              | Был ли сохранённый provider email подтверждён провайдером.                                           |
+| `username`              | `string \| null`       | Последнее сохранённое имя пользователя из профиля провайдера. Не является локальным `User.username`. |
+| `avatarUrl`             | `string \| null`       | Последний сохранённый URL аватара из профиля провайдера.                                             |
+| `createdAt`             | `Date`                 | Дата создания связи.                                                                                 |
+| `updatedAt`             | `Date`                 | Дата последнего обновления связи или профиля провайдера.                                             |
 
 Сущность сейчас является read-only представлением сохранённого состояния: публичного фабричного метода создания и методов изменения нет, доступен только `restore`. Создание и обновление выполняются application/service и repository слоями.
 
@@ -96,12 +96,12 @@ erDiagram
 
 В Prisma/PostgreSQL зафиксированы следующие ограничения:
 
-| Ограничение | Бизнес-смысл |
-|---|---|
+| Ограничение                         | Бизнес-смысл                                                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------------- |
 | `UNIQUE(provider, providerSubject)` | Одна внешняя учётная запись не может принадлежать нескольким локальным пользователям. |
-| `UNIQUE(userId, provider)` | У локального пользователя не может быть двух разных identities одного провайдера. |
-| `INDEX(userId)` | Ускоряет получение identities пользователя. |
-| FK `AuthIdentity.userId -> User.id` | Identity не существует без локального владельца. |
+| `UNIQUE(userId, provider)`          | У локального пользователя не может быть двух разных identities одного провайдера.     |
+| `INDEX(userId)`                     | Ускоряет получение identities пользователя.                                           |
+| FK `AuthIdentity.userId -> User.id` | Identity не существует без локального владельца.                                      |
 
 Email локального активного пользователя также уникален с учётом partial unique constraint `UNIQUE(email) WHERE deletedAt IS NULL`.
 
@@ -221,27 +221,27 @@ Repository использует `INSERT ... ON CONFLICT DO NOTHING`. Пусто�
 
 ## 6. Доменные результаты
 
-| Статус | Значение |
-|---|---|
-| `SIGNED_IN` | Найдена существующая identity, выполнен вход её владельца. |
-| `IDENTITY_LINKED` | Identity не существовала и автоматически добавлена существующему пользователю по verified primary email. |
-| `REGISTERED` | Созданы новый пользователь и identity; email подтверждён провайдером. |
-| `REGISTERED_EMAIL_CONFIRMATION_REQUIRED` | Созданы новый пользователь и identity; требуется внутреннее подтверждение email. |
+| Статус                                   | Значение                                                                                                 |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `SIGNED_IN`                              | Найдена существующая identity, выполнен вход её владельца.                                               |
+| `IDENTITY_LINKED`                        | Identity не существовала и автоматически добавлена существующему пользователю по verified primary email. |
+| `REGISTERED`                             | Созданы новый пользователь и identity; email подтверждён провайдером.                                    |
+| `REGISTERED_EMAIL_CONFIRMATION_REQUIRED` | Созданы новый пользователь и identity; требуется внутреннее подтверждение email.                         |
 
 Эти статусы являются внутренними application-результатами. Они не входят в protobuf response: внешний успешный ответ `AuthenticateOAuth` содержит только пару токенов.
 
 ## 7. Доменные ошибки OAuth
 
-| Application code | gRPC status | Причина |
-|---|---|---|
-| `OAUTH_EMAIL_REQUIRED` | `FAILED_PRECONDITION` | Провайдер не вернул непустой primary email, необходимый для поиска или регистрации. |
-| `OAUTH_EMAIL_NOT_VERIFIED` | `FAILED_PRECONDITION` | Найден локальный пользователь, но primary email не подтверждён провайдером; автоматическая привязка запрещена. |
-| `OAUTH_EMAIL_CONFIRMATION_REQUIRED` | `FAILED_PRECONDITION` | Требуется подтверждение email перед созданием сессии. |
-| `OAUTH_IDENTITY_OWNER_NOT_FOUND` | `NOT_FOUND` | Identity существует, но связанный пользователь отсутствует. |
-| `OAUTH_SESSION_CREATION_FAILED` | `FAILED_PRECONDITION` | После успешного доменного результата не удалось сохранить сессию. |
-| `OAUTH_IDENTITY_LINKED_TO_ANOTHER_USER` | `ALREADY_EXISTS` | При конкурентной операции identity оказалась связана с другим пользователем. |
-| `OAUTH_PROVIDER_ALREADY_LINKED` | `ALREADY_EXISTS` | У пользователя уже есть другая identity этого провайдера. |
-| `OAUTH_IDENTITY_CONFLICT` | `ABORTED` | Конфликт уникальности не удалось однозначно классифицировать. |
+| Application code                        | gRPC status           | Причина                                                                                                        |
+| --------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `OAUTH_EMAIL_REQUIRED`                  | `FAILED_PRECONDITION` | Провайдер не вернул непустой primary email, необходимый для поиска или регистрации.                            |
+| `OAUTH_EMAIL_NOT_VERIFIED`              | `FAILED_PRECONDITION` | Найден локальный пользователь, но primary email не подтверждён провайдером; автоматическая привязка запрещена. |
+| `OAUTH_EMAIL_CONFIRMATION_REQUIRED`     | `FAILED_PRECONDITION` | Требуется подтверждение email перед созданием сессии.                                                          |
+| `OAUTH_IDENTITY_OWNER_NOT_FOUND`        | `NOT_FOUND`           | Identity существует, но связанный пользователь отсутствует.                                                    |
+| `OAUTH_SESSION_CREATION_FAILED`         | `FAILED_PRECONDITION` | После успешного доменного результата не удалось сохранить сессию.                                              |
+| `OAUTH_IDENTITY_LINKED_TO_ANOTHER_USER` | `ALREADY_EXISTS`      | При конкурентной операции identity оказалась связана с другим пользователем.                                   |
+| `OAUTH_PROVIDER_ALREADY_LINKED`         | `ALREADY_EXISTS`      | У пользователя уже есть другая identity этого провайдера.                                                      |
+| `OAUTH_IDENTITY_CONFLICT`               | `ABORTED`             | Конфликт уникальности не удалось однозначно классифицировать.                                                  |
 
 Application error code передаётся клиенту в gRPC metadata под общим для всех микросервисов ключом `APP_ERROR_CODE_METADATA_KEY`.
 
@@ -294,21 +294,21 @@ message TokenPairResponse {
 
 ### 8.1. Семантика полей `OAuthIdentityClaims`
 
-| Поле | Обязательность по фактической логике | Использование в `user-accounts` |
-|---|---|---|
-| `provider` | Обязательно, не `UNSPECIFIED` | Преобразуется в доменное значение `github` или `google`. |
-| `subject` | Обязательно и непусто | Обрезаются пробелы; вместе с provider образует ключ identity. |
-| `username` | Не обязателен для идентификации | Передаётся в application DTO, сохраняется в `AuthIdentity` и обновляется при повторном входе. |
-| `avatar_url` | Не обязателен для идентификации | Передаётся в application DTO как `avatarUrl`, сохраняется в `AuthIdentity` и обновляется при повторном входе. |
-| `emails` | Нужен для новых identity; для существующей identity может использоваться для подтверждения владельца и синхронизации | Преобразуется в `OAuthEmail[]`. |
+| Поле         | Обязательность по фактической логике                                                                                 | Использование в `user-accounts`                                                                               |
+| ------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `provider`   | Обязательно, не `UNSPECIFIED`                                                                                        | Преобразуется в доменное значение `github` или `google`.                                                      |
+| `subject`    | Обязательно и непусто                                                                                                | Обрезаются пробелы; вместе с provider образует ключ identity.                                                 |
+| `username`   | Не обязателен для идентификации                                                                                      | Передаётся в application DTO, сохраняется в `AuthIdentity` и обновляется при повторном входе.                 |
+| `avatar_url` | Не обязателен для идентификации                                                                                      | Передаётся в application DTO как `avatarUrl`, сохраняется в `AuthIdentity` и обновляется при повторном входе. |
+| `emails`     | Нужен для новых identity; для существующей identity может использоваться для подтверждения владельца и синхронизации | Преобразуется в `OAuthEmail[]`.                                                                               |
 
 ### 8.2. Семантика полей `AuthenticateOAuthRequest`
 
-| Поле | Использование |
-|---|---|
-| `identity` | Обязательно. При отсутствии контроллер должен вернуть `INVALID_ARGUMENT`. |
-| `ip` | Передаётся в контекст создания device session. |
-| `device_name` | Передаётся в контекст создания device session. |
+| Поле          | Использование                                                             |
+| ------------- | ------------------------------------------------------------------------- |
+| `identity`    | Обязательно. При отсутствии контроллер должен вернуть `INVALID_ARGUMENT`. |
+| `ip`          | Передаётся в контекст создания device session.                            |
+| `device_name` | Передаётся в контекст создания device session.                            |
 
 Поле `current_session` удалено из `AuthenticateOAuthRequest`: OAuth endpoint выполняет вход или регистрацию, а `IDENTITY_LINKED` является автоматическим бизнес-результатом поиска по verified email. Это не отдельная авторизованная команда привязки provider account.
 
@@ -334,12 +334,12 @@ flowchart LR
 
 Точное отображение provider:
 
-| Protobuf | Domain |
-|---|---|
-| `OAUTH_PROVIDER_GITHUB` | `github` |
-| `OAUTH_PROVIDER_GOOGLE` | `google` |
+| Protobuf                     | Domain                    |
+| ---------------------------- | ------------------------- |
+| `OAUTH_PROVIDER_GITHUB`      | `github`                  |
+| `OAUTH_PROVIDER_GOOGLE`      | `google`                  |
 | `OAUTH_PROVIDER_UNSPECIFIED` | ошибка `INVALID_ARGUMENT` |
-| `UNRECOGNIZED` | ошибка `INVALID_ARGUMENT` |
+| `UNRECOGNIZED`               | ошибка `INVALID_ARGUMENT` |
 
 `username` и `avatar_url` попадают в application DTO и хранятся как профильные атрибуты `AuthIdentity`. Они не участвуют в поиске владельца, регистрации или автоматической привязке и не изменяют локальный `User.username`.
 
@@ -411,23 +411,23 @@ sequenceDiagram
 
 ## 12. Карта исходников
 
-| Зона | Файл |
-|---|---|
-| Доменная сущность identity | `apps/user-accounts/src/features/auth-identities/domain/auth-identity.entity.ts` |
-| Доменная сущность пользователя | `apps/user-accounts/src/features/users/domain/entities/user.entity.ts` |
-| Состояние подтверждения пользователя | `apps/user-accounts/src/features/users/domain/value-objects/confirmation-info.ts` |
-| Нормализация email | `apps/user-accounts/src/features/users/domain/email-normalization.ts` |
-| Доменное дерево OAuth-решений | `apps/user-accounts/src/features/auth-identities/application/auth-identity.service.ts` |
-| Входные типы и результаты | `apps/user-accounts/src/features/auth-identities/application/types/auth-identities.types.ts` |
-| OAuth application errors | `apps/user-accounts/src/features/auth-identities/application/errors/auth-identity.errors.ts` |
-| Ограничения БД | `apps/user-accounts/prisma/schema.prisma` |
-| Protobuf-контракт | `libs/contracts/user-accounts-grpc/src/proto/user-accounts.proto` |
-| gRPC-контроллер | `apps/user-accounts/src/features/auth/presentation/grpc/controllers/auth-grpc.controller.ts` |
-| Mapper provider | `apps/user-accounts/src/features/auth/presentation/grpc/mappers/oauth-provider.mapper.ts` |
-| Mapper identity | `apps/user-accounts/src/features/auth/presentation/grpc/mappers/oauth-identity.mapper.ts` |
-| Domain error -> gRPC status | `apps/user-accounts/src/common/grpc/filters/user-accounts-rpc-error.mapper.ts` |
-| Формирование GitHub claims в Gateway | `apps/api-gateway/src/modules/user-accounts/presentation/http/guards/github/github.strategy.ts` |
-| Валидация claims в Gateway | `apps/api-gateway/src/modules/user-accounts/presentation/http/mappers/oauth-identity-claims.mapper.ts` |
+| Зона                                 | Файл                                                                                                   |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Доменная сущность identity           | `apps/user-accounts/src/features/auth-identities/domain/auth-identity.entity.ts`                       |
+| Доменная сущность пользователя       | `apps/user-accounts/src/features/users/domain/entities/user.entity.ts`                                 |
+| Состояние подтверждения пользователя | `apps/user-accounts/src/features/users/domain/value-objects/confirmation-info.ts`                      |
+| Нормализация email                   | `apps/user-accounts/src/features/users/domain/email-normalization.ts`                                  |
+| Доменное дерево OAuth-решений        | `apps/user-accounts/src/features/auth-identities/application/auth-identity.service.ts`                 |
+| Входные типы и результаты            | `apps/user-accounts/src/features/auth-identities/application/types/auth-identities.types.ts`           |
+| OAuth application errors             | `apps/user-accounts/src/features/auth-identities/application/errors/auth-identity.errors.ts`           |
+| Ограничения БД                       | `apps/user-accounts/prisma/schema.prisma`                                                              |
+| Protobuf-контракт                    | `libs/contracts/user-accounts-grpc/src/proto/user-accounts.proto`                                      |
+| gRPC-контроллер                      | `apps/user-accounts/src/features/auth/presentation/grpc/controllers/auth-grpc.controller.ts`           |
+| Mapper provider                      | `apps/user-accounts/src/features/auth/presentation/grpc/mappers/oauth-provider.mapper.ts`              |
+| Mapper identity                      | `apps/user-accounts/src/features/auth/presentation/grpc/mappers/oauth-identity.mapper.ts`              |
+| Domain error -> gRPC status          | `apps/user-accounts/src/common/grpc/filters/user-accounts-rpc-error.mapper.ts`                         |
+| Формирование GitHub claims в Gateway | `apps/api-gateway/src/modules/user-accounts/presentation/http/guards/github/github.strategy.ts`        |
+| Валидация claims в Gateway           | `apps/api-gateway/src/modules/user-accounts/presentation/http/mappers/oauth-identity-claims.mapper.ts` |
 
 ## 13. Следующие разделы документации
 

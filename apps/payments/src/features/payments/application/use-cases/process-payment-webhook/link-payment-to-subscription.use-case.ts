@@ -20,7 +20,7 @@ export type LinkPaymentToSubscriptionResult =
       eventId: string;
       payment: SuccessfulPayment;
       subscriptionId: string;
-      paidUntil: string;
+      nextSubscriptionStartsAt: string;
       previousProviderSubscriptionId: string;
     };
 
@@ -68,7 +68,7 @@ export class LinkPaymentToSubscriptionUseCase {
       eventId: params.eventId,
       payment: params.payment,
       subscriptionId: applied.subscriptionId,
-      paidUntil: applied.paidUntil,
+      nextSubscriptionStartsAt: applied.nextSubscriptionStartsAt,
       previousProviderSubscriptionId: applied.previousProviderSubscriptionId!,
     };
   }
@@ -77,7 +77,7 @@ export class LinkPaymentToSubscriptionUseCase {
     payment: SuccessfulPayment,
     result: Awaited<ReturnType<SubscriptionPaymentHandler['applySuccessfulPayment']>>,
   ): void {
-    const paidUntil = new Date(result.paidUntil);
+    const nextSubscriptionStartsAt = new Date(result.nextSubscriptionStartsAt);
     const subscriptionIdPattern =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     const invalidAction =
@@ -85,7 +85,8 @@ export class LinkPaymentToSubscriptionUseCase {
       (payment.type === PaymentType.PURCHASE && result.action === 'RENEWED');
     if (
       !subscriptionIdPattern.test(result.subscriptionId) ||
-      Number.isNaN(paidUntil.getTime()) ||
+      Number.isNaN(nextSubscriptionStartsAt.getTime()) ||
+      nextSubscriptionStartsAt.toISOString() !== result.nextSubscriptionStartsAt ||
       invalidAction ||
       (result.action === 'SCHEDULED' && !result.previousProviderSubscriptionId?.trim())
     )

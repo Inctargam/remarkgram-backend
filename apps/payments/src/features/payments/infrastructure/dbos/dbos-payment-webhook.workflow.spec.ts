@@ -26,7 +26,7 @@ import type { LinkPaymentToSubscriptionUseCase } from '../../application/use-cas
 import type { ScheduleProviderSubscriptionCancellationUseCase } from '../../application/use-cases/process-payment-webhook/schedule-provider-subscription-cancellation.use-case.js';
 import { Currency, PeriodUnit } from '../../../plans/domain/plan.entity.js';
 import { PaymentEventKind } from '../../domain/payment-event-kind.js';
-import { CheckoutPurpose, PaymentProvider, PaymentType } from '../../domain/payment.entity.js';
+import { PaymentProvider, PaymentType } from '../../domain/payment.entity.js';
 import { DbosPaymentWebhookWorkflow } from './dbos-payment-webhook.workflow.js';
 import { PAYMENT_WEBHOOK_QUEUE } from './dbos-lifecycle.service.js';
 import type { PaymentsDbosDataSource } from './payments-dbos.datasource.js';
@@ -125,7 +125,6 @@ describe('DbosPaymentWebhookWorkflow', () => {
         userId: 10,
         planId: 20,
         type: PaymentType.PURCHASE,
-        checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION,
         autoRenewalRequested: true,
         targetSubscriptionId: null,
         amount: 1_000,
@@ -172,14 +171,11 @@ describe('DbosPaymentWebhookWorkflow', () => {
       eventId: 'webhook-id',
       payment,
       subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-      paidUntil: '2026-11-14T10:00:00.000Z',
+      nextSubscriptionStartsAt: '2026-11-14T10:00:00.000Z',
       previousProviderSubscriptionId: 'sub_previous',
     };
     linkPaymentToSubscription.execute.mockResolvedValue(scheduled);
-    scheduleProviderSubscriptionCancellation.scheduleAtProvider.mockResolvedValue({
-      ...scheduled,
-      providerCurrentPeriodEnd: '2026-10-31T10:00:00.000Z',
-    });
+    scheduleProviderSubscriptionCancellation.scheduleAtProvider.mockResolvedValue(scheduled);
 
     await expect(workflow.process(paymentEvent())).resolves.toBeUndefined();
 
@@ -191,9 +187,7 @@ describe('DbosPaymentWebhookWorkflow', () => {
     expect(dataSource.runTransaction).toHaveBeenLastCalledWith(expect.any(Function), {
       name: 'recordDeferredProviderSubscription',
     });
-    expect(createDeferredProviderSubscription.createAtProvider).toHaveBeenCalledWith(
-      expect.objectContaining({ providerCurrentPeriodEnd: '2026-10-31T10:00:00.000Z' }),
-    );
+    expect(createDeferredProviderSubscription.createAtProvider).toHaveBeenCalledWith(scheduled);
     expect(createDeferredProviderSubscription.recordCreated).toHaveBeenCalledWith(
       expect.objectContaining({ previousProviderSubscriptionId: 'sub_previous' }),
       { providerSubscriptionId: 'sub_new' },
@@ -208,7 +202,6 @@ function successfulPayment() {
     userId: 10,
     planId: 20,
     type: PaymentType.PURCHASE,
-    checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION,
     autoRenewalRequested: true,
     targetSubscriptionId: null,
     amount: 1_000,

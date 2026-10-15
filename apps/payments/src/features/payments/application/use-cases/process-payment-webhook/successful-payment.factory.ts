@@ -13,7 +13,6 @@ export function createSuccessfulPayment(payment: Payment): SuccessfulPayment {
     userId: payment.userId,
     planId: payment.planId,
     type: payment.type,
-    checkoutPurpose: payment.checkoutPurpose,
     autoRenewalRequested: payment.autoRenewalRequested,
     targetSubscriptionId: payment.targetSubscriptionId,
     amount: payment.amount,

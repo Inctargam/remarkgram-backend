@@ -90,9 +90,9 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
       throw new PaymentPlanUnavailableError();
     }
 
-    let context: Awaited<ReturnType<SubscriptionContextPort['getPurchaseContext']>>;
+    let activeSubscription: Awaited<ReturnType<SubscriptionContextPort['findActiveSubscriptionForPurchase']>>;
     try {
-      context = await this.subscription.getPurchaseContext(input.userId);
+      activeSubscription = await this.subscription.findActiveSubscriptionForPurchase(input.userId);
     } catch {
       throw new PaymentSubscriptionContextError();
     }
@@ -107,11 +107,11 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
       providerType,
       idempotentKey: input.idempotencyKey,
       checkoutPurpose:
-        context.kind === 'FIRST_PURCHASE'
+        activeSubscription === null
           ? CheckoutPurpose.INITIAL_SUBSCRIPTION
           : CheckoutPurpose.SUBSCRIPTION_EXTENSION,
       autoRenewalRequested: input.autoRenewal,
-      targetSubscriptionId: context.kind === 'ADDITIONAL_PURCHASE' ? context.subscriptionId : null,
+      targetSubscriptionId: activeSubscription?.subscriptionId ?? null,
     });
 
     let created: Awaited<ReturnType<PaymentsRepository['create']>>;
@@ -144,7 +144,7 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
         currency: payment.currency,
         periodCount: payment.periodCount,
         periodUnit: payment.periodUnit,
-        idempotencyKey: `checkout:${payment.providerType}:${payment.id}`,
+        operationId: payment.id,
         customerId: customer.providerCustomerId,
         checkoutPurpose: payment.checkoutPurpose!,
       });

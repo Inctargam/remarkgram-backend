@@ -10,7 +10,7 @@ const input: CreateProviderCheckoutInput = {
   currency: Currency.USD,
   periodCount: 1,
   periodUnit: PeriodUnit.MONTH,
-  idempotencyKey: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  operationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   customerId: 'cus_test',
   checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION,
 };
@@ -34,7 +34,7 @@ describe('StripePaymentProvider.createCheckout', () => {
           }),
         ],
       }),
-      { idempotencyKey: input.idempotencyKey },
+      { idempotencyKey: `checkout:STRIPE:${input.operationId}` },
     );
   });
 
@@ -48,7 +48,7 @@ describe('StripePaymentProvider.createCheckout', () => {
         mode: 'payment',
         payment_intent_data: { metadata: { paymentId: input.paymentId } },
       }),
-      { idempotencyKey: input.idempotencyKey },
+      { idempotencyKey: `checkout:STRIPE:${input.operationId}` },
     );
   });
 });
@@ -59,7 +59,6 @@ describe('StripePaymentProvider.scheduleSubscriptionCancellation', () => {
     const update = vi.fn().mockResolvedValue({
       id: 'sub_previous',
       cancel_at_period_end: true,
-      items: { data: [{ current_period_end: 1_793_440_800 }] },
     });
     Object.assign(provider as unknown as Record<string, unknown>, {
       stripe: { subscriptions: { update } },
@@ -68,9 +67,46 @@ describe('StripePaymentProvider.scheduleSubscriptionCancellation', () => {
     await expect(provider.scheduleSubscriptionCancellation('sub_previous')).resolves.toEqual({
       providerSubscriptionId: 'sub_previous',
       cancelAtPeriodEnd: true,
-      currentPeriodEnd: new Date(1_793_440_800 * 1000).toISOString(),
     });
-    expect(update).toHaveBeenCalledWith('sub_previous', { cancel_at_period_end: true });
+    expect(update).toHaveBeenCalledWith(
+      'sub_previous',
+      { cancel_at_period_end: true },
+      { idempotencyKey: 'subscription:cancel-at-period-end:sub_previous' },
+    );
+  });
+});
+
+describe('StripePaymentProvider.setSubscriptionAutoRenewal', () => {
+  it.each([
+    [true, false],
+    [false, true],
+  ])('преобразует autoRenewalEnabled=%s в cancel_at_period_end=%s', async (enabled, cancelAtPeriodEnd) => {
+    const { provider } = providerWithStripe();
+    const update = vi.fn().mockResolvedValue({
+      id: 'sub_test',
+      cancel_at_period_end: cancelAtPeriodEnd,
+    });
+    Object.assign(provider as unknown as Record<string, unknown>, {
+      stripe: { subscriptions: { update } },
+    });
+
+    await expect(
+      provider.setSubscriptionAutoRenewal({
+        providerSubscriptionId: 'sub_test',
+        autoRenewalEnabled: enabled,
+        autoRenewalChangeId: 'auto-renewal-change-1',
+      }),
+    ).resolves.toEqual({
+      providerSubscriptionId: 'sub_test',
+      autoRenewalEnabled: enabled,
+    });
+    expect(update).toHaveBeenCalledWith(
+      'sub_test',
+      { cancel_at_period_end: cancelAtPeriodEnd },
+      {
+        idempotencyKey: `subscription-auto-renewal:auto-renewal-change-1:${enabled ? 'enable' : 'disable'}`,
+      },
+    );
   });
 });
 
@@ -96,9 +132,18 @@ describe('StripePaymentProvider.createDeferredSubscription', () => {
         periodCount: input.periodCount,
         periodUnit: input.periodUnit,
         billingCycleAnchor: '2026-11-14T10:00:00.000Z',
-        idempotencyKey: `subscription:create:${input.paymentId}`,
+        operationId: input.paymentId,
       }),
     ).resolves.toEqual({ providerSubscriptionId: 'sub_new' });
+    expect(createProduct).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: {
+          paymentId: input.paymentId,
+          subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        },
+      }),
+      { idempotencyKey: `subscription-product:${input.paymentId}` },
+    );
     expect(createSubscription).toHaveBeenCalledWith(
       expect.objectContaining({
         customer: input.customerId,

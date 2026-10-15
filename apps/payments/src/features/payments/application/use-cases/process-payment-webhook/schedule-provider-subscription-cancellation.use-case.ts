@@ -11,14 +11,11 @@ export type ScheduleProviderSubscriptionCancellationParams = {
   eventId: string;
   payment: SuccessfulPayment;
   subscriptionId: string;
-  paidUntil: string;
+  nextSubscriptionStartsAt: string;
   previousProviderSubscriptionId: string;
 };
 
-export type ScheduleProviderSubscriptionCancellationResult =
-  ScheduleProviderSubscriptionCancellationParams & {
-    providerCurrentPeriodEnd: string | null;
-  };
+export type ScheduleProviderSubscriptionCancellationResult = ScheduleProviderSubscriptionCancellationParams;
 
 /** Workflow step behavior for retiring the previous provider Subscription. */
 @Injectable()
@@ -35,7 +32,7 @@ export class ScheduleProviderSubscriptionCancellationUseCase {
       params.previousProviderSubscriptionId,
     );
     this.assertProviderResult(params, result);
-    return { ...params, providerCurrentPeriodEnd: result.currentPeriodEnd };
+    return params;
   }
 
   recordScheduled(

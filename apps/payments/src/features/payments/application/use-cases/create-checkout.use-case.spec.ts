@@ -1,24 +1,24 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Currency, PeriodUnit, Plan } from '../../../plans/domain/plan.entity.js';
-import {
-  Payment,
-  PaymentProvider,
-  CheckoutPurpose,
-  PaymentStatus,
-  PaymentType,
-  type RestorePaymentProps,
-} from '../../domain/payment.entity.js';
-import type { PlansRepository } from '../../../plans/application/ports/plans.repository.js';
-import type { PaymentsRepository } from '../ports/payments.repository.js';
-import type { PaymentProviderPort } from '../ports/payment-provider.js';
-import { CreateCheckoutCommand, CreateCheckoutUseCase } from './create-checkout.use-case.js';
 import {
   PaymentCheckoutReconciliationRequiredError,
   PaymentIdempotencyConflictError,
   PaymentInitialReservationConflictError,
 } from '../../../../common/application/errors/payments.error.js';
-import type { PaymentCustomerService } from '../services/payment-customer.service.js';
+import type { PlansRepository } from '../../../plans/application/ports/plans.repository.js';
+import { Currency, PeriodUnit, Plan } from '../../../plans/domain/plan.entity.js';
+import {
+  CheckoutPurpose,
+  Payment,
+  PaymentProvider,
+  PaymentStatus,
+  PaymentType,
+  type RestorePaymentProps,
+} from '../../domain/payment.entity.js';
+import type { PaymentProviderPort } from '../ports/payment-provider.js';
+import type { PaymentsRepository } from '../ports/payments.repository.js';
 import type { SubscriptionContextPort } from '../ports/subscription-context.port.js';
+import type { PaymentCustomerService } from '../services/payment-customer.service.js';
+import { CreateCheckoutCommand, CreateCheckoutUseCase } from './create-checkout.use-case.js';
 
 const input = {
   userId: 42,
@@ -95,6 +95,8 @@ describe('CreateCheckoutUseCase', () => {
         periodCount: 1,
         periodUnit: PeriodUnit.MONTH,
         customerId: 'cus_test',
+        // Application passes a stable operation identity; the provider adapter owns the key prefix.
+        operationId: expect.any(String),
       }),
     );
   });
@@ -248,7 +250,7 @@ function customerService(): PaymentCustomerService {
 
 function subscriptionContext(): SubscriptionContextPort {
   return {
-    getPurchaseContext: vi.fn().mockResolvedValue({ kind: 'FIRST_PURCHASE' }),
+    findActiveSubscriptionForPurchase: vi.fn().mockResolvedValue(null),
   };
 }
 

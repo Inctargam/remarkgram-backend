@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
+  type ActiveSubscriptionForPurchase,
   SubscriptionContextPort,
-  type SubscriptionPurchaseContext,
 } from '../../application/ports/subscription-context.port.js';
 
 /**
@@ -10,7 +10,7 @@ import {
  */
 @Injectable()
 export class TemporarySubscriptionContextAdapter extends SubscriptionContextPort {
-  getPurchaseContext(_userId: number): Promise<SubscriptionPurchaseContext> {
-    return Promise.resolve({ kind: 'FIRST_PURCHASE' });
+  findActiveSubscriptionForPurchase(_userId: number): Promise<ActiveSubscriptionForPurchase | null> {
+    return Promise.resolve(null);
   }
 }

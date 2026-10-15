@@ -6,8 +6,13 @@ export type ApplySuccessfulPaymentAction = 'CREATED' | 'SCHEDULED' | 'RENEWED';
 export type ApplySuccessfulPaymentResult = {
   subscriptionId: string;
   action: ApplySuccessfulPaymentAction;
-  /** End of the locally granted access period, serialized for durable workflow transport. */
-  paidUntil: string;
+  /**
+   * D2-owned start of the next provider-managed billing period. For SCHEDULED,
+   * this is when the first automatic charge may occur after all already paid
+   * local periods, including the period granted by this Payment, have ended.
+   * Serialized as canonical UTC ISO-8601.
+   */
+  nextSubscriptionStartsAt: string;
   /** Provider subscription being replaced; required when action is SCHEDULED. */
   previousProviderSubscriptionId: string | null;
 };
@@ -24,6 +29,11 @@ export abstract class SubscriptionPaymentHandler {
     payment: SuccessfulPayment,
     tx: PaymentsTransactionContext,
   ): Promise<ApplySuccessfulPaymentResult>;
+  /**
+   * Makes the previous provider Subscription a terminal retiring link in D2.
+   * After commit it remains active only until its paid period ends and must no
+   * longer be eligible for auto-renewal enable/disable commands.
+   */
   abstract markProviderSubscriptionCancellationScheduled(
     subscriptionId: string,
     providerSubscriptionId: string,

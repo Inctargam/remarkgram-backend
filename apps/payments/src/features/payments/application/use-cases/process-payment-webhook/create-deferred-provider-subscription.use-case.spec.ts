@@ -4,7 +4,7 @@ import type { PaymentEventRepository } from '../../ports/payment-event.repositor
 import type { PaymentProviderPort } from '../../ports/payment-provider.js';
 import type { PaymentsRepository } from '../../ports/payments.repository.js';
 import type { SubscriptionPaymentHandler } from '../../ports/subscription-payment.handler.js';
-import { CheckoutPurpose, PaymentProvider, PaymentType } from '../../../domain/payment.entity.js';
+import { PaymentProvider, PaymentType } from '../../../domain/payment.entity.js';
 import { CreateDeferredProviderSubscriptionUseCase } from './create-deferred-provider-subscription.use-case.js';
 
 describe('CreateDeferredProviderSubscriptionUseCase workflow step', () => {
@@ -40,8 +40,8 @@ describe('CreateDeferredProviderSubscriptionUseCase workflow step', () => {
 
     expect(provider.createDeferredSubscription).toHaveBeenCalledWith(
       expect.objectContaining({
-        billingCycleAnchor: params.paidUntil,
-        idempotencyKey: `subscription:create:${params.payment.paymentId}`,
+        billingCycleAnchor: params.nextSubscriptionStartsAt,
+        operationId: params.payment.paymentId,
       }),
     );
     expect(payments.bindPaymentProviderSubscription).toHaveBeenCalledWith(
@@ -88,7 +88,6 @@ function deferredParams() {
       userId: 10,
       planId: 20,
       type: PaymentType.PURCHASE,
-      checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION,
       autoRenewalRequested: true,
       targetSubscriptionId: null,
       amount: 1_000,
@@ -100,8 +99,7 @@ function deferredParams() {
       paidAt: '2026-10-14T10:00:00.000Z',
     },
     subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-    paidUntil: '2026-11-14T10:00:00.000Z',
+    nextSubscriptionStartsAt: '2026-11-14T10:00:00.000Z',
     previousProviderSubscriptionId: 'sub_previous',
-    providerCurrentPeriodEnd: '2026-10-31T10:00:00.000Z',
   };
 }

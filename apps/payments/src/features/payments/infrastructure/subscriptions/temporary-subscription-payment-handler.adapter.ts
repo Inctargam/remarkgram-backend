@@ -33,7 +33,7 @@ export class TemporarySubscriptionPaymentHandlerAdapter extends SubscriptionPaym
     return {
       subscriptionId,
       action: payment.type === PaymentType.RENEWAL ? 'RENEWED' : 'CREATED',
-      paidUntil: this.calculatePaidUntil(payment).toISOString(),
+      nextSubscriptionStartsAt: this.calculateNextSubscriptionStartsAt(payment).toISOString(),
       previousProviderSubscriptionId: null,
     };
   }
@@ -55,7 +55,7 @@ export class TemporarySubscriptionPaymentHandlerAdapter extends SubscriptionPaym
     // Temporary D2 adapter has no Subscription persistence to update.
   }
 
-  private calculatePaidUntil(payment: SuccessfulPayment): Date {
+  private calculateNextSubscriptionStartsAt(payment: SuccessfulPayment): Date {
     const paidAt = new Date(payment.paidAt);
     const result = new Date(paidAt);
 

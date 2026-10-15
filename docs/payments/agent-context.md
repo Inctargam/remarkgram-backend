@@ -70,6 +70,53 @@ D2 отвечает на вопрос: «Какой доступ должен п
 
 D2 не разбирает Stripe events, не проверяет signature, не использует Stripe SDK и не меняет Payment.
 
+### Auto-renewal: D1 boundary
+
+D1 предоставляет `SetProviderSubscriptionAutoRenewalUseCase` для изменения настройки recurring
+billing существующей provider Subscription. Эта операция не принимает бизнес-решение об auto-renewal,
+не хранит lifecycle локальной Subscription и не реализует переходные состояния другого модуля.
+
+До появления реального D2 `PaymentsProviderSubscriptionAutoRenewalAdapter` зарегистрирован и
+экспортирован из `PaymentsModule` по собственному class token. Будущий D2 должен объявить
+`ProviderSubscriptionAutoRenewalGateway` в своём application-слое с отдельными методами `enable` и
+`disable`, после чего composition root свяжет D2 token с этим адаптером. D2 не должен импортировать
+`SetProviderSubscriptionAutoRenewalUseCase` напрямую.
+
+```ts
+type SetProviderSubscriptionAutoRenewalParams = {
+  provider: PaymentProvider;
+  providerSubscriptionId: string;
+  autoRenewalEnabled: boolean;
+  autoRenewalChangeId: string;
+};
+
+type SetProviderSubscriptionAutoRenewalResult = {
+  providerSubscriptionId: string;
+  autoRenewalEnabled: boolean;
+};
+```
+
+`autoRenewalChangeId` идентифицирует один запрос на изменение настройки auto-renewal и не меняется
+при retry/replay этого запроса. Use case валидирует provider, передаёт `autoRenewalChangeId` и desired
+state через `PaymentProviderPort.setSubscriptionAutoRenewal` и проверяет, что provider подтвердил
+нужную Subscription и настройку. Итоговый idempotency key формирует concrete provider adapter. Для
+Stripe `autoRenewalEnabled=false` преобразуется в
+`cancel_at_period_end=true`, а `autoRenewalEnabled=true` — в `cancel_at_period_end=false`. Это не
+немедленная отмена Subscription и не изменение исторического Payment.
+
+Вызов provider выполняется без открытой DB-транзакции. Повтор операции с тем же
+`autoRenewalChangeId` и
+desired state безопасен. D1 не содержит gateway, persistence, worker/workflow или state machine другого
+модуля; вызывающая сторона самостоятельно реализует координацию и retry поверх этой D1 capability.
+
+D2 разрешает enable/disable auto-renewal только для provider Subscription, которая является текущей
+управляемой связью локальной Subscription. После Step 3 прежняя provider Subscription переходит в
+необратимое состояние завершения: она остаётся активной только до конца уже оплаченного периода, но
+больше не может быть целью enable/disable. После Step 4 настройкой auto-renewal можно управлять только
+у новой provider Subscription, когда она стала текущей согласно lifecycle D2. D1 capability не может
+проверить это правило по одному provider ID; eligibility обязана быть проверена и зафиксирована D2 до
+внешнего вызова.
+
 ### Будущий стык модулей
 
 Целевой сценарий разбивается на durable DBOS steps. Каждый шаг получает явные сериализуемые аргументы,
@@ -90,7 +137,8 @@ recovery зафиксированы в разделе «План примене�
 
 Subscription Module и реальный `SubscriptionPaymentHandler` пока не реализованы. Для локальной проверки
 первой подписки в Payments подключены временные subscription context/payment-handler adapters. Временный
-handler не создаёт Subscription entity: он генерирует UUID, рассчитывает тестовый `paidUntil` и сохраняет
+handler не создаёт Subscription entity: он генерирует UUID, рассчитывает тестовый
+`nextSubscriptionStartsAt` и сохраняет
 связь только через `Payment.subscriptionId`.
 
 ## Основная модель Payment
@@ -144,20 +192,20 @@ extension purchase и не становится initial purchase.
 
 ## Правила Stripe events
 
-| Stripe event | Семантика Payment Module | Состояние реализации |
-| --- | --- | --- |
-| `checkout.session.completed` | Enrichment provider references; никогда самостоятельно не означает `SUCCEEDED` | Реализовано |
-| `payment_intent.succeeded` | Подтверждает `PURCHASE + SUBSCRIPTION_EXTENSION` | Реализовано |
-| `invoice.paid` + `subscription_create` | Подтверждает initial PURCHASE | Реализовано |
-| `invoice.paid` + `subscription_cycle` | Создаёт идемпотентный `RENEWAL` Payment | Реализовано |
-| `payment_intent.payment_failed` | Audit/correlation; не меняет lifecycle status | Реализовано |
-| `invoice.payment_failed` | Audit/correlation; не меняет lifecycle status | Реализовано |
-| `checkout.session.expired` | `CREATED/PENDING -> CANCELED` после reconciliation | Реализовано в worktree, ожидает review |
-| `payment_intent.canceled` | Будущий terminal cancellation для подходящего one-time Payment | Не реализовано |
-| `invoice.voided` | Будущая terminal cancellation для unpaid invoice-backed Payment | Не реализовано |
-| `invoice.marked_uncollectible` | Не считать автоматически `CANCELED`; требуется отдельное решение о terminal failure | Не реализовано |
-| `customer.subscription.deleted` | Subscription lifecycle, не отмена исторического Payment | Не реализовано |
-| `charge.refunded` / `refund.*` | Refund lifecycle, не `CANCELED` | Не реализовано |
+| Stripe event                           | Семантика Payment Module                                                            | Состояние реализации                   |
+| -------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------- |
+| `checkout.session.completed`           | Enrichment provider references; никогда самостоятельно не означает `SUCCEEDED`      | Реализовано                            |
+| `payment_intent.succeeded`             | Подтверждает `PURCHASE + SUBSCRIPTION_EXTENSION`                                    | Реализовано                            |
+| `invoice.paid` + `subscription_create` | Подтверждает initial PURCHASE                                                       | Реализовано                            |
+| `invoice.paid` + `subscription_cycle`  | Создаёт идемпотентный `RENEWAL` Payment                                             | Реализовано                            |
+| `payment_intent.payment_failed`        | Audit/correlation; не меняет lifecycle status                                       | Реализовано                            |
+| `invoice.payment_failed`               | Audit/correlation; не меняет lifecycle status                                       | Реализовано                            |
+| `checkout.session.expired`             | `CREATED/PENDING -> CANCELED` после reconciliation                                  | Реализовано в worktree, ожидает review |
+| `payment_intent.canceled`              | Будущий terminal cancellation для подходящего one-time Payment                      | Не реализовано                         |
+| `invoice.voided`                       | Будущая terminal cancellation для unpaid invoice-backed Payment                     | Не реализовано                         |
+| `invoice.marked_uncollectible`         | Не считать автоматически `CANCELED`; требуется отдельное решение о terminal failure | Не реализовано                         |
+| `customer.subscription.deleted`        | Subscription lifecycle, не отмена исторического Payment                             | Не реализовано                         |
+| `charge.refunded` / `refund.*`         | Refund lifecycle, не `CANCELED`                                                     | Не реализовано                         |
 
 ## Reconciliation provider references
 
@@ -167,13 +215,13 @@ Optional provider reference означает отсутствие знания, 
 
 Для каждой reference, разрешённой конкретным event contract, применяется одна таблица:
 
-| Локальное значение | Значение event | Результат |
-| --- | --- | --- |
-| `null` | `null` | Нет знания; ничего не обновлять, конфликта нет |
-| значение | `null` | Event не принёс нового знания; локальное значение сохранить, конфликта нет |
-| `null` | значение | Совместимое enrichment; сохранить входящее значение |
-| то же значение | то же значение | Идемпотентный no-op |
-| одно значение | другое значение | `REFERENCE_CONFLICT`, никаких partial updates |
+| Локальное значение | Значение event  | Результат                                                                  |
+| ------------------ | --------------- | -------------------------------------------------------------------------- |
+| `null`             | `null`          | Нет знания; ничего не обновлять, конфликта нет                             |
+| значение           | `null`          | Event не принёс нового знания; локальное значение сохранить, конфликта нет |
+| `null`             | значение        | Совместимое enrichment; сохранить входящее значение                        |
+| то же значение     | то же значение  | Идемпотентный no-op                                                        |
+| одно значение      | другое значение | `REFERENCE_CONFLICT`, никаких partial updates                              |
 
 Запрещено:
 
@@ -186,15 +234,15 @@ Optional provider reference означает отсутствие знания, 
 
 ### Ownership references по событиям
 
-| Event | References, участвующие в reconciliation/enrichment | Не проверять в этом event |
-| --- | --- | --- |
-| `checkout.session.completed`, `mode=payment` | `providerCheckoutId` — обязателен; `providerCustomerId` и `providerPaymentId` — optional knowledge | `providerSubscriptionId`, `providerInvoiceId` |
-| `checkout.session.completed`, `mode=subscription` | `providerCheckoutId` — обязателен; `providerCustomerId` и `providerSubscriptionId` — optional knowledge | `providerInvoiceId`; `providerPaymentId`, если он не является частью явно согласованного contract |
-| `checkout.session.expired` | `providerCheckoutId` — обязателен; `providerCustomerId` — optional knowledge | `providerPaymentId`, `providerSubscriptionId`, `providerInvoiceId` |
-| `payment_intent.succeeded` | `providerPaymentId` — ID самого PaymentIntent; `providerCustomerId` — optional knowledge | `providerSubscriptionId`, `providerInvoiceId` |
-| `payment_intent.payment_failed` | `providerPaymentId` для correlation; Customer только если contract его нормализует | `providerSubscriptionId`, `providerInvoiceId` |
-| `invoice.paid` | `providerInvoiceId` — ID Invoice; `providerSubscriptionId` для subscription invoice; `providerPaymentId` и Customer — optional knowledge | Checkout reference |
-| `invoice.payment_failed` | То же пространство references, что у Invoice, но только для audit/correlation | Checkout reference |
+| Event                                             | References, участвующие в reconciliation/enrichment                                                                                      | Не проверять в этом event                                                                         |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `checkout.session.completed`, `mode=payment`      | `providerCheckoutId` — обязателен; `providerCustomerId` и `providerPaymentId` — optional knowledge                                       | `providerSubscriptionId`, `providerInvoiceId`                                                     |
+| `checkout.session.completed`, `mode=subscription` | `providerCheckoutId` — обязателен; `providerCustomerId` и `providerSubscriptionId` — optional knowledge                                  | `providerInvoiceId`; `providerPaymentId`, если он не является частью явно согласованного contract |
+| `checkout.session.expired`                        | `providerCheckoutId` — обязателен; `providerCustomerId` — optional knowledge                                                             | `providerPaymentId`, `providerSubscriptionId`, `providerInvoiceId`                                |
+| `payment_intent.succeeded`                        | `providerPaymentId` — ID самого PaymentIntent; `providerCustomerId` — optional knowledge                                                 | `providerSubscriptionId`, `providerInvoiceId`                                                     |
+| `payment_intent.payment_failed`                   | `providerPaymentId` для correlation; Customer только если contract его нормализует                                                       | `providerSubscriptionId`, `providerInvoiceId`                                                     |
+| `invoice.paid`                                    | `providerInvoiceId` — ID Invoice; `providerSubscriptionId` для subscription invoice; `providerPaymentId` и Customer — optional knowledge | Checkout reference                                                                                |
+| `invoice.payment_failed`                          | То же пространство references, что у Invoice, но только для audit/correlation                                                            | Checkout reference                                                                                |
 
 `providerInvoiceId` не должен извлекаться или ожидаться от `checkout.session.completed`: Invoice является
 отдельным Stripe object и приходит в invoice events. Для one-time Checkout отсутствие
@@ -349,6 +397,47 @@ result contracts и нужные event policies расширяются или с
 - infrastructure failure оставляет workflow доступным для retry, а стабильный business conflict
   завершается существующим `IGNORED` или `DEAD` outcome без бесконечного retry.
 
+### Формирование provider idempotency keys
+
+Префикс и итоговую строку idempotency key формирует concrete outbound provider adapter. Для Stripe
+это `StripePaymentProvider`: только он знает namespace операций Stripe и преобразует стабильный
+application `operationId` в provider key. Application use cases, D2 gateways и workflow передают
+семантический `operationId` без provider-specific приставок.
+
+`ProviderEventAdapter` не является границей формирования ключей. Это inbound boundary, который после
+проверки подписи преобразует входящий webhook в нормализованный `PaymentEvent`; исходящие provider
+команды и правила их replay к нему не относятся. Outbound boundary — `PaymentProviderPort`, а
+форматирование ключа является ответственностью его infrastructure-реализации.
+
+Правила:
+
+- один `operationId` стабильно идентифицирует одну логическую операцию и не меняется при retry/replay;
+- разные provider-операции получают разные prefixes, чтобы одинаковый identity не объединял
+  создание Checkout, Product, Subscription или изменение auto-renewal;
+- use case не передаёт готовый `idempotencyKey` в `PaymentProviderPort`; port принимает
+  `operationId`, а adapter строит итоговый ключ непосредственно перед вызовом SDK;
+- пользовательский `Payment.idempotentKey` для дедупликации команды создания Payment является
+  отдельным бизнес-контрактом и не используется как готовый Stripe idempotency key;
+- уже опубликованный prefix нельзя молча менять: это нарушает replay для ранее начатой операции;
+  новая несовместимая схема требует versioned migration/operation.
+
+Исключение для Step 3: операция перевода прежней provider Subscription в
+`cancel_at_period_end=true` является единственным необратимым переходом этой provider-связи. После
+него D2 запрещает возвращать прежнюю связь в auto-renewal. Поэтому
+`providerSubscriptionId` одновременно является стабильной identity этой terminal-операции, а replay
+с тем же ключом безопасен. Это исключение недействительно для управляемой текущей provider
+Subscription, где enable/disable являются разными повторяемыми переходами и требуют отдельного
+`autoRenewalChangeId`.
+
+Текущие Stripe namespaces:
+
+- `checkout:STRIPE:<operationId>`;
+- `customer:create:<internalUserId>`;
+- `subscription:cancel-at-period-end:<providerSubscriptionId>`;
+- `subscription-product:<operationId>` для Product отложенной Subscription;
+- `subscription:create:<operationId>` для самой отложенной Subscription;
+- `subscription-auto-renewal:<autoRenewalChangeId>:enable|disable`.
+
 ### Архитектурная декомпозиция и порядок срезов
 
 `DbosPaymentWebhookWorkflow` остаётся тонким infrastructure orchestrator: он задаёт versioned-порядок
@@ -411,15 +500,24 @@ use case и spec, например `payment-events/confirm-invoice-paid/` или
 Step 1 передаёт дальше provider-independent `SuccessfulPayment` со следующими полями:
 
 - `paymentId`, `userId`, `planId`;
-- `type`, `checkoutPurpose`, `autoRenewalRequested`, nullable `targetSubscriptionId`;
+- `type`, `autoRenewalRequested`, nullable `targetSubscriptionId`;
 - `amount`, `currency`, `periodCount`, `periodUnit`;
 - `provider`, `providerCustomerId`;
 - `paidAt` как ISO-8601 string.
 
-`targetSubscriptionId` передаётся в D2 только как необязательный контекст исходного purchase intent.
-Его nullability не определяется `CheckoutPurpose` или `PaymentType`, он не выбирает ветку workflow и
-не ограничивает решение D2. Фактический `subscriptionId` выбирает и возвращает D2, после чего D1
-атомарно фиксирует его в Payment.
+`targetSubscriptionId` является snapshot результата
+`SubscriptionContextPort.findActiveSubscriptionForPurchase`, полученного до создания Payment. Если
+активной Subscription нет, он равен `null`. Если она найдена, он содержит её `subscriptionId` — UUID
+предыдущей активной локальной Subscription. Для D1 наличие значения отличает дополнительную покупку
+от первой и сохраняет локальную связь с исходным состоянием пользователя. При webhook D1 не
+перечитывает активную Subscription и передаёт D2 сохранённое значение. Поле не предписывает, к какой
+Subscription должен быть применён оплаченный период, и не выбирает ветку workflow. Порядок
+Subscription и фактический `subscriptionId` определяет и возвращает D2, после чего D1 атомарно
+фиксирует его в Payment. Фактический `subscriptionId` не обязан совпадать с `targetSubscriptionId`.
+
+`CheckoutPurpose` не входит в `SuccessfulPayment`. Он описывает исходный purchase intent и
+pre-payment concurrency policy. После financial reconciliation дальнейший workflow следует явному
+результату D2 (`CREATED`, `SCHEDULED` или `RENEWED`) и не интерпретирует CheckoutPurpose повторно.
 
 Результат step 1 является discriminated union:
 
@@ -459,7 +557,7 @@ interface SubscriptionPaymentHandler {
   ): Promise<{
     subscriptionId: string;
     action: 'CREATED' | 'SCHEDULED' | 'RENEWED';
-    paidUntil: string;
+    nextSubscriptionStartsAt: string;
     previousProviderSubscriptionId: string | null;
   }>;
 }
@@ -475,7 +573,19 @@ Application boundary этого шага называется `LinkPaymentToSubs
 Payments определяет только этот application port и orchestration вокруг него. Domain model,
 persistence и concrete implementation `SubscriptionPaymentHandler` принадлежат D2 и реализуются
 вторым разработчиком. Текущий infrastructure adapter является явно временным диагностическим стендом:
-он генерирует `subscriptionId` и рассчитывает `paidUntil`, но не создаёт настоящую Subscription entity.
+он генерирует `subscriptionId` и рассчитывает `nextSubscriptionStartsAt`, но не создаёт настоящую
+Subscription entity.
+
+Для `SCHEDULED` `nextSubscriptionStartsAt` — момент начала следующего provider-managed billing period
+и первого следующего автоматического списания. Он наступает после окончания всей уже оплаченной
+локальной цепочки периодов, включая период, предоставленный текущим Payment. Например, если активный
+период заканчивается `2026-11-01T00:00:00.000Z`, а текущая покупка оплачивает следующий месяц до
+`2026-12-01T00:00:00.000Z`, значение равно `2026-12-01T00:00:00.000Z`, а не дате начала купленного
+периода. Его вычисляет D2 из собственного упорядоченного Subscription lifecycle. Это не время создания
+Stripe Subscription и не дата ответа provider. D1 не выводит значение из Stripe
+`current_period_end`, `Payment.paidAt` или `CheckoutPurpose`, не прибавляет период и не корректирует
+его самостоятельно. Через durable workflow поле передаётся в каноническом UTC ISO-8601 формате с
+суффиксом `Z`; невалидное или не-UTC значение является `INVALID_HANDLER_RESULT`.
 
 - handler идемпотентен по `paymentId`: replay не создаёт второй период доступа;
 - `Payment.subscriptionId` записывается в той же локальной транзакции, что и применение периода в D2;
@@ -519,31 +629,41 @@ rollback в отдельной транзакции. Для `CREATED`/`RENEWED` 
 ### Step 3: завершение старой Stripe Subscription
 
 Step получает `eventId`, `paymentId`, `subscriptionId`, `previousProviderSubscriptionId` и
-`paidUntil`.
+`nextSubscriptionStartsAt`.
 
 - идемпотентно установить старой Stripe Subscription `cancel_at_period_end: true`;
 - не отменять её немедленно: она остаётся активной до конца уже оплаченного Stripe-периода;
 - после ответа Stripe в локальной транзакции отметить старую provider-связь D2 как
   `CANCELLATION_SCHEDULED`;
-- локальный `paidUntil` остаётся источником истины для даты первой оплаты новой Subscription;
-- несовпадение Stripe `current_period_end` и локального `paidUntil` записывается как диагностический
-  reconciliation mismatch, но не изменяет будущий billing anchor;
+- после фиксации `CANCELLATION_SCHEDULED` прежняя provider Subscription остаётся доступной до конца
+  оплаченного периода, но её transition необратим: D2 больше не разрешает для неё enable/disable
+  auto-renewal;
+- после создания и binding новой provider Subscription операции enable/disable могут применяться
+  только к ней как к текущей управляемой provider-связи;
+- вычисленный D2 `nextSubscriptionStartsAt` остаётся источником истины для начала следующей Subscription;
+- Stripe `current_period_end` не переносится в application/workflow contract и не сравнивается с
+  `nextSubscriptionStartsAt`: это граница прежнего provider-периода, а
+  `nextSubscriptionStartsAt` — рассчитанный D2 момент начала следующей локальной Subscription;
 - replay повторно устанавливает то же состояние и не создаёт дополнительного перехода.
 
 Реализованный application boundary `ScheduleProviderSubscriptionCancellationUseCase` разделяет
 provider-вызов и локальную фиксацию. `scheduleProviderSubscriptionCancellationStep` сначала вызывает
 Stripe adapter с `cancel_at_period_end: true`, не удерживая Prisma-транзакцию, а затем в отдельной
 транзакции вызывает `SubscriptionPaymentHandler.markProviderSubscriptionCancellationScheduled`.
-Stripe `current_period_end` извлекается из Subscription items и возвращается только как диагностическое
-ISO-значение; локальный `paidUntil` не изменяется. Реальный D2 adapter должен заменить временный no-op.
+Ответ provider подтверждает только идентификатор Subscription и `cancel_at_period_end: true`.
+Billing anchor следующей Subscription берётся исключительно из `nextSubscriptionStartsAt`; ответ Stripe
+его не корректирует. Реальный D2 adapter должен заменить временный no-op.
 
 ### Step 4: создание отложенной Stripe Subscription
 
-Step получает `eventId`, `SuccessfulPayment`, `subscriptionId`, `paidUntil` и прежний provider ID.
+Step получает `eventId`, `SuccessfulPayment`, `subscriptionId`, `nextSubscriptionStartsAt` и прежний
+provider ID.
 
 - создать Stripe Subscription для купленного плана с customer, стоимостью и периодом из
   зафиксированного Payment snapshot;
-- передать `billing_cycle_anchor = paidUntil` и `proration_behavior = 'none'`;
+- передать `billing_cycle_anchor = nextSubscriptionStartsAt` и `proration_behavior = 'none'`;
+- не рассчитывать и не сдвигать anchor в D1/Stripe adapter: готовое значение предоставляет D2 в
+  каноническом UTC ISO-8601 формате с суффиксом `Z`;
 - добавить в Stripe metadata как минимум `paymentId` и `subscriptionId`;
 - использовать стабильный Stripe idempotency key, производный от `paymentId`;
 - после ответа Stripe открыть локальную транзакцию, условно записать новый
@@ -571,7 +691,8 @@ idempotency key обязан получить ту же Stripe Subscription и �
 
 Реализация slice 6 использует `CreateDeferredProviderSubscriptionUseCase` и явный DBOS step
 `createDeferredProviderSubscriptionStep`. Stripe adapter создаёт идемпотентный Product для операции,
-затем Subscription с recurring Price, `billing_cycle_anchor = paidUntil`, `proration_behavior = 'none'`
+затем Subscription с recurring Price, `billing_cycle_anchor = nextSubscriptionStartsAt`,
+`proration_behavior = 'none'`
 и metadata `paymentId`/`subscriptionId`. После provider-вызова отдельная локальная транзакция условно
 сохраняет `Payment.providerSubscriptionId`, вызывает
 `SubscriptionPaymentHandler.bindProviderSubscription` и помечает webhook `PROCESSED`. Guard разрешает
@@ -586,7 +707,8 @@ idempotency key обязан получить ту же Stripe Subscription и �
 - replay каждого step не создаёт второй Payment, период доступа или Stripe Subscription;
 - recovery между Stripe create и локальным commit сохраняет один provider ID;
 - старая Stripe Subscription получает только `cancel_at_period_end: true`;
-- новая Stripe Subscription получает локальный `paidUntil` как `billing_cycle_anchor` и
+- новая Stripe Subscription получает вычисленный D2 UTC `nextSubscriptionStartsAt` как
+  `billing_cycle_anchor` и
   `proration_behavior: 'none'`;
 - новый provider ID атомарно сохраняется в Payment и D2;
 - конфликт provider ID не оставляет partial update;
@@ -646,4 +768,3 @@ idempotency key обязан получить ту же Stripe Subscription и �
 
 Не запускать tests, build, lint, formatter или другие verification-команды без явного запроса
 пользователя. После изменения перечислить рекомендуемые, но не выполненные проверки.
-

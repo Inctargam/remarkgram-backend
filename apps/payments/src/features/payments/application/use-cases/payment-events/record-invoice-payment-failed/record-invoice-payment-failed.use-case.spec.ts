@@ -64,9 +64,9 @@ const PAYMENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 function repository() {
   return {
-    findById: vi.fn(),
-    findByProviderInvoiceId: vi.fn(),
-    findByProviderSubscriptionId: vi.fn(),
+    findById: vi.fn().mockResolvedValue(null),
+    findByProviderInvoiceId: vi.fn().mockResolvedValue(null),
+    findByProviderSubscriptionId: vi.fn().mockResolvedValue(null),
   };
 }
 
@@ -74,8 +74,10 @@ function payment(overrides: Partial<Payment> = {}): Payment {
   return {
     id: PAYMENT_ID,
     providerType: PaymentProvider.STRIPE,
+    providerPaymentId: 'pi_failed',
     providerSubscriptionId: 'sub_test',
     providerInvoiceId: null,
+    providerCustomerId: 'cus_test',
     status: PaymentStatus.PENDING,
     ...overrides,
   } as Payment;

@@ -20,7 +20,7 @@ describe('LinkPaymentToSubscriptionUseCase workflow step', () => {
     fixture.subscriptions.applySuccessfulPayment.mockResolvedValue({
       subscriptionId: SUBSCRIPTION_ID,
       action: 'CREATED',
-      paidUntil: '2026-11-14T12:00:00.000Z',
+      nextSubscriptionStartsAt: '2026-11-14T12:00:00.000Z',
       previousProviderSubscriptionId: null,
     });
 
@@ -44,7 +44,7 @@ describe('LinkPaymentToSubscriptionUseCase workflow step', () => {
     fixture.subscriptions.applySuccessfulPayment.mockResolvedValue({
       subscriptionId: SUBSCRIPTION_ID,
       action: 'SCHEDULED',
-      paidUntil: '2026-11-14T12:00:00.000Z',
+      nextSubscriptionStartsAt: '2026-11-14T12:00:00.000Z',
       previousProviderSubscriptionId: 'sub_previous',
     });
 
@@ -53,7 +53,7 @@ describe('LinkPaymentToSubscriptionUseCase workflow step', () => {
       eventId: 'event-id',
       payment: fixture.params.payment,
       subscriptionId: SUBSCRIPTION_ID,
-      paidUntil: '2026-11-14T12:00:00.000Z',
+      nextSubscriptionStartsAt: '2026-11-14T12:00:00.000Z',
       previousProviderSubscriptionId: 'sub_previous',
     });
     expect(fixture.events.markProcessed).not.toHaveBeenCalled();
@@ -64,7 +64,7 @@ describe('LinkPaymentToSubscriptionUseCase workflow step', () => {
     fixture.subscriptions.applySuccessfulPayment.mockResolvedValue({
       subscriptionId: SUBSCRIPTION_ID,
       action: 'SCHEDULED',
-      paidUntil: '2026-11-14T12:00:00.000Z',
+      nextSubscriptionStartsAt: '2026-11-14T12:00:00.000Z',
       previousProviderSubscriptionId: null,
     });
 
@@ -75,12 +75,27 @@ describe('LinkPaymentToSubscriptionUseCase workflow step', () => {
     expect(fixture.events.attachPayment).not.toHaveBeenCalled();
   });
 
+  it('rejects a non-UTC nextSubscriptionStartsAt before binding the payment', async () => {
+    const fixture = createFixture();
+    fixture.subscriptions.applySuccessfulPayment.mockResolvedValue({
+      subscriptionId: SUBSCRIPTION_ID,
+      action: 'SCHEDULED',
+      nextSubscriptionStartsAt: '2026-11-14T14:00:00.000+02:00',
+      previousProviderSubscriptionId: 'sub_previous',
+    });
+
+    await expect(fixture.useCase.execute(fixture.params, fixture.ctx)).rejects.toMatchObject({
+      reason: 'INVALID_HANDLER_RESULT',
+    });
+    expect(fixture.payments.linkSuccessfulPaymentToSubscription).not.toHaveBeenCalled();
+  });
+
   it('откатывает транзакцию, если Payment уже связан с subscription-A, а handler вернул subscription-B', async () => {
     const fixture = createFixture(SUBSCRIPTION_A_ID);
     fixture.subscriptions.applySuccessfulPayment.mockResolvedValue({
       subscriptionId: SUBSCRIPTION_B_ID,
       action: 'CREATED',
-      paidUntil: '2026-11-14T12:00:00.000Z',
+      nextSubscriptionStartsAt: '2026-11-14T12:00:00.000Z',
       previousProviderSubscriptionId: null,
     });
     fixture.payments.linkSuccessfulPaymentToSubscription.mockResolvedValue({

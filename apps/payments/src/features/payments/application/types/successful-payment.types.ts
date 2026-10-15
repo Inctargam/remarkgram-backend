@@ -6,7 +6,6 @@ export type SuccessfulPayment = Readonly<{
   userId: number;
   planId: number;
   type: Payment['type'];
-  checkoutPurpose: Payment['checkoutPurpose'];
   autoRenewalRequested: Payment['autoRenewalRequested'];
   targetSubscriptionId: string | null;
   amount: number;

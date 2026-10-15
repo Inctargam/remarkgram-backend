@@ -11,7 +11,6 @@ describe('ScheduleProviderSubscriptionCancellationUseCase workflow step', () => 
         .mockResolvedValue({
           providerSubscriptionId: 'sub_previous',
           cancelAtPeriodEnd: true,
-          currentPeriodEnd: '2026-10-31T10:00:00.000Z',
         }),
     };
     const subscriptions = {
@@ -27,14 +26,11 @@ describe('ScheduleProviderSubscriptionCancellationUseCase workflow step', () => 
       eventId: 'event-id',
       payment: {} as never,
       subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-      paidUntil: '2026-11-14T10:00:00.000Z',
+      nextSubscriptionStartsAt: '2026-11-14T10:00:00.000Z',
       previousProviderSubscriptionId: 'sub_previous',
     };
 
-    await expect(useCase.scheduleAtProvider(params)).resolves.toEqual({
-      ...params,
-      providerCurrentPeriodEnd: '2026-10-31T10:00:00.000Z',
-    });
+    await expect(useCase.scheduleAtProvider(params)).resolves.toEqual(params);
     const tx = {};
     await useCase.recordScheduled(params, tx);
     expect(subscriptions.markProviderSubscriptionCancellationScheduled).toHaveBeenCalledWith(

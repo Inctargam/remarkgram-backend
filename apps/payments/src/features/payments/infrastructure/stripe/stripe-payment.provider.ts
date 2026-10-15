@@ -13,6 +13,8 @@ import {
   type CreateProviderCheckoutInput,
   type CreateProviderCheckoutResult,
   type ScheduleProviderSubscriptionCancellationResult,
+  type SetProviderSubscriptionAutoRenewalInput,
+  type SetProviderSubscriptionAutoRenewalResult,
   type VerifiedProviderWebhook,
 } from '../../application/ports/payment-provider.js';
 import { CheckoutPurpose, PaymentProvider } from '../../domain/payment.entity.js';
@@ -96,7 +98,7 @@ export class StripePaymentProvider extends PaymentProviderPort {
         cancel_url: this.config.cancelUrl,
         client_reference_id: input.paymentId,
       },
-      { idempotencyKey: input.idempotencyKey },
+      { idempotencyKey: this.idempotencyKey('checkout:STRIPE', input.operationId) },
     );
   }
 
@@ -124,7 +126,7 @@ export class StripePaymentProvider extends PaymentProviderPort {
         cancel_url: this.config.cancelUrl,
         client_reference_id: input.paymentId,
       },
-      { idempotencyKey: input.idempotencyKey },
+      { idempotencyKey: this.idempotencyKey('checkout:STRIPE', input.operationId) },
     );
   }
 
@@ -178,7 +180,7 @@ export class StripePaymentProvider extends PaymentProviderPort {
             internalUserId: String(props.internalUserId),
           },
         },
-        { idempotencyKey: `customer:create:${props.internalUserId}` },
+        { idempotencyKey: this.idempotencyKey('customer:create', String(props.internalUserId)) },
       );
 
       return { outcome: 'CREATED', providerCustomerId: customer.id };
@@ -193,18 +195,23 @@ export class StripePaymentProvider extends PaymentProviderPort {
   async scheduleSubscriptionCancellation(
     providerSubscriptionId: string,
   ): Promise<ScheduleProviderSubscriptionCancellationResult> {
-    const subscription = await this.stripe.subscriptions.update(providerSubscriptionId, {
-      cancel_at_period_end: true,
-    });
+    const subscription = await this.stripe.subscriptions.update(
+      providerSubscriptionId,
+      {
+        cancel_at_period_end: true,
+      },
+      {
+        // D2 permits this terminal transition only once per retiring provider
+        // Subscription, so its provider ID is also the stable replay identity.
+        idempotencyKey: this.idempotencyKey('subscription:cancel-at-period-end', providerSubscriptionId),
+      },
+    );
     if (!subscription.cancel_at_period_end)
       throw new Error(`Stripe did not schedule cancellation for Subscription ${providerSubscriptionId}`);
-    const periodEnds = subscription.items.data.map((item) => item.current_period_end);
-    const currentPeriodEnd = periodEnds.length === 0 ? null : Math.max(...periodEnds);
 
     return {
       providerSubscriptionId: subscription.id,
-      cancelAtPeriodEnd: true,
-      currentPeriodEnd: currentPeriodEnd === null ? null : new Date(currentPeriodEnd * 1000).toISOString(),
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
     };
   }
 
@@ -217,7 +224,7 @@ export class StripePaymentProvider extends PaymentProviderPort {
         name: 'Remarkgram subscription period',
         metadata: { paymentId: input.paymentId, subscriptionId: input.subscriptionId },
       },
-      { idempotencyKey: `subscription-product:${input.paymentId}` },
+      { idempotencyKey: this.idempotencyKey('subscription-product', input.operationId) },
     );
     const subscription = await this.stripe.subscriptions.create(
       {
@@ -243,9 +250,31 @@ export class StripePaymentProvider extends PaymentProviderPort {
           subscriptionId: input.subscriptionId,
         },
       },
-      { idempotencyKey: input.idempotencyKey },
+      { idempotencyKey: this.idempotencyKey('subscription:create', input.operationId) },
     );
     return { providerSubscriptionId: subscription.id };
+  }
+
+  async setSubscriptionAutoRenewal(
+    input: SetProviderSubscriptionAutoRenewalInput,
+  ): Promise<SetProviderSubscriptionAutoRenewalResult> {
+    const subscription = await this.stripe.subscriptions.update(
+      input.providerSubscriptionId,
+      { cancel_at_period_end: !input.autoRenewalEnabled },
+      {
+        idempotencyKey: this.idempotencyKey(
+          'subscription-auto-renewal',
+          input.autoRenewalChangeId,
+          input.autoRenewalEnabled ? 'enable' : 'disable',
+        ),
+      },
+    );
+    const autoRenewalEnabled = !subscription.cancel_at_period_end;
+
+    return {
+      providerSubscriptionId: subscription.id,
+      autoRenewalEnabled,
+    };
   }
 
   private classifyOperationError(
@@ -289,5 +318,9 @@ export class StripePaymentProvider extends PaymentProviderPort {
     else this.logger.warn(details);
 
     return { outcome };
+  }
+
+  private idempotencyKey(scope: string, ...identity: string[]): string {
+    return [scope, ...identity].join(':');
   }
 }

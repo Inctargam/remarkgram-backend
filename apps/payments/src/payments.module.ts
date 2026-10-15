@@ -29,6 +29,7 @@ import { ScheduleProviderSubscriptionCancellationUseCase } from './features/paym
 import { GetPaymentStatusUseCase } from './features/payments/application/use-cases/get-payment-status.use-case.js';
 import { ProcessStripeWebhookUseCase } from './features/payments/application/use-cases/process-stripe-webhook.use-case.js';
 import { ReceivePaymentEventUseCase } from './features/payments/application/use-cases/receive-payment-event.use-case.js';
+import { SetProviderSubscriptionAutoRenewalUseCase } from './features/payments/application/use-cases/set-provider-subscription-auto-renewal/set-provider-subscription-auto-renewal.use-case.js';
 import { PrismaPaymentsRepository } from './features/payments/infrastructure/persistence/prisma/prisma-payments.repository.js';
 import { PrismaPaymentEventRepository } from './features/payments/infrastructure/persistence/prisma/prisma-payment-event.repository.js';
 import { PrismaPaymentCustomersRepository } from './features/payments/infrastructure/persistence/prisma/prisma-payment-customers.repository.js';
@@ -44,6 +45,7 @@ import { DbosPaymentWebhookWorkflow } from './features/payments/infrastructure/d
 import { PaymentsDbosDataSource } from './features/payments/infrastructure/dbos/payments-dbos.datasource.js';
 import { TemporarySubscriptionContextAdapter } from './features/payments/infrastructure/subscriptions/temporary-subscription-context.adapter.js';
 import { TemporarySubscriptionPaymentHandlerAdapter } from './features/payments/infrastructure/subscriptions/temporary-subscription-payment-handler.adapter.js';
+import { PaymentsProviderSubscriptionAutoRenewalAdapter } from './features/payments/infrastructure/subscriptions/payments-provider-subscription-auto-renewal.adapter.js';
 import { PaymentsGrpcController } from './features/payments/presentation/grpc/payments-grpc.controller.js';
 import { StripeWebhookController } from './features/payments/presentation/http/stripe-webhook.controller.js';
 import { PlansRepository } from './features/plans/application/ports/plans.repository.js';
@@ -128,11 +130,14 @@ import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-pl
     ScheduleProviderSubscriptionCancellationUseCase,
     GetPaymentStatusUseCase,
     ReceivePaymentEventUseCase,
+    SetProviderSubscriptionAutoRenewalUseCase,
+    PaymentsProviderSubscriptionAutoRenewalAdapter,
     ProcessStripeWebhookUseCase,
     PaymentsDbosDataSource,
     DbosPaymentWebhookWorkflow,
     { provide: PaymentWebhookWorkflow, useExisting: DbosPaymentWebhookWorkflow },
     DbosLifecycleService,
   ],
+  exports: [PaymentsProviderSubscriptionAutoRenewalAdapter],
 })
 export class PaymentsModule {}

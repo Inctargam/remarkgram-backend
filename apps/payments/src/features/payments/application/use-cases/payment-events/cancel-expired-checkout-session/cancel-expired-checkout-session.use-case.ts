@@ -28,8 +28,7 @@ export class CancelExpiredCheckoutSessionUseCase {
 
     const conflict = this.reconciliationConflict(payment, event);
     if (conflict) return paymentReconciliationConflictResult(conflict);
-    if (payment.status === PaymentStatus.CANCELED)
-      return { outcome: 'CANCELED', paymentId: payment.id };
+    if (payment.status === PaymentStatus.CANCELED) return { outcome: 'CANCELED', paymentId: payment.id };
     if (![PaymentStatus.CREATED, PaymentStatus.PENDING].includes(payment.status))
       return { outcome: 'INVALID_TRANSITION' };
 
