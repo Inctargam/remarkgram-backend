@@ -12,7 +12,7 @@ describe('StripePaymentIntentSucceededAdapter', () => {
   it('supports only Stripe payment_intent.succeeded', () => {
     expect(adapter.supports(webhook())).toBe(true);
     expect(adapter.supports(webhook({ type: StripeEventType.INVOICE_PAID }))).toBe(false);
-    expect(adapter.supports(webhook({ provider: PaymentProvider.PAYPAL }))).toBe(false);
+    expect(adapter.supports(webhook({ provider: 'PAYPAL' as PaymentProvider }))).toBe(false);
   });
 
   it('normalizes payment_intent.succeeded for an extension payment', () => {

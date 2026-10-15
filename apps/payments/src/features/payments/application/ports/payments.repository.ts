@@ -1,8 +1,4 @@
-import type {
-  Payment,
-  PaymentProvider,
-  PaymentStatus,
-} from '../../domain/payment.entity.js';
+import type { Payment, PaymentProvider, PaymentStatus } from '../../domain/payment.entity.js';
 import type { ProviderCheckout } from './payment-provider.js';
 import type { PaymentsTransactionContext } from './payments-unit-of-work.js';
 
@@ -31,9 +27,7 @@ export type ApplyCheckoutCompletedCommand = ApplyCheckoutCompletedCommandBase &
     | { providerPaymentId?: never; providerSubscriptionId: string | null }
   );
 
-export type ApplyCheckoutCompletedUpdateResult =
-  | { outcome: 'APPLIED' }
-  | { outcome: 'REFERENCE_CONFLICT' };
+export type ApplyCheckoutCompletedUpdateResult = { outcome: 'APPLIED' } | { outcome: 'REFERENCE_CONFLICT' };
 
 export type ConfirmSuccessfulPaymentCommand = {
   paymentId: string;
@@ -89,10 +83,12 @@ export type CreateSuccessfulRenewalCommand = {
   paidAt: Date;
 };
 
-export type CreateSuccessfulRenewalResult = {
-  outcome: 'PERSISTED';
-  payment: Payment;
-} | { outcome: 'REFERENCE_CONFLICT' };
+export type CreateSuccessfulRenewalResult =
+  | {
+      outcome: 'PERSISTED';
+      payment: Payment;
+    }
+  | { outcome: 'REFERENCE_CONFLICT' };
 
 export abstract class PaymentsRepository {
   abstract create(payment: Payment): Promise<CreatePaymentResult>;

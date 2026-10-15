@@ -14,10 +14,22 @@ describe('PaymentsGrpcController', () => {
       { execute: vi.fn() } as unknown as GetPaymentStatusUseCase,
     );
     await expect(
-      controller.createCheckout({ userId: 42, planId: 3, idempotencyKey: 'key', provider: 'STRIPE', autoRenewal: true }),
+      controller.createCheckout({
+        userId: 42,
+        planId: 3,
+        idempotencyKey: 'key',
+        provider: 'STRIPE',
+        autoRenewal: true,
+      }),
     ).resolves.toEqual(expect.objectContaining({ paymentId: 'p' }));
     expect(execute).toHaveBeenCalledWith(
-      new CreateCheckoutCommand({ userId: 42, planId: 3, idempotencyKey: 'key', provider: 'STRIPE', autoRenewal: true }),
+      new CreateCheckoutCommand({
+        userId: 42,
+        planId: 3,
+        idempotencyKey: 'key',
+        provider: 'STRIPE',
+        autoRenewal: true,
+      }),
     );
   });
 });

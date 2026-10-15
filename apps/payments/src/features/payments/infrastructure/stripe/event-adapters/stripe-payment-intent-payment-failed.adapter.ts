@@ -18,7 +18,7 @@ export class StripePaymentIntentPaymentFailedAdapter implements ProviderEventAda
   supports(webhook: VerifiedProviderWebhook): boolean {
     return (
       webhook.provider === PaymentProvider.STRIPE &&
-      webhook.type === StripeEventType.PAYMENT_INTENT_PAYMENT_FAILED
+      webhook.type === (StripeEventType.PAYMENT_INTENT_PAYMENT_FAILED as string)
     );
   }
 
@@ -26,9 +26,7 @@ export class StripePaymentIntentPaymentFailedAdapter implements ProviderEventAda
     const paymentIntent = asRecord(webhook.payload);
     const id = stringOrNull(paymentIntent?.id);
     if (!id)
-      throw new InvalidProviderEventError(
-        'Stripe payment_intent.payment_failed payload is incomplete',
-      );
+      throw new InvalidProviderEventError('Stripe payment_intent.payment_failed payload is incomplete');
     const lastPaymentError = asRecord(paymentIntent?.last_payment_error);
 
     return {

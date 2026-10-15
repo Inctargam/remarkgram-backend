@@ -70,7 +70,8 @@
     "test:watch": "vitest --exclude \"apps/**/*.e2e-spec.ts\"",
     "test:cov": "vitest run --exclude \"apps/**/*.e2e-spec.ts\" --coverage",
     "test:debug": "vitest --inspectBrk --run --no-file-parallelism --exclude \"apps/**/*.e2e-spec.ts\"",
-    "test:e2e": "vitest run --exclude \"apps/**/*.spec.ts\""
+    "test:e2e": "vitest run --exclude \"apps/**/*.spec.ts\"",
+    "ngrok:payment:start": "ngrok http 3004 --url https://divisive-raelynn-unacoustic.ngrok-free.dev"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1100.0",

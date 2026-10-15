@@ -36,11 +36,6 @@ const paymentWebhookStepRetryOptions = {
   backoffRate: 2,
 } satisfies StepConfig;
 
-const linkPaymentToSubscriptionStepOptions = {
-  ...paymentWebhookStepRetryOptions,
-  name: 'linkPaymentToSubscriptionStep',
-} satisfies StepConfig;
-
 const scheduleProviderSubscriptionCancellationStepOptions = {
   ...paymentWebhookStepRetryOptions,
   name: 'scheduleProviderSubscriptionCancellationStep',
@@ -114,7 +109,6 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
     }
   }
 
-  @DBOS.step(paymentWebhookStepRetryOptions)
   private async persistPaymentEventStep(params: {
     event: PaymentEvent;
     workflowId: string;
@@ -126,7 +120,6 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
     return persisted.id;
   }
 
-  @DBOS.step(paymentWebhookStepRetryOptions)
   private async applyPaymentEventStep(params: ApplyPaymentEventParams): Promise<ApplyPaymentEventResult> {
     const attempt = DBOS.stepStatus?.currentAttempt ?? 1;
     await this.dataSource.runTransaction(
@@ -143,7 +136,6 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
     );
   }
 
-  @DBOS.step(linkPaymentToSubscriptionStepOptions)
   private async linkPaymentToSubscriptionStep(
     params: LinkPaymentToSubscriptionParams,
   ): Promise<LinkPaymentToSubscriptionResult> {
@@ -153,11 +145,10 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
     );
   }
 
-  @DBOS.step(scheduleProviderSubscriptionCancellationStepOptions)
   private async scheduleProviderSubscriptionCancellationStep(
     params: ScheduleProviderSubscriptionCancellationParams,
   ): Promise<ScheduleProviderSubscriptionCancellationResult> {
-    const result = await this.scheduleProviderSubscriptionCancellation.scheduleAtProvider(params);
+    const result = await this.scheduleProviderSubscriptionCancellationAtProviderStep(params);
     await this.dataSource.runTransaction(
       () => this.scheduleProviderSubscriptionCancellation.recordScheduled(params, this.transactionContext()),
       { name: 'recordProviderSubscriptionCancellationScheduled' },
@@ -165,15 +156,28 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
     return result;
   }
 
-  @DBOS.step(createDeferredProviderSubscriptionStepOptions)
+  @DBOS.step(scheduleProviderSubscriptionCancellationStepOptions)
+  private async scheduleProviderSubscriptionCancellationAtProviderStep(
+    params: ScheduleProviderSubscriptionCancellationParams,
+  ): Promise<ScheduleProviderSubscriptionCancellationResult> {
+    return this.scheduleProviderSubscriptionCancellation.scheduleAtProvider(params);
+  }
+
   private async createDeferredProviderSubscriptionStep(
     params: CreateDeferredProviderSubscriptionParams,
   ): Promise<void> {
-    const created = await this.createDeferredProviderSubscription.createAtProvider(params);
+    const created = await this.createDeferredProviderSubscriptionAtProviderStep(params);
     await this.dataSource.runTransaction(
       () => this.createDeferredProviderSubscription.recordCreated(params, created, this.transactionContext()),
       { name: 'recordDeferredProviderSubscription' },
     );
+  }
+
+  @DBOS.step(createDeferredProviderSubscriptionStepOptions)
+  private async createDeferredProviderSubscriptionAtProviderStep(
+    params: CreateDeferredProviderSubscriptionParams,
+  ) {
+    return this.createDeferredProviderSubscription.createAtProvider(params);
   }
 
   private transactionContext(): PaymentsTransactionContext {

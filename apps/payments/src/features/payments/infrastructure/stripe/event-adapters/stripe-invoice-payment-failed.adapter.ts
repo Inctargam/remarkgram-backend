@@ -19,15 +19,14 @@ export class StripeInvoicePaymentFailedAdapter implements ProviderEventAdapter {
   supports(webhook: VerifiedProviderWebhook): boolean {
     return (
       webhook.provider === PaymentProvider.STRIPE &&
-      webhook.type === StripeEventType.INVOICE_PAYMENT_FAILED
+      webhook.type === (StripeEventType.INVOICE_PAYMENT_FAILED as string)
     );
   }
 
   adapt(webhook: VerifiedProviderWebhook): InvoicePaymentFailedEvent {
     const invoice = asRecord(webhook.payload);
     const id = stringOrNull(invoice?.id);
-    if (!id)
-      throw new InvalidProviderEventError('Stripe invoice.payment_failed payload is incomplete');
+    if (!id) throw new InvalidProviderEventError('Stripe invoice.payment_failed payload is incomplete');
 
     const parent = asRecord(invoice?.parent);
     const subscriptionDetails = asRecord(parent?.subscription_details);

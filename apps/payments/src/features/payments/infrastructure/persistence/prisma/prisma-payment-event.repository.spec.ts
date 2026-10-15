@@ -14,7 +14,9 @@ describe('PrismaPaymentEventRepository', () => {
       },
     };
 
-    await expect(repository.saveIfAbsent(paymentEvent(), 'payment-webhook:STRIPE:evt_test', ctx)).resolves.toEqual({
+    await expect(
+      repository.saveIfAbsent(paymentEvent(), 'payment-webhook:STRIPE:evt_test', ctx),
+    ).resolves.toEqual({
       id: 'webhook-id',
     });
     expect(ctx.paymentWebhook.upsert).toHaveBeenCalledWith({
@@ -24,6 +26,7 @@ describe('PrismaPaymentEventRepository', () => {
           providerEventId: 'evt_test',
         },
       },
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       create: expect.objectContaining({
         paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         providerType: PaymentProvider.STRIPE,
@@ -80,19 +83,12 @@ describe('PrismaPaymentEventRepository', () => {
       },
     };
 
-    await repository.attachPayment(
-      'webhook-id',
-      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      ctx,
-    );
+    await repository.attachPayment('webhook-id', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', ctx);
 
     expect(ctx.paymentWebhook.updateMany).toHaveBeenCalledWith({
       where: {
         id: 'webhook-id',
-        OR: [
-          { paymentId: null },
-          { paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
-        ],
+        OR: [{ paymentId: null }, { paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }],
       },
       data: { paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
     });

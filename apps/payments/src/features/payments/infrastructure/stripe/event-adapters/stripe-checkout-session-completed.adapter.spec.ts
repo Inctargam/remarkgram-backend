@@ -11,7 +11,7 @@ describe('StripeCheckoutSessionCompletedAdapter', () => {
   it('поддерживает только Stripe checkout.session.completed', () => {
     expect(adapter.supports(webhook())).toBe(true);
     expect(adapter.supports(webhook({ type: StripeEventType.INVOICE_PAID }))).toBe(false);
-    expect(adapter.supports(webhook({ provider: PaymentProvider.PAYPAL }))).toBe(false);
+    expect(adapter.supports(webhook({ provider: 'PAYPAL' as PaymentProvider }))).toBe(false);
   });
 
   it.each(['paid', 'unpaid', 'no_payment_required'])(

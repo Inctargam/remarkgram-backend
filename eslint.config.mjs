@@ -22,6 +22,13 @@ export default defineConfig(
   ...tseslint.configs.recommendedTypeChecked,
   eslintPluginPrettierRecommended,
   {
+    files: ['**/*.{js,mjs,cjs}'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  {
     files: ['**/*.ts'],
     languageOptions: {
       globals: {
@@ -40,6 +47,7 @@ export default defineConfig(
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-misused-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       'prettier/prettier': 'error',
     },
   },

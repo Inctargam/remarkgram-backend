@@ -72,8 +72,8 @@ export class GetAuthorPostsQueryHandler implements IQueryHandler<GetAuthorPostsQ
     let decodedCursor: unknown;
     try {
       decodedCursor = JSON.parse(Buffer.from(cursor, 'base64').toString('utf-8'));
-    } catch (e) {
-      this.logger.error(`Failed to decode cursor: ${e}`);
+    } catch (error: unknown) {
+      this.logger.error('Failed to decode cursor', error);
       throw new InvalidPostsCursorError();
     }
     if (!this.isSerializedCursorPayload(decodedCursor)) {

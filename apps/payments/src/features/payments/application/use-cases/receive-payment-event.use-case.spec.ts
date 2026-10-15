@@ -8,7 +8,7 @@ import { ReceivePaymentEventUseCase } from './receive-payment-event.use-case.js'
 describe('ReceivePaymentEventUseCase', () => {
   it('делегирует durable enqueue DBOS workflow', async () => {
     const enqueue = vi.fn<PaymentWebhookWorkflow['enqueue']>().mockResolvedValue('RECEIVED');
-    const useCase = new ReceivePaymentEventUseCase({ enqueue } as PaymentWebhookWorkflow);
+    const useCase = new ReceivePaymentEventUseCase({ enqueue });
     const event = paymentEvent();
 
     await expect(useCase.execute(event)).resolves.toBe('RECEIVED');

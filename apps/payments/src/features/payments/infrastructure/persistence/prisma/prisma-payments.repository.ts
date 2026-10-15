@@ -383,10 +383,7 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
         id: command.paymentId,
         status: PaymentStatus.SUCCEEDED,
         subscriptionId: command.subscriptionId,
-        OR: [
-          { providerSubscriptionId: null },
-          { providerSubscriptionId: command.providerSubscriptionId },
-        ],
+        OR: [{ providerSubscriptionId: null }, { providerSubscriptionId: command.providerSubscriptionId }],
       },
       data: { providerSubscriptionId: command.providerSubscriptionId },
     });

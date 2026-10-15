@@ -6,13 +6,14 @@ import type { ProviderEventAdapter } from '../../../application/ports/provider-e
 import { PaymentEventKind } from '../../../domain/payment-event-kind.js';
 import { PaymentProvider } from '../../../domain/payment.entity.js';
 import { StripeEventType } from './stripe-event-type.js';
+import { expandableId, numberOrNull, stringOrNull } from './stripe-event-value.helpers.js';
 
 @Injectable()
 export class StripeCheckoutSessionCompletedAdapter implements ProviderEventAdapter {
   supports(webhook: VerifiedProviderWebhook): boolean {
     return (
       webhook.provider === PaymentProvider.STRIPE &&
-      webhook.type === StripeEventType.CHECKOUT_SESSION_COMPLETED
+      webhook.type === (StripeEventType.CHECKOUT_SESSION_COMPLETED as string)
     );
   }
 
@@ -39,17 +40,4 @@ export class StripeCheckoutSessionCompletedAdapter implements ProviderEventAdapt
       snapshot: webhook.snapshot,
     };
   }
-}
-
-function stringOrNull(value: unknown): string | null {
-  return typeof value === 'string' ? value : null;
-}
-
-function numberOrNull(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-function expandableId(value: unknown): string | null {
-  if (typeof value === 'string') return value;
-  return stringOrNull(asRecord(value)?.id);
 }

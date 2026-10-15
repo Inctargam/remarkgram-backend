@@ -17,6 +17,7 @@ describe('PaymentCustomerService', () => {
     await expect(service.getOrCreate({ userId: 42, providerType: PaymentProvider.STRIPE })).resolves.toEqual(
       existing,
     );
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(provider.createCustomer).not.toHaveBeenCalled();
   });
 
@@ -34,9 +35,11 @@ describe('PaymentCustomerService', () => {
     await expect(service.getOrCreate({ userId: 42, providerType: PaymentProvider.STRIPE })).resolves.toEqual(
       created,
     );
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(provider.createCustomer).toHaveBeenCalledWith({
       internalUserId: '42',
     });
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(customers.create).toHaveBeenCalledWith({
       userId: 42,
       providerType: PaymentProvider.STRIPE,

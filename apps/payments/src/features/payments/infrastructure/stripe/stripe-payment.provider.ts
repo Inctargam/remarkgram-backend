@@ -1,9 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import Stripe from 'stripe';
+import { InvalidProviderEventError } from '../../../../common/application/errors/payments.error.js';
 import { stripeConfig } from '../../../../config/stripe.config.js';
 import { PeriodUnit } from '../../../plans/domain/plan.entity.js';
-import { InvalidProviderEventError } from '../../../../common/application/errors/payments.error.js';
 import {
   PaymentProviderPort,
   type CreateDeferredProviderSubscriptionInput,
@@ -23,7 +23,7 @@ export class StripePaymentProvider extends PaymentProviderPort {
   private readonly stripe: Stripe;
   constructor(@Inject(stripeConfig.KEY) private readonly config: ConfigType<typeof stripeConfig>) {
     super();
-    this.stripe = new Stripe(config.secretKey);
+    this.stripe = new Stripe(config.secretKey, { apiVersion: '2026-08-26.dahlia' });
   }
 
   async createCheckout(input: CreateProviderCheckoutInput): Promise<CreateProviderCheckoutResult> {
@@ -204,8 +204,7 @@ export class StripePaymentProvider extends PaymentProviderPort {
     return {
       providerSubscriptionId: subscription.id,
       cancelAtPeriodEnd: true,
-      currentPeriodEnd:
-        currentPeriodEnd === null ? null : new Date(currentPeriodEnd * 1000).toISOString(),
+      currentPeriodEnd: currentPeriodEnd === null ? null : new Date(currentPeriodEnd * 1000).toISOString(),
     };
   }
 

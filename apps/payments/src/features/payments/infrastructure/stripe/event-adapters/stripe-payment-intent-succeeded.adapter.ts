@@ -6,12 +6,21 @@ import type { ProviderEventAdapter } from '../../../application/ports/provider-e
 import { PaymentEventKind } from '../../../domain/payment-event-kind.js';
 import { PaymentProvider } from '../../../domain/payment.entity.js';
 import { StripeEventType } from './stripe-event-type.js';
-import { asRecord, expandableId, metadataPaymentId, numberOrNull, stringOrNull } from './stripe-event-value.helpers.js';
+import {
+  asRecord,
+  expandableId,
+  metadataPaymentId,
+  numberOrNull,
+  stringOrNull,
+} from './stripe-event-value.helpers.js';
 
 @Injectable()
 export class StripePaymentIntentSucceededAdapter implements ProviderEventAdapter {
   supports(webhook: VerifiedProviderWebhook): boolean {
-    return webhook.provider === PaymentProvider.STRIPE && webhook.type === StripeEventType.PAYMENT_INTENT_SUCCEEDED;
+    return (
+      webhook.provider === PaymentProvider.STRIPE &&
+      webhook.type === (StripeEventType.PAYMENT_INTENT_SUCCEEDED as string)
+    );
   }
 
   adapt(webhook: VerifiedProviderWebhook): PaymentIntentSucceededEvent {

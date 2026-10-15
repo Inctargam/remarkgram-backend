@@ -50,7 +50,7 @@ model Plan {
   @@map("plans")
 }
 
-// фиксирует намерение платежа
+// фиксирует намерение платежа, для локальной подписки служит семантической блокировкой на создание паралельных первых оплат
 enum CheckoutPurpose {
   INITIAL_SUBSCRIPTION
   SUBSCRIPTION_EXTENSION
@@ -117,20 +117,20 @@ model Payment {
 }
 
 model PaymentWebhook {
-  id              String          @id @default(uuid()) @db.Uuid
-  paymentId       String?         @map("payment_id") @db.Uuid
-  providerType    PaymentProvider @map("provider_type")
-  providerEventId String          @map("provider_event_id")
-  eventType       String          @map("event_type")
-  payload         Json            @db.JsonB
-  providerCreatedAt DateTime      @map("provider_created_at") @db.Timestamptz
-  receivedAt      DateTime        @default(now()) @map("received_at") @db.Timestamptz
-  processingStatus WebhookProcessingStatus @default(RECEIVED) @map("processing_status")
-  processingAttempts Int          @default(0) @map("processing_attempts")
-  workflowId       String         @unique @map("workflow_id")
-  processedAt     DateTime?       @map("processed_at") @db.Timestamptz
-  processingErrorCode String?     @map("processing_error_code")
-  processingError String?         @map("processing_error")
+  id                  String                  @id @default(uuid()) @db.Uuid
+  paymentId           String?                 @map("payment_id") @db.Uuid
+  providerType        PaymentProvider         @map("provider_type")
+  providerEventId     String                  @map("provider_event_id")
+  eventType           String                  @map("event_type")
+  payload             Json                    @db.JsonB
+  providerCreatedAt   DateTime                @map("provider_created_at") @db.Timestamptz
+  receivedAt          DateTime                @default(now()) @map("received_at") @db.Timestamptz
+  processingStatus    WebhookProcessingStatus @default(RECEIVED) @map("processing_status")
+  processingAttempts  Int                     @default(0) @map("processing_attempts")
+  workflowId          String                  @unique @map("workflow_id")
+  processedAt         DateTime?               @map("processed_at") @db.Timestamptz
+  processingErrorCode String?                 @map("processing_error_code")
+  processingError     String?                 @map("processing_error")
 
   payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 

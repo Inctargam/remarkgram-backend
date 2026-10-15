@@ -13,7 +13,7 @@ export class StripeCheckoutSessionExpiredAdapter implements ProviderEventAdapter
   supports(webhook: VerifiedProviderWebhook): boolean {
     return (
       webhook.provider === PaymentProvider.STRIPE &&
-      webhook.type === StripeEventType.CHECKOUT_SESSION_EXPIRED
+      webhook.type === (StripeEventType.CHECKOUT_SESSION_EXPIRED as string)
     );
   }
 

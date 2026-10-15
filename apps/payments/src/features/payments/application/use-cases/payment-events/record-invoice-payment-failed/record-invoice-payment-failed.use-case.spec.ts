@@ -11,9 +11,7 @@ describe('RecordInvoicePaymentFailedUseCase', () => {
     async (status) => {
       const payments = repository();
       payments.findById.mockResolvedValue(payment({ status }));
-      const useCase = new RecordInvoicePaymentFailedUseCase(
-        payments as unknown as PaymentsRepository,
-      );
+      const useCase = new RecordInvoicePaymentFailedUseCase(payments as unknown as PaymentsRepository);
 
       await expect(useCase.execute(event(), {})).resolves.toEqual({
         outcome: 'CORRELATED',
@@ -56,9 +54,7 @@ describe('RecordInvoicePaymentFailedUseCase', () => {
     );
     payments.findByProviderInvoiceId.mockResolvedValue(null);
     payments.findByProviderSubscriptionId.mockResolvedValue(null);
-    const useCase = new RecordInvoicePaymentFailedUseCase(
-      payments as unknown as PaymentsRepository,
-    );
+    const useCase = new RecordInvoicePaymentFailedUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual({ outcome: 'UNCORRELATED' });
   });
@@ -98,8 +94,7 @@ function event(
     payload: {
       id: 'in_failed',
       customerId: 'cus_test',
-      billingReason:
-        overrides.billingReason === undefined ? 'subscription_create' : overrides.billingReason,
+      billingReason: overrides.billingReason === undefined ? 'subscription_create' : overrides.billingReason,
       providerPaymentId: 'pi_failed',
       providerSubscriptionId: 'sub_test',
       providerInvoiceId: 'in_failed',

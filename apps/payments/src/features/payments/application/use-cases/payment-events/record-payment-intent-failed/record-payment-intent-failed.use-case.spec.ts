@@ -12,9 +12,7 @@ describe('RecordPaymentIntentFailedUseCase', () => {
       const payments = repository();
       const stored = payment({ status });
       payments.findById.mockResolvedValue(stored);
-      const useCase = new RecordPaymentIntentFailedUseCase(
-        payments as unknown as PaymentsRepository,
-      );
+      const useCase = new RecordPaymentIntentFailedUseCase(payments as unknown as PaymentsRepository);
 
       await expect(useCase.execute(event(), {})).resolves.toEqual({
         outcome: 'CORRELATED',
@@ -32,11 +30,7 @@ describe('RecordPaymentIntentFailedUseCase', () => {
     await expect(useCase.execute(event({ paymentId: null }), {})).resolves.toMatchObject({
       outcome: 'CORRELATED',
     });
-    expect(payments.findByProviderPaymentId).toHaveBeenCalledWith(
-      PaymentProvider.STRIPE,
-      'pi_test',
-      {},
-    );
+    expect(payments.findByProviderPaymentId).toHaveBeenCalledWith(PaymentProvider.STRIPE, 'pi_test', {});
   });
 
   it('keeps an event without available correlation as processed audit data', async () => {
@@ -52,9 +46,7 @@ describe('RecordPaymentIntentFailedUseCase', () => {
   it('does not correlate metadata to a conflicting PaymentIntent reference', async () => {
     const payments = repository();
     payments.findById.mockResolvedValue(payment({ providerPaymentId: 'pi_other' }));
-    const useCase = new RecordPaymentIntentFailedUseCase(
-      payments as unknown as PaymentsRepository,
-    );
+    const useCase = new RecordPaymentIntentFailedUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual({ outcome: 'UNCORRELATED' });
   });
@@ -85,9 +77,7 @@ function event(overrides: { paymentId?: string | null } = {}): PaymentIntentPaym
     providerEventType: 'payment_intent.payment_failed',
     providerCreatedAt: FAILED_AT,
     paymentId:
-      overrides.paymentId === undefined
-        ? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-        : overrides.paymentId,
+      overrides.paymentId === undefined ? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' : overrides.paymentId,
     payload: {
       id: 'pi_test',
       providerCode: 'card_declined',

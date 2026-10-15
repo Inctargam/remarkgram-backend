@@ -71,9 +71,7 @@ export class TemporarySubscriptionPaymentHandlerAdapter extends SubscriptionPaym
     const originalDay = result.getUTCDate();
     result.setUTCDate(1);
     result.setUTCMonth(result.getUTCMonth() + payment.periodCount);
-    const lastDay = new Date(
-      Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0),
-    ).getUTCDate();
+    const lastDay = new Date(Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0)).getUTCDate();
     result.setUTCDate(Math.min(originalDay, lastDay));
     return result;
   }

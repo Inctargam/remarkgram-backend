@@ -27,6 +27,7 @@ describe('StripePaymentProvider.createCheckout', () => {
         subscription_data: { metadata: { paymentId: input.paymentId } },
         line_items: [
           expect.objectContaining({
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             price_data: expect.objectContaining({
               recurring: { interval: 'month', interval_count: 1 },
             }),
@@ -107,6 +108,7 @@ describe('StripePaymentProvider.createDeferredSubscription', () => {
           paymentId: input.paymentId,
           subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
         },
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         items: [expect.objectContaining({ price_data: expect.objectContaining({ product: 'prod_test' }) })],
       }),
       { idempotencyKey: `subscription:create:${input.paymentId}` },

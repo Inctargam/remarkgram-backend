@@ -1,6 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import { classifyProviderReferenceConflict } from './prisma-payments.repository.js';
-import { PrismaPaymentsRepository } from './prisma-payments.repository.js';
 import type { PrismaService } from '../../../../../database/prisma.service.js';
 import { Currency, PeriodUnit } from '../../../../plans/domain/plan.entity.js';
 import {
@@ -9,6 +7,7 @@ import {
   PaymentStatus,
   PaymentType,
 } from '../../../domain/payment.entity.js';
+import { classifyProviderReferenceConflict, PrismaPaymentsRepository } from './prisma-payments.repository.js';
 
 describe('classifyProviderReferenceConflict', () => {
   it.each([
@@ -84,13 +83,15 @@ describe('PrismaPaymentsRepository.applyCheckoutCompleted', () => {
       repository.applyCheckoutCompleted(checkoutCommand(), { payment: { updateMany } }),
     ).resolves.toEqual({ outcome: 'APPLIED' });
     expect(updateMany).toHaveBeenCalledOnce();
-    expect(updateMany.mock.calls[0]?.[0].data).not.toHaveProperty('status');
-    expect(updateMany.mock.calls[0]?.[0].where).not.toHaveProperty('status');
-    expect(JSON.stringify(updateMany.mock.calls[0]?.[0].where.AND)).not.toContain(
-      'providerSubscriptionId',
-    );
-    expect(updateMany.mock.calls[0]?.[0].data).not.toHaveProperty('providerSubscriptionId');
-    expect(updateMany.mock.calls[0]?.[0].data).not.toHaveProperty('providerInvoiceId');
+    const update = updateMany.mock.calls[0]?.[0] as {
+      data: Record<string, unknown>;
+      where: Record<string, unknown> & { AND?: unknown };
+    };
+    expect(update.data).not.toHaveProperty('status');
+    expect(update.where).not.toHaveProperty('status');
+    expect(JSON.stringify(update.where.AND)).not.toContain('providerSubscriptionId');
+    expect(update.data).not.toHaveProperty('providerSubscriptionId');
+    expect(update.data).not.toHaveProperty('providerInvoiceId');
   });
 
   it('reports a concurrent reference mismatch when the guarded update changes no row', async () => {
@@ -121,9 +122,11 @@ describe('PrismaPaymentsRepository.cancelPendingPayment', () => {
     ).resolves.toEqual({ outcome: 'CANCELED' });
     expect(updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         where: expect.objectContaining({
           status: { in: [PaymentStatus.CREATED, PaymentStatus.PENDING] },
         }),
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         data: expect.objectContaining({ status: PaymentStatus.CANCELED }),
       }),
     );
@@ -146,12 +149,10 @@ describe('PrismaPaymentsRepository.linkSuccessfulPaymentToSubscription', () => {
     ).resolves.toEqual({ outcome: 'LINKED' });
     expect(updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         where: expect.objectContaining({
           status: PaymentStatus.SUCCEEDED,
-          OR: [
-            { subscriptionId: null },
-            { subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' },
-          ],
+          OR: [{ subscriptionId: null }, { subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' }],
         }),
         data: { subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' },
       }),
@@ -173,11 +174,9 @@ describe('PrismaPaymentsRepository.linkSuccessfulPaymentToSubscription', () => {
     ).resolves.toEqual({ outcome: 'NOT_LINKED' });
     expect(updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         where: expect.objectContaining({
-          OR: [
-            { subscriptionId: null },
-            { subscriptionId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' },
-          ],
+          OR: [{ subscriptionId: null }, { subscriptionId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }],
         }),
       }),
     );
@@ -201,6 +200,7 @@ describe('PrismaPaymentsRepository.bindPaymentProviderSubscription', () => {
     ).resolves.toEqual({ outcome: 'BOUND' });
     expect(updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         where: expect.objectContaining({
           subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
           OR: [{ providerSubscriptionId: null }, { providerSubscriptionId: 'sub_new' }],
@@ -227,6 +227,7 @@ describe('PrismaPaymentsRepository.createSuccessfulRenewal', () => {
             providerInvoiceId: 'in_renewal',
           },
         },
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         create: expect.objectContaining({
           type: PaymentType.RENEWAL,
           status: PaymentStatus.SUCCEEDED,

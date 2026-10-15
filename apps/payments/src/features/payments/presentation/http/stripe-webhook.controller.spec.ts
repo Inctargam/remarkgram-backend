@@ -7,17 +7,14 @@ import type { ProcessStripeWebhookUseCase } from '../../application/use-cases/pr
 import { StripeWebhookController } from './stripe-webhook.controller.js';
 
 describe('StripeWebhookController', () => {
-  it.each(['RECEIVED', 'IGNORED'] as const)(
-    'возвращает результат webhook-сценария: %s',
-    async (result) => {
-      const execute = vi.fn().mockResolvedValue(result);
-      const controller = createController(execute);
-      const rawBody = Buffer.from('{"id":"evt_test"}');
+  it.each(['RECEIVED', 'IGNORED'] as const)('возвращает результат webhook-сценария: %s', async (result) => {
+    const execute = vi.fn().mockResolvedValue(result);
+    const controller = createController(execute);
+    const rawBody = Buffer.from('{"id":"evt_test"}');
 
-      await expect(controller.handle(requestWith(rawBody), 'signature')).resolves.toEqual({ result });
-      expect(execute).toHaveBeenCalledWith(rawBody, 'signature');
-    },
-  );
+    await expect(controller.handle(requestWith(rawBody), 'signature')).resolves.toEqual({ result });
+    expect(execute).toHaveBeenCalledWith(rawBody, 'signature');
+  });
 
   it('отклоняет запрос без raw body или Stripe-Signature', async () => {
     const execute = vi.fn();
