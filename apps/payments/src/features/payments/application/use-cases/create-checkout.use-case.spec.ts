@@ -61,7 +61,6 @@ describe('CreateCheckoutUseCase', () => {
       ),
     } as unknown as PaymentsRepository;
     const createCheckout = vi.fn<PaymentProviderPort['createCheckout']>().mockResolvedValue({
-      outcome: 'CREATED',
       checkout: {
         checkoutId: 'cs_test',
         checkoutUrl: 'https://checkout.stripe.com/test',
@@ -209,7 +208,6 @@ function checkoutUseCase(
 function providerPort(): PaymentProviderPort {
   return {
     createCheckout: vi.fn().mockResolvedValue({
-      outcome: 'CREATED',
       checkout: {
         checkoutId: 'cs_test',
         checkoutUrl: 'https://checkout.stripe.com/test',

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { PaymentProviderResultMismatchError } from '../../../../../common/application/errors/payments.error.js';
 import { PaymentProvider } from '../../../domain/payment-provider.factory.js';
 import type { PaymentProviderPort } from '../../ports/payment-provider.js';
 import { SetProviderSubscriptionAutoRenewalUseCase } from './set-provider-subscription-auto-renewal.use-case.js';
@@ -53,6 +54,6 @@ describe('SetProviderSubscriptionAutoRenewalUseCase', () => {
         autoRenewalEnabled: true,
         autoRenewalChangeId: 'auto-renewal-change-1',
       }),
-    ).rejects.toThrow('Provider did not enable auto-renewal for Subscription sub_test');
+    ).rejects.toBeInstanceOf(PaymentProviderResultMismatchError);
   });
 });

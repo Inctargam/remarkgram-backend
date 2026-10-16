@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { PaymentProviderResultMismatchError } from '../../../../../common/application/errors/payments.error.js';
 import {
   PaymentProviderPort,
   type ScheduleProviderSubscriptionCancellationResult as ProviderCancellationResult,
@@ -54,8 +55,6 @@ export class ScheduleProviderSubscriptionCancellationUseCase {
       result.providerSubscriptionId !== params.previousProviderSubscriptionId ||
       result.cancelAtPeriodEnd !== true
     )
-      throw new Error(
-        `Provider did not schedule cancellation for Subscription ${params.previousProviderSubscriptionId}`,
-      );
+      throw new PaymentProviderResultMismatchError('schedule subscription cancellation');
   }
 }

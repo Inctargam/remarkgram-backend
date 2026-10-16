@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import Stripe from 'stripe';
 import { InvalidProviderEventError } from '../../../../common/application/errors/payments.error.js';
@@ -18,11 +18,12 @@ import {
   type VerifiedProviderWebhook,
 } from '../../application/ports/payment-provider.js';
 import { CheckoutPurpose, PaymentProvider } from '../../domain/payment.entity.js';
+import { StripePaymentErrorMapper } from './stripe-payment-error.mapper.js';
 
 @Injectable()
 export class StripePaymentProvider extends PaymentProviderPort {
-  private readonly logger = new Logger(StripePaymentProvider.name);
   private readonly stripe: Stripe;
+  private readonly errorMapper = new StripePaymentErrorMapper();
   constructor(@Inject(stripeConfig.KEY) private readonly config: ConfigType<typeof stripeConfig>) {
     super();
     this.stripe = new Stripe(config.secretKey, { apiVersion: '2026-08-26.dahlia' });
@@ -38,19 +39,22 @@ export class StripePaymentProvider extends PaymentProviderPort {
           ? await this.createSubscriptionCheckout(input)
           : await this.createOneTimeCheckout(input);
     } catch (error) {
-      return this.classifyOperationError(error, {
+      throw this.classifyOperationError(error, {
         operation: 'CREATE_CHECKOUT',
         paymentId: input.paymentId,
       });
     }
 
-    if (!session.url) return { outcome: 'UNKNOWN' };
+    if (!session.url)
+      throw this.errorMapper.toApplicationError(new Error('Stripe Checkout Session URL is missing'), {
+        operation: 'CREATE_CHECKOUT',
+        aggregateId: input.paymentId,
+      });
     const providerPaymentId =
       typeof session.payment_intent === 'string'
         ? session.payment_intent
         : (session.payment_intent?.id ?? null);
     return {
-      outcome: 'CREATED',
       checkout: {
         checkoutId: session.id,
         checkoutUrl: session.url,
@@ -183,9 +187,9 @@ export class StripePaymentProvider extends PaymentProviderPort {
         { idempotencyKey: this.idempotencyKey('customer:create', String(props.internalUserId)) },
       );
 
-      return { outcome: 'CREATED', providerCustomerId: customer.id };
+      return { providerCustomerId: customer.id };
     } catch (error) {
-      return this.classifyOperationError(error, {
+      throw this.classifyOperationError(error, {
         operation: 'CREATE_CUSTOMER',
         internalUserId: props.internalUserId,
       });
@@ -195,19 +199,28 @@ export class StripePaymentProvider extends PaymentProviderPort {
   async scheduleSubscriptionCancellation(
     providerSubscriptionId: string,
   ): Promise<ScheduleProviderSubscriptionCancellationResult> {
-    const subscription = await this.stripe.subscriptions.update(
-      providerSubscriptionId,
-      {
-        cancel_at_period_end: true,
-      },
-      {
-        // D2 permits this terminal transition only once per retiring provider
-        // Subscription, so its provider ID is also the stable replay identity.
-        idempotencyKey: this.idempotencyKey('subscription:cancel-at-period-end', providerSubscriptionId),
-      },
-    );
+    let subscription: Stripe.Subscription;
+    try {
+      subscription = await this.stripe.subscriptions.update(
+        providerSubscriptionId,
+        { cancel_at_period_end: true },
+        {
+          // D2 permits this terminal transition only once per retiring provider
+          // Subscription, so its provider ID is also the stable replay identity.
+          idempotencyKey: this.idempotencyKey('subscription:cancel-at-period-end', providerSubscriptionId),
+        },
+      );
+    } catch (error) {
+      throw this.errorMapper.toApplicationError(error, {
+        operation: 'SCHEDULE_SUBSCRIPTION_CANCELLATION',
+        aggregateId: providerSubscriptionId,
+      });
+    }
     if (!subscription.cancel_at_period_end)
-      throw new Error(`Stripe did not schedule cancellation for Subscription ${providerSubscriptionId}`);
+      throw this.errorMapper.toApplicationError(
+        new Error(`Stripe did not schedule cancellation for Subscription ${providerSubscriptionId}`),
+        { operation: 'SCHEDULE_SUBSCRIPTION_CANCELLATION', aggregateId: providerSubscriptionId },
+      );
 
     return {
       providerSubscriptionId: subscription.id,
@@ -216,6 +229,19 @@ export class StripePaymentProvider extends PaymentProviderPort {
   }
 
   async createDeferredSubscription(
+    input: CreateDeferredProviderSubscriptionInput,
+  ): Promise<CreateDeferredProviderSubscriptionResult> {
+    try {
+      return await this.createDeferredStripeSubscription(input);
+    } catch (error) {
+      throw this.errorMapper.toApplicationError(error, {
+        operation: 'CREATE_DEFERRED_SUBSCRIPTION',
+        aggregateId: input.paymentId,
+      });
+    }
+  }
+
+  private async createDeferredStripeSubscription(
     input: CreateDeferredProviderSubscriptionInput,
   ): Promise<CreateDeferredProviderSubscriptionResult> {
     const billingCycleAnchor = Math.floor(new Date(input.billingCycleAnchor).getTime() / 1000);
@@ -258,17 +284,25 @@ export class StripePaymentProvider extends PaymentProviderPort {
   async setSubscriptionAutoRenewal(
     input: SetProviderSubscriptionAutoRenewalInput,
   ): Promise<SetProviderSubscriptionAutoRenewalResult> {
-    const subscription = await this.stripe.subscriptions.update(
-      input.providerSubscriptionId,
-      { cancel_at_period_end: !input.autoRenewalEnabled },
-      {
-        idempotencyKey: this.idempotencyKey(
-          'subscription-auto-renewal',
-          input.autoRenewalChangeId,
-          input.autoRenewalEnabled ? 'enable' : 'disable',
-        ),
-      },
-    );
+    let subscription: Stripe.Subscription;
+    try {
+      subscription = await this.stripe.subscriptions.update(
+        input.providerSubscriptionId,
+        { cancel_at_period_end: !input.autoRenewalEnabled },
+        {
+          idempotencyKey: this.idempotencyKey(
+            'subscription-auto-renewal',
+            input.autoRenewalChangeId,
+            input.autoRenewalEnabled ? 'enable' : 'disable',
+          ),
+        },
+      );
+    } catch (error) {
+      throw this.errorMapper.toApplicationError(error, {
+        operation: 'SET_SUBSCRIPTION_AUTO_RENEWAL',
+        aggregateId: input.providerSubscriptionId,
+      });
+    }
     const autoRenewalEnabled = !subscription.cancel_at_period_end;
 
     return {
@@ -283,41 +317,10 @@ export class StripePaymentProvider extends PaymentProviderPort {
       | { operation: 'CREATE_CHECKOUT'; paymentId: string }
       | { operation: 'CREATE_CUSTOMER'; internalUserId: string },
   ) {
-    let outcome: 'VALIDATION_ERROR' | 'UNAVAILABLE' | 'UNKNOWN';
-    if (
-      error instanceof Stripe.errors.StripeInvalidRequestError ||
-      error instanceof Stripe.errors.StripeIdempotencyError
-    ) {
-      outcome = 'VALIDATION_ERROR';
-    } else if (error instanceof Stripe.errors.StripeConnectionError) {
-      outcome = 'UNKNOWN';
-    } else if (
-      error instanceof Stripe.errors.StripeAPIError ||
-      error instanceof Stripe.errors.StripeRateLimitError
-    ) {
-      outcome = 'UNAVAILABLE';
-    } else {
-      outcome = 'UNKNOWN';
-    }
-
-    const providerError = error instanceof Stripe.errors.StripeError ? error : null;
-    const details = {
-      event: 'payment_provider_operation_failed',
-      provider: 'STRIPE',
-      ...context,
-      classification: outcome,
-      errorName: error instanceof Error ? error.name : typeof error,
-      errorMessage: error instanceof Error ? error.message : String(error),
-      errorStack: error instanceof Error ? error.stack : undefined,
-      providerErrorType: providerError?.type,
-      providerErrorCode: providerError?.code,
-      providerRequestId: providerError?.requestId,
-      providerStatusCode: providerError?.statusCode,
-    };
-    if (outcome === 'UNKNOWN') this.logger.error(details);
-    else this.logger.warn(details);
-
-    return { outcome };
+    return this.errorMapper.toApplicationError(error, {
+      operation: context.operation,
+      aggregateId: context.operation === 'CREATE_CHECKOUT' ? context.paymentId : context.internalUserId,
+    });
   }
 
   private idempotencyKey(scope: string, ...identity: string[]): string {

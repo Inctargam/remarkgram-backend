@@ -28,7 +28,7 @@ describe('PaymentCustomerService', () => {
       create: vi.fn().mockResolvedValue(created),
     } as unknown as PaymentCustomersRepository;
     const provider = {
-      createCustomer: vi.fn().mockResolvedValue({ outcome: 'CREATED', providerCustomerId: 'cus_123' }),
+      createCustomer: vi.fn().mockResolvedValue({ providerCustomerId: 'cus_123' }),
     } as unknown as PaymentProviderPort;
     const service = new PaymentCustomerService(customers, provider);
 

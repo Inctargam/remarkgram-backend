@@ -4,9 +4,9 @@ import { PaymentCustomersRepository, type PaymentCustomer } from '../ports/payme
 import { PaymentProviderPort } from '../ports/payment-provider.js';
 import {
   PaymentCheckoutReconciliationRequiredError,
-  PaymentCustomerProviderError,
   PaymentPersistenceError,
   PaymentProviderOutcomeUnknownError,
+  PaymentsError,
 } from '../../../../common/application/errors/payments.error.js';
 
 export type GetOrCreatePaymentCustomerParams = {
@@ -37,6 +37,7 @@ export class PaymentCustomerService {
     try {
       result = await this.provider.createCustomer({ internalUserId: String(params.userId) });
     } catch (error) {
+      if (error instanceof PaymentsError) throw error;
       this.logger.error({
         event: 'payment_provider_contract_violation',
         operation: 'CREATE_CUSTOMER',
@@ -48,10 +49,6 @@ export class PaymentCustomerService {
       });
       throw new PaymentProviderOutcomeUnknownError();
     }
-    if (result.outcome === 'UNAVAILABLE') throw new PaymentCustomerProviderError();
-    if (result.outcome === 'UNKNOWN') throw new PaymentProviderOutcomeUnknownError();
-    if (result.outcome === 'VALIDATION_ERROR') throw new PaymentCustomerProviderError();
-
     let customer: PaymentCustomer;
     try {
       customer = await this.customers.create({

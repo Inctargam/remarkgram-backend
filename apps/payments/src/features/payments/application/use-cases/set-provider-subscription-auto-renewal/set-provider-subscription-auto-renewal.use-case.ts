@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { PaymentProviderResultMismatchError } from '../../../../../common/application/errors/payments.error.js';
 import { PaymentProviderFactory, type PaymentProvider } from '../../../domain/payment-provider.factory.js';
 import { PaymentProviderPort } from '../../ports/payment-provider.js';
 
@@ -35,9 +36,7 @@ export class SetProviderSubscriptionAutoRenewalUseCase {
       result.providerSubscriptionId !== params.providerSubscriptionId ||
       result.autoRenewalEnabled !== params.autoRenewalEnabled
     )
-      throw new Error(
-        `Provider did not ${action} auto-renewal for Subscription ${params.providerSubscriptionId}`,
-      );
+      throw new PaymentProviderResultMismatchError(`${action} subscription auto-renewal`);
 
     return result;
   }

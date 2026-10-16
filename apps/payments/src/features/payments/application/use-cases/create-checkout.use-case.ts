@@ -8,8 +8,6 @@ import {
   PaymentPersistenceError,
   PaymentPlanUnavailableError,
   PaymentProviderOutcomeUnknownError,
-  PaymentProviderUnavailableError,
-  PaymentProviderValidationError,
   PaymentsError,
   PaymentSubscriptionContextError,
 } from '../../../../common/application/errors/payments.error.js';
@@ -149,6 +147,7 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
         checkoutPurpose: payment.checkoutPurpose!,
       });
     } catch (error) {
+      if (error instanceof PaymentsError) throw error;
       this.logger.error({
         event: 'payment_provider_contract_violation',
         operation: 'CREATE_CHECKOUT',
@@ -159,15 +158,6 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
       });
       throw new PaymentProviderOutcomeUnknownError();
     }
-    // Отказ создать Checkout не является финансовым результатом: Payment остаётся CREATED.
-    if (result.outcome === 'VALIDATION_ERROR') {
-      throw new PaymentProviderValidationError();
-    }
-    // UNAVAILABLE- временная проблема Stripe; Payment остаётся в текущем финансовом статусе;
-    if (result.outcome === 'UNAVAILABLE') throw new PaymentProviderUnavailableError();
-    // UNKNOWN — неизвестно, создал ли Stripe Checkout; Payment остаётся CREATED, повтор выполняется с тем же provider idempotency key;
-    if (result.outcome === 'UNKNOWN') throw new PaymentProviderOutcomeUnknownError();
-
     const checkout = result.checkout;
     let attached;
     try {

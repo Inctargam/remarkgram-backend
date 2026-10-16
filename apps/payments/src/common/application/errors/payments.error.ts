@@ -22,6 +22,7 @@ export enum PaymentsErrorCode {
   PAYMENT_PROVIDER_UNAVAILABLE = 'PAYMENT_PROVIDER_UNAVAILABLE',
   PAYMENT_PROVIDER_VALIDATION_FAILED = 'PAYMENT_PROVIDER_VALIDATION_FAILED',
   PAYMENT_PROVIDER_OUTCOME_UNKNOWN = 'PAYMENT_PROVIDER_OUTCOME_UNKNOWN',
+  PAYMENT_PROVIDER_RESULT_MISMATCH = 'PAYMENT_PROVIDER_RESULT_MISMATCH',
   PAYMENT_CUSTOMER_PROVIDER_FAILED = 'PAYMENT_CUSTOMER_PROVIDER_FAILED',
   PAYMENT_SUBSCRIPTION_CONTEXT_FAILED = 'PAYMENT_SUBSCRIPTION_CONTEXT_FAILED',
   PAYMENT_SUBSCRIPTION_APPLICATION_CONFLICT = 'PAYMENT_SUBSCRIPTION_APPLICATION_CONFLICT',
@@ -84,7 +85,7 @@ export class PaymentProviderUnavailableError extends PaymentsError {
 export class PaymentProviderValidationError extends PaymentsError {
   readonly code = PaymentsErrorCode.PAYMENT_PROVIDER_VALIDATION_FAILED;
   constructor() {
-    super('Payment provider rejected the checkout request');
+    super('Payment provider rejected the operation request');
   }
 }
 
@@ -92,6 +93,13 @@ export class PaymentProviderOutcomeUnknownError extends PaymentsError {
   readonly code = PaymentsErrorCode.PAYMENT_PROVIDER_OUTCOME_UNKNOWN;
   constructor() {
     super('Payment provider outcome is unknown; retry with the same idempotency key');
+  }
+}
+
+export class PaymentProviderResultMismatchError extends PaymentsError {
+  readonly code = PaymentsErrorCode.PAYMENT_PROVIDER_RESULT_MISMATCH;
+  constructor(operation: string) {
+    super(`Payment provider returned an inconsistent result for ${operation}`);
   }
 }
 

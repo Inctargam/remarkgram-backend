@@ -11,10 +11,6 @@ export type CreateProviderCheckoutInput = {
   customerId: string;
   checkoutPurpose: CheckoutPurpose;
 };
-export type ProviderOperationFailure =
-  | { outcome: 'VALIDATION_ERROR' }
-  | { outcome: 'UNAVAILABLE' }
-  | { outcome: 'UNKNOWN' };
 export type ProviderCheckout = {
   checkoutId: string;
   checkoutUrl: string;
@@ -25,9 +21,7 @@ export type ProviderCheckout = {
   checkoutExpiresAt: Date;
   snapshot: Record<string, unknown>;
 };
-export type CreateProviderCheckoutResult =
-  | { outcome: 'CREATED'; checkout: ProviderCheckout }
-  | ProviderOperationFailure;
+export type CreateProviderCheckoutResult = { checkout: ProviderCheckout };
 export type VerifiedProviderWebhook = {
   provider: PaymentProvider;
   id: string;
@@ -40,9 +34,7 @@ export type VerifiedProviderWebhook = {
 export type CreatePaymentCustomerProps = {
   internalUserId: string;
 };
-export type CreatePaymentCustomerResult = Promise<
-  { outcome: 'CREATED'; providerCustomerId: string } | ProviderOperationFailure
->;
+export type CreatePaymentCustomerResult = Promise<{ providerCustomerId: string }>;
 export type ScheduleProviderSubscriptionCancellationResult = {
   providerSubscriptionId: string;
   cancelAtPeriodEnd: true;
