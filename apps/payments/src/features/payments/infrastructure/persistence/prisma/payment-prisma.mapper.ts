@@ -1,5 +1,6 @@
 import type { Payment as PrismaPayment } from '../../../../../database/prisma/generated/client.js';
-import type { Currency, PeriodUnit } from '../../../../plans/domain/plan.entity.js';
+import type { Currency } from '../../../../../common/domain/currency.enum.js';
+import type { PeriodUnit } from '../../../../../common/domain/period-unit.enum.js';
 import {
   Payment,
   type CheckoutPurpose,

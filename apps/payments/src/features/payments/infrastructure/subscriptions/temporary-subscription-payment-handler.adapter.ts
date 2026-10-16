@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import { PeriodUnit } from '../../../plans/domain/plan.entity.js';
+import { PeriodUnit } from '../../../../common/domain/period-unit.enum.js';
 import { PaymentType } from '../../domain/payment.entity.js';
 import { PaymentsRepository } from '../../application/ports/payments.repository.js';
 import {

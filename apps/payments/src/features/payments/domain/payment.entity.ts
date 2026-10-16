@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { Currency, PeriodUnit } from '../../plans/domain/plan.entity.js';
+import { Currency } from '../../../common/domain/currency.enum.js';
+import { PeriodUnit } from '../../../common/domain/period-unit.enum.js';
 import {
   InvalidPaymentAmountError,
   InvalidPaymentCurrencyError,

@@ -3,7 +3,7 @@ import type { ConfigType } from '@nestjs/config';
 import Stripe from 'stripe';
 import { InvalidProviderEventError } from '../../../../common/application/errors/payments.error.js';
 import { stripeConfig } from '../../../../config/stripe.config.js';
-import { PeriodUnit } from '../../../plans/domain/plan.entity.js';
+import { PeriodUnit } from '../../../../common/domain/period-unit.enum.js';
 import {
   PaymentProviderPort,
   type CreateDeferredProviderSubscriptionInput,

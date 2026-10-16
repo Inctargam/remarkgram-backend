@@ -1,3 +1,5 @@
+import { Currency } from '../../../common/domain/currency.enum.js';
+import { PeriodUnit } from '../../../common/domain/period-unit.enum.js';
 import {
   InvalidPlanCurrencyError,
   InvalidPlanIdError,
@@ -5,15 +7,8 @@ import {
   InvalidPlanPriceError,
 } from '../application/errors/plan.errors.js';
 
-export enum Currency {
-  USD = 'USD',
-}
-
-export enum PeriodUnit {
-  DAY = 'DAY',
-  WEEK = 'WEEK',
-  MONTH = 'MONTH',
-}
+export { Currency } from '../../../common/domain/currency.enum.js';
+export { PeriodUnit } from '../../../common/domain/period-unit.enum.js';
 
 export type CreatePlanProps = {
   price: number;

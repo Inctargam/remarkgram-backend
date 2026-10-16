@@ -1,4 +1,5 @@
-import type { Currency, PeriodUnit } from '../../../plans/domain/plan.entity.js';
+import type { Currency } from '../../../../common/domain/currency.enum.js';
+import type { PeriodUnit } from '../../../../common/domain/period-unit.enum.js';
 import type { CheckoutPurpose, PaymentProvider } from '../../domain/payment.entity.js';
 
 export type CreateProviderCheckoutInput = {
