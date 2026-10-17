@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PaymentProviderResultMismatchError } from '../../../../../common/application/errors/payments.error.js';
+import { PaymentProviderResultMismatchError } from '../../errors/payment-provider.error.js';
 import {
   PaymentProviderPort,
   type ScheduleProviderSubscriptionCancellationResult as ProviderCancellationResult,

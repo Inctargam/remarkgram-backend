@@ -4,7 +4,7 @@ import {
   InvalidPaymentAmountError,
   InvalidPaymentIdempotentKeyError,
   InvalidPaymentStateError,
-} from '../application/errors/payment.errors.js';
+} from './errors/payment-validation.errors.js';
 import {
   Payment,
   PaymentProvider,

@@ -4,7 +4,7 @@ import {
   PaymentProviderOutcomeUnknownError,
   PaymentProviderUnavailableError,
   PaymentProviderValidationError,
-} from '../../../../common/application/errors/payments.error.js';
+} from '../../application/errors/payment-provider.error.js';
 import { StripePaymentErrorMapper } from './stripe-payment-error.mapper.js';
 
 describe('StripePaymentErrorMapper', () => {

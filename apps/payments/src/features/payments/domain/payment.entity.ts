@@ -9,7 +9,7 @@ import {
   InvalidPaymentReferenceError,
   InvalidPaymentStateError,
   InvalidPaymentSubscriptionIdError,
-} from '../application/errors/payment.errors.js';
+} from './errors/payment-validation.errors.js';
 import { PaymentProviderFactory, type PaymentProvider } from './payment-provider.factory.js';
 
 export { PaymentProvider } from './payment-provider.factory.js';

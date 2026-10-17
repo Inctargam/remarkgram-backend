@@ -7,7 +7,7 @@ import {
   PaymentStatus,
   PaymentType,
 } from '../../../domain/payment.entity.js';
-import { PaymentSubscriptionApplicationConflictError } from '../../errors/payment.errors.js';
+import { PaymentSubscriptionApplicationConflictError } from '../../errors/payment-subscription-application.error.js';
 import type { PaymentEventRepository } from '../../ports/payment-event.repository.js';
 import type { PaymentsRepository } from '../../ports/payments.repository.js';
 import type { SubscriptionPaymentHandler } from '../../ports/subscription-payment.handler.js';

@@ -1,4 +1,4 @@
-import { PaymentsError, PaymentsErrorCode } from '../../../../common/application/errors/payments.error.js';
+import { PaymentsError, PaymentsErrorCode } from '../../../../common/domain/errors/payments.error.js';
 
 export class InvalidPaymentIdError extends PaymentsError {
   readonly code = PaymentsErrorCode.INVALID_PAYMENT_ID;
@@ -40,11 +40,11 @@ export class InvalidPaymentPeriodError extends PaymentsError {
   }
 }
 
-export class InvalidPaymentProviderError extends PaymentsError {
+export class InvalidPaymentProviderIdentityError extends PaymentsError {
   readonly code = PaymentsErrorCode.INVALID_PAYMENT_PROVIDER;
 
   constructor(providerType: unknown, providerId: unknown) {
-    super(`Invalid payment provider: ${String(providerType)}/${String(providerId)}`);
+    super(`Invalid payment provider identity: ${String(providerType)}/${String(providerId)}`);
   }
 }
 
@@ -82,24 +82,5 @@ export class InvalidPaymentStateError extends PaymentsError {
     value: unknown,
   ) {
     super(`Invalid payment ${field}: ${String(value)}`);
-  }
-}
-
-export type PaymentSubscriptionApplicationConflictReason =
-  | 'PAYMENT_STATE_MISMATCH'
-  | 'INVALID_HANDLER_RESULT'
-  | 'PAYMENT_LINK_CONFLICT'
-  | 'PROVIDER_CUSTOMER_MISSING'
-  | 'INVALID_PROVIDER_RESULT'
-  | 'PROVIDER_SUBSCRIPTION_LINK_CONFLICT';
-
-export class PaymentSubscriptionApplicationConflictError extends PaymentsError {
-  readonly code = PaymentsErrorCode.PAYMENT_SUBSCRIPTION_APPLICATION_CONFLICT;
-
-  constructor(
-    readonly paymentId: string,
-    readonly reason: PaymentSubscriptionApplicationConflictReason,
-  ) {
-    super(`Successful Payment ${paymentId} cannot be applied to a Subscription: ${reason}`);
   }
 }

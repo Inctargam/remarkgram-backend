@@ -7,10 +7,10 @@ import {
   PaymentInitialReservationConflictError,
   PaymentPersistenceError,
   PaymentPlanUnavailableError,
-  PaymentProviderOutcomeUnknownError,
   PaymentsError,
   PaymentSubscriptionContextError,
 } from '../../../../common/application/errors/payments.error.js';
+import { PaymentProviderOutcomeUnknownError } from '../errors/payment-provider.error.js';
 import { PlansRepository } from '../../../plans/application/ports/plans.repository.js';
 import { PaymentProviderFactory } from '../../domain/payment-provider.factory.js';
 import { CheckoutPurpose, Payment, PaymentStatus } from '../../domain/payment.entity.js';

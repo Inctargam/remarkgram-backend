@@ -1,7 +1,7 @@
 import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import { Metadata, status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
-import { type PaymentsError, PaymentsErrorCode } from '../../application/errors/payments.error.js';
+import { type PaymentsError, PaymentsErrorCode } from '../../domain/errors/payments.error.js';
 
 const PAYMENTS_ERROR_TO_RPC_EXCEPTION_MAP = {
   [PaymentsErrorCode.INVALID_PAYMENT_METHOD]: status.INVALID_ARGUMENT,
@@ -28,6 +28,7 @@ const PAYMENTS_ERROR_TO_RPC_EXCEPTION_MAP = {
   [PaymentsErrorCode.PAYMENT_PROVIDER_VALIDATION_FAILED]: status.INVALID_ARGUMENT,
   [PaymentsErrorCode.PAYMENT_PROVIDER_OUTCOME_UNKNOWN]: status.ABORTED,
   [PaymentsErrorCode.PAYMENT_PROVIDER_RESULT_MISMATCH]: status.FAILED_PRECONDITION,
+  [PaymentsErrorCode.PAYMENT_WEBHOOK_ENQUEUE_UNAVAILABLE]: status.UNAVAILABLE,
   [PaymentsErrorCode.PAYMENT_CUSTOMER_PROVIDER_FAILED]: status.UNAVAILABLE,
   [PaymentsErrorCode.PAYMENT_SUBSCRIPTION_CONTEXT_FAILED]: status.UNAVAILABLE,
   [PaymentsErrorCode.PAYMENT_SUBSCRIPTION_APPLICATION_CONFLICT]: status.FAILED_PRECONDITION,

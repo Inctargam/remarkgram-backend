@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PaymentSubscriptionApplicationConflictError } from '../../errors/payment.errors.js';
+import { PaymentProviderResultMismatchError } from '../../errors/payment-provider.error.js';
+import { PaymentSubscriptionApplicationConflictError } from '../../errors/payment-subscription-application.error.js';
 import { PaymentEventRepository } from '../../ports/payment-event.repository.js';
 import { PaymentProviderPort } from '../../ports/payment-provider.js';
 import { PaymentsRepository } from '../../ports/payments.repository.js';
@@ -51,10 +52,7 @@ export class CreateDeferredProviderSubscriptionUseCase {
       operationId: params.payment.paymentId,
     });
     if (!result.providerSubscriptionId.trim())
-      throw new PaymentSubscriptionApplicationConflictError(
-        params.payment.paymentId,
-        'INVALID_PROVIDER_RESULT',
-      );
+      throw new PaymentProviderResultMismatchError('create deferred subscription');
     return result;
   }
 

@@ -1,11 +1,12 @@
 import { Logger } from '@nestjs/common';
 import Stripe from 'stripe';
+import type { PaymentsError } from '../../../../common/application/errors/payments.error.js';
+import { InvalidProviderEventError } from '../../application/errors/invalid-provider-event.error.js';
 import {
   PaymentProviderOutcomeUnknownError,
   PaymentProviderUnavailableError,
   PaymentProviderValidationError,
-  type PaymentsError,
-} from '../../../../common/application/errors/payments.error.js';
+} from '../../application/errors/payment-provider.error.js';
 
 export type StripePaymentOperation =
   | 'CREATE_CHECKOUT'
@@ -22,6 +23,27 @@ export type StripePaymentErrorContext = {
 /** Translates Stripe SDK failures at the infrastructure boundary. */
 export class StripePaymentErrorMapper {
   private readonly logger = new Logger(StripePaymentErrorMapper.name);
+
+  toWebhookVerificationError(error: unknown): InvalidProviderEventError | PaymentProviderUnavailableError {
+    const mapped =
+      error instanceof Stripe.errors.StripeSignatureVerificationError
+        ? new InvalidProviderEventError('Invalid Stripe webhook signature')
+        : new PaymentProviderUnavailableError();
+    const providerError = error instanceof Stripe.errors.StripeError ? error : null;
+
+    this.logger.warn({
+      event: 'payment_provider_webhook_verification_failed',
+      provider: 'STRIPE',
+      applicationErrorCode: mapped.code,
+      errorName: error instanceof Error ? error.name : typeof error,
+      providerErrorType: providerError?.type,
+      providerErrorCode: providerError?.code,
+      providerRequestId: providerError?.requestId,
+      providerStatusCode: providerError?.statusCode,
+    });
+
+    return mapped;
+  }
 
   toApplicationError(error: unknown, context: StripePaymentErrorContext): PaymentsError {
     const mapped = this.classify(error);

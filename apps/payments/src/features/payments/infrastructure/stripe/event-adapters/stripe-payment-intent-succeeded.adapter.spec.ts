@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { InvalidProviderEventError } from '../../../../../common/application/errors/payments.error.js';
+import { InvalidProviderEventError } from '../../../application/errors/invalid-provider-event.error.js';
 import type { VerifiedProviderWebhook } from '../../../application/ports/payment-provider.js';
 import { PaymentEventKind } from '../../../domain/payment-event-kind.js';
 import { PaymentProvider } from '../../../domain/payment.entity.js';

@@ -1,9 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import Stripe from 'stripe';
-import { InvalidProviderEventError } from '../../../../common/application/errors/payments.error.js';
-import { stripeConfig } from '../../../../config/stripe.config.js';
 import { PeriodUnit } from '../../../../common/domain/period-unit.enum.js';
+import { stripeConfig } from '../../../../config/stripe.config.js';
 import {
   PaymentProviderPort,
   type CreateDeferredProviderSubscriptionInput,
@@ -157,12 +156,7 @@ export class StripePaymentProvider extends PaymentProviderPort {
     try {
       event = this.stripe.webhooks.constructEvent(rawBody, signature, this.config.webhookSecret);
     } catch (error) {
-      // Ошибка подписи является ошибкой входного запроса, а не временной ошибкой обработки.
-      // Непроверенное событие нельзя сохранять или использовать для изменения Payment.
-      if (error instanceof Stripe.errors.StripeSignatureVerificationError) {
-        throw new InvalidProviderEventError('Invalid Stripe webhook signature');
-      }
-      throw error;
+      throw this.errorMapper.toWebhookVerificationError(error);
     }
 
     const snapshot = JSON.parse(JSON.stringify(event)) as Record<string, unknown>;

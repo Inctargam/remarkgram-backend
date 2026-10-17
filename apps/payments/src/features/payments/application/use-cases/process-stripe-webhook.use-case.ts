@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { InvalidProviderEventError } from '../../../../common/application/errors/payments.error.js';
+import { PaymentsError } from '../../../../common/domain/errors/payments.error.js';
 import { PaymentProviderPort } from '../ports/payment-provider.js';
 import { PROVIDER_EVENT_ADAPTERS, type ProviderEventAdapter } from '../ports/provider-event-adapter.js';
 import { ReceivePaymentEventUseCase } from './receive-payment-event.use-case.js';
@@ -55,18 +55,13 @@ export class ProcessStripeWebhookUseCase {
       });
       return result;
     } catch (error) {
-      if (error instanceof InvalidProviderEventError) throw error;
-      if (error instanceof Error && error.name.includes('Signature'))
-        throw new InvalidProviderEventError('Invalid Stripe webhook signature');
-
       this.logger.error({
         event: 'stripe_webhook_processing_failed',
         providerEventId,
         providerEventType,
         paymentId,
+        applicationErrorCode: error instanceof PaymentsError ? error.code : undefined,
         errorName: error instanceof Error ? error.name : typeof error,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        errorStack: error instanceof Error ? error.stack : undefined,
       });
       throw error;
     }

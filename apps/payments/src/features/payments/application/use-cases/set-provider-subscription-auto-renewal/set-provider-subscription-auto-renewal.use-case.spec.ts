@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PaymentProviderResultMismatchError } from '../../../../../common/application/errors/payments.error.js';
+import { PaymentProviderResultMismatchError } from '../../errors/payment-provider.error.js';
 import { PaymentProvider } from '../../../domain/payment-provider.factory.js';
 import type { PaymentProviderPort } from '../../ports/payment-provider.js';
 import { SetProviderSubscriptionAutoRenewalUseCase } from './set-provider-subscription-auto-renewal.use-case.js';

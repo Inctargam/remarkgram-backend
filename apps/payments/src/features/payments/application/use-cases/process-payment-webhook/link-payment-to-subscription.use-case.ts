@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PaymentNotFoundError } from '../../../../../common/application/errors/payments.error.js';
 import { PaymentStatus, PaymentType } from '../../../domain/payment.entity.js';
-import { PaymentSubscriptionApplicationConflictError } from '../../errors/payment.errors.js';
+import { PaymentSubscriptionApplicationConflictError } from '../../errors/payment-subscription-application.error.js';
 import { PaymentEventRepository } from '../../ports/payment-event.repository.js';
 import type { PaymentsTransactionContext } from '../../ports/payments-unit-of-work.js';
 import { PaymentsRepository } from '../../ports/payments.repository.js';

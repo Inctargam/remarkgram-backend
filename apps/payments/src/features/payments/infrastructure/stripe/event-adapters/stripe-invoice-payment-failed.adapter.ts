@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { InvalidProviderEventError } from '../../../../../common/application/errors/payments.error.js';
+import { InvalidProviderEventError } from '../../../application/errors/invalid-provider-event.error.js';
 import type { InvoicePaymentFailedEvent } from '../../../application/events/payment-event.js';
 import type { VerifiedProviderWebhook } from '../../../application/ports/payment-provider.js';
 import type { ProviderEventAdapter } from '../../../application/ports/provider-event-adapter.js';

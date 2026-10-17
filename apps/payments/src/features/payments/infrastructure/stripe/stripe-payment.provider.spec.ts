@@ -1,5 +1,8 @@
+import Stripe from 'stripe';
 import { describe, expect, it, vi } from 'vitest';
 import { Currency, PeriodUnit } from '../../../plans/domain/plan.entity.js';
+import { InvalidProviderEventError } from '../../application/errors/invalid-provider-event.error.js';
+import { PaymentProviderUnavailableError } from '../../application/errors/payment-provider.error.js';
 import type { CreateProviderCheckoutInput } from '../../application/ports/payment-provider.js';
 import { CheckoutPurpose } from '../../domain/payment.entity.js';
 import { StripePaymentProvider } from './stripe-payment.provider.js';
@@ -189,6 +192,24 @@ describe('StripePaymentProvider.verifyWebhook', () => {
       expect.objectContaining({ id: 'evt_invoice', type: 'invoice.paid', payload: {} }),
     );
   });
+
+  it('классифицирует ошибку подписи как невалидное provider-событие', () => {
+    const provider = providerWithWebhookError(
+      new Stripe.errors.StripeSignatureVerificationError('signature', '{}'),
+    );
+
+    expect(() => provider.verifyWebhook(Buffer.from('{}'), 'invalid-signature')).toThrow(
+      InvalidProviderEventError,
+    );
+  });
+
+  it('классифицирует неожиданный сбой верификации как временную недоступность provider', () => {
+    const provider = providerWithWebhookError(new Error('unexpected verification failure'));
+
+    expect(() => provider.verifyWebhook(Buffer.from('{}'), 'signature')).toThrow(
+      PaymentProviderUnavailableError,
+    );
+  });
 });
 
 function providerWithStripe() {
@@ -230,6 +251,16 @@ function providerWithEvent(event: Record<string, unknown>) {
   Object.assign(provider as unknown as Record<string, unknown>, {
     stripe: {
       webhooks: { constructEvent: vi.fn().mockReturnValue(event) },
+    },
+  });
+  return provider;
+}
+
+function providerWithWebhookError(error: Error) {
+  const provider = providerWithEvent({});
+  Object.assign(provider as unknown as Record<string, unknown>, {
+    stripe: {
+      webhooks: { constructEvent: vi.fn().mockImplementation(() => { throw error; }) },
     },
   });
   return provider;

@@ -5,9 +5,9 @@ import { PaymentProviderPort } from '../ports/payment-provider.js';
 import {
   PaymentCheckoutReconciliationRequiredError,
   PaymentPersistenceError,
-  PaymentProviderOutcomeUnknownError,
   PaymentsError,
 } from '../../../../common/application/errors/payments.error.js';
+import { PaymentProviderOutcomeUnknownError } from '../errors/payment-provider.error.js';
 
 export type GetOrCreatePaymentCustomerParams = {
   userId: number;

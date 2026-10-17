@@ -8,12 +8,14 @@ import {
   Logger,
   Post,
   Req,
+  UseFilters,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { InvalidProviderEventError } from '../../../../common/application/errors/payments.error.js';
+import { PaymentWebhookHttpExceptionFilter } from '../../../../common/http/payment-webhook-http-exception.filter.js';
 import { ProcessStripeWebhookUseCase } from '../../application/use-cases/process-stripe-webhook.use-case.js';
 
 @Controller('payments/webhooks')
+@UseFilters(PaymentWebhookHttpExceptionFilter)
 export class StripeWebhookController {
   private readonly logger = new Logger(StripeWebhookController.name);
 
@@ -51,13 +53,7 @@ export class StripeWebhookController {
         event: 'stripe_webhook_http_failed',
         durationMs: Date.now() - startedAt,
         errorName: error instanceof Error ? error.name : typeof error,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        errorStack: error instanceof Error ? error.stack : undefined,
       };
-      if (error instanceof InvalidProviderEventError) {
-        this.logger.warn(details);
-        throw new BadRequestException(error.message);
-      }
       this.logger.error(details);
       throw error;
     }

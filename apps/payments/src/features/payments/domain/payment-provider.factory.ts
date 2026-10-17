@@ -1,4 +1,4 @@
-import { InvalidPaymentProviderError } from '../application/errors/payment.errors.js';
+import { InvalidPaymentProviderIdentityError } from './errors/payment-validation.errors.js';
 
 export enum PaymentProvider {
   STRIPE = 'STRIPE',
@@ -10,7 +10,7 @@ export class PaymentProviderFactory {
       case PaymentProvider.STRIPE:
         return PaymentProvider.STRIPE;
       default:
-        throw new InvalidPaymentProviderError(value, null);
+        throw new InvalidPaymentProviderIdentityError(value, null);
     }
   }
 }

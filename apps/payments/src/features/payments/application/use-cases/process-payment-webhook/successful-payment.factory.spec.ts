@@ -8,7 +8,7 @@ import {
   PaymentType,
   type RestorePaymentProps,
 } from '../../../domain/payment.entity.js';
-import { InvalidPaymentStateError } from '../../errors/payment.errors.js';
+import { InvalidPaymentStateError } from '../../../domain/errors/payment-validation.errors.js';
 import { createSuccessfulPayment } from './successful-payment.factory.js';
 
 describe('createSuccessfulPayment workflow DTO factory', () => {

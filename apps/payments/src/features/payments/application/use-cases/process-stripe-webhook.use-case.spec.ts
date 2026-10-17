@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PaymentEvent } from '../events/payment-event.js';
 import type { PaymentProviderPort, VerifiedProviderWebhook } from '../ports/payment-provider.js';
+import { PaymentProviderUnavailableError } from '../errors/payment-provider.error.js';
 import { PaymentProvider } from '../../domain/payment.entity.js';
 import type { ReceivePaymentEventUseCase } from './receive-payment-event.use-case.js';
 import { ProcessStripeWebhookUseCase } from './process-stripe-webhook.use-case.js';
@@ -34,6 +35,21 @@ describe('ProcessStripeWebhookUseCase', () => {
 
     await expect(useCase.execute(Buffer.from('{}'), 'signature')).resolves.toBe('RECEIVED');
     expect(execute).toHaveBeenCalledWith(adapted);
+  });
+
+  it('не переклассифицирует ошибку, уже нормализованную provider-адаптером', async () => {
+    const providerError = new PaymentProviderUnavailableError();
+    const useCase = new ProcessStripeWebhookUseCase(
+      {
+        verifyWebhook: vi.fn().mockImplementation(() => {
+          throw providerError;
+        }),
+      } as unknown as PaymentProviderPort,
+      [],
+      { execute: vi.fn() } as unknown as ReceivePaymentEventUseCase,
+    );
+
+    await expect(useCase.execute(Buffer.from('{}'), 'signature')).rejects.toBe(providerError);
   });
 });
 

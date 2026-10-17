@@ -1,44 +1,6 @@
-export enum PaymentsErrorCode {
-  INVALID_PAYMENT_METHOD = 'INVALID_PAYMENT_METHOD',
-  INVALID_PLAN_ID = 'INVALID_PLAN_ID',
-  INVALID_PLAN_PRICE = 'INVALID_PLAN_PRICE',
-  INVALID_PLAN_CURRENCY = 'INVALID_PLAN_CURRENCY',
-  INVALID_PLAN_PERIOD = 'INVALID_PLAN_PERIOD',
-  INVALID_PAYMENT_ID = 'INVALID_PAYMENT_ID',
-  INVALID_PAYMENT_REFERENCE = 'INVALID_PAYMENT_REFERENCE',
-  INVALID_PAYMENT_AMOUNT = 'INVALID_PAYMENT_AMOUNT',
-  INVALID_PAYMENT_CURRENCY = 'INVALID_PAYMENT_CURRENCY',
-  INVALID_PAYMENT_PERIOD = 'INVALID_PAYMENT_PERIOD',
-  INVALID_PAYMENT_PROVIDER = 'INVALID_PAYMENT_PROVIDER',
-  INVALID_PAYMENT_IDEMPOTENT_KEY = 'INVALID_PAYMENT_IDEMPOTENT_KEY',
-  INVALID_PAYMENT_SUBSCRIPTION_ID = 'INVALID_PAYMENT_SUBSCRIPTION_ID',
-  INVALID_PAYMENT_STATE = 'INVALID_PAYMENT_STATE',
-  PLAN_NOT_FOUND = 'PLAN_NOT_FOUND',
-  PAYMENT_NOT_FOUND = 'PAYMENT_NOT_FOUND',
-  PAYMENT_IDEMPOTENCY_CONFLICT = 'PAYMENT_IDEMPOTENCY_CONFLICT',
-  PAYMENT_INITIAL_RESERVATION_CONFLICT = 'PAYMENT_INITIAL_RESERVATION_CONFLICT',
-  PAYMENT_CHECKOUT_RECONCILIATION_REQUIRED = 'PAYMENT_CHECKOUT_RECONCILIATION_REQUIRED',
-  PAYMENT_ACCESS_DENIED = 'PAYMENT_ACCESS_DENIED',
-  PAYMENT_PROVIDER_UNAVAILABLE = 'PAYMENT_PROVIDER_UNAVAILABLE',
-  PAYMENT_PROVIDER_VALIDATION_FAILED = 'PAYMENT_PROVIDER_VALIDATION_FAILED',
-  PAYMENT_PROVIDER_OUTCOME_UNKNOWN = 'PAYMENT_PROVIDER_OUTCOME_UNKNOWN',
-  PAYMENT_PROVIDER_RESULT_MISMATCH = 'PAYMENT_PROVIDER_RESULT_MISMATCH',
-  PAYMENT_CUSTOMER_PROVIDER_FAILED = 'PAYMENT_CUSTOMER_PROVIDER_FAILED',
-  PAYMENT_SUBSCRIPTION_CONTEXT_FAILED = 'PAYMENT_SUBSCRIPTION_CONTEXT_FAILED',
-  PAYMENT_SUBSCRIPTION_APPLICATION_CONFLICT = 'PAYMENT_SUBSCRIPTION_APPLICATION_CONFLICT',
-  PAYMENT_PLAN_UNAVAILABLE = 'PAYMENT_PLAN_UNAVAILABLE',
-  PAYMENT_PERSISTENCE_FAILED = 'PAYMENT_PERSISTENCE_FAILED',
-  PAYMENT_INCONSISTENT_STATE = 'PAYMENT_INCONSISTENT_STATE',
-  INVALID_PROVIDER_EVENT = 'INVALID_PROVIDER_EVENT',
-}
+import { PaymentsError, PaymentsErrorCode } from '../../domain/errors/payments.error.js';
 
-export abstract class PaymentsError extends Error {
-  abstract readonly code: PaymentsErrorCode;
-  protected constructor(message: string) {
-    super(message);
-    this.name = new.target.name;
-  }
-}
+export { PaymentsError, PaymentsErrorCode } from '../../domain/errors/payments.error.js';
 
 export class PaymentNotFoundError extends PaymentsError {
   readonly code = PaymentsErrorCode.PAYMENT_NOT_FOUND;
@@ -75,38 +37,10 @@ export class PaymentAccessDeniedError extends PaymentsError {
   }
 }
 
-export class PaymentProviderUnavailableError extends PaymentsError {
-  readonly code = PaymentsErrorCode.PAYMENT_PROVIDER_UNAVAILABLE;
+export class PaymentWebhookEnqueueUnavailableError extends PaymentsError {
+  readonly code = PaymentsErrorCode.PAYMENT_WEBHOOK_ENQUEUE_UNAVAILABLE;
   constructor() {
-    super('Payment provider is temporarily unavailable');
-  }
-}
-
-export class PaymentProviderValidationError extends PaymentsError {
-  readonly code = PaymentsErrorCode.PAYMENT_PROVIDER_VALIDATION_FAILED;
-  constructor() {
-    super('Payment provider rejected the operation request');
-  }
-}
-
-export class PaymentProviderOutcomeUnknownError extends PaymentsError {
-  readonly code = PaymentsErrorCode.PAYMENT_PROVIDER_OUTCOME_UNKNOWN;
-  constructor() {
-    super('Payment provider outcome is unknown; retry with the same idempotency key');
-  }
-}
-
-export class PaymentProviderResultMismatchError extends PaymentsError {
-  readonly code = PaymentsErrorCode.PAYMENT_PROVIDER_RESULT_MISMATCH;
-  constructor(operation: string) {
-    super(`Payment provider returned an inconsistent result for ${operation}`);
-  }
-}
-
-export class PaymentCustomerProviderError extends PaymentsError {
-  readonly code = PaymentsErrorCode.PAYMENT_CUSTOMER_PROVIDER_FAILED;
-  constructor() {
-    super('Payment customer could not be created');
+    super('Payment webhook could not be durably accepted');
   }
 }
 
@@ -138,9 +72,3 @@ export class PaymentInconsistentStateError extends PaymentsError {
   }
 }
 
-export class InvalidProviderEventError extends PaymentsError {
-  readonly code = PaymentsErrorCode.INVALID_PROVIDER_EVENT;
-  constructor(message = 'Invalid payment provider event') {
-    super(message);
-  }
-}
