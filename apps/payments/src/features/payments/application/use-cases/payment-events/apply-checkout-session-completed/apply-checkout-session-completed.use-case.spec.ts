@@ -8,6 +8,7 @@ import {
 import { PaymentEventKind } from '../../../../domain/payment-event-kind.js';
 import type { CheckoutSessionCompletedEvent } from '../../../events/payment-event.js';
 import type { PaymentsRepository } from '../../../ports/payments.repository.js';
+import { PaymentEventResultCode, paymentEventResult } from '../payment-event-result.js';
 import { ApplyCheckoutSessionCompletedUseCase } from './apply-checkout-session-completed.use-case.js';
 
 describe('ApplyCheckoutSessionCompletedUseCase', () => {
@@ -19,7 +20,7 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
       payments.applyCheckoutCompleted.mockResolvedValue({ outcome: 'APPLIED' });
       const useCase = new ApplyCheckoutSessionCompletedUseCase(payments as unknown as PaymentsRepository);
 
-      await expect(useCase.execute(event(paymentStatus), {})).resolves.toEqual({ outcome: 'APPLIED' });
+      await expect(useCase.execute(event(paymentStatus), {})).resolves.toEqual(APPLIED);
       expect(payments.applyCheckoutCompleted).toHaveBeenCalledWith(
         {
           paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -40,7 +41,7 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
     payments.applyCheckoutCompleted.mockResolvedValue({ outcome: 'APPLIED' });
     const useCase = new ApplyCheckoutSessionCompletedUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event('paid'), {})).resolves.toEqual({ outcome: 'APPLIED' });
+    await expect(useCase.execute(event('paid'), {})).resolves.toEqual(APPLIED);
   });
 
   it('rejects conflicting references before repository mutation', async () => {
@@ -48,7 +49,7 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
     payments.findById.mockResolvedValue(payment({ providerCheckoutId: 'cs_other' }));
     const useCase = new ApplyCheckoutSessionCompletedUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event('paid'), {})).resolves.toEqual({ outcome: 'REFERENCE_CONFLICT' });
+    await expect(useCase.execute(event('paid'), {})).resolves.toEqual(REFERENCE_CONFLICT);
     expect(payments.applyCheckoutCompleted).not.toHaveBeenCalled();
   });
 
@@ -57,7 +58,7 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
     payments.findById.mockResolvedValue(payment({ providerSubscriptionId: 'sub_existing' }));
     payments.applyCheckoutCompleted.mockResolvedValue({ outcome: 'APPLIED' });
     const useCase = new ApplyCheckoutSessionCompletedUseCase(payments as unknown as PaymentsRepository);
-    await expect(useCase.execute(event('paid'), {})).resolves.toEqual({ outcome: 'APPLIED' });
+    await expect(useCase.execute(event('paid'), {})).resolves.toEqual(APPLIED);
     expect(payments.applyCheckoutCompleted).toHaveBeenCalledWith(
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       expect.not.objectContaining({ providerSubscriptionId: expect.anything() }),
@@ -75,7 +76,7 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
       payload: { ...event('paid').payload, mode: 'subscription' },
     };
 
-    await expect(useCase.execute(providerEvent, {})).resolves.toEqual({ outcome: 'APPLIED' });
+    await expect(useCase.execute(providerEvent, {})).resolves.toEqual(APPLIED);
   });
 
   it.each([PaymentStatus.CREATED, PaymentStatus.FAILED, PaymentStatus.CANCELED])(
@@ -86,7 +87,7 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
       payments.applyCheckoutCompleted.mockResolvedValue({ outcome: 'APPLIED' });
       const useCase = new ApplyCheckoutSessionCompletedUseCase(payments as unknown as PaymentsRepository);
 
-      await expect(useCase.execute(event('paid'), {})).resolves.toEqual({ outcome: 'APPLIED' });
+      await expect(useCase.execute(event('paid'), {})).resolves.toEqual(APPLIED);
       expect(payments.applyCheckoutCompleted).toHaveBeenCalledOnce();
     },
   );
@@ -102,7 +103,7 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
     );
     const useCase = new ApplyCheckoutSessionCompletedUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event('paid'), {})).resolves.toEqual({ outcome: 'APPLIED' });
+    await expect(useCase.execute(event('paid'), {})).resolves.toEqual(APPLIED);
     expect(payments.applyCheckoutCompleted).not.toHaveBeenCalled();
   });
 
@@ -117,7 +118,7 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
     );
     const useCase = new ApplyCheckoutSessionCompletedUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event('paid'), {})).resolves.toEqual({ outcome: 'APPLIED' });
+    await expect(useCase.execute(event('paid'), {})).resolves.toEqual(APPLIED);
     expect(payments.applyCheckoutCompleted).not.toHaveBeenCalled();
   });
 
@@ -136,7 +137,7 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
       },
     };
 
-    await expect(useCase.execute(initialEvent, {})).resolves.toEqual({ outcome: 'APPLIED' });
+    await expect(useCase.execute(initialEvent, {})).resolves.toEqual(APPLIED);
     expect(payments.applyCheckoutCompleted).toHaveBeenCalledWith(
       {
         paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -167,12 +168,14 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
       },
     };
 
-    await expect(useCase.execute(initialEvent, {})).resolves.toEqual({
-      outcome: 'REFERENCE_CONFLICT',
-    });
+    await expect(useCase.execute(initialEvent, {})).resolves.toEqual(REFERENCE_CONFLICT);
     expect(payments.applyCheckoutCompleted).not.toHaveBeenCalled();
   });
 });
+
+const PAYMENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const APPLIED = paymentEventResult.success(PaymentEventResultCode.CHECKOUT_COMPLETED, PAYMENT_ID);
+const REFERENCE_CONFLICT = paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT);
 
 function repository() {
   return {

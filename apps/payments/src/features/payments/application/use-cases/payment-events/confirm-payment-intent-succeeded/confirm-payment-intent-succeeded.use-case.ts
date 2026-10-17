@@ -3,11 +3,14 @@ import { CheckoutPurpose, Payment, PaymentStatus, PaymentType } from '../../../.
 import type { PaymentIntentSucceededEvent } from '../../../events/payment-event.js';
 import type { PaymentsTransactionContext } from '../../../ports/payments-unit-of-work.js';
 import { PaymentsRepository } from '../../../ports/payments.repository.js';
-import type { ConfirmSuccessfulPaymentResult } from '../payment-event-processing.types.js';
+import {
+  PaymentEventResultCode,
+  paymentEventResult,
+  type PaymentEventResult,
+} from '../payment-event-result.js';
 import {
   PAYMENT_RECONCILIATION_CONFLICT,
   hasProviderReferenceConflict,
-  paymentReconciliationConflictResult,
   type PaymentReconciliationConflict,
 } from '../payment-reconciliation.policy.js';
 
@@ -18,19 +21,20 @@ export class ConfirmPaymentIntentSucceededUseCase {
   async execute(
     event: PaymentIntentSucceededEvent,
     ctx: PaymentsTransactionContext,
-  ): Promise<ConfirmSuccessfulPaymentResult> {
+  ): Promise<PaymentEventResult> {
     const payment = event.paymentId
       ? await this.payments.findById(event.paymentId, ctx)
       : await this.payments.findByProviderPaymentId(event.provider, event.payload.id, ctx);
 
-    if (!payment) return { outcome: 'PAYMENT_NOT_FOUND' };
+    if (!payment) return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND);
     const reconciliationConflict = this.findReconciliationConflict(payment, event);
-    if (reconciliationConflict) return paymentReconciliationConflictResult(reconciliationConflict);
-    if (payment.status === PaymentStatus.SUCCEEDED) return { outcome: 'SUCCEEDED', payment };
+    if (reconciliationConflict)
+      return paymentEventResult.dead(PaymentEventResultCode[reconciliationConflict]);
+    if (payment.status === PaymentStatus.SUCCEEDED) return paymentEventResult.successfulPayment(payment);
     if (![PaymentStatus.CREATED, PaymentStatus.PENDING].includes(payment.status))
-      return { outcome: 'INVALID_TRANSITION' };
+      return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
 
-    return this.payments.confirmSuccessfulPayment(
+    const result = await this.payments.confirmSuccessfulPayment(
       {
         paymentId: payment.id,
         paidAt: event.payload.paidAt,
@@ -39,6 +43,11 @@ export class ConfirmPaymentIntentSucceededUseCase {
       },
       ctx,
     );
+    return result.outcome === 'SUCCEEDED'
+      ? paymentEventResult.successfulPayment(result.payment)
+      : result.outcome === 'REFERENCE_CONFLICT'
+        ? paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT)
+        : paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
   }
 
   private findReconciliationConflict(

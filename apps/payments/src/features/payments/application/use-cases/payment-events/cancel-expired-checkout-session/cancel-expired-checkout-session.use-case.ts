@@ -3,14 +3,15 @@ import { type Payment, PaymentStatus } from '../../../../domain/payment.entity.j
 import type { CheckoutSessionExpiredEvent } from '../../../events/payment-event.js';
 import type { PaymentsTransactionContext } from '../../../ports/payments-unit-of-work.js';
 import { PaymentsRepository } from '../../../ports/payments.repository.js';
-import type {
-  CancelExpiredCheckoutSessionResult,
-  CheckoutReconciliationConflict,
-} from '../payment-event-processing.types.js';
+import {
+  PaymentEventResultCode,
+  paymentEventResult,
+  type PaymentEventResult,
+} from '../payment-event-result.js';
 import {
   PAYMENT_RECONCILIATION_CONFLICT,
   hasProviderReferenceConflict,
-  paymentReconciliationConflictResult,
+  type PaymentReconciliationConflict,
 } from '../payment-reconciliation.policy.js';
 
 @Injectable()
@@ -20,17 +21,18 @@ export class CancelExpiredCheckoutSessionUseCase {
   async execute(
     event: CheckoutSessionExpiredEvent,
     ctx: PaymentsTransactionContext,
-  ): Promise<CancelExpiredCheckoutSessionResult> {
+  ): Promise<PaymentEventResult> {
     const payment = event.paymentId
       ? await this.payments.findById(event.paymentId, ctx)
       : await this.payments.findByProviderCheckoutId(event.provider, event.payload.id, ctx);
-    if (!payment) return { outcome: 'PAYMENT_NOT_FOUND' };
+    if (!payment) return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND);
 
     const conflict = this.reconciliationConflict(payment, event);
-    if (conflict) return paymentReconciliationConflictResult(conflict);
-    if (payment.status === PaymentStatus.CANCELED) return { outcome: 'CANCELED', paymentId: payment.id };
+    if (conflict) return paymentEventResult.dead(PaymentEventResultCode[conflict]);
+    if (payment.status === PaymentStatus.CANCELED)
+      return paymentEventResult.success(PaymentEventResultCode.CHECKOUT_EXPIRED, payment.id);
     if (![PaymentStatus.CREATED, PaymentStatus.PENDING].includes(payment.status))
-      return { outcome: 'INVALID_TRANSITION' };
+      return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
 
     const result = await this.payments.cancelPendingPayment(
       {
@@ -40,13 +42,17 @@ export class CancelExpiredCheckoutSessionUseCase {
       },
       ctx,
     );
-    return result.outcome === 'CANCELED' ? { outcome: 'CANCELED', paymentId: payment.id } : result;
+    return result.outcome === 'CANCELED'
+      ? paymentEventResult.success(PaymentEventResultCode.CHECKOUT_EXPIRED, payment.id)
+      : result.outcome === 'REFERENCE_CONFLICT'
+        ? paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT)
+        : paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
   }
 
   private reconciliationConflict(
     payment: Payment,
     event: CheckoutSessionExpiredEvent,
-  ): CheckoutReconciliationConflict | null {
+  ): PaymentReconciliationConflict | null {
     if (payment.providerType !== event.provider) return PAYMENT_RECONCILIATION_CONFLICT.PROVIDER_MISMATCH;
     if (event.payload.amount !== null && payment.amount !== event.payload.amount)
       return PAYMENT_RECONCILIATION_CONFLICT.AMOUNT_MISMATCH;

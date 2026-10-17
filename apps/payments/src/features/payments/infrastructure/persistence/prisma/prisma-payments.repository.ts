@@ -334,18 +334,26 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
     ctx: PaymentsTransactionContext,
   ): Promise<CancelPendingPaymentUpdateResult> {
     const client = ctx as Prisma.TransactionClient;
+    const providerReference =
+      command.providerCheckoutId !== undefined
+        ? this.compatibleReference('providerCheckoutId', command.providerCheckoutId)
+        : this.compatibleReference('providerPaymentId', command.providerPaymentId);
+    const providerData: Prisma.PaymentUpdateManyMutationInput =
+      command.providerCheckoutId !== undefined
+        ? { providerCheckoutId: command.providerCheckoutId }
+        : { providerPaymentId: command.providerPaymentId };
     try {
       const updated = await client.payment.updateMany({
         where: {
           id: command.paymentId,
           status: { in: [PaymentStatus.CREATED, PaymentStatus.PENDING] },
           AND: [
-            this.compatibleReference('providerCheckoutId', command.providerCheckoutId),
+            providerReference,
             this.compatibleReference('providerCustomerId', command.providerCustomerId),
           ],
         },
         data: {
-          providerCheckoutId: command.providerCheckoutId,
+          ...providerData,
           providerCustomerId: command.providerCustomerId ?? undefined,
           status: PaymentStatus.CANCELED,
         },

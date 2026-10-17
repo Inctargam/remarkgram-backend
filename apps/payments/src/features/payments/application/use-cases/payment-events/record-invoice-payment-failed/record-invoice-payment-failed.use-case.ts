@@ -3,7 +3,11 @@ import type { Payment } from '../../../../domain/payment.entity.js';
 import type { InvoicePaymentFailedEvent } from '../../../events/payment-event.js';
 import type { PaymentsTransactionContext } from '../../../ports/payments-unit-of-work.js';
 import { PaymentsRepository } from '../../../ports/payments.repository.js';
-import type { PaymentEventCorrelationResult } from '../payment-event-processing.types.js';
+import {
+  PaymentEventResultCode,
+  paymentEventResult,
+  type PaymentEventResult,
+} from '../payment-event-result.js';
 import { hasProviderReferenceConflict } from '../payment-reconciliation.policy.js';
 
 @Injectable()
@@ -13,9 +17,11 @@ export class RecordInvoicePaymentFailedUseCase {
   async execute(
     event: InvoicePaymentFailedEvent,
     ctx: PaymentsTransactionContext,
-  ): Promise<PaymentEventCorrelationResult> {
+  ): Promise<PaymentEventResult> {
     const payment = await this.findPayment(event, ctx);
-    return payment ? { outcome: 'CORRELATED', paymentId: payment.id } : { outcome: 'UNCORRELATED' };
+    return payment
+      ? paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, payment.id)
+      : paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, null);
   }
 
   private async findPayment(

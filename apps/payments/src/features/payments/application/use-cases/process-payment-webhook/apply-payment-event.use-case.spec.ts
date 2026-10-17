@@ -1,6 +1,7 @@
 import type { PaymentEventRepository } from '../../ports/payment-event.repository.js';
 import type { ApplyCheckoutSessionCompletedUseCase } from '../payment-events/apply-checkout-session-completed/apply-checkout-session-completed.use-case.js';
 import type { CancelExpiredCheckoutSessionUseCase } from '../payment-events/cancel-expired-checkout-session/cancel-expired-checkout-session.use-case.js';
+import type { CancelPaymentIntentUseCase } from '../payment-events/cancel-payment-intent/cancel-payment-intent.use-case.js';
 import type { ConfirmInvoicePaidUseCase } from '../payment-events/confirm-invoice-paid/confirm-invoice-paid.use-case.js';
 import type { ConfirmPaymentIntentSucceededUseCase } from '../payment-events/confirm-payment-intent-succeeded/confirm-payment-intent-succeeded.use-case.js';
 import type { RecordInvoicePaymentFailedUseCase } from '../payment-events/record-invoice-payment-failed/record-invoice-payment-failed.use-case.js';
@@ -16,6 +17,10 @@ import {
 } from '../../../domain/payment.entity.js';
 import { Currency, PeriodUnit } from '../../../../plans/domain/plan.entity.js';
 import type { PaymentEvent } from '../../events/payment-event.js';
+import {
+  PaymentEventResultCode,
+  paymentEventResult,
+} from '../payment-events/payment-event-result.js';
 
 describe('ApplyPaymentEventUseCase', () => {
   const events = eventRepository();
@@ -24,6 +29,7 @@ describe('ApplyPaymentEventUseCase', () => {
   const paymentSucceeded = { execute: vi.fn<ConfirmPaymentIntentSucceededUseCase['execute']>() };
   const invoicePaid = { execute: vi.fn<ConfirmInvoicePaidUseCase['execute']>() };
   const paymentFailed = { execute: vi.fn<RecordPaymentIntentFailedUseCase['execute']>() };
+  const paymentCanceled = { execute: vi.fn<CancelPaymentIntentUseCase['execute']>() };
   const invoiceFailed = { execute: vi.fn<RecordInvoicePaymentFailedUseCase['execute']>() };
   const useCase = new ApplyPaymentEventUseCase(
     events,
@@ -32,6 +38,7 @@ describe('ApplyPaymentEventUseCase', () => {
     paymentSucceeded as ConfirmPaymentIntentSucceededUseCase,
     invoicePaid as ConfirmInvoicePaidUseCase,
     paymentFailed as RecordPaymentIntentFailedUseCase,
+    paymentCanceled as CancelPaymentIntentUseCase,
     invoiceFailed as RecordInvoicePaymentFailedUseCase,
   );
   const ctx = {};
@@ -47,11 +54,13 @@ describe('ApplyPaymentEventUseCase', () => {
 
   it('applies checkout completion and finishes the webhook', async () => {
     const event = checkoutCompletedEvent();
-    checkoutCompleted.execute.mockResolvedValue({ outcome: 'APPLIED' });
+    checkoutCompleted.execute.mockResolvedValue(
+      paymentEventResult.success(PaymentEventResultCode.CHECKOUT_COMPLETED, PAYMENT_ID),
+    );
 
-    await expect(useCase.execute({ eventId: 'webhook-id', event }, ctx)).resolves.toEqual({
-      outcome: 'FINISHED',
-    });
+    await expect(useCase.execute({ eventId: 'webhook-id', event }, ctx)).resolves.toEqual(
+      paymentEventResult.success(PaymentEventResultCode.CHECKOUT_COMPLETED, PAYMENT_ID),
+    );
 
     expect(checkoutCompleted.execute).toHaveBeenCalledWith(event, ctx);
     expect(events.markProcessed).toHaveBeenCalledWith('webhook-id', ctx);
@@ -59,20 +68,11 @@ describe('ApplyPaymentEventUseCase', () => {
 
   it('returns a successful Payment for the next durable step without completing the webhook', async () => {
     const event = paymentIntentSucceededEvent();
-    paymentSucceeded.execute.mockResolvedValue({
-      outcome: 'SUCCEEDED',
-      payment: successfulPayment(),
-    });
+    paymentSucceeded.execute.mockResolvedValue(paymentEventResult.successfulPayment(successfulPayment()));
 
-    await expect(useCase.execute({ eventId: 'webhook-id', event }, ctx)).resolves.toEqual({
-      outcome: 'SUCCESSFUL_PAYMENT',
-      eventId: 'webhook-id',
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      payment: expect.objectContaining({
-        paymentId: PAYMENT_ID,
-        paidAt: '2026-10-14T10:00:00.000Z',
-      }),
-    });
+    await expect(useCase.execute({ eventId: 'webhook-id', event }, ctx)).resolves.toEqual(
+      paymentEventResult.successfulPayment(successfulPayment()),
+    );
 
     expect(paymentSucceeded.execute).toHaveBeenCalledWith(event, ctx);
     expect(events.markProcessed).not.toHaveBeenCalled();
@@ -80,7 +80,21 @@ describe('ApplyPaymentEventUseCase', () => {
 
   it('attaches a correlated failed attempt without changing Payment lifecycle', async () => {
     const event = paymentIntentFailedEvent();
-    paymentFailed.execute.mockResolvedValue({ outcome: 'CORRELATED', paymentId: PAYMENT_ID });
+    paymentFailed.execute.mockResolvedValue(
+      paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, PAYMENT_ID),
+    );
+
+    await useCase.execute({ eventId: 'webhook-id', event }, ctx);
+
+    expect(events.attachPayment).toHaveBeenCalledWith('webhook-id', PAYMENT_ID, ctx);
+    expect(events.markProcessed).toHaveBeenCalledWith('webhook-id', ctx);
+  });
+
+  it('completes a canceled PaymentIntent and attaches its Payment atomically', async () => {
+    const event = paymentIntentCanceledEvent();
+    paymentCanceled.execute.mockResolvedValue(
+      paymentEventResult.success(PaymentEventResultCode.PAYMENT_CANCELED, PAYMENT_ID),
+    );
 
     await useCase.execute({ eventId: 'webhook-id', event }, ctx);
 
@@ -89,7 +103,9 @@ describe('ApplyPaymentEventUseCase', () => {
   });
 
   it('marks a reconciliation conflict as dead', async () => {
-    checkoutCompleted.execute.mockResolvedValue({ outcome: 'AMOUNT_MISMATCH' });
+    checkoutCompleted.execute.mockResolvedValue(
+      paymentEventResult.dead(PaymentEventResultCode.AMOUNT_MISMATCH),
+    );
 
     await useCase.execute({ eventId: 'webhook-id', event: checkoutCompletedEvent() }, ctx);
 
@@ -97,7 +113,7 @@ describe('ApplyPaymentEventUseCase', () => {
       'webhook-id',
       {
         code: 'AMOUNT_MISMATCH',
-        message: 'Checkout completion rejected: AMOUNT_MISMATCH',
+        message: 'Payment event processing result: AMOUNT_MISMATCH',
       },
       ctx,
     );
@@ -192,6 +208,22 @@ function paymentIntentFailedEvent(): PaymentEvent {
       declineCode: 'insufficient_funds',
       message: 'Declined',
       failedAt: new Date('2026-10-14T10:00:00.000Z'),
+    },
+  };
+}
+
+function paymentIntentCanceledEvent(): PaymentEvent {
+  return {
+    kind: PaymentEventKind.PAYMENT_INTENT_CANCELED,
+    provider: PaymentProvider.STRIPE,
+    providerEventId: 'evt_canceled',
+    providerEventType: 'payment_intent.canceled',
+    providerCreatedAt: new Date('2026-10-14T10:00:00.000Z'),
+    paymentId: PAYMENT_ID,
+    payload: {
+      id: 'pi_test',
+      customerId: 'cus_test',
+      canceledAt: new Date('2026-10-14T10:00:00.000Z'),
     },
   };
 }

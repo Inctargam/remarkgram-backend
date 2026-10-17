@@ -10,6 +10,7 @@ import {
   PaymentType,
 } from '../../../../domain/payment.entity.js';
 import { ConfirmPaymentIntentSucceededUseCase } from './confirm-payment-intent-succeeded.use-case.js';
+import { PaymentEventResultCode, paymentEventResult } from '../payment-event-result.js';
 
 describe('ConfirmPaymentIntentSucceededUseCase', () => {
   it('correlates by metadata paymentId and confirms a matching extension', async () => {
@@ -19,10 +20,9 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
     payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'SUCCEEDED', payment: confirmed });
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event(), {})).resolves.toEqual({
-      outcome: 'SUCCEEDED',
-      payment: confirmed,
-    });
+    await expect(useCase.execute(event(), {})).resolves.toEqual(
+      paymentEventResult.successfulPayment(confirmed),
+    );
     expect(payments.findById).toHaveBeenCalledWith(event().paymentId, {});
     expect(payments.findByProviderPaymentId).not.toHaveBeenCalled();
     expect(payments.confirmSuccessfulPayment).toHaveBeenCalledWith(
@@ -43,10 +43,9 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
     payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'SUCCEEDED', payment: confirmed });
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event({ paymentId: null }), {})).resolves.toEqual({
-      outcome: 'SUCCEEDED',
-      payment: confirmed,
-    });
+    await expect(useCase.execute(event({ paymentId: null }), {})).resolves.toEqual(
+      paymentEventResult.successfulPayment(confirmed),
+    );
     expect(payments.findByProviderPaymentId).toHaveBeenCalledWith(PaymentProvider.STRIPE, 'pi_test', {});
   });
 
@@ -59,10 +58,9 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
     payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'SUCCEEDED', payment: confirmed });
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event(), {})).resolves.toEqual({
-      outcome: 'SUCCEEDED',
-      payment: confirmed,
-    });
+    await expect(useCase.execute(event(), {})).resolves.toEqual(
+      paymentEventResult.successfulPayment(confirmed),
+    );
   });
 
   it('rejects PaymentIntent success for an initial purchase before repository mutation', async () => {
@@ -70,7 +68,9 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
     payments.findById.mockResolvedValue(candidate({ checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION }));
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event(), {})).resolves.toEqual({ outcome: 'PURPOSE_MISMATCH' });
+    await expect(useCase.execute(event(), {})).resolves.toEqual(
+      paymentEventResult.dead(PaymentEventResultCode.PURPOSE_MISMATCH),
+    );
     expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
   });
 
@@ -80,10 +80,9 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
     payments.findById.mockResolvedValue(confirmed);
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event(), {})).resolves.toEqual({
-      outcome: 'SUCCEEDED',
-      payment: confirmed,
-    });
+    await expect(useCase.execute(event(), {})).resolves.toEqual(
+      paymentEventResult.successfulPayment(confirmed),
+    );
     expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
   });
 
@@ -92,7 +91,9 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
     payments.findById.mockResolvedValue(candidate({ amount: 20_000 }));
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event(), {})).resolves.toEqual({ outcome: 'AMOUNT_MISMATCH' });
+    await expect(useCase.execute(event(), {})).resolves.toEqual(
+      paymentEventResult.dead(PaymentEventResultCode.AMOUNT_MISMATCH),
+    );
     expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
   });
 
@@ -101,7 +102,9 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
     payments.findById.mockResolvedValue(candidate({ providerPaymentId: 'pi_other' }));
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event(), {})).resolves.toEqual({ outcome: 'REFERENCE_CONFLICT' });
+    await expect(useCase.execute(event(), {})).resolves.toEqual(
+      paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT),
+    );
     expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
   });
 });

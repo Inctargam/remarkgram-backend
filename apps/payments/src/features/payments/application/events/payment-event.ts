@@ -69,6 +69,15 @@ export type PaymentIntentPaymentFailedEvent = PaymentEventEnvelope & {
   };
 };
 
+export type PaymentIntentCanceledEvent = PaymentEventEnvelope & {
+  kind: PaymentEventKind.PAYMENT_INTENT_CANCELED;
+  payload: {
+    id: string;
+    customerId: string | null;
+    canceledAt: Date;
+  };
+};
+
 export type InvoicePaidEvent = PaymentEventEnvelope & {
   kind: PaymentEventKind.INVOICE_PAID;
   payload: SuccessfulPaymentPayload & {
@@ -98,4 +107,5 @@ export type PaymentEvent =
   | CheckoutSessionExpiredEvent
   | SuccessfulPaymentEvent
   | PaymentIntentPaymentFailedEvent
+  | PaymentIntentCanceledEvent
   | InvoicePaymentFailedEvent;

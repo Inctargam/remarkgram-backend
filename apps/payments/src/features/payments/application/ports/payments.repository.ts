@@ -57,11 +57,16 @@ export type BindPaymentProviderSubscriptionCommand = {
 
 export type BindPaymentProviderSubscriptionResult = { outcome: 'BOUND' | 'NOT_BOUND' };
 
-export type CancelPendingPaymentCommand = {
+type CancelPendingPaymentCommandBase = {
   paymentId: string;
-  providerCheckoutId: string;
   providerCustomerId?: string | null;
 };
+
+export type CancelPendingPaymentCommand = CancelPendingPaymentCommandBase &
+  (
+    | { providerCheckoutId: string; providerPaymentId?: never }
+    | { providerCheckoutId?: never; providerPaymentId: string }
+  );
 
 export type CancelPendingPaymentUpdateResult =
   | { outcome: 'CANCELED' }

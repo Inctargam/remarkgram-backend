@@ -131,6 +131,29 @@ describe('PrismaPaymentsRepository.cancelPendingPayment', () => {
       }),
     );
   });
+
+  it('can reconcile and persist cancellation by PaymentIntent ID', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const repository = new PrismaPaymentsRepository({} as PrismaService);
+
+    await repository.cancelPendingPayment(
+      {
+        paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        providerPaymentId: 'pi_canceled',
+        providerCustomerId: 'cus_test',
+      },
+      { payment: { updateMany } },
+    );
+
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          providerPaymentId: 'pi_canceled',
+          status: PaymentStatus.CANCELED,
+        }),
+      }),
+    );
+  });
 });
 
 describe('PrismaPaymentsRepository.linkSuccessfulPaymentToSubscription', () => {

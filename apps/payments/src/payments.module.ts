@@ -20,6 +20,7 @@ import { ConfirmPaymentIntentSucceededUseCase } from './features/payments/applic
 import { ConfirmInvoicePaidUseCase } from './features/payments/application/use-cases/payment-events/confirm-invoice-paid/confirm-invoice-paid.use-case.js';
 import { ApplyCheckoutSessionCompletedUseCase } from './features/payments/application/use-cases/payment-events/apply-checkout-session-completed/apply-checkout-session-completed.use-case.js';
 import { CancelExpiredCheckoutSessionUseCase } from './features/payments/application/use-cases/payment-events/cancel-expired-checkout-session/cancel-expired-checkout-session.use-case.js';
+import { CancelPaymentIntentUseCase } from './features/payments/application/use-cases/payment-events/cancel-payment-intent/cancel-payment-intent.use-case.js';
 import { RecordPaymentIntentFailedUseCase } from './features/payments/application/use-cases/payment-events/record-payment-intent-failed/record-payment-intent-failed.use-case.js';
 import { RecordInvoicePaymentFailedUseCase } from './features/payments/application/use-cases/payment-events/record-invoice-payment-failed/record-invoice-payment-failed.use-case.js';
 import { ApplyPaymentEventUseCase } from './features/payments/application/use-cases/process-payment-webhook/apply-payment-event.use-case.js';
@@ -39,6 +40,7 @@ import { StripeCheckoutSessionExpiredAdapter } from './features/payments/infrast
 import { StripeInvoicePaidAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-invoice-paid.adapter.js';
 import { StripePaymentIntentSucceededAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-payment-intent-succeeded.adapter.js';
 import { StripePaymentIntentPaymentFailedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-payment-intent-payment-failed.adapter.js';
+import { StripePaymentIntentCanceledAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-payment-intent-canceled.adapter.js';
 import { StripeInvoicePaymentFailedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-invoice-payment-failed.adapter.js';
 import { DbosLifecycleService } from './features/payments/infrastructure/dbos/dbos-lifecycle.service.js';
 import { DbosPaymentWebhookWorkflow } from './features/payments/infrastructure/dbos/dbos-payment-webhook.workflow.js';
@@ -83,6 +85,7 @@ import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-pl
     StripeInvoicePaidAdapter,
     StripePaymentIntentSucceededAdapter,
     StripePaymentIntentPaymentFailedAdapter,
+    StripePaymentIntentCanceledAdapter,
     StripeInvoicePaymentFailedAdapter,
     {
       provide: PROVIDER_EVENT_ADAPTERS,
@@ -92,6 +95,7 @@ import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-pl
         invoicePaid: StripeInvoicePaidAdapter,
         paymentIntentSucceeded: StripePaymentIntentSucceededAdapter,
         paymentIntentFailed: StripePaymentIntentPaymentFailedAdapter,
+        paymentIntentCanceled: StripePaymentIntentCanceledAdapter,
         invoicePaymentFailed: StripeInvoicePaymentFailedAdapter,
       ) => [
         checkoutCompleted,
@@ -99,6 +103,7 @@ import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-pl
         invoicePaid,
         paymentIntentSucceeded,
         paymentIntentFailed,
+        paymentIntentCanceled,
         invoicePaymentFailed,
       ],
       inject: [
@@ -107,6 +112,7 @@ import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-pl
         StripeInvoicePaidAdapter,
         StripePaymentIntentSucceededAdapter,
         StripePaymentIntentPaymentFailedAdapter,
+        StripePaymentIntentCanceledAdapter,
         StripeInvoicePaymentFailedAdapter,
       ],
     },
@@ -120,6 +126,7 @@ import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-pl
     CreateCheckoutUseCase,
     ApplyCheckoutSessionCompletedUseCase,
     CancelExpiredCheckoutSessionUseCase,
+    CancelPaymentIntentUseCase,
     ConfirmPaymentIntentSucceededUseCase,
     ConfirmInvoicePaidUseCase,
     RecordPaymentIntentFailedUseCase,

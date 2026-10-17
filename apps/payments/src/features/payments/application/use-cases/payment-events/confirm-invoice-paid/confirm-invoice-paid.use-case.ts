@@ -8,11 +8,14 @@ import {
 import type { InvoicePaidEvent } from '../../../events/payment-event.js';
 import type { PaymentsTransactionContext } from '../../../ports/payments-unit-of-work.js';
 import { PaymentsRepository } from '../../../ports/payments.repository.js';
-import type { ConfirmSuccessfulPaymentResult } from '../payment-event-processing.types.js';
+import {
+  PaymentEventResultCode,
+  paymentEventResult,
+  type PaymentEventResult,
+} from '../payment-event-result.js';
 import {
   PAYMENT_RECONCILIATION_CONFLICT,
   hasProviderReferenceConflict,
-  paymentReconciliationConflictResult,
   type PaymentReconciliationConflict,
 } from '../payment-reconciliation.policy.js';
 
@@ -23,26 +26,28 @@ export class ConfirmInvoicePaidUseCase {
   async execute(
     event: InvoicePaidEvent,
     ctx: PaymentsTransactionContext,
-  ): Promise<ConfirmSuccessfulPaymentResult> {
+  ): Promise<PaymentEventResult> {
     if (event.payload.billingReason === 'subscription_create') return this.confirmInitialPurchase(event, ctx);
     if (event.payload.billingReason === 'subscription_cycle') return this.confirmRenewal(event, ctx);
-    return { outcome: 'UNSUPPORTED_BILLING_REASON' };
+    return paymentEventResult.dead(PaymentEventResultCode.UNSUPPORTED_BILLING_REASON);
   }
 
   private async confirmInitialPurchase(
     event: InvoicePaidEvent,
     ctx: PaymentsTransactionContext,
-  ): Promise<ConfirmSuccessfulPaymentResult> {
-    if (!event.payload.providerSubscriptionId) return { outcome: 'SUBSCRIPTION_REFERENCE_MISSING' };
+  ): Promise<PaymentEventResult> {
+    if (!event.payload.providerSubscriptionId)
+      return paymentEventResult.dead(PaymentEventResultCode.SUBSCRIPTION_REFERENCE_MISSING);
     const payment = await this.findInitialPurchase(event, ctx);
-    if (!payment) return { outcome: 'PAYMENT_NOT_FOUND' };
+    if (!payment) return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND);
     const reconciliationConflict = this.findInitialReconciliationConflict(payment, event);
-    if (reconciliationConflict) return paymentReconciliationConflictResult(reconciliationConflict);
-    if (payment.status === PaymentStatus.SUCCEEDED) return { outcome: 'SUCCEEDED', payment };
+    if (reconciliationConflict)
+      return paymentEventResult.dead(PaymentEventResultCode[reconciliationConflict]);
+    if (payment.status === PaymentStatus.SUCCEEDED) return paymentEventResult.successfulPayment(payment);
     if (![PaymentStatus.CREATED, PaymentStatus.PENDING].includes(payment.status))
-      return { outcome: 'INVALID_TRANSITION' };
+      return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
 
-    return this.payments.confirmSuccessfulPayment(
+    const result = await this.payments.confirmSuccessfulPayment(
       {
         paymentId: payment.id,
         paidAt: event.payload.paidAt,
@@ -53,25 +58,33 @@ export class ConfirmInvoicePaidUseCase {
       },
       ctx,
     );
+    return result.outcome === 'SUCCEEDED'
+      ? paymentEventResult.successfulPayment(result.payment)
+      : result.outcome === 'REFERENCE_CONFLICT'
+        ? paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT)
+        : paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
   }
 
   private async confirmRenewal(
     event: InvoicePaidEvent,
     ctx: PaymentsTransactionContext,
-  ): Promise<ConfirmSuccessfulPaymentResult> {
+  ): Promise<PaymentEventResult> {
     const providerSubscriptionId = event.payload.providerSubscriptionId;
-    if (!providerSubscriptionId) return { outcome: 'SUBSCRIPTION_REFERENCE_MISSING' };
+    if (!providerSubscriptionId)
+      return paymentEventResult.dead(PaymentEventResultCode.SUBSCRIPTION_REFERENCE_MISSING);
 
     const sourcePayment = await this.payments.findByProviderSubscriptionId(
       event.provider,
       providerSubscriptionId,
       ctx,
     );
-    if (!sourcePayment) return { outcome: 'PAYMENT_NOT_FOUND' };
-    if (!sourcePayment.subscriptionId) return { outcome: 'SUBSCRIPTION_ID_MISSING' };
+    if (!sourcePayment) return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND);
+    if (!sourcePayment.subscriptionId)
+      return paymentEventResult.dead(PaymentEventResultCode.SUBSCRIPTION_ID_MISSING);
 
     const reconciliationConflict = this.findRenewalContextConflict(sourcePayment, event);
-    if (reconciliationConflict) return paymentReconciliationConflictResult(reconciliationConflict);
+    if (reconciliationConflict)
+      return paymentEventResult.dead(PaymentEventResultCode[reconciliationConflict]);
 
     const persisted = await this.payments.createSuccessfulRenewal(
       {
@@ -92,15 +105,17 @@ export class ConfirmInvoicePaidUseCase {
       ctx,
     );
     if (persisted.outcome === PAYMENT_RECONCILIATION_CONFLICT.REFERENCE_CONFLICT)
-      return paymentReconciliationConflictResult(PAYMENT_RECONCILIATION_CONFLICT.REFERENCE_CONFLICT);
+      return paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT);
 
     const persistedConflict = this.findRenewalReconciliationConflict(persisted.payment, event);
     if (persistedConflict === 'SUBSCRIPTION_ID_MISSING' || persistedConflict === 'INVALID_TRANSITION')
-      return { outcome: persistedConflict };
-    if (persistedConflict) return paymentReconciliationConflictResult(persistedConflict);
+      return persistedConflict === 'INVALID_TRANSITION'
+        ? paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE)
+        : paymentEventResult.dead(PaymentEventResultCode.SUBSCRIPTION_ID_MISSING);
+    if (persistedConflict) return paymentEventResult.dead(PaymentEventResultCode[persistedConflict]);
     return persisted.payment.subscriptionId === sourcePayment.subscriptionId
-      ? { outcome: 'SUCCEEDED', payment: persisted.payment }
-      : paymentReconciliationConflictResult(PAYMENT_RECONCILIATION_CONFLICT.REFERENCE_CONFLICT);
+      ? paymentEventResult.successfulPayment(persisted.payment)
+      : paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT);
   }
 
   private async findInitialPurchase(

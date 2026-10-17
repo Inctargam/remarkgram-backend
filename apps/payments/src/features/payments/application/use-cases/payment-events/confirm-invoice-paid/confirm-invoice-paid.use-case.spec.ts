@@ -11,6 +11,7 @@ import {
 import type { InvoicePaidEvent } from '../../../events/payment-event.js';
 import type { PaymentsRepository } from '../../../ports/payments.repository.js';
 import { ConfirmInvoicePaidUseCase } from './confirm-invoice-paid.use-case.js';
+import { PaymentEventResultCode, paymentEventResult } from '../payment-event-result.js';
 
 describe('ConfirmInvoicePaidUseCase', () => {
   it('confirms an initial purchase correlated by metadata paymentId', async () => {
@@ -27,10 +28,9 @@ describe('ConfirmInvoicePaidUseCase', () => {
     payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'SUCCEEDED', payment: confirmed });
     const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(invoiceEvent(), {})).resolves.toEqual({
-      outcome: 'SUCCEEDED',
-      payment: confirmed,
-    });
+    await expect(useCase.execute(invoiceEvent(), {})).resolves.toEqual(
+      paymentEventResult.successfulPayment(confirmed),
+    );
     expect(payments.confirmSuccessfulPayment).toHaveBeenCalledWith(
       expect.objectContaining({
         paymentId: INITIAL_PAYMENT_ID,
@@ -49,10 +49,9 @@ describe('ConfirmInvoicePaidUseCase', () => {
     payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'SUCCEEDED', payment: confirmed });
     const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(invoiceEvent({ paymentId: null }), {})).resolves.toEqual({
-      outcome: 'SUCCEEDED',
-      payment: confirmed,
-    });
+    await expect(useCase.execute(invoiceEvent({ paymentId: null }), {})).resolves.toEqual(
+      paymentEventResult.successfulPayment(confirmed),
+    );
     expect(payments.findByProviderInvoiceId).toHaveBeenCalledWith(PaymentProvider.STRIPE, 'in_test', {});
   });
 
@@ -62,10 +61,9 @@ describe('ConfirmInvoicePaidUseCase', () => {
     payments.findById.mockResolvedValue(confirmed);
     const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(invoiceEvent(), {})).resolves.toEqual({
-      outcome: 'SUCCEEDED',
-      payment: confirmed,
-    });
+    await expect(useCase.execute(invoiceEvent(), {})).resolves.toEqual(
+      paymentEventResult.successfulPayment(confirmed),
+    );
     expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
   });
 
@@ -76,9 +74,9 @@ describe('ConfirmInvoicePaidUseCase', () => {
     );
     const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(invoiceEvent(), {})).resolves.toEqual({
-      outcome: 'PURPOSE_MISMATCH',
-    });
+    await expect(useCase.execute(invoiceEvent(), {})).resolves.toEqual(
+      paymentEventResult.dead(PaymentEventResultCode.PURPOSE_MISMATCH),
+    );
     expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
   });
 
@@ -94,7 +92,7 @@ describe('ConfirmInvoicePaidUseCase', () => {
         },
         {},
       ),
-    ).resolves.toEqual({ outcome: 'SUBSCRIPTION_REFERENCE_MISSING' });
+    ).resolves.toEqual(paymentEventResult.dead(PaymentEventResultCode.SUBSCRIPTION_REFERENCE_MISSING));
     expect(payments.findById).not.toHaveBeenCalled();
   });
 
@@ -108,10 +106,7 @@ describe('ConfirmInvoicePaidUseCase', () => {
     const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(invoiceEvent({ billingReason: 'subscription_cycle' }), {})).resolves.toEqual(
-      {
-        outcome: 'SUCCEEDED',
-        payment: renewalPayment(),
-      },
+      paymentEventResult.successfulPayment(renewalPayment()),
     );
     expect(payments.createSuccessfulRenewal).toHaveBeenCalledWith(
       {
@@ -143,10 +138,7 @@ describe('ConfirmInvoicePaidUseCase', () => {
     const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(invoiceEvent({ billingReason: 'subscription_cycle' }), {})).resolves.toEqual(
-      {
-        outcome: 'SUCCEEDED',
-        payment: renewalPayment(),
-      },
+      paymentEventResult.successfulPayment(renewalPayment()),
     );
     expect(payments.createSuccessfulRenewal).toHaveBeenCalledOnce();
   });
@@ -157,9 +149,7 @@ describe('ConfirmInvoicePaidUseCase', () => {
     const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(invoiceEvent({ billingReason: 'subscription_cycle' }), {})).resolves.toEqual(
-      {
-        outcome: 'SUBSCRIPTION_ID_MISSING',
-      },
+      paymentEventResult.dead(PaymentEventResultCode.SUBSCRIPTION_ID_MISSING),
     );
     expect(payments.createSuccessfulRenewal).not.toHaveBeenCalled();
   });
@@ -170,9 +160,7 @@ describe('ConfirmInvoicePaidUseCase', () => {
     const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(invoiceEvent({ billingReason: 'subscription_cycle' }), {})).resolves.toEqual(
-      {
-        outcome: 'AMOUNT_MISMATCH',
-      },
+      paymentEventResult.dead(PaymentEventResultCode.AMOUNT_MISMATCH),
     );
     expect(payments.createSuccessfulRenewal).not.toHaveBeenCalled();
   });
@@ -181,9 +169,9 @@ describe('ConfirmInvoicePaidUseCase', () => {
     const payments = repository();
     const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(invoiceEvent({ billingReason: 'manual' }), {})).resolves.toEqual({
-      outcome: 'UNSUPPORTED_BILLING_REASON',
-    });
+    await expect(useCase.execute(invoiceEvent({ billingReason: 'manual' }), {})).resolves.toEqual(
+      paymentEventResult.dead(PaymentEventResultCode.UNSUPPORTED_BILLING_REASON),
+    );
     expect(payments.findById).not.toHaveBeenCalled();
   });
 });

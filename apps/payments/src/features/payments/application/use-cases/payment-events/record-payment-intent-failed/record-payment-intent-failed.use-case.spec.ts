@@ -3,6 +3,7 @@ import { PaymentEventKind } from '../../../../domain/payment-event-kind.js';
 import { type Payment, PaymentProvider, PaymentStatus } from '../../../../domain/payment.entity.js';
 import type { PaymentIntentPaymentFailedEvent } from '../../../events/payment-event.js';
 import type { PaymentsRepository } from '../../../ports/payments.repository.js';
+import { PaymentEventResultCode, paymentEventResult } from '../payment-event-result.js';
 import { RecordPaymentIntentFailedUseCase } from './record-payment-intent-failed.use-case.js';
 
 describe('RecordPaymentIntentFailedUseCase', () => {
@@ -14,10 +15,9 @@ describe('RecordPaymentIntentFailedUseCase', () => {
       payments.findById.mockResolvedValue(stored);
       const useCase = new RecordPaymentIntentFailedUseCase(payments as unknown as PaymentsRepository);
 
-      await expect(useCase.execute(event(), {})).resolves.toEqual({
-        outcome: 'CORRELATED',
-        paymentId: stored.id,
-      });
+      await expect(useCase.execute(event(), {})).resolves.toEqual(
+        paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, stored.id),
+      );
       expect(payments.findById).toHaveBeenCalledWith(stored.id, {});
     },
   );
@@ -27,20 +27,30 @@ describe('RecordPaymentIntentFailedUseCase', () => {
     payments.findByProviderPaymentId.mockResolvedValue(payment());
     const useCase = new RecordPaymentIntentFailedUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event({ paymentId: null }), {})).resolves.toMatchObject({
-      outcome: 'CORRELATED',
-    });
+    await expect(useCase.execute(event({ paymentId: null }), {})).resolves.toEqual(
+      paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, payment().id),
+    );
     expect(payments.findByProviderPaymentId).toHaveBeenCalledWith(PaymentProvider.STRIPE, 'pi_test', {});
   });
 
-  it('keeps an event without available correlation as processed audit data', async () => {
+  it('ignores an event without metadata or a matching PaymentIntent reference', async () => {
     const payments = repository();
     payments.findByProviderPaymentId.mockResolvedValue(null);
     const useCase = new RecordPaymentIntentFailedUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event({ paymentId: null }), {})).resolves.toEqual({
-      outcome: 'UNCORRELATED',
-    });
+    await expect(useCase.execute(event({ paymentId: null }), {})).resolves.toEqual(
+      paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND),
+    );
+  });
+
+  it('marks a missing metadata-correlated Payment as dead', async () => {
+    const payments = repository();
+    payments.findById.mockResolvedValue(null);
+    const useCase = new RecordPaymentIntentFailedUseCase(payments as unknown as PaymentsRepository);
+
+    await expect(useCase.execute(event(), {})).resolves.toEqual(
+      paymentEventResult.dead(PaymentEventResultCode.PAYMENT_NOT_FOUND),
+    );
   });
 
   it('does not correlate metadata to a conflicting PaymentIntent reference', async () => {
@@ -48,7 +58,9 @@ describe('RecordPaymentIntentFailedUseCase', () => {
     payments.findById.mockResolvedValue(payment({ providerPaymentId: 'pi_other' }));
     const useCase = new RecordPaymentIntentFailedUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event(), {})).resolves.toEqual({ outcome: 'UNCORRELATED' });
+    await expect(useCase.execute(event(), {})).resolves.toEqual(
+      paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT),
+    );
   });
 });
 

@@ -9,6 +9,7 @@ import {
   PaymentStatus,
 } from '../../../../domain/payment.entity.js';
 import { CancelExpiredCheckoutSessionUseCase } from './cancel-expired-checkout-session.use-case.js';
+import { PaymentEventResultCode, paymentEventResult } from '../payment-event-result.js';
 
 describe('CancelExpiredCheckoutSessionUseCase', () => {
   it.each([PaymentStatus.CREATED, PaymentStatus.PENDING])(
@@ -19,10 +20,7 @@ describe('CancelExpiredCheckoutSessionUseCase', () => {
       payments.cancelPendingPayment.mockResolvedValue({ outcome: 'CANCELED' });
       const useCase = new CancelExpiredCheckoutSessionUseCase(payments as unknown as PaymentsRepository);
 
-      await expect(useCase.execute(event(), {})).resolves.toEqual({
-        outcome: 'CANCELED',
-        paymentId: PAYMENT_ID,
-      });
+      await expect(useCase.execute(event(), {})).resolves.toEqual(CANCELED);
       expect(payments.cancelPendingPayment).toHaveBeenCalledWith(
         {
           paymentId: PAYMENT_ID,
@@ -50,7 +48,9 @@ describe('CancelExpiredCheckoutSessionUseCase', () => {
     payments.findById.mockResolvedValue(payment({ status: PaymentStatus.SUCCEEDED }));
     const useCase = new CancelExpiredCheckoutSessionUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event(), {})).resolves.toEqual({ outcome: 'INVALID_TRANSITION' });
+    await expect(useCase.execute(event(), {})).resolves.toEqual(
+      paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE),
+    );
     expect(payments.cancelPendingPayment).not.toHaveBeenCalled();
   });
 
@@ -59,10 +59,7 @@ describe('CancelExpiredCheckoutSessionUseCase', () => {
     payments.findById.mockResolvedValue(payment({ status: PaymentStatus.CANCELED }));
     const useCase = new CancelExpiredCheckoutSessionUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event(), {})).resolves.toEqual({
-      outcome: 'CANCELED',
-      paymentId: PAYMENT_ID,
-    });
+    await expect(useCase.execute(event(), {})).resolves.toEqual(CANCELED);
     expect(payments.cancelPendingPayment).not.toHaveBeenCalled();
   });
 
@@ -71,7 +68,9 @@ describe('CancelExpiredCheckoutSessionUseCase', () => {
     payments.findById.mockResolvedValue(payment({ providerCheckoutId: 'cs_other' }));
     const useCase = new CancelExpiredCheckoutSessionUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event(), {})).resolves.toEqual({ outcome: 'REFERENCE_CONFLICT' });
+    await expect(useCase.execute(event(), {})).resolves.toEqual(
+      paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT),
+    );
     expect(payments.cancelPendingPayment).not.toHaveBeenCalled();
   });
 
@@ -83,7 +82,7 @@ describe('CancelExpiredCheckoutSessionUseCase', () => {
 
     await expect(
       useCase.execute(event({ payload: { ...event().payload, mode: 'subscription' } }), {}),
-    ).resolves.toEqual({ outcome: 'CANCELED', paymentId: PAYMENT_ID });
+    ).resolves.toEqual(CANCELED);
   });
 });
 
@@ -130,3 +129,4 @@ function event(overrides: Partial<CheckoutSessionExpiredEvent> = {}): CheckoutSe
 }
 
 const PAYMENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const CANCELED = paymentEventResult.success(PaymentEventResultCode.CHECKOUT_EXPIRED, PAYMENT_ID);

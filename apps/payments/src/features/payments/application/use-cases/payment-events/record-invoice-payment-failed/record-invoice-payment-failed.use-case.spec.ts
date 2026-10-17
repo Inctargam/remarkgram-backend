@@ -3,6 +3,7 @@ import { PaymentEventKind } from '../../../../domain/payment-event-kind.js';
 import { type Payment, PaymentProvider, PaymentStatus } from '../../../../domain/payment.entity.js';
 import type { InvoicePaymentFailedEvent } from '../../../events/payment-event.js';
 import type { PaymentsRepository } from '../../../ports/payments.repository.js';
+import { PaymentEventResultCode, paymentEventResult } from '../payment-event-result.js';
 import { RecordInvoicePaymentFailedUseCase } from './record-invoice-payment-failed.use-case.js';
 
 describe('RecordInvoicePaymentFailedUseCase', () => {
@@ -13,10 +14,7 @@ describe('RecordInvoicePaymentFailedUseCase', () => {
       payments.findById.mockResolvedValue(payment({ status }));
       const useCase = new RecordInvoicePaymentFailedUseCase(payments as unknown as PaymentsRepository);
 
-      await expect(useCase.execute(event(), {})).resolves.toEqual({
-        outcome: 'CORRELATED',
-        paymentId: PAYMENT_ID,
-      });
+      await expect(useCase.execute(event(), {})).resolves.toEqual(CORRELATED);
     },
   );
 
@@ -28,7 +26,7 @@ describe('RecordInvoicePaymentFailedUseCase', () => {
 
     await expect(
       useCase.execute(event({ paymentId: null, billingReason: 'subscription_cycle' }), {}),
-    ).resolves.toEqual({ outcome: 'CORRELATED', paymentId: PAYMENT_ID });
+    ).resolves.toEqual(CORRELATED);
     expect(payments.findByProviderSubscriptionId).toHaveBeenCalledWith(
       PaymentProvider.STRIPE,
       'sub_test',
@@ -44,7 +42,7 @@ describe('RecordInvoicePaymentFailedUseCase', () => {
 
     await expect(
       useCase.execute(event({ paymentId: null, billingReason: 'subscription_cycle' }), {}),
-    ).resolves.toEqual({ outcome: 'UNCORRELATED' });
+    ).resolves.toEqual(UNCORRELATED);
   });
 
   it('does not correlate metadata to conflicting Invoice references', async () => {
@@ -56,11 +54,16 @@ describe('RecordInvoicePaymentFailedUseCase', () => {
     payments.findByProviderSubscriptionId.mockResolvedValue(null);
     const useCase = new RecordInvoicePaymentFailedUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event(), {})).resolves.toEqual({ outcome: 'UNCORRELATED' });
+    await expect(useCase.execute(event(), {})).resolves.toEqual(UNCORRELATED);
   });
 });
 
 const PAYMENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const CORRELATED = paymentEventResult.success(
+  PaymentEventResultCode.PAYMENT_FAILURE_RECORDED,
+  PAYMENT_ID,
+);
+const UNCORRELATED = paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, null);
 
 function repository() {
   return {
