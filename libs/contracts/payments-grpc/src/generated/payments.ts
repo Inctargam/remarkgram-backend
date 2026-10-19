@@ -10,17 +10,31 @@ import { Observable } from "rxjs";
 
 export const protobufPackage = "remarkgram.payments.v1";
 
+export interface GetPlansRequest {
+}
+
+export interface Plan {
+  id: number;
+  price: number;
+  currency: string;
+  periodCount: number;
+  periodUnit: string;
+}
+
+export interface GetPlansResponse {
+  items: Plan[];
+}
+
 export interface CreateCheckoutRequest {
   userId: number;
   planId: number;
   idempotencyKey: string;
   provider: string;
-  autoRenewal: boolean;
 }
 
 export interface CreateCheckoutResponse {
   paymentId: string;
-  checkoutUrl: string;
+  checkoutUrl?: string | undefined;
   status: string;
 }
 
@@ -35,12 +49,44 @@ export interface GetPaymentStatusResponse {
   paidAt?: string | undefined;
 }
 
+export interface GetPaymentsRequest {
+  userId: number;
+  pageNumber: number;
+  pageSize: number;
+}
+
+export interface PaymentListItem {
+  paymentId: string;
+  planId: number;
+  amount: number;
+  currency: string;
+  periodCount: number;
+  periodUnit: string;
+  provider: string;
+  type: string;
+  status: string;
+  createdAt: string;
+  paidAt?: string | undefined;
+}
+
+export interface GetPaymentsResponse {
+  items: PaymentListItem[];
+  pageNumber: number;
+  pageSize: number;
+  totalCount: number;
+  pagesCount: number;
+}
+
 export const REMARKGRAM_PAYMENTS_V1_PACKAGE_NAME = "remarkgram.payments.v1";
 
 export interface PaymentsServiceClient {
   createCheckout(request: CreateCheckoutRequest): Observable<CreateCheckoutResponse>;
 
+  getPlans(request: GetPlansRequest): Observable<GetPlansResponse>;
+
   getPaymentStatus(request: GetPaymentStatusRequest): Observable<GetPaymentStatusResponse>;
+
+  getPayments(request: GetPaymentsRequest): Observable<GetPaymentsResponse>;
 }
 
 export interface PaymentsServiceController {
@@ -48,14 +94,20 @@ export interface PaymentsServiceController {
     request: CreateCheckoutRequest,
   ): Promise<CreateCheckoutResponse> | Observable<CreateCheckoutResponse> | CreateCheckoutResponse;
 
+  getPlans(request: GetPlansRequest): Promise<GetPlansResponse> | Observable<GetPlansResponse> | GetPlansResponse;
+
   getPaymentStatus(
     request: GetPaymentStatusRequest,
   ): Promise<GetPaymentStatusResponse> | Observable<GetPaymentStatusResponse> | GetPaymentStatusResponse;
+
+  getPayments(
+    request: GetPaymentsRequest,
+  ): Promise<GetPaymentsResponse> | Observable<GetPaymentsResponse> | GetPaymentsResponse;
 }
 
 export function PaymentsServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["createCheckout", "getPaymentStatus"];
+    const grpcMethods: string[] = ["createCheckout", "getPlans", "getPaymentStatus", "getPayments"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("PaymentsService", method)(constructor.prototype[method], method, descriptor);

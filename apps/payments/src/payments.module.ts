@@ -11,6 +11,7 @@ import { PaymentEventRepository } from './features/payments/application/ports/pa
 import { PROVIDER_EVENT_ADAPTERS } from './features/payments/application/ports/provider-event-adapter.js';
 import { PaymentCustomersRepository } from './features/payments/application/ports/payment-customers.repository.js';
 import { PaymentsRepository } from './features/payments/application/ports/payments.repository.js';
+import { PaymentsQueryRepository } from './features/payments/application/ports/payments.query-repository.js';
 import { PaymentWebhookWorkflow } from './features/payments/application/ports/payment-webhook.workflow.js';
 import { SubscriptionContextPort } from './features/payments/application/ports/subscription-context.port.js';
 import { SubscriptionPaymentHandler } from './features/payments/application/ports/subscription-payment.handler.js';
@@ -27,11 +28,13 @@ import { ApplyPaymentEventUseCase } from './features/payments/application/use-ca
 import { CreateDeferredProviderSubscriptionUseCase } from './features/payments/application/use-cases/process-payment-webhook/create-deferred-provider-subscription.use-case.js';
 import { LinkPaymentToSubscriptionUseCase } from './features/payments/application/use-cases/process-payment-webhook/link-payment-to-subscription.use-case.js';
 import { ScheduleProviderSubscriptionCancellationUseCase } from './features/payments/application/use-cases/process-payment-webhook/schedule-provider-subscription-cancellation.use-case.js';
-import { GetPaymentStatusUseCase } from './features/payments/application/use-cases/get-payment-status.use-case.js';
+import { GetPaymentsQueryHandler } from './features/payments/application/use-cases/get-payments/get-payments.query-handler.js';
+import { GetPaymentStatusQueryHandler } from './features/payments/application/use-cases/get-payment-status/get-payment-status.query-handler.js';
 import { ProcessStripeWebhookUseCase } from './features/payments/application/use-cases/process-stripe-webhook.use-case.js';
 import { ReceivePaymentEventUseCase } from './features/payments/application/use-cases/receive-payment-event.use-case.js';
 import { SetProviderSubscriptionAutoRenewalUseCase } from './features/payments/application/use-cases/set-provider-subscription-auto-renewal/set-provider-subscription-auto-renewal.use-case.js';
 import { PrismaPaymentsRepository } from './features/payments/infrastructure/persistence/prisma/prisma-payments.repository.js';
+import { PrismaPaymentsQueryRepository } from './features/payments/infrastructure/persistence/prisma/prisma-payments.query-repository.js';
 import { PrismaPaymentEventRepository } from './features/payments/infrastructure/persistence/prisma/prisma-payment-event.repository.js';
 import { PrismaPaymentCustomersRepository } from './features/payments/infrastructure/persistence/prisma/prisma-payment-customers.repository.js';
 import { StripePaymentProvider } from './features/payments/infrastructure/stripe/stripe-payment.provider.js';
@@ -51,7 +54,10 @@ import { PaymentsProviderSubscriptionAutoRenewalAdapter } from './features/payme
 import { PaymentsGrpcController } from './features/payments/presentation/grpc/payments-grpc.controller.js';
 import { StripeWebhookController } from './features/payments/presentation/http/stripe-webhook.controller.js';
 import { PlansRepository } from './features/plans/application/ports/plans.repository.js';
+import { PlansQueryRepository } from './features/plans/application/ports/plans.query-repository.js';
+import { GetPlansQueryHandler } from './features/plans/application/use-cases/get-plans/get-plans.query-handler.js';
 import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-plans.repository.js';
+import { PrismaPlansQueryRepository } from './features/plans/infrastructure/prisma-plans.query-repository.js';
 
 @Module({
   imports: [
@@ -76,7 +82,9 @@ import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-pl
   controllers: [PaymentsGrpcController, StripeWebhookController],
   providers: [
     { provide: PlansRepository, useClass: PrismaPlansRepository },
+    { provide: PlansQueryRepository, useClass: PrismaPlansQueryRepository },
     { provide: PaymentsRepository, useClass: PrismaPaymentsRepository },
+    { provide: PaymentsQueryRepository, useClass: PrismaPaymentsQueryRepository },
     { provide: PaymentEventRepository, useClass: PrismaPaymentEventRepository },
     { provide: PaymentCustomersRepository, useClass: PrismaPaymentCustomersRepository },
     { provide: PaymentProviderPort, useClass: StripePaymentProvider },
@@ -135,7 +143,9 @@ import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-pl
     CreateDeferredProviderSubscriptionUseCase,
     LinkPaymentToSubscriptionUseCase,
     ScheduleProviderSubscriptionCancellationUseCase,
-    GetPaymentStatusUseCase,
+    GetPlansQueryHandler,
+    GetPaymentStatusQueryHandler,
+    GetPaymentsQueryHandler,
     ReceivePaymentEventUseCase,
     SetProviderSubscriptionAutoRenewalUseCase,
     PaymentsProviderSubscriptionAutoRenewalAdapter,

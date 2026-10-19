@@ -4,20 +4,38 @@ package remarkgram.payments.v1;
 
 service PaymentsService {
   rpc CreateCheckout(CreateCheckoutRequest) returns (CreateCheckoutResponse);
+  rpc GetPlans(GetPlansRequest) returns (GetPlansResponse);
   rpc GetPaymentStatus(GetPaymentStatusRequest) returns (GetPaymentStatusResponse);
+  rpc GetPayments(GetPaymentsRequest) returns (GetPaymentsResponse);
+}
+
+message GetPlansRequest {}
+
+message Plan {
+  int32 id = 1;
+  int32 price = 2;
+  string currency = 3;
+  int32 period_count = 4;
+  string period_unit = 5;
+}
+
+message GetPlansResponse {
+  repeated Plan items = 1;
 }
 
 message CreateCheckoutRequest {
+  reserved 5;
+  reserved "auto_renewal";
+
   int64 user_id = 1;
   int32 plan_id = 2;
   string idempotency_key = 3;
   string provider = 4;
-  bool auto_renewal = 5;
 }
 
 message CreateCheckoutResponse {
   string payment_id = 1;
-  string checkout_url = 2;
+  optional string checkout_url = 2;
   string status = 3;
 }
 
@@ -30,4 +48,32 @@ message GetPaymentStatusResponse {
   string payment_id = 1;
   string status = 2;
   optional string paid_at = 3;
+}
+
+message GetPaymentsRequest {
+  int64 user_id = 1;
+  int32 page_number = 2;
+  int32 page_size = 3;
+}
+
+message PaymentListItem {
+  string payment_id = 1;
+  int32 plan_id = 2;
+  int32 amount = 3;
+  string currency = 4;
+  int32 period_count = 5;
+  string period_unit = 6;
+  string provider = 7;
+  string type = 8;
+  string status = 9;
+  string created_at = 10;
+  optional string paid_at = 11;
+}
+
+message GetPaymentsResponse {
+  repeated PaymentListItem items = 1;
+  int32 page_number = 2;
+  int32 page_size = 3;
+  int32 total_count = 4;
+  int32 pages_count = 5;
 }
