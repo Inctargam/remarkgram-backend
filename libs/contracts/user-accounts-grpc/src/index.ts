@@ -2,9 +2,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 export * from './generated/user-accounts.js';
-
-/** Metadata key used to carry a stable application error code through gRPC. */
-export const USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY = 'user-accounts-error-code';
+export * from './personal-info-policy.js';
+export * from './user-policy.js';
 
 // В production/build-сценарии Nest CLI копирует user-accounts.proto рядом со скомпилированной
 // contract library внутри dist. Этот путь должен совпадать с настройкой assets в nest-cli.json.

@@ -2,9 +2,10 @@ import type { User } from '../../domain/entities/user.entity.js';
 import type {
   CreateOAuthRepositoryParams,
   CreateUserRepositoryParams,
-  ReleaseExpiredRegistrationCredentialsParams,
   ReleaseExpiredRegistrationByEmailParams,
+  ReleaseExpiredRegistrationCredentialsParams,
   UpdateConfirmationCodeParams,
+  UpdateProfileInfoRepositoryParams,
 } from '../types/users.types.js';
 import type { TransactionContext } from '../../../../common/application/unit-of-work.js';
 
@@ -26,4 +27,9 @@ export abstract class UsersRepository {
   ): Promise<void>;
   abstract confirmUser(code: string): Promise<boolean>;
   abstract updateConfirmationCode(params: UpdateConfirmationCodeParams): Promise<boolean>;
+  abstract updateProfileInfo(params: UpdateProfileInfoRepositoryParams): Promise<void>;
+  /** Блокирует активного пользователя до конца транзакции; false, если он не найден. */
+  abstract lockActiveById(userId: number, ctx: TransactionContext): Promise<boolean>;
+  /** Вызывать после lockActiveById. Очищает avatarFileId, если нет установки; возвращает прежний ID. */
+  abstract clearAvatar(userId: number, ctx: TransactionContext): Promise<string | null>;
 }

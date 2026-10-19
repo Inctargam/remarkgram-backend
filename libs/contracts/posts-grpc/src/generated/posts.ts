@@ -14,6 +14,7 @@ export interface CreatePostRequest {
   userId: string;
   description?: string | undefined;
   imageIds: string[];
+  idempotencyKey: string;
 }
 
 export interface CreatePostResponse {
@@ -26,21 +27,81 @@ export interface DeleteAllDataRequest {
 export interface DeleteAllDataResponse {
 }
 
+export interface UpdatePostResponse {
+}
+
+export interface UpdatePostRequest {
+  userId: string;
+  postId: string;
+  description: string;
+}
+
+export interface PostImage {
+  fileId: string;
+  position: number;
+}
+
+export interface Post {
+  id: string;
+  authorId: string;
+  description?: string | undefined;
+  images: PostImage[];
+  createdAt: string;
+}
+
+export interface GetAuthPostsPaginatedRequest {
+  userId: string;
+  limit: number;
+  cursor?: string | undefined;
+}
+
+export interface GetAuthPostsPaginatedResponse {
+  items: Post[];
+  hasMore: boolean;
+  nextCursor?: string | undefined;
+}
+
+export interface DeletePostRequest {
+  userId: string;
+  postId: string;
+}
+
+export interface DeletePostResponse {
+}
+
 export const REMARKGRAM_POSTS_V1_PACKAGE_NAME = "remarkgram.posts.v1";
 
 export interface PostsServiceClient {
   createPost(request: CreatePostRequest): Observable<CreatePostResponse>;
+
+  updatePost(request: UpdatePostRequest): Observable<UpdatePostResponse>;
+
+  getAuthPostsPaginated(request: GetAuthPostsPaginatedRequest): Observable<GetAuthPostsPaginatedResponse>;
+
+  deletePost(request: DeletePostRequest): Observable<DeletePostResponse>;
 }
 
 export interface PostsServiceController {
   createPost(
     request: CreatePostRequest,
   ): Promise<CreatePostResponse> | Observable<CreatePostResponse> | CreatePostResponse;
+
+  updatePost(
+    request: UpdatePostRequest,
+  ): Promise<UpdatePostResponse> | Observable<UpdatePostResponse> | UpdatePostResponse;
+
+  getAuthPostsPaginated(
+    request: GetAuthPostsPaginatedRequest,
+  ): Promise<GetAuthPostsPaginatedResponse> | Observable<GetAuthPostsPaginatedResponse> | GetAuthPostsPaginatedResponse;
+
+  deletePost(
+    request: DeletePostRequest,
+  ): Promise<DeletePostResponse> | Observable<DeletePostResponse> | DeletePostResponse;
 }
 
 export function PostsServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["createPost"];
+    const grpcMethods: string[] = ["createPost", "updatePost", "getAuthPostsPaginated", "deletePost"];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
       GrpcMethod("PostsService", method)(constructor.prototype[method], method, descriptor);

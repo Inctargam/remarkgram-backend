@@ -4,174 +4,246 @@ package remarkgram.user_accounts.v1;
 
 // Shared messages
 message VerifiedRefreshTokenClaims {
-  string user_id = 1;
-  string session_id = 2;
-  string jti = 3;
+    string user_id = 1;
+    string session_id = 2;
+    string jti = 3;
 }
 
 // Authentication
 service AuthService {
-  rpc Login(LoginRequest) returns (TokenPairResponse);
-  rpc RefreshToken(RefreshTokenRequest) returns (TokenPairResponse);
-  rpc AuthenticateOAuth(AuthenticateOAuthRequest) returns (TokenPairResponse);
+    rpc Login(LoginRequest) returns (TokenPairResponse);
+    rpc RefreshToken(RefreshTokenRequest) returns (TokenPairResponse);
+    rpc AuthenticateOAuth(AuthenticateOAuthRequest) returns (TokenPairResponse);
 }
 
 message LoginRequest {
-  string email = 1;
-  string password = 2;
-  string ip = 3;
-  string device_name = 4;
-  VerifiedRefreshTokenClaims current_session = 5;
+    string email = 1;
+    string password = 2;
+    string ip = 3;
+    string device_name = 4;
+    VerifiedRefreshTokenClaims current_session = 5;
 }
 
 message RefreshTokenRequest {
-  VerifiedRefreshTokenClaims refresh_token_claims = 1;
-  string ip = 2;
-  string device_name = 3;
+    VerifiedRefreshTokenClaims refresh_token_claims = 1;
+    string ip = 2;
+    string device_name = 3;
 }
 
 enum OAuthProvider {
-  OAUTH_PROVIDER_UNSPECIFIED = 0;
-  OAUTH_PROVIDER_GITHUB = 1;
-  OAUTH_PROVIDER_GOOGLE = 2;
+    OAUTH_PROVIDER_UNSPECIFIED = 0;
+    OAUTH_PROVIDER_GITHUB = 1;
+    OAUTH_PROVIDER_GOOGLE = 2;
 }
 
 message OAuthEmail {
-  string email = 1;
-  bool verified = 2;
-  bool primary = 3;
+    string email = 1;
+    bool verified = 2;
+    bool primary = 3;
 }
 
 message OAuthIdentityClaims {
-  OAuthProvider provider = 1;
-  string subject = 2;
-  string username = 3;
-  string avatar_url = 4;
-  repeated OAuthEmail emails = 5;
+    OAuthProvider provider = 1;
+    string subject = 2;
+    string username = 3;
+    string avatar_url = 4;
+    repeated OAuthEmail emails = 5;
 }
 
 message AuthenticateOAuthRequest {
-  OAuthIdentityClaims identity = 1;
-  string ip = 2;
-  string device_name = 3;
+    OAuthIdentityClaims identity = 1;
+    string ip = 2;
+    string device_name = 3;
 }
 
 message TokenPairResponse {
-  string access_token = 1;
-  string refresh_token = 2;
+    string access_token = 1;
+    string refresh_token = 2;
 }
 
 // Registration
 service RegistrationService {
-  rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
-  rpc ConfirmRegistration(ConfirmRegistrationRequest) returns (ConfirmRegistrationResponse);
-  rpc ResendRegistrationConfirmation(ResendRegistrationConfirmationRequest) returns (ResendRegistrationConfirmationResponse);
+    rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
+    rpc ConfirmRegistration(ConfirmRegistrationRequest) returns (ConfirmRegistrationResponse);
+    rpc ResendRegistrationConfirmation(ResendRegistrationConfirmationRequest) returns (ResendRegistrationConfirmationResponse);
 }
 
 message RegisterUserRequest {
-  string username = 1;
-  string email = 2;
-  string password = 3;
+    string username = 1;
+    string email = 2;
+    string password = 3;
 }
 
 message RegisterUserResponse {}
 
 message ConfirmRegistrationRequest {
-  string code = 1;
+    string code = 1;
 }
 
 message ConfirmRegistrationResponse {}
 
 message ResendRegistrationConfirmationRequest {
-  string email = 1;
+    string email = 1;
 }
 
 message ResendRegistrationConfirmationResponse {}
 
 // Users
 service UsersService {
-  rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
+    rpc DeleteAvatar(DeleteAvatarRequest) returns (DeleteAvatarResponse);
+    rpc SetAvatar(SetAvatarRequest) returns (SetAvatarResponse);
+    rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
+    rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse);
+    rpc UpdateProfileInfo(UpdateProfileInfoRequest) returns (UpdateProfileInfoResponse);
+    rpc GetPublicProfile(GetPublicProfileRequest) returns (GetPublicProfileResponse);
+    rpc GetMyProfile(GetMyProfileRequest) returns (GetMyProfileResponse);
 }
+message DeleteAvatarRequest {
+    int32 userId = 1;
+    string idempotencyKey = 2;
+}
+message DeleteAvatarResponse {}
+
+message SetAvatarRequest {
+    int32 user_id = 1;
+    string file_id = 2;
+    string idempotency_key = 3;
+}
+message SetAvatarResponse {}
+message GetMyProfileRequest{
+    int32 user_id = 1;
+}
+message GetMyProfileResponse {
+    int32 user_id = 1;
+    string username = 2;
+    optional string first_name = 3;
+    optional string last_name = 4;
+    // ISO 8601 calendar date in YYYY-MM-DD format.
+    optional string date_of_birth = 5;
+    optional string about_me = 6;
+    optional string country_code = 7;
+    optional string city = 8;
+    optional string avatar_file_id = 9;
+}
+message GetPublicProfileResponse  {
+    int32 user_id = 1;
+    string username = 2;
+    optional string about_me = 3;
+    optional string avatar_file_id = 4;
+}
+message GetPublicProfileRequest  {
+    int32 user_id = 1;
+}
+message PersonalInfo  {
+    string firstName = 1;
+    string lastName = 2;
+    // ISO 8601 calendar date in YYYY-MM-DD format.
+    optional string date_of_birth = 3;
+    optional string about_me = 4;
+    optional string country_code = 5;
+    optional string city = 6;
+}
+
+message UpdateProfileInfoRequest {
+    int32 userId = 1;
+    string username = 2;
+    PersonalInfo personalInfo = 3;
+}
+message UpdateProfileInfoResponse  {}
 
 message GetUsersRequest {}
 
 message User {
-  int32 id = 1;
-  string username = 2;
-  string email = 3;
+    int32 id = 1;
+    string username = 2;
+    string email = 3;
 }
 
 message GetUsersResponse {
-  repeated User users = 1;
+    repeated User users = 1;
+}
+
+message GetCurrentUserRequest {
+    string user_id = 1;
+}
+
+message GetCurrentUserResponse {
+    int32 id = 1;
+    string username = 2;
+    string email = 3;
+    bool email_verified = 4;
+    bool has_password = 5;
+    repeated OAuthProvider oauth_providers = 6;
+    string created_at = 7;
 }
 
 // Sessions
 service SessionsService {
-  rpc GetSessions(GetSessionsRequest) returns (GetSessionsResponse);
-  rpc LogoutCurrentSession(LogoutCurrentSessionRequest) returns (LogoutCurrentSessionResponse);
-  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
-  rpc RevokeOtherSessions(RevokeOtherSessionsRequest) returns (RevokeOtherSessionsResponse);
+    rpc GetSessions(GetSessionsRequest) returns (GetSessionsResponse);
+    rpc LogoutCurrentSession(LogoutCurrentSessionRequest) returns (LogoutCurrentSessionResponse);
+    rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+    rpc RevokeOtherSessions(RevokeOtherSessionsRequest) returns (RevokeOtherSessionsResponse);
 }
 
 message GetSessionsRequest {
-  VerifiedRefreshTokenClaims auth = 1;
+    VerifiedRefreshTokenClaims auth = 1;
 }
 
 message Session {
-  string ip = 1;
-  string device_name = 2;
-  string last_active_at = 3;
-  string session_id = 4;
-  bool is_current = 5;
+    string ip = 1;
+    string device_name = 2;
+    string last_active_at = 3;
+    string session_id = 4;
+    bool is_current = 5;
 }
 
 message GetSessionsResponse {
-  repeated Session sessions = 1;
+    repeated Session sessions = 1;
 }
 
 message LogoutCurrentSessionRequest {
-  VerifiedRefreshTokenClaims auth = 1;
+    VerifiedRefreshTokenClaims auth = 1;
 }
 
 message LogoutCurrentSessionResponse {}
 
 message RevokeSessionRequest {
-  VerifiedRefreshTokenClaims auth = 1;
-  string session_id = 2;
+    VerifiedRefreshTokenClaims auth = 1;
+    string session_id = 2;
 }
 
 message RevokeSessionResponse {}
 
 message RevokeOtherSessionsRequest {
-  VerifiedRefreshTokenClaims auth = 1;
+    VerifiedRefreshTokenClaims auth = 1;
 }
 
 message RevokeOtherSessionsResponse {}
 
 // Password reset
 service PasswordResetService {
-  rpc RequestPasswordReset(RequestPasswordResetRequest) returns (RequestPasswordResetResponse);
-  rpc ConfirmPasswordReset(ConfirmPasswordResetRequest) returns (ConfirmPasswordResetResponse);
+    rpc RequestPasswordReset(RequestPasswordResetRequest) returns (RequestPasswordResetResponse);
+    rpc ConfirmPasswordReset(ConfirmPasswordResetRequest) returns (ConfirmPasswordResetResponse);
 }
 
 message RequestPasswordResetRequest {
-  string email = 1;
+    string email = 1;
 }
 
 message RequestPasswordResetResponse {
-  bool accepted = 1;
+    bool accepted = 1;
 }
 
 message ConfirmPasswordResetRequest {
-  string token = 1;
-  string new_password = 2;
+    string token = 1;
+    string new_password = 2;
 }
 
 message ConfirmPasswordResetResponse {}
 
 // Testing
 service TestingService {
-  rpc DeleteAllData(DeleteAllDataRequest) returns (DeleteAllDataResponse);
+    rpc DeleteAllData(DeleteAllDataRequest) returns (DeleteAllDataResponse);
 }
 
 message DeleteAllDataRequest {}

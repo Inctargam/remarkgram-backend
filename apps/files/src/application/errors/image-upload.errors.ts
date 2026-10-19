@@ -11,7 +11,7 @@ export class InvalidUserIdError extends FilesError {
   readonly code = FilesErrorCode.INVALID_USER_ID;
 
   constructor() {
-    super('User ID must be a positive 32-bit integer');
+    super('User ID must be a positive integer');
   }
 }
 
@@ -28,8 +28,8 @@ export class InvalidImageCountError extends FilesError {
 export class InvalidImageSizeError extends FilesError {
   readonly code = FilesErrorCode.INVALID_IMAGE_SIZE;
 
-  constructor() {
-    super(`Image size must be between ${MIN_IMAGE_SIZE_BYTES} and ${MAX_IMAGE_SIZE_BYTES} bytes`);
+  constructor(maxSizeBytes = MAX_IMAGE_SIZE_BYTES) {
+    super(`Image size must be between ${MIN_IMAGE_SIZE_BYTES} and ${maxSizeBytes} bytes`);
   }
 }
 
@@ -57,19 +57,27 @@ export class ImageUploadNotFoundError extends FilesError {
   }
 }
 
+export class ImageUploadStateConflictError extends FilesError {
+  readonly code = FilesErrorCode.IMAGE_UPLOAD_STATE_CONFLICT;
+
+  constructor() {
+    super('One or more image uploads are in a state that does not allow this operation');
+  }
+}
+
+export class AvatarAttachmentOperationConflictError extends FilesError {
+  readonly code = FilesErrorCode.AVATAR_ATTACHMENT_OPERATION_CONFLICT;
+
+  constructor() {
+    super('Avatar attachment operation was already used for another file');
+  }
+}
+
 export class InvalidImageUploadStatusError extends FilesError {
   readonly code = FilesErrorCode.INVALID_IMAGE_UPLOAD_STATUS;
 
   constructor() {
     super('Image uploads must be either all pending or all completed');
-  }
-}
-
-export class ImageUploadsNotCompletedError extends FilesError {
-  readonly code = FilesErrorCode.IMAGE_UPLOADS_NOT_COMPLETED;
-
-  constructor() {
-    super('All image uploads must be completed');
   }
 }
 
@@ -86,5 +94,12 @@ export class UnsupportedImageContentTypeError extends FilesError {
 
   constructor(contentType: string) {
     super(`Unsupported image content type: ${contentType}`);
+  }
+}
+
+export class PostImageAttachmentConflictError extends FilesError {
+  readonly code = FilesErrorCode.POST_IMAGE_ATTACHMENT_CONFLICT;
+  constructor() {
+    super('Post image attachment operation was reused with different parameters');
   }
 }

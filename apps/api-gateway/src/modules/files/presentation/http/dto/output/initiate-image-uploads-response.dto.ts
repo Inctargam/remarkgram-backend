@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class ImageUploadSessionDto {
   @ApiProperty({
-    description: 'Server-generated upload ID used for confirmation and later as the post image ID.',
+    description: 'Server-generated file ID used for upload confirmation and later attachment.',
     example: '83d26252-a350-4e39-a78e-0bdf54d2341d',
     format: 'uuid',
   })
@@ -27,7 +27,7 @@ export class ImageUploadSessionDto {
     type: 'object',
     additionalProperties: { type: 'string' },
     example: {
-      key: 'user/42/images/83d26252-a350-4e39-a78e-0bdf54d2341d',
+      key: 'users/42/images/83d26252-a350-4e39-a78e-0bdf54d2341d',
       'Content-Type': 'image/jpeg',
       'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
       'X-Amz-Credential': 'access-key/20260806/ru-central1/s3/aws4_request',

@@ -7,7 +7,6 @@ describe('authConfig', () => {
     vi.stubEnv('ACCESS_TOKEN_EXPIRES_IN', '10m');
     vi.stubEnv('REFRESH_TOKEN_EXPIRES_IN', '20m');
     vi.stubEnv('CONFIRMATION_CODE_EXPIRES_IN', '24');
-    vi.stubEnv('RECOVERY_CODE_EXPIRES_IN', '1');
   });
 
   afterEach(() => {
@@ -20,7 +19,6 @@ describe('authConfig', () => {
       accessTokenExpiresIn: '10m',
       refreshTokenExpiresIn: '20m',
       confirmationCodeExpiresIn: 24,
-      recoveryCodeExpiresIn: 1,
     });
   });
 

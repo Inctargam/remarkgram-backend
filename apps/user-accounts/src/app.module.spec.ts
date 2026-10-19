@@ -9,11 +9,11 @@ describe('UserAccountsModule', () => {
 
   it('resolves auth, users and sessions without circular module dependencies', async () => {
     vi.stubEnv('NODE_ENV', 'testing');
+    vi.stubEnv('AMQPS_URL', 'amqp://guest:guest@localhost:5672');
     vi.stubEnv('JWT_PRIVATE_KEY', 'private-key');
     vi.stubEnv('ACCESS_TOKEN_EXPIRES_IN', '10m');
     vi.stubEnv('REFRESH_TOKEN_EXPIRES_IN', '20m');
     vi.stubEnv('CONFIRMATION_CODE_EXPIRES_IN', '24');
-    vi.stubEnv('RECOVERY_CODE_EXPIRES_IN', '1');
     vi.stubEnv('PASSWORD_RESET_TOKEN_TTL_MINUTES', '30');
     vi.stubEnv('PASSWORD_RESET_TOKEN_SECRET', 'private');
     vi.stubEnv('PASSWORD_RESET_EMAIL_COOLDOWN_MINUTES', '2');
@@ -26,6 +26,8 @@ describe('UserAccountsModule', () => {
     vi.stubEnv('SMTP_PORT', '465');
     vi.stubEnv('SMTP_SECURE', 'true');
     vi.stubEnv('USER_ACCOUNTS_GRPC_URL', 'localhost:50052');
+    vi.stubEnv('FILES_GRPC_URL', 'localhost:50051');
+    vi.stubEnv('USER_ACCOUNTS_DBOS_SYSTEM_DATABASE_URL', 'postgresql://user:password@localhost:5432/dbos');
 
     const module = await Test.createTestingModule({ imports: [UserAccountsModule] }).compile();
 

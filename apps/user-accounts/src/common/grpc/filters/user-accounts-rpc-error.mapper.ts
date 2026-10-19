@@ -1,12 +1,22 @@
 import { Metadata, status } from '@grpc/grpc-js';
 import { RpcException } from '@nestjs/microservices';
-import { USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY } from '@app/user-accounts-grpc';
+import { APP_ERROR_CODE_METADATA_KEY } from '@app/grpc';
 import {
   type UserAccountsError,
   UserAccountsErrorCode,
 } from '../../application/errors/user-accounts.error.js';
+import { Status } from '@grpc/grpc-js/build/src/constants.js';
 
 const GRPC_STATUS_BY_APP_ERROR_CODE = {
+  [UserAccountsErrorCode.INVALID_AVATAR_FILE_ID]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.INVALID_IDEMPOTENCY_KEY]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.AVATAR_UPDATE_CONFLICT]: status.FAILED_PRECONDITION,
+  [UserAccountsErrorCode.AVATAR_IDEMPOTENCY_KEY_CONFLICT]: status.ALREADY_EXISTS,
+  [UserAccountsErrorCode.AVATAR_FILE_NOT_FOUND]: status.NOT_FOUND,
+  [UserAccountsErrorCode.AVATAR_FILE_STATE_CONFLICT]: status.FAILED_PRECONDITION,
+  [UserAccountsErrorCode.INVALID_AVATAR_IMAGE]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.AVATAR_FILES_UNAVAILABLE]: status.UNAVAILABLE,
+
   [UserAccountsErrorCode.INCORRECT_CREDENTIALS]: status.UNAUTHENTICATED,
   [UserAccountsErrorCode.INVALID_REFRESH_TOKEN]: status.UNAUTHENTICATED,
   [UserAccountsErrorCode.NO_ACTIVE_SESSION]: status.UNAUTHENTICATED,
@@ -30,6 +40,17 @@ const GRPC_STATUS_BY_APP_ERROR_CODE = {
   [UserAccountsErrorCode.OAUTH_IDENTITY_LINKED_TO_ANOTHER_USER]: status.ALREADY_EXISTS,
   [UserAccountsErrorCode.OAUTH_PROVIDER_ALREADY_LINKED]: status.ALREADY_EXISTS,
   [UserAccountsErrorCode.OAUTH_IDENTITY_CONFLICT]: status.ABORTED,
+  [UserAccountsErrorCode.INVALID_USERNAME_PATTERN]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.INVALID_USERNAME_LENGTH]: Status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.INVALID_PERSONAL_INFO_ABOUT_ME]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.INVALID_PERSONAL_INFO_FIRST_NAME]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.INVALID_PERSONAL_INFO_LAST_NAME]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.INVALID_COUNTRY_CODE]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.INVALID_CITY]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.BIRTH_DATE_MIN_ALLOWED_AGE]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.INVALID_BIRTH_DATE_FORMAT]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.NON_EXISTENT_CALENDAR_DATE]: status.INVALID_ARGUMENT,
+  [UserAccountsErrorCode.USER_NOT_FOUND]: status.NOT_FOUND,
 } satisfies Record<UserAccountsErrorCode, status>;
 
 export const mapUserAccountsErrorToRpcException = (error: UserAccountsError): RpcException => {
@@ -37,7 +58,7 @@ export const mapUserAccountsErrorToRpcException = (error: UserAccountsError): Rp
   const grpcStatus = GRPC_STATUS_BY_APP_ERROR_CODE[appErrorCode];
 
   const metadata = new Metadata();
-  metadata.set(USER_ACCOUNTS_APP_ERROR_CODE_METADATA_KEY, appErrorCode);
+  metadata.set(APP_ERROR_CODE_METADATA_KEY, appErrorCode);
 
   // grpc-js ожидает в серверном error payload поле code и отправляет его значение как grpc-status.
   // message станет grpc-message, а metadata сохраняет точную бизнес-причину рядом с общим gRPC status code.

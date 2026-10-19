@@ -1,4 +1,5 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import type { TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import type { INestMicroservice } from '@nestjs/common';
 import { type MicroserviceOptions, Transport } from '@nestjs/microservices';
 import {

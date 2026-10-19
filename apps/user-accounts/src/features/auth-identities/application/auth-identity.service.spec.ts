@@ -186,6 +186,7 @@ describe('AuthIdentityService', () => {
     expect(userRepository.releaseExpiredRegistrationByEmail).toHaveBeenCalledWith(
       {
         email: primaryEmail.email,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         now: expect.any(Date),
       },
       'transaction-context',
