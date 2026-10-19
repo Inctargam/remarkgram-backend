@@ -301,8 +301,8 @@ provider webhook
   -> persistPaymentEventStep
   -> applyPaymentEventStep
        D1 financial reconciliation
-       FINISHED | SUCCESSFUL_PAYMENT
-  -> linkPaymentToSubscriptionStep             только SUCCESSFUL_PAYMENT
+       PaymentEventResult
+  -> linkPaymentToSubscriptionStep             только SUCCESS + PAYMENT_SUCCEEDED
        D2 applySuccessfulPayment
        D1 Payment.subscriptionId binding
        FINISHED | SCHEDULED
@@ -321,20 +321,23 @@ provider webhook
 
 ## Step 1: результат D1 financial reconciliation
 
-`ApplyPaymentEventUseCase` возвращает discriminated union:
+`ApplyPaymentEventUseCase` возвращает общий для event-specific use cases discriminated union:
 
 ```ts
-type ApplyPaymentEventResult =
-  | { outcome: 'FINISHED' }
+type PaymentEventResult =
+  | { status: 'SUCCESS'; code: PaymentEventResultCode; paymentId: string | null }
   | {
-      outcome: 'SUCCESSFUL_PAYMENT';
-      eventId: string;
+      status: 'SUCCESS';
+      code: 'PAYMENT_SUCCEEDED';
+      paymentId: string;
       payment: SuccessfulPayment;
-    };
+    }
+  | { status: 'IGNORED' | 'DEAD'; code: PaymentEventResultCode };
 ```
 
-`FINISHED` означает, что дальнейший вызов D2 не требуется. `SUCCESSFUL_PAYMENT` означает, что Payment
-финансово подтверждён и должен быть идемпотентно применён в D2.
+Только `SUCCESS + PAYMENT_SUCCEEDED` означает, что Payment финансово подтверждён и должен быть
+идемпотентно применён в D2. Остальные комбинации завершаются в step 1 согласно статусу. `eventId`
+остаётся контекстом DBOS workflow и передаётся в step 2 coordinator-ом, а не дублируется в результате.
 
 ### `SuccessfulPayment`
 

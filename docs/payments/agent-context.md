@@ -201,7 +201,7 @@ extension purchase и не становится initial purchase.
 | `payment_intent.payment_failed`        | Audit/correlation; не меняет lifecycle status                                       | Реализовано                            |
 | `invoice.payment_failed`               | Audit/correlation; не меняет lifecycle status                                       | Реализовано                            |
 | `checkout.session.expired`             | `CREATED/PENDING -> CANCELED` после reconciliation                                  | Реализовано в worktree, ожидает review |
-| `payment_intent.canceled`              | Будущий terminal cancellation для подходящего one-time Payment                      | Не реализовано                         |
+| `payment_intent.canceled`              | Terminal cancellation только для `PURCHASE + SUBSCRIPTION_EXTENSION`                 | Реализовано, ожидает review            |
 | `invoice.voided`                       | Будущая terminal cancellation для unpaid invoice-backed Payment                     | Не реализовано                         |
 | `invoice.marked_uncollectible`         | Не считать автоматически `CANCELED`; требуется отдельное решение о terminal failure | Не реализовано                         |
 | `customer.subscription.deleted`        | Subscription lifecycle, не отмена исторического Payment                             | Не реализовано                         |
@@ -241,6 +241,7 @@ Optional provider reference означает отсутствие знания, 
 | `checkout.session.expired`                        | `providerCheckoutId` — обязателен; `providerCustomerId` — optional knowledge                                                             | `providerPaymentId`, `providerSubscriptionId`, `providerInvoiceId`                                |
 | `payment_intent.succeeded`                        | `providerPaymentId` — ID самого PaymentIntent; `providerCustomerId` — optional knowledge                                                 | `providerSubscriptionId`, `providerInvoiceId`                                                     |
 | `payment_intent.payment_failed`                   | `providerPaymentId` для correlation; Customer только если contract его нормализует                                                       | `providerSubscriptionId`, `providerInvoiceId`                                                     |
+| `payment_intent.canceled`                         | `providerPaymentId` — ID самого PaymentIntent; `providerCustomerId` — optional knowledge                                                 | `providerSubscriptionId`, `providerInvoiceId`                                                     |
 | `invoice.paid`                                    | `providerInvoiceId` — ID Invoice; `providerSubscriptionId` для subscription invoice; `providerPaymentId` и Customer — optional knowledge | Checkout reference                                                                                |
 | `invoice.payment_failed`                          | То же пространство references, что у Invoice, но только для audit/correlation                                                            | Checkout reference                                                                                |
 
@@ -296,8 +297,17 @@ Repository атомарно проверяет совместимость и о�
 - использует стабильный workflow ID из provider + provider event ID;
 - сохраняет webhook audit;
 - выполняет mutation Payment и завершение webhook в одной локальной транзакции;
-- поддерживает retry infrastructure failures;
-- завершает business conflicts как `IGNORED` или `DEAD`, а не бесконечным retry.
+- преобразует ошибку durable enqueue в `PaymentWebhookEnqueueUnavailableError`, чтобы HTTP вернул
+  Stripe статус `503` без утечки DBOS-контрактов в application/presentation;
+- считает transient provider/persistence failures и неизвестные исключения retryable, сохраняет
+  состояние `RETRYING` и повторно выбрасывает исходную ошибку для DBOS recovery;
+- завершает известные business conflicts и invalid-state errors как `IGNORED` или `DEAD`, а не
+  бесконечным retry;
+- использует `shouldRetry` для provider steps и сохраняет исчерпание step retries как
+  `DBOS_STEP_RETRIES_EXHAUSTED`;
+- оставляет превышение `maxRecoveryAttempts` всего workflow системному DBOS dead-letter queue:
+  после этого порога код workflow уже не исполняется, поэтому синхронизация локального webhook audit
+  требует отдельного DLQ reconciler/monitor.
 
 ### Слои
 
@@ -313,6 +323,17 @@ infrastructure/dbos/                        durable workflow/data source
 payments.module.ts                          composition root
 ```
 
+Payments является hybrid-сервисом. `PaymentsError` преобразуется только на presentation boundary:
+
+- gRPC controllers используют `PaymentsRpcExceptionFilter` и gRPC status/metadata;
+- Stripe webhook controller использует узкий `PaymentWebhookHttpExceptionFilter`: наружу отображаются
+  `InvalidProviderEventError` (`400`), `PaymentProviderUnavailableError` (`503`) только для временно
+  недоступной проверки webhook и `PaymentWebhookEnqueueUnavailableError` (`503`) со стабильным телом
+  `{ statusCode, code, message }`;
+- будущие HTTP endpoints должны определять собственный boundary mapper вместо автоматической
+  публикации всего множества `PaymentsErrorCode` как HTTP-контракта;
+- application/domain ошибки не импортируют HTTP, gRPC или Nest transport types.
+
 Business classification и reconciliation должны находиться в use case. Prisma repository получает
 подготовленную command и отвечает только за условное атомарное обновление/создание.
 
@@ -322,13 +343,13 @@ Provider-independent reconciliation conflicts определены в одном
 
 - `PAYMENT_RECONCILIATION_CONFLICT` содержит стабильные runtime-значения outcomes;
 - `PaymentReconciliationConflict` выводится из этого объекта и не дублирует строковый union;
-- `paymentReconciliationConflictResult` является общей фабрикой `{ outcome }` для use cases;
-- event-specific result types сужают общий тип через `Exclude` и значения vocabulary;
-- use cases не должны вручную создавать conflict result или возвращать строковые conflict literals.
+- reconciliation conflict преобразуется в `PaymentEventResultCode` внутри event handler;
+- `paymentEventResult` является единственной фабрикой нормализованных результатов;
+- use cases не должны вручную создавать result или возвращать строковые outcome literals.
 
 Добавление нового общего reconciliation conflict выполняется в vocabulary один раз. После этого
-result contracts и нужные event policies расширяются или сужаются через производные типы. Outcomes,
-содержащие event-specific данные (`paymentId` и другие поля), остаются отдельными result contracts.
+`PaymentEventResultCode` и нужные event policies расширяются согласованно. Связанные данные
+(`paymentId` и успешный `Payment`) контролируются типом и фабрикой общего result contract.
 
 ## Принятые решения реализации
 
@@ -458,10 +479,18 @@ Workflow-oriented application code сгруппирован в `application/use-
 provider events. DBOS infrastructure импортирует orchestration use cases только из
 `process-payment-webhook` и не зависит напрямую от event-specific handlers.
 
+Все event-specific handlers возвращают единый `PaymentEventResult` из
+`payment-events/payment-event-result.ts`. Result содержит только нормализованный processing status
+`SUCCESS`, `IGNORED` или `DEAD`, централизованный `PaymentEventResultCode` и связанные данные,
+разрешённые фабрикой `paymentEventResult`. Собственные handler outcomes вроде `APPLIED`, `CANCELED`,
+`CORRELATED` и `UNCORRELATED` не являются application boundary. `ApplyPaymentEventUseCase` является
+единственным местом, которое преобразует `PaymentEventResult` в webhook audit transition или
+продолжение successful-payment workflow.
+
 Каждый event-specific slice расположен в собственной kebab-case директории и содержит colocated
 use case и spec, например `payment-events/confirm-invoice-paid/` или
 `payment-events/cancel-expired-checkout-session/`. Общие для нескольких событий contracts и policies
-(`payment-event-processing.types.ts`, `payment-reconciliation.policy.ts`) остаются в корне
+(`payment-event-result.ts`, `payment-reconciliation.policy.ts`) остаются в корне
 `payment-events/`.
 
 Работа выполняется отдельными reviewable slices; следующий slice не начинается до принятия текущего:
@@ -492,7 +521,8 @@ use case и spec, например `payment-events/confirm-invoice-paid/` или
   подключены к workflow; временный D2 handler фиксирует transition как no-op,
   срез ожидает review;
 - slice 6 — создание deferred Stripe Subscription и атомарный local binding подключены к
-  `processPaymentWebhookV5`, срез ожидает review;
+  `processPaymentWebhookV6`; V6 дополнительно фиксирует retryable/terminal workflow failures,
+  обязательный refactor безопасных audit/log сообщений выполнен, срез принят;
 - slice 7 — не начат.
 
 ### Данные успешного платежа
@@ -519,10 +549,10 @@ Subscription и фактический `subscriptionId` определяет и 
 pre-payment concurrency policy. После financial reconciliation дальнейший workflow следует явному
 результату D2 (`CREATED`, `SCHEDULED` или `RENEWED`) и не интерпретирует CheckoutPurpose повторно.
 
-Результат step 1 является discriminated union:
-
-- `FINISHED` — событие полностью обработано как non-success, ignored или dead;
-- `SUCCESSFUL_PAYMENT` — содержит `eventId` и `SuccessfulPayment` для step 2.
+Step 1 возвращает единый `PaymentEventResult` со статусом `SUCCESS`, `IGNORED` или `DEAD` и
+операционным `PaymentEventResultCode`. Только результат
+`SUCCESS + PAYMENT_SUCCEEDED` содержит `SuccessfulPayment` для step 2. `eventId` остаётся контекстом
+workflow и не дублируется в результате event-specific use case.
 
 При replay уже успешного Payment step 1 также возвращает `SUCCEEDED` с существующим Payment:
 повтор финансового события не должен пропустить ещё не завершённое применение Payment в D2. При этом
@@ -567,7 +597,7 @@ Application boundary этого шага называется `LinkPaymentToSubs
 `linkPaymentToSubscriptionStep`. Названия отражают результат orchestration: успешный Payment получает
 связь с локальной Subscription, выбранной или созданной D2. Step зарегистрирован через
 `@DBOS.step({ name: 'linkPaymentToSubscriptionStep', ...retryPolicy })`, вызывается из
-актуального `processPaymentWebhookV5` после результата `SUCCESSFUL_PAYMENT` и выполняет use case в отдельной
+актуального `processPaymentWebhookV6` после результата `SUCCESS + PAYMENT_SUCCEEDED` и выполняет use case в отдельной
 транзакции `linkPaymentToSubscription`.
 
 Payments определяет только этот application port и orchestration вокруг него. Domain model,
@@ -714,15 +744,96 @@ idempotency key обязан получить ту же Stripe Subscription и �
 - конфликт provider ID не оставляет partial update;
 - webhook становится `PROCESSED` только после последнего обязательного step.
 
+## Технический долг
+
+Этот раздел фиксирует известные архитектурные долги, которые не должны теряться между event slices.
+Новый Stripe event нельзя начинать, если для предыдущего slice указан обязательный refactor.
+
+### `providerPaymentId` не извлекается из Stripe event
+
+Статус: открытый дефект, требует investigation до изменения event contract.
+
+В фактической обработке Stripe webhook значение PaymentIntent ID не извлекается из
+события, и `Payment.providerPaymentId` (`provider_payment_id` в БД) остаётся `null`. Текущий код
+ожидает ID в `checkout.session.payment_intent`, `invoice.payment_intent` или в `id` объекта
+`payment_intent.*`, но реальная форма полученного event ещё не сопоставлена с этими
+ожиданиями.
+
+Перед исправлением нужно:
+
+- определить конкретный event type и Checkout mode, на которых поле остаётся пустым;
+- сверить sanitized `PaymentWebhook.providerSnapshot` с формой Stripe object для
+  API version `2026-08-26.dahlia`;
+- проверить, где в этой версии API находится связь Invoice/Checkout с PaymentIntent и не
+  была ли она перенесена в другой object;
+- проверить normalized event после Stripe adapter и command, передаваемую в repository;
+- не подменять PaymentIntent ID значением Checkout, Invoice, Charge или Subscription ID.
+
+Критерий исправления: для каждого supported success-event определён авторитетный
+источник PaymentIntent ID, adapter нормализует его в `providerPaymentId`, repository атомарно
+сохраняет его, а replay того же event идемпотентен.
+
+### Безопасная фиксация ошибок webhook workflow
+
+Статус: refactor V6 выполнен, решение `ACCEPT_AND_CONTINUE`.
+
+Refactor разделяет два разных назначения данных об ошибке:
+
+- durable audit состояния `PaymentWebhook`;
+- operational diagnostics в логах/observability.
+
+`toPaymentEventFailure` сохраняет стабильный error code и контролируемое приложением безопасное
+сообщение. Исходные `error.message` и `error.stack` не попадают в `PaymentWebhook.processingError`
+или стандартные workflow/HTTP logs.
+
+Зафиксированная семантика:
+
+- durable audit хранит только стабильный allowlisted `processingErrorCode`; произвольный текст
+  исключения не является частью persistence contract;
+- `PaymentEventFailure` представляет классификацию результата обработки, а не диагностический dump;
+- автоматическая обработка и поиск строятся по стабильному error code, но не по имени класса или
+  тексту исключения;
+- operational log каждой ошибки содержит correlation identifiers: локальный `webhookId`, DBOS
+  `workflowId`, Stripe `providerEventId`, nullable `paymentId`, номер попытки и `traceId`/`spanId`,
+  когда tracing доступен;
+- `errorName` допустим только как дополнительная диагностика и не заменяет стабильный error code;
+- стандартные application logs содержат только allowlisted поля и контролируемые приложением
+  сообщения; исходные `error.message` и `error.stack` нельзя логировать без явной redaction policy;
+- полный exception/stack допустим только в защищённом observability-контуре с redaction, ограниченным
+  доступом и согласованной retention policy;
+- enqueue failure, возникающий до создания локальной webhook-записи, коррелируется через стабильный
+  `workflowId` и `providerEventId`.
+
+После refactor оператор должен иметь возможность начать с `PaymentWebhook.id`, `workflowId`,
+`providerEventId` или `processingErrorCode` и найти связанную диагностику без хранения сырого текста
+ошибки в Payments DB.
+
+Минимальные acceptance scenarios:
+
+- неизвестная ошибка переводится в `UNEXPECTED_WORKFLOW_ERROR` без сохранения исходного message;
+- исчерпание DBOS step retries переводится в `DBOS_STEP_RETRIES_EXHAUSTED` без объединённого текста
+  предыдущих исключений;
+- retryable и terminal состояния сохраняют только allowlisted code;
+- structured logs содержат correlation identifiers и не содержат raw message/stack;
+- известные `PaymentsError` продолжают классифицироваться по `PaymentsErrorCode`.
+
 ## Следующие event slices
 
-После принятия `checkout.session.expired`:
+`payment_intent.canceled` реализован отдельным slice со следующими правилами:
 
-1. `payment_intent.canceled`;
-2. review/refactor;
-3. `invoice.voided`;
-4. отдельное архитектурное решение для `invoice.marked_uncollectible`;
-5. отдельно refund lifecycle и subscription lifecycle events.
+- metadata `paymentId` является основным correlation source, `providerPaymentId` — fallback;
+- только `PURCHASE + SUBSCRIPTION_EXTENSION` может перейти из `CREATED/PENDING` в `CANCELED`;
+- `INITIAL_SUBSCRIPTION`, `RENEWAL` и terminal Payment не изменяются;
+- duplicate для уже отменённого подходящего Payment идемпотентен;
+- provider/customer reference conflict не оставляет partial update;
+- adapter сохраняет только PaymentIntent ID, nullable Customer ID и время события; cancellation
+  reason и payment-method данные не входят в нормализованный event.
+
+После принятия `payment_intent.canceled`:
+
+1. `invoice.voided`;
+2. отдельное архитектурное решение для `invoice.marked_uncollectible`;
+3. отдельно refund lifecycle и subscription lifecycle events.
 
 Не реализовывать несколько новых cancellation events одним изменением.
 
