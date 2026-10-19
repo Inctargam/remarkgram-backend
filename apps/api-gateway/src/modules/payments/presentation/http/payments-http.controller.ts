@@ -13,14 +13,26 @@ import {
   OnModuleInit,
   Param,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import type { ClientGrpc } from '@nestjs/microservices';
 import type { AuthenticatedRequest } from '../../../../common/http/authenticated-request.js';
 import { IdempotencyKey } from '../../../../common/http/decorators/idempotency-key.decorator.js';
 import { CreateCheckoutDto } from './dto/create-checkout.dto.js';
+import { CreateCheckoutResponseDto } from './dto/create-checkout-response.dto.js';
 import { PaymentIdParams } from './dto/payment-id.params.js';
+import { GetPaymentsQueryDto } from './dto/get-payments-query.dto.js';
+import { GetPaymentsResponseDto } from './dto/get-payments-response.dto.js';
+import { PaymentStatusResponseDto } from './dto/payment-status-response.dto.js';
+import { PaymentsHttpResponseMapper } from './mappers/payments-http-response.mapper.js';
+import { firstValueFrom } from 'rxjs';
+import { ApiPaymentsController } from './swagger/payments-controller.swagger.js';
+import { ApiGetPaymentStatus } from './swagger/get/get-payment-status.swagger.js';
+import { ApiGetPayments } from './swagger/get/get-payments.swagger.js';
+import { ApiCreateCheckout } from './swagger/post/create-checkout.swagger.js';
 
+@ApiPaymentsController()
 @Controller('payments')
 export class PaymentsHttpController implements OnModuleInit {
   private client!: PaymentsServiceClient;
@@ -31,22 +43,48 @@ export class PaymentsHttpController implements OnModuleInit {
 
   @Post('checkout')
   @HttpCode(HttpStatus.CREATED)
-  createCheckout(
+  @ApiCreateCheckout()
+  async createCheckout(
     @Body() input: CreateCheckoutDto,
     @Req() request: AuthenticatedRequest,
     @IdempotencyKey() idempotencyKey: string,
-  ) {
-    return this.client.createCheckout({
-      userId: Number(request.userId),
-      planId: input.planId,
-      idempotencyKey,
-      provider: input.provider,
-      autoRenewal: input.autoRenewal,
-    });
+  ): Promise<CreateCheckoutResponseDto> {
+    const response = await firstValueFrom(
+      this.client.createCheckout({
+        userId: Number(request.userId),
+        planId: input.planId,
+        idempotencyKey,
+        provider: input.provider,
+      }),
+    );
+    return PaymentsHttpResponseMapper.toCreateCheckout(response);
   }
 
   @Get(':paymentId/status')
-  getStatus(@Param() params: PaymentIdParams, @Req() request: AuthenticatedRequest) {
-    return this.client.getPaymentStatus({ userId: Number(request.userId), paymentId: params.paymentId });
+  @ApiGetPaymentStatus()
+  async getStatus(
+    @Param() params: PaymentIdParams,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<PaymentStatusResponseDto> {
+    const response = await firstValueFrom(
+      this.client.getPaymentStatus({ userId: Number(request.userId), paymentId: params.paymentId }),
+    );
+    return PaymentsHttpResponseMapper.toPaymentStatus(response);
+  }
+
+  @Get()
+  @ApiGetPayments()
+  async getPayments(
+    @Query() query: GetPaymentsQueryDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<GetPaymentsResponseDto> {
+    const response = await firstValueFrom(
+      this.client.getPayments({
+        userId: Number(request.userId),
+        pageNumber: query.pageNumber,
+        pageSize: query.pageSize,
+      }),
+    );
+    return PaymentsHttpResponseMapper.toPayments(response);
   }
 }

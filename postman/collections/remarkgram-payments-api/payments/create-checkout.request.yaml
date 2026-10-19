@@ -1,0 +1,30 @@
+$kind: http-request
+name: POST /payments/checkout
+method: POST
+url: '{{base_url}}/payments/checkout'
+order: 1000
+headers:
+  - key: Content-Type
+    value: application/json
+  - key: Idempotency-Key
+    value: '{{idempotency_key}}'
+    description: UUID v4 reused only when retrying the identical checkout request.
+body:
+  type: json
+  content: |-
+    {
+      "planId": {{plan_id}},
+      "provider": "STRIPE"
+    }
+examples: './.resources/create-checkout.resources/examples'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('returns 201', () => pm.response.to.have.status(201));
+      pm.test('returns the checkout result', () => {
+        const body = pm.response.json();
+        pm.expect(body.paymentId).to.be.a('string');
+        pm.expect(body.status).to.be.a('string');
+        pm.expect(body).to.have.property('checkoutUrl');
+      });

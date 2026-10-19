@@ -4,6 +4,7 @@ import type { ConfigType } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { paymentsGrpcClientConfig } from './config/payments-grpc-client.config.js';
 import { PaymentsHttpController } from './presentation/http/payments-http.controller.js';
+import { PlansHttpController } from './presentation/http/plans-http.controller.js';
 
 @Module({
   imports: [
@@ -22,6 +23,6 @@ import { PaymentsHttpController } from './presentation/http/payments-http.contro
       },
     ]),
   ],
-  controllers: [PaymentsHttpController],
+  controllers: [PaymentsHttpController, PlansHttpController],
 })
 export class PaymentsModule {}

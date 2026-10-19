@@ -1,0 +1,21 @@
+$kind: http-request
+name: 'GET /payments/:paymentId/status'
+method: GET
+url: '{{base_url}}/payments/:paymentId/status'
+order: 2000
+pathVariables:
+  - key: paymentId
+    value: '{{payment_id}}'
+    description: UUID of a payment owned by the authenticated user.
+examples: './.resources/get-payment-status.resources/examples'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('returns 200', () => pm.response.to.have.status(200));
+      pm.test('returns payment status', () => {
+        const body = pm.response.json();
+        pm.expect(body.paymentId).to.eql(pm.variables.replaceIn('{{payment_id}}'));
+        pm.expect(body.status).to.be.a('string');
+        pm.expect(body).to.have.property('paidAt');
+      });

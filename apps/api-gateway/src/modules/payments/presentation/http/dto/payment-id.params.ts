@@ -1,4 +1,7 @@
 import { IsUUID } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 export class PaymentIdParams {
-  @IsUUID() declare readonly paymentId: string;
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  declare readonly paymentId: string;
 }

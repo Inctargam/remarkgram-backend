@@ -36,6 +36,8 @@ const swaggerConfig = new DocumentBuilder()
   .addTag('Auth', 'Registration, authentication and password reset.')
   .addTag('Files', 'Image upload session management.')
   .addTag('Posts', 'Post creation with completed image uploads.')
+  .addTag('Plans', 'Public subscription plan catalog.')
+  .addTag('Payments', 'Checkout and payment history for the authenticated user.')
   .addTag('Sessions', 'Active session management.')
   .addTag('Testing', 'Development and test utilities.')
   .build();

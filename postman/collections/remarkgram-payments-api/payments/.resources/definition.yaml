@@ -1,0 +1,9 @@
+$kind: collection
+name: Payments
+description: Authenticated checkout and payment read endpoints. All returned payments are scoped to the Bearer token owner.
+order: 2000
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{access_token}}'
