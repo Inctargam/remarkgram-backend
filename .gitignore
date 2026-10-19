@@ -13,6 +13,9 @@
 /apps/**/database/prisma/generated/
 /apps/**/src/database/generated/
 
+# Local Postman workspace
+/postman/
+
 # Logs
 logs
 *.log
