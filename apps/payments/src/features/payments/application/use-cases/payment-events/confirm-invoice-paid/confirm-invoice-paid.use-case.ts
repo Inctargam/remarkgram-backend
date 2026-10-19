@@ -23,10 +23,7 @@ import {
 export class ConfirmInvoicePaidUseCase {
   constructor(private readonly payments: PaymentsRepository) {}
 
-  async execute(
-    event: InvoicePaidEvent,
-    ctx: PaymentsTransactionContext,
-  ): Promise<PaymentEventResult> {
+  async execute(event: InvoicePaidEvent, ctx: PaymentsTransactionContext): Promise<PaymentEventResult> {
     if (event.payload.billingReason === 'subscription_create') return this.confirmInitialPurchase(event, ctx);
     if (event.payload.billingReason === 'subscription_cycle') return this.confirmRenewal(event, ctx);
     return paymentEventResult.dead(PaymentEventResultCode.UNSUPPORTED_BILLING_REASON);

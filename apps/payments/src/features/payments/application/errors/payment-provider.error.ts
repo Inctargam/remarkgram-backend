@@ -27,4 +27,3 @@ export class PaymentProviderResultMismatchError extends PaymentsError {
     super(`Payment provider returned an inconsistent result for ${operation}`);
   }
 }
-

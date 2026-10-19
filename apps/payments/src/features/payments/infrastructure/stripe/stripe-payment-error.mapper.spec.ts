@@ -31,9 +31,7 @@ describe('StripePaymentErrorMapper', () => {
   it.each([new Stripe.errors.StripeConnectionError(), new Error('unexpected')])(
     'maps ambiguous failures to outcome-unknown errors',
     (error) => {
-      expect(mapper.toApplicationError(error, context)).toBeInstanceOf(
-        PaymentProviderOutcomeUnknownError,
-      );
+      expect(mapper.toApplicationError(error, context)).toBeInstanceOf(PaymentProviderOutcomeUnknownError);
     },
   );
 });

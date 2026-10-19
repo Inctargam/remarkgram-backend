@@ -145,14 +145,12 @@ describe('PrismaPaymentsRepository.cancelPendingPayment', () => {
       { payment: { updateMany } },
     );
 
-    expect(updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          providerPaymentId: 'pi_canceled',
-          status: PaymentStatus.CANCELED,
-        }),
-      }),
-    );
+    expect(updateMany).toHaveBeenCalledOnce();
+    const update = updateMany.mock.calls[0]?.[0] as { data: Record<string, unknown> };
+    expect(update.data).toMatchObject({
+      providerPaymentId: 'pi_canceled',
+      status: PaymentStatus.CANCELED,
+    });
   });
 });
 

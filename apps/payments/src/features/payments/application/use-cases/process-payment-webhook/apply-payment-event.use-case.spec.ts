@@ -17,10 +17,7 @@ import {
 } from '../../../domain/payment.entity.js';
 import { Currency, PeriodUnit } from '../../../../plans/domain/plan.entity.js';
 import type { PaymentEvent } from '../../events/payment-event.js';
-import {
-  PaymentEventResultCode,
-  paymentEventResult,
-} from '../payment-events/payment-event-result.js';
+import { PaymentEventResultCode, paymentEventResult } from '../payment-events/payment-event-result.js';
 
 describe('ApplyPaymentEventUseCase', () => {
   const events = eventRepository();

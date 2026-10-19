@@ -87,17 +87,17 @@ describe('CreateCheckoutUseCase', () => {
       checkoutUrl: 'https://checkout.stripe.com/test',
       status: PaymentStatus.PENDING,
     });
-    expect(createCheckout).toHaveBeenCalledWith(
-      expect.objectContaining({
-        amount: 10_000,
-        currency: Currency.USD,
-        periodCount: 1,
-        periodUnit: PeriodUnit.MONTH,
-        customerId: 'cus_test',
-        // Application passes a stable operation identity; the provider adapter owns the key prefix.
-        operationId: expect.any(String),
-      }),
-    );
+    expect(createCheckout).toHaveBeenCalledOnce();
+    const createCheckoutParams = createCheckout.mock.calls[0]?.[0];
+    expect(createCheckoutParams).toMatchObject({
+      amount: 10_000,
+      currency: Currency.USD,
+      periodCount: 1,
+      periodUnit: PeriodUnit.MONTH,
+      customerId: 'cus_test',
+    });
+    // Application passes a stable operation identity; the provider adapter owns the key prefix.
+    expect(typeof createCheckoutParams?.operationId).toBe('string');
   });
 
   it('rejects reuse of a key for another plan', async () => {

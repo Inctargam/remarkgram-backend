@@ -1,7 +1,7 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import type { PaymentWebhookEnqueueUnavailableError } from '../../application/errors/payments.error.js';
 import { InvalidProviderEventError } from '../../../features/payments/application/errors/invalid-provider-event.error.js';
-import { PaymentProviderUnavailableError } from '../../../features/payments/application/errors/payment-provider.error.js';
+import type { PaymentProviderUnavailableError } from '../../../features/payments/application/errors/payment-provider.error.js';
 import { PaymentsHttpErrorResponseDto } from '../payments-http-error-response.dto.js';
 
 export type PaymentWebhookHttpError =

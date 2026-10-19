@@ -71,4 +71,3 @@ export class PaymentInconsistentStateError extends PaymentsError {
     super(`Payment ${paymentId} is in an inconsistent checkout state`);
   }
 }
-

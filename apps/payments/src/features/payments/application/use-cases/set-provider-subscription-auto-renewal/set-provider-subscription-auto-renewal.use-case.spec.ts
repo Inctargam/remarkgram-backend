@@ -17,7 +17,7 @@ describe('SetProviderSubscriptionAutoRenewalUseCase', () => {
   it.each([
     [true, 'enable'],
     [false, 'disable'],
-  ] as const)('передаёт autoRenewalEnabled=%s провайдеру идемпотентно', async (enabled, action) => {
+  ] as const)('передаёт autoRenewalEnabled=%s провайдеру идемпотентно', async (enabled, _action) => {
     setSubscriptionAutoRenewal.mockResolvedValue({
       providerSubscriptionId: 'sub_test',
       autoRenewalEnabled: enabled,

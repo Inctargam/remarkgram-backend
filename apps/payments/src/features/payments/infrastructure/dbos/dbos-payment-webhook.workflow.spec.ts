@@ -1,7 +1,7 @@
 import type * as DbosSdk from '@dbos-inc/dbos-sdk';
 
 const dbosMock = vi.hoisted(() => ({
-  workflowID: 'payment-webhook:STRIPE:evt_test' as string | undefined,
+  workflowID: 'payment-webhook:STRIPE:evt_test',
   stepStatus: { currentAttempt: 1 },
   logger: { error: vi.fn() },
   workflow: vi.fn(
@@ -19,9 +19,7 @@ vi.mock('@dbos-inc/dbos-sdk', async (importOriginal) => ({
 }));
 
 import type { PaymentEvent } from '../../application/events/payment-event.js';
-import {
-  PaymentProviderResultMismatchError,
-} from '../../application/errors/payment-provider.error.js';
+import { PaymentProviderResultMismatchError } from '../../application/errors/payment-provider.error.js';
 import { PaymentWebhookEnqueueUnavailableError } from '../../../../common/application/errors/payments.error.js';
 import type { PaymentEventRepository } from '../../application/ports/payment-event.repository.js';
 import type { ApplyPaymentEventUseCase } from '../../application/use-cases/process-payment-webhook/apply-payment-event.use-case.js';
@@ -132,9 +130,7 @@ describe('DbosPaymentWebhookWorkflow', () => {
   it('rejects invocation outside a DBOS workflow context with an infrastructure error', async () => {
     dbosMock.workflowID = undefined;
 
-    await expect(workflow.process(paymentEvent())).rejects.toBeInstanceOf(
-      MissingDbosWorkflowContextError,
-    );
+    await expect(workflow.process(paymentEvent())).rejects.toBeInstanceOf(MissingDbosWorkflowContextError);
     expect(events.saveIfAbsent).not.toHaveBeenCalled();
   });
 

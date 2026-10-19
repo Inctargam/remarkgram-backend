@@ -59,10 +59,7 @@ describe('RecordInvoicePaymentFailedUseCase', () => {
 });
 
 const PAYMENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const CORRELATED = paymentEventResult.success(
-  PaymentEventResultCode.PAYMENT_FAILURE_RECORDED,
-  PAYMENT_ID,
-);
+const CORRELATED = paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, PAYMENT_ID);
 const UNCORRELATED = paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, null);
 
 function repository() {

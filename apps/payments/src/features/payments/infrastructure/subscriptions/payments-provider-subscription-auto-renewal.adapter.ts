@@ -16,8 +16,9 @@ export type ChangeProviderSubscriptionAutoRenewalResult = {
 /** D1 capability adapter intended for a future D2-owned outbound boundary. */
 @Injectable()
 export class PaymentsProviderSubscriptionAutoRenewalAdapter {
-  constructor(private readonly setProviderSubscriptionAutoRenewal: SetProviderSubscriptionAutoRenewalUseCase) {
-  }
+  constructor(
+    private readonly setProviderSubscriptionAutoRenewal: SetProviderSubscriptionAutoRenewalUseCase,
+  ) {}
 
   enable(
     command: ChangeProviderSubscriptionAutoRenewalCommand,
@@ -43,7 +44,9 @@ export class PaymentsProviderSubscriptionAutoRenewalAdapter {
     });
   }
 
-  private toPaymentProvider(provider: ChangeProviderSubscriptionAutoRenewalCommand['provider']): PaymentProvider {
+  private toPaymentProvider(
+    provider: ChangeProviderSubscriptionAutoRenewalCommand['provider'],
+  ): PaymentProvider {
     switch (provider) {
       case 'STRIPE':
         return PaymentProvider.STRIPE;

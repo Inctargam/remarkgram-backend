@@ -41,11 +41,7 @@ describe('CancelPaymentIntentUseCase', () => {
 
     await useCase.execute(event({ paymentId: null }), {});
 
-    expect(payments.findByProviderPaymentId).toHaveBeenCalledWith(
-      PaymentProvider.STRIPE,
-      'pi_canceled',
-      {},
-    );
+    expect(payments.findByProviderPaymentId).toHaveBeenCalledWith(PaymentProvider.STRIPE, 'pi_canceled', {});
   });
 
   it('does not downgrade a succeeded payment', async () => {
@@ -61,9 +57,7 @@ describe('CancelPaymentIntentUseCase', () => {
 
   it('does not cancel an initial subscription purchase', async () => {
     const payments = repository();
-    payments.findById.mockResolvedValue(
-      payment({ checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION }),
-    );
+    payments.findById.mockResolvedValue(payment({ checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION }));
     const useCase = new CancelPaymentIntentUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual(

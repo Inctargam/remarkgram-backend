@@ -5,10 +5,7 @@ import {
   PaymentProviderUnavailableError,
 } from '../../application/errors/payment-provider.error.js';
 import { PaymentPersistenceError } from '../../../../common/application/errors/payments.error.js';
-import {
-  isRetryablePaymentWorkflowError,
-  toPaymentEventFailure,
-} from './payment-workflow-error.policy.js';
+import { isRetryablePaymentWorkflowError, toPaymentEventFailure } from './payment-workflow-error.policy.js';
 
 describe('payment workflow error policy', () => {
   it.each([new PaymentProviderUnavailableError(), new PaymentPersistenceError(), new Error('unknown')])(

@@ -260,7 +260,11 @@ function providerWithWebhookError(error: Error) {
   const provider = providerWithEvent({});
   Object.assign(provider as unknown as Record<string, unknown>, {
     stripe: {
-      webhooks: { constructEvent: vi.fn().mockImplementation(() => { throw error; }) },
+      webhooks: {
+        constructEvent: vi.fn().mockImplementation(() => {
+          throw error;
+        }),
+      },
     },
   });
   return provider;
