@@ -51,6 +51,10 @@ export class LinkPaymentToSubscriptionUseCase {
       { paymentId: params.payment.paymentId, subscriptionId: applied.subscriptionId },
       ctx,
     );
+    /**
+     * Конфликт привязки Payment — терминальное нарушение инварианта. Исключение
+     * откатывает изменения D2 и привязку D1 в общей транзакции этого шага.
+     */
     if (linked.outcome !== 'LINKED')
       throw new PaymentSubscriptionApplicationConflictError(
         params.payment.paymentId,
