@@ -56,6 +56,11 @@ export class PrismaPaymentEventRepository extends PaymentEventRepository {
     );
   }
 
+  /**
+   * Сохраняет установленную при обработке связь webhook-события с локальным Payment.
+   * Повторная привязка к тому же Payment идемпотентна, а замена ранее сохранённой
+   * связи на другой Payment отклоняется как нарушение инварианта корреляции.
+   */
   async attachPayment(eventId: string, paymentId: string, ctx: PaymentsTransactionContext): Promise<void> {
     await this.updateExactlyOne(
       this.getClient(ctx).paymentWebhook.updateMany({
