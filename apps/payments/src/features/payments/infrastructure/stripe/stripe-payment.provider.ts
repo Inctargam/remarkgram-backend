@@ -190,6 +190,7 @@ export class StripePaymentProvider extends PaymentProviderPort {
     }
   }
 
+  // Отменить старую подписку
   async scheduleSubscriptionCancellation(
     providerSubscriptionId: string,
   ): Promise<ScheduleProviderSubscriptionCancellationResult> {
@@ -222,6 +223,7 @@ export class StripePaymentProvider extends PaymentProviderPort {
     };
   }
 
+  // Создать отложенную подписку
   async createDeferredSubscription(
     input: CreateDeferredProviderSubscriptionInput,
   ): Promise<CreateDeferredProviderSubscriptionResult> {
@@ -239,6 +241,10 @@ export class StripePaymentProvider extends PaymentProviderPort {
     input: CreateDeferredProviderSubscriptionInput,
   ): Promise<CreateDeferredProviderSubscriptionResult> {
     const billingCycleAnchor = Math.floor(new Date(input.billingCycleAnchor).getTime() / 1000);
+    // При прямом создании Stripe Subscription можно описать Price inline через
+    // items[].price_data, но для него обязателен ID существующего Product.
+    // В отличие от Checkout, subscriptions.create не поддерживает product_data,
+    // поэтому Product необходимо создать до отложенной Subscription.
     const product = await this.stripe.products.create(
       {
         name: 'Remarkgram subscription period',
@@ -263,8 +269,8 @@ export class StripePaymentProvider extends PaymentProviderPort {
             },
           },
         ],
-        billing_cycle_anchor: billingCycleAnchor,
-        proration_behavior: 'none',
+        billing_cycle_anchor: billingCycleAnchor, // дата первого инвойса
+        proration_behavior: 'none', // не создавать инвойс за период до якоря
         metadata: {
           paymentId: input.paymentId,
           subscriptionId: input.subscriptionId,
