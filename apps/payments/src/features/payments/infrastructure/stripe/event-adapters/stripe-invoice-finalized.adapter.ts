@@ -9,6 +9,7 @@ import { StripeEventType } from './stripe-event-type.js';
 import {
   asRecord,
   expandableId,
+  invoiceMetadataPaymentId,
   invoiceRenewalSourceReferences,
   numberOrNull,
   stringOrNull,
@@ -37,10 +38,9 @@ export class StripeInvoiceFinalizedAdapter implements ProviderEventAdapter {
       providerEventId: webhook.id,
       providerEventType: StripeEventType.INVOICE_FINALIZED,
       providerCreatedAt: webhook.createdAt,
-      // Subscription metadata identifies the original purchase, never this renewal.
-      paymentId: null,
+      paymentId: invoiceMetadataPaymentId(invoice),
       payload: {
-        ...(invoice?.billing_reason === 'subscription_cycle' ? invoiceRenewalSourceReferences(invoice) : {}),
+        ...invoiceRenewalSourceReferences(invoice),
         providerInvoiceId: id,
         providerSubscriptionId: expandableId(details?.subscription) ?? expandableId(invoice?.subscription),
         customerId: expandableId(invoice?.customer),

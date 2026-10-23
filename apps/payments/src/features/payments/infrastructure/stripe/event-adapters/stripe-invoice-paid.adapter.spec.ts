@@ -18,7 +18,7 @@ describe('StripeInvoicePaidAdapter', () => {
     expect(event.payload.paidAt).toEqual(new Date('2026-10-12T12:00:01.000Z'));
   });
 
-  it('does not correlate a renewal to the initial Payment metadata', () => {
+  it('extracts Payment metadata for a renewal without using billing reason as a metadata rule', () => {
     const renewalWebhook = webhook();
     renewalWebhook.payload = {
       ...(renewalWebhook.payload as Record<string, unknown>),
@@ -27,7 +27,7 @@ describe('StripeInvoicePaidAdapter', () => {
     };
     const event = adapter.adapt(renewalWebhook);
 
-    expect(event.paymentId).toBeNull();
+    expect(event.paymentId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
     expect(event.payload.sourcePaymentId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
     expect(event.payload.sourceSubscriptionId).toBe('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
     expect(event.payload.billingReason).toBe('subscription_cycle');

@@ -22,6 +22,12 @@ export function metadataPaymentId(value: unknown): string | null {
   return stringOrNull(asRecord(value)?.paymentId);
 }
 
+export function invoiceMetadataPaymentId(invoice: Record<string, unknown> | null): string | null {
+  const subscriptionDetails =
+    asRecord(asRecord(invoice?.parent)?.subscription_details) ?? asRecord(invoice?.subscription_details);
+  return metadataPaymentId(invoice?.metadata) ?? metadataPaymentId(subscriptionDetails?.metadata);
+}
+
 export function safeProviderMessage(value: unknown): string | null {
   const message = stringOrNull(value);
   return message ? message.replaceAll(/[\r\n\t]+/g, ' ').slice(0, 500) : null;

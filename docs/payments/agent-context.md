@@ -911,9 +911,10 @@ pending renewal; прежний recovery создания успешного ren
 
 Это уточнение заменяет прежний выбор первой Payment по provider Subscription ID в paid/finalized.
 Контракт Stripe metadata не меняется: `paymentId` указывает на конкретную исходную PURCHASE,
-`subscriptionId` deferred Subscription — на локальную Subscription. Адаптеры Invoice нормализуют
-снимок Subscription metadata в `sourcePaymentId` и `sourceSubscriptionId`; envelope `paymentId`
-для renewal остаётся null. Для initial Subscription без metadata subscriptionId используется
+`subscriptionId` deferred Subscription — на локальную Subscription. Адаптеры Invoice извлекают
+envelope `paymentId` из Invoice metadata с fallback на снимок Subscription metadata независимо от
+`billingReason`. Для renewal они дополнительно нормализуют снимок Subscription metadata в
+`sourcePaymentId` и `sourceSubscriptionId`. Для initial Subscription без metadata subscriptionId используется
 уже установленная локальная связь конкретной исходной Payment.
 
 Исходная Payment должна быть SUCCEEDED с paidAt и установленными local/provider Subscription links.

@@ -15,14 +15,22 @@ function webhook(payload: Record<string, unknown> = {}): VerifiedProviderWebhook
   };
 }
 describe('StripeInvoiceFinalizedAdapter', () => {
-  it('uses amount_due and subscription context without correlating original metadata', () => {
+  it('uses amount_due and correlates the event with Payment metadata', () => {
     const event = adapter.adapt(webhook());
-    expect(event.paymentId).toBeNull();
+    expect(event.paymentId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
     expect(event.payload).toEqual({ providerInvoiceId: 'in_cycle', amount: 1000, currency: 'usd',
       billingReason: 'subscription_cycle', customerId: 'cus_test', providerSubscriptionId: 'sub_test',
       sourcePaymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       sourceSubscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' });
     expect(event.payload).not.toHaveProperty('providerPaymentId');
+  });
+  it('extracts metadata references independently of billing reason', () => {
+    const event = adapter.adapt(webhook({ billing_reason: 'subscription_create' }));
+    expect(event.paymentId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    expect(event.payload).toMatchObject({
+      sourcePaymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      sourceSubscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    });
   });
   it('accepts an absent PaymentIntent and legacy subscription reference', () => {
     expect(adapter.adapt(webhook({ parent: null, subscription: 'sub_legacy' })).payload.providerSubscriptionId).toBe('sub_legacy');

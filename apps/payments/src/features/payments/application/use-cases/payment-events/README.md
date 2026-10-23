@@ -466,8 +466,9 @@ audit/correlation-событием для всех типов Payment и не в
 
 Stripe metadata остаётся прежней: `paymentId` и, для deferred Subscription, `subscriptionId`.
 Из снимка `parent.subscription_details.metadata` (или legacy `subscription_details.metadata`)
-адаптер извлекает внутренние `sourcePaymentId` и `sourceSubscriptionId`. Envelope `paymentId` renewal
-остаётся `null`: исходная покупка не является новой оплатой Invoice. Для ранее сохранённых
+адаптер извлекает внутренние `sourcePaymentId` и `sourceSubscriptionId`. Envelope `paymentId`
+извлекается из Invoice metadata с fallback на снимок Subscription metadata независимо от
+`billingReason`, чтобы сохранить correlation события с Payment. Для ранее сохранённых
 нормализованных событий эти поля optional; без существующей renewal и source-контекста потребуется
 reconciliation/replay из исходного provider snapshot, автоматического backfill нет.
 
