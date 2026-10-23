@@ -1,3 +1,4 @@
+import { Prisma } from '../../../../../database/prisma/generated/client.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { PrismaService } from '../../../../../database/prisma.service.js';
 import { Currency, PeriodUnit } from '../../../../plans/domain/plan.entity.js';
@@ -48,29 +49,81 @@ describe('classifyProviderReferenceConflict', () => {
 
 describe('PrismaPaymentsRepository.confirmSuccessfulPayment', () => {
   it('updates only persistence fields supplied by the application command', async () => {
-    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
-    const findUnique = vi.fn().mockResolvedValue(successfulPurchaseRow());
+    const updateManyAndReturn = vi.fn().mockResolvedValue([successfulPurchaseRow()]);
+    const findUnique = vi.fn();
     const repository = new PrismaPaymentsRepository({} as PrismaService);
 
     await expect(
-      repository.confirmSuccessfulPayment(successCommand(), { payment: { updateMany, findUnique } }),
+      repository.confirmSuccessfulPayment(successCommand(), { payment: { updateManyAndReturn, findUnique } }),
     ).resolves.toMatchObject({
       outcome: 'SUCCEEDED',
       payment: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', status: PaymentStatus.SUCCEEDED },
     });
-    expect(updateMany).toHaveBeenCalledOnce();
-    expect(findUnique).toHaveBeenCalledWith({
-      where: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
-    });
+    expect(updateManyAndReturn).toHaveBeenCalledOnce();
+    expect(findUnique).not.toHaveBeenCalled();
   });
 
-  it('returns INVALID_TRANSITION when the conditional Prisma update changes no row', async () => {
-    const updateMany = vi.fn().mockResolvedValue({ count: 0 });
+  it.each([successfulPurchaseRow(), null])('rereads the current Payment when no row changed: %j', async (row) => {
+    const updateManyAndReturn = vi.fn().mockResolvedValue([]);
+    const findUnique = vi.fn().mockResolvedValue(row);
     const repository = new PrismaPaymentsRepository({} as PrismaService);
 
-    await expect(
-      repository.confirmSuccessfulPayment(successCommand(), { payment: { updateMany } }),
-    ).resolves.toEqual({ outcome: 'INVALID_TRANSITION' });
+    const result = await repository.confirmSuccessfulPayment(successCommand(), {
+      payment: { updateManyAndReturn, findUnique },
+    });
+
+    expect(result).toMatchObject({
+      outcome: 'NOT_UPDATED',
+      payment: row ? { id: row.id, status: row.status, paidAt: row.paidAt } : null,
+    });
+    expect(findUnique).toHaveBeenCalledExactlyOnceWith({ where: { id: successCommand().paymentId } });
+    expect(updateManyAndReturn).toHaveBeenCalledOnce();
+  });
+
+  it('preserves stored references when incoming references are absent', async () => {
+    const row = successfulPurchaseRow();
+    const updateManyAndReturn = vi.fn().mockResolvedValue([row]);
+    const repository = new PrismaPaymentsRepository({} as PrismaService);
+    await repository.confirmSuccessfulPayment({
+      paymentId: row.id,
+      paidAt: row.paidAt!,
+      providerPaymentId: null,
+      providerCustomerId: null,
+    }, { payment: { updateManyAndReturn } });
+
+    expect(updateManyAndReturn).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ AND: [{}, {}, {}, {}] }),
+      data: expect.objectContaining({
+        providerPaymentId: undefined,
+        providerSubscriptionId: undefined,
+        providerInvoiceId: undefined,
+        providerCustomerId: undefined,
+      }),
+    }));
+  });
+
+  it('returns a reference conflict on uniqueness violation without reading the aborted transaction', async () => {
+    const error = new Prisma.PrismaClientKnownRequestError('Reference already bound', {
+      code: 'P2002', clientVersion: 'test',
+    });
+    const updateManyAndReturn = vi.fn().mockRejectedValue(error);
+    const findUnique = vi.fn();
+    const repository = new PrismaPaymentsRepository({} as PrismaService);
+    await expect(repository.confirmSuccessfulPayment(successCommand(), {
+      payment: { updateManyAndReturn, findUnique },
+    })).resolves.toEqual({ outcome: 'REFERENCE_CONFLICT' });
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it('propagates infrastructure errors without rereading in the failed transaction', async () => {
+    const error = new Error('database unavailable');
+    const updateManyAndReturn = vi.fn().mockRejectedValue(error);
+    const findUnique = vi.fn();
+    const repository = new PrismaPaymentsRepository({} as PrismaService);
+    await expect(repository.confirmSuccessfulPayment(successCommand(), {
+      payment: { updateManyAndReturn, findUnique },
+    })).rejects.toBe(error);
+    expect(findUnique).not.toHaveBeenCalled();
   });
 });
 
@@ -345,3 +398,18 @@ function successfulPurchaseRow() {
     checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION,
   };
 }
+
+
+describe('PrismaPaymentsRepository.ensurePendingRenewal', () => {
+  it('creates PENDING without changing the existing invoice on duplicate or late delivery', async () => {
+    const upsert = vi.fn().mockResolvedValue(renewalRow());
+    const repository = new PrismaPaymentsRepository({} as PrismaService);
+    const { paidAt: _paidAt, providerPaymentId: _providerPaymentId, ...context } = renewalCommand();
+    await repository.ensurePendingRenewal(context, { payment: { upsert } });
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { providerType_providerInvoiceId: { providerType: context.providerType, providerInvoiceId: context.providerInvoiceId } },
+      create: expect.objectContaining({ status: PaymentStatus.PENDING, paidAt: null, providerPaymentId: null, type: PaymentType.RENEWAL }),
+      update: {},
+    }));
+  });
+});

@@ -40,7 +40,9 @@ export type ConfirmSuccessfulPaymentCommand = {
 
 export type ConfirmSuccessfulPaymentUpdateResult =
   | { outcome: 'SUCCEEDED'; payment: Payment }
-  | { outcome: 'INVALID_TRANSITION' | 'REFERENCE_CONFLICT' };
+  // Conditional update did not match; application reconciles the reread state in the same transaction.
+  | { outcome: 'NOT_UPDATED'; payment: Payment | null }
+  | { outcome: 'REFERENCE_CONFLICT' };
 
 export type LinkPaymentSubscriptionCommand = {
   paymentId: string;
@@ -95,7 +97,16 @@ export type CreateSuccessfulRenewalResult =
     }
   | { outcome: 'REFERENCE_CONFLICT' };
 
+export type EnsurePendingRenewalRepositoryParams = Omit<
+  CreateSuccessfulRenewalCommand,
+  'paidAt' | 'providerPaymentId'
+>;
+
 export abstract class PaymentsRepository {
+  abstract ensurePendingRenewal(
+    params: EnsurePendingRenewalRepositoryParams,
+    ctx: PaymentsTransactionContext,
+  ): Promise<Payment>;
   abstract create(payment: Payment): Promise<CreatePaymentResult>;
   abstract findByUserAndIdempotency(userId: number, idempotencyKey: string): Promise<Payment | null>;
   abstract findById(paymentId: string, ctx?: PaymentsTransactionContext): Promise<Payment | null>;

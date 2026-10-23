@@ -10,6 +10,7 @@ import {
   asRecord,
   expandableId,
   metadataPaymentId,
+  invoiceRenewalSourceReferences,
   numberOrNull,
   stringOrNull,
 } from './stripe-event-value.helpers.js';
@@ -48,6 +49,7 @@ export class StripeInvoicePaidAdapter implements ProviderEventAdapter {
       providerCreatedAt: webhook.createdAt,
       paymentId,
       payload: {
+        ...(billingReason === 'subscription_cycle' ? invoiceRenewalSourceReferences(invoice) : {}),
         id,
         customerId: expandableId(invoice?.customer),
         amount,

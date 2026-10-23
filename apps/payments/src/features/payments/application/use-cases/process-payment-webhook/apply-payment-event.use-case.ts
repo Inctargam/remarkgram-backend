@@ -4,6 +4,7 @@ import type {
   CheckoutSessionCompletedEvent,
   CheckoutSessionExpiredEvent,
   InvoicePaidEvent,
+  InvoiceFinalizedEvent,
   InvoicePaymentFailedEvent,
   PaymentEvent,
   PaymentIntentCanceledEvent,
@@ -12,6 +13,7 @@ import type {
 } from '../../events/payment-event.js';
 import { PaymentEventRepository } from '../../ports/payment-event.repository.js';
 import type { PaymentsTransactionContext } from '../../ports/payments-unit-of-work.js';
+import { EnsureRenewalPaymentUseCase } from '../payment-events/ensure-renewal-payment/ensure-renewal-payment.use-case.js';
 import { ApplyCheckoutSessionCompletedUseCase } from '../payment-events/apply-checkout-session-completed/apply-checkout-session-completed.use-case.js';
 import { CancelExpiredCheckoutSessionUseCase } from '../payment-events/cancel-expired-checkout-session/cancel-expired-checkout-session.use-case.js';
 import { CancelPaymentIntentUseCase } from '../payment-events/cancel-payment-intent/cancel-payment-intent.use-case.js';
@@ -48,6 +50,7 @@ export class ApplyPaymentEventUseCase {
     private readonly recordPaymentIntentFailed: RecordPaymentIntentFailedUseCase,
     private readonly cancelPaymentIntent: CancelPaymentIntentUseCase,
     private readonly recordInvoicePaymentFailed: RecordInvoicePaymentFailedUseCase,
+    private readonly ensureRenewalPayment: EnsureRenewalPaymentUseCase,
   ) {}
 
   async execute(
@@ -64,6 +67,8 @@ export class ApplyPaymentEventUseCase {
       result = await this.cancelExpiredCheckoutSession.execute(event as CheckoutSessionExpiredEvent, ctx);
     } else if (eventKind === (PaymentEventKind.PAYMENT_INTENT_SUCCEEDED as string)) {
       result = await this.confirmPaymentIntentSucceeded.execute(event as PaymentIntentSucceededEvent, ctx);
+    } else if (eventKind === (PaymentEventKind.INVOICE_FINALIZED as string)) {
+      result = await this.ensureRenewalPayment.execute(event as InvoiceFinalizedEvent, ctx);
     } else if (eventKind === (PaymentEventKind.INVOICE_PAID as string)) {
       result = await this.confirmInvoicePaid.execute(event as InvoicePaidEvent, ctx);
     } else if (eventKind === (PaymentEventKind.PAYMENT_INTENT_PAYMENT_FAILED as string)) {

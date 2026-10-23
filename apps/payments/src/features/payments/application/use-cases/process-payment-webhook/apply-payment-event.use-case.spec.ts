@@ -6,6 +6,7 @@ import type { ConfirmInvoicePaidUseCase } from '../payment-events/confirm-invoic
 import type { ConfirmPaymentIntentSucceededUseCase } from '../payment-events/confirm-payment-intent-succeeded/confirm-payment-intent-succeeded.use-case.js';
 import type { RecordInvoicePaymentFailedUseCase } from '../payment-events/record-invoice-payment-failed/record-invoice-payment-failed.use-case.js';
 import type { RecordPaymentIntentFailedUseCase } from '../payment-events/record-payment-intent-failed/record-payment-intent-failed.use-case.js';
+import type { EnsureRenewalPaymentUseCase } from '../payment-events/ensure-renewal-payment/ensure-renewal-payment.use-case.js';
 import { ApplyPaymentEventUseCase } from './apply-payment-event.use-case.js';
 import { PaymentEventKind } from '../../../domain/payment-event-kind.js';
 import {
@@ -28,6 +29,7 @@ describe('ApplyPaymentEventUseCase', () => {
   const paymentFailed = { execute: vi.fn<RecordPaymentIntentFailedUseCase['execute']>() };
   const paymentCanceled = { execute: vi.fn<CancelPaymentIntentUseCase['execute']>() };
   const invoiceFailed = { execute: vi.fn<RecordInvoicePaymentFailedUseCase['execute']>() };
+  const renewalEnsured = { execute: vi.fn<EnsureRenewalPaymentUseCase['execute']>() };
   const useCase = new ApplyPaymentEventUseCase(
     events,
     checkoutCompleted as ApplyCheckoutSessionCompletedUseCase,
@@ -37,6 +39,7 @@ describe('ApplyPaymentEventUseCase', () => {
     paymentFailed as RecordPaymentIntentFailedUseCase,
     paymentCanceled as CancelPaymentIntentUseCase,
     invoiceFailed as RecordInvoicePaymentFailedUseCase,
+    renewalEnsured as EnsureRenewalPaymentUseCase,
   );
   const ctx = {};
 
@@ -47,6 +50,25 @@ describe('ApplyPaymentEventUseCase', () => {
     events.markProcessed.mockResolvedValue();
     events.markIgnored.mockResolvedValue();
     events.markDead.mockResolvedValue();
+  });
+
+  it('attaches a finalized renewal and finishes without applying a paid period', async () => {
+    const event: PaymentEvent = {
+      kind: PaymentEventKind.INVOICE_FINALIZED,
+      provider: PaymentProvider.STRIPE,
+      providerEventId: 'evt_finalized',
+      providerEventType: 'invoice.finalized',
+      providerCreatedAt: new Date(),
+      paymentId: null,
+      payload: { providerInvoiceId: 'in_cycle', providerSubscriptionId: 'sub_test', customerId: null,
+        billingReason: 'subscription_cycle', amount: 100, currency: 'usd' },
+    };
+    renewalEnsured.execute.mockResolvedValue(paymentEventResult.success(PaymentEventResultCode.RENEWAL_ENSURED, PAYMENT_ID));
+    const result = await useCase.execute({ eventId: 'webhook-id', event }, ctx);
+    expect(result.code).toBe(PaymentEventResultCode.RENEWAL_ENSURED);
+    expect(renewalEnsured.execute).toHaveBeenCalledWith(event, ctx);
+    expect(events.attachPayment).toHaveBeenCalledWith('webhook-id', PAYMENT_ID, ctx);
+    expect(events.markProcessed).toHaveBeenCalledWith('webhook-id', ctx);
   });
 
   it('applies checkout completion and finishes the webhook', async () => {

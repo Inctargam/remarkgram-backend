@@ -1,3 +1,4 @@
+import { PaymentPersistenceError } from '../../../../../../common/application/errors/payments.error.js';
 import { Injectable } from '@nestjs/common';
 import { CheckoutPurpose, Payment, PaymentStatus, PaymentType } from '../../../../domain/payment.entity.js';
 import type { PaymentIntentSucceededEvent } from '../../../events/payment-event.js';
@@ -43,11 +44,18 @@ export class ConfirmPaymentIntentSucceededUseCase {
       },
       ctx,
     );
-    return result.outcome === 'SUCCEEDED'
-      ? paymentEventResult.successfulPayment(result.payment)
-      : result.outcome === 'REFERENCE_CONFLICT'
-        ? paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT)
-        : paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
+    if (result.outcome === 'SUCCEEDED') return paymentEventResult.successfulPayment(result.payment);
+    if (result.outcome === 'REFERENCE_CONFLICT')
+      return paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT);
+    const latest = result.payment;
+    if (!latest) return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND);
+    const latestConflict = this.findReconciliationConflict(latest, event);
+    if (latestConflict) return paymentEventResult.dead(PaymentEventResultCode[latestConflict]);
+    if (latest.status === PaymentStatus.SUCCEEDED) return paymentEventResult.successfulPayment(latest);
+    if ([PaymentStatus.FAILED, PaymentStatus.CANCELED].includes(latest.status))
+      return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
+    // A compatible pending Payment should have matched the conditional update. Retry the transaction.
+    throw new PaymentPersistenceError();
   }
 
   private findReconciliationConflict(

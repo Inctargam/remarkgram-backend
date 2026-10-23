@@ -1,3 +1,4 @@
+import { PaymentPersistenceError } from '../../../../../../common/application/errors/payments.error.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { PaymentIntentSucceededEvent } from '../../../events/payment-event.js';
 import type { PaymentsRepository } from '../../../ports/payments.repository.js';
@@ -61,6 +62,52 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
     await expect(useCase.execute(event(), {})).resolves.toEqual(
       paymentEventResult.successfulPayment(confirmed),
     );
+  });
+
+  it('accepts concurrent success with the persisted paidAt without another read or write', async () => {
+    const payments = repository();
+    payments.findById.mockResolvedValue(candidate());
+    const confirmed = confirmedPayment({ paidAt: new Date('2026-10-12T11:00:00.000Z') });
+    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'NOT_UPDATED', payment: confirmed });
+    const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
+
+    await expect(useCase.execute(event(), {})).resolves.toEqual(paymentEventResult.successfulPayment(confirmed));
+    expect(payments.findById).toHaveBeenCalledOnce();
+    expect(payments.confirmSuccessfulPayment).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    [null, paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND)],
+    [confirmedPayment({ providerPaymentId: 'pi_other' }), paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT)],
+    [confirmedPayment({ providerCustomerId: 'cus_other' }), paymentEventResult.dead(PaymentEventResultCode.CUSTOMER_MISMATCH)],
+    [confirmedPayment({ amount: 999 }), paymentEventResult.dead(PaymentEventResultCode.AMOUNT_MISMATCH)],
+    [candidate({ status: PaymentStatus.CANCELED }), paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE)],
+    [candidate({ status: PaymentStatus.FAILED }), paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE)],
+  ])('classifies the reread Payment after an unsuccessful update: %j', async (payment, expected) => {
+    const payments = repository();
+    payments.findById.mockResolvedValue(candidate());
+    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'NOT_UPDATED', payment });
+    const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
+
+    await expect(useCase.execute(event(), {})).resolves.toEqual(expected);
+    expect(payments.findById).toHaveBeenCalledOnce();
+  });
+
+  it.each([PaymentStatus.CREATED, PaymentStatus.PENDING])('throws a retryable error for an unexplained unchanged %s Payment', async (status) => {
+    const payments = repository();
+    payments.findById.mockResolvedValue(candidate());
+    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'NOT_UPDATED', payment: candidate({ status }) });
+    const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
+
+    await expect(useCase.execute(event(), {})).rejects.toBeInstanceOf(PaymentPersistenceError);
+  });
+
+  it('rejects a concurrent success without paidAt', async () => {
+    const payments = repository();
+    payments.findById.mockResolvedValue(candidate());
+    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'NOT_UPDATED', payment: confirmedPayment({ paidAt: null }) });
+    const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
+    await expect(useCase.execute(event(), {})).rejects.toThrow();
   });
 
   it('rejects PaymentIntent success for an initial purchase before repository mutation', async () => {

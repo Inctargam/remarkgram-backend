@@ -15,6 +15,7 @@ import {
   type ConfirmSuccessfulPaymentCommand,
   type ConfirmSuccessfulPaymentUpdateResult,
   type CreatePaymentResult,
+  type EnsurePendingRenewalRepositoryParams,
   type CreateSuccessfulRenewalCommand,
   type CreateSuccessfulRenewalResult,
   type LinkPaymentSubscriptionCommand,
@@ -24,6 +25,9 @@ import { CheckoutPurpose, Payment, PaymentStatus, PaymentType } from '../../../d
 import { PaymentPrismaMapper } from './payment-prisma.mapper.js';
 
 type ProviderReference = 'CHECKOUT' | 'PAYMENT' | 'SUBSCRIPTION' | 'INVOICE' | 'UNKNOWN';
+
+/** Prisma сообщает о нарушении ограничения уникальности при операции с моделью. */
+const PRISMA_UNIQUE_CONSTRAINT_ERROR_CODE = 'P2002';
 
 const PROVIDER_REFERENCE_BY_FIELD: Readonly<Record<string, Exclude<ProviderReference, 'UNKNOWN'>>> = {
   providercheckoutid: 'CHECKOUT',
@@ -286,6 +290,10 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
 
       return { outcome: 'APPLIED' };
     } catch (error) {
+      // Нарушение уникальности означает, что Checkout Session или PaymentIntent уже
+      // привязаны к другому Payment того же провайдера: уникальны пары
+      // (providerType, providerCheckoutId) и (providerType, providerPaymentId).
+      // Повторное сохранение той же ссылки у того же Payment конфликта не создаёт.
       if (this.isUniqueConflict(error)) return { outcome: 'REFERENCE_CONFLICT' };
       throw error;
     }
@@ -298,7 +306,7 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
     const client = ctx as Prisma.TransactionClient;
 
     try {
-      const updated = await client.payment.updateMany({
+      const [row] = await client.payment.updateManyAndReturn({
         where: {
           id: command.paymentId,
           status: { in: [PaymentStatus.CREATED, PaymentStatus.PENDING] },
@@ -318,12 +326,19 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
           paidAt: command.paidAt,
         },
       });
-      if (updated.count !== 1) return { outcome: 'INVALID_TRANSITION' };
+      if (!row) {
+        const latest = await client.payment.findUnique({ where: { id: command.paymentId } });
+        return { outcome: 'NOT_UPDATED', payment: latest ? PaymentPrismaMapper.toDomain(latest) : null };
+      }
 
-      const payment = await this.findById(command.paymentId, ctx);
-      if (!payment) throw new Error(`Confirmed Payment ${command.paymentId} cannot be reloaded`);
-      return { outcome: 'SUCCEEDED', payment };
+      return { outcome: 'SUCCEEDED', payment: PaymentPrismaMapper.toDomain(row) };
     } catch (error) {
+      // Нарушение уникальности означает, что PaymentIntent или Invoice уже привязаны
+      // к другому Payment того же провайдера: уникальны пары
+      // (providerType, providerPaymentId) и (providerType, providerInvoiceId).
+      // Это не позволяет подтвердить два Payment одним provider-объектом.
+      // Несовместимые ссылки у самого Payment отсекаются условиями where без P2002;
+      // отсутствие обновлённой строки возвращается с актуальным Payment для application reconciliation.
       if (this.isUniqueConflict(error)) return { outcome: 'REFERENCE_CONFLICT' };
       throw error;
     }
@@ -398,6 +413,35 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
     return updated.count === 1 ? { outcome: 'BOUND' } : { outcome: 'NOT_BOUND' };
   }
 
+  async ensurePendingRenewal(
+    params: EnsurePendingRenewalRepositoryParams,
+    ctx: PaymentsTransactionContext,
+  ): Promise<Payment> {
+    const client = ctx as Prisma.TransactionClient;
+    // The invoice uniqueness constraint serializes concurrent finalized/paid deliveries.
+    // No existing values or lifecycle state are overwritten by a late finalized event.
+    const row = await client.payment.upsert({
+      where: {
+        providerType_providerInvoiceId: {
+          providerType: params.providerType,
+          providerInvoiceId: params.providerInvoiceId,
+        },
+      },
+      create: {
+        ...params,
+        providerPaymentId: null,
+        status: PaymentStatus.PENDING,
+        paidAt: null,
+        type: PaymentType.RENEWAL,
+        checkoutPurpose: null,
+        autoRenewalRequested: null,
+        targetSubscriptionId: null,
+      },
+      update: {},
+    });
+    return PaymentPrismaMapper.toDomain(row);
+  }
+
   async createSuccessfulRenewal(
     command: CreateSuccessfulRenewalCommand,
     ctx: PaymentsTransactionContext,
@@ -459,10 +503,9 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
   }
 
   private isUniqueConflict(error: unknown): error is Prisma.PrismaClientKnownRequestError {
-    if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
-    if (error.code === 'P2002') return true;
-    if (error.code !== 'P2010') return false;
-    const meta = asRecord(error.meta);
-    return meta?.code === '23505';
+    return (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === PRISMA_UNIQUE_CONSTRAINT_ERROR_CODE
+    );
   }
 }
