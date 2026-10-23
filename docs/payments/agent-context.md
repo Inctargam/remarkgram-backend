@@ -299,8 +299,10 @@ Repository атомарно проверяет совместимость и о�
 - выполняет mutation Payment и завершение webhook в одной локальной транзакции;
 - преобразует ошибку durable enqueue в `PaymentWebhookEnqueueUnavailableError`, чтобы HTTP вернул
   Stripe статус `503` без утечки DBOS-контрактов в application/presentation;
-- считает transient provider/persistence failures и неизвестные исключения retryable, сохраняет
-  состояние `RETRYING` и повторно выбрасывает исходную ошибку для DBOS recovery;
+- в V7 повторяет временные application failures в новых транзакциях через durable таймеры;
+  `RETRYING` — audit-состояние, а не самостоятельный механизм планирования;
+- отделяет недоступный контекст от доказанного конфликта: нерешаемые ожиданием случаи и
+  исчерпание application retry переводит в `RECONCILIATION_REQUIRED`;
 - завершает известные business conflicts и invalid-state errors как `IGNORED` или `DEAD`, а не
   бесконечным retry;
 - использует `shouldRetry` для provider steps и сохраняет исчерпание step retries как
@@ -879,3 +881,90 @@ Refactor разделяет два разных назначения данны�
 
 Не запускать tests, build, lint, formatter или другие verification-команды без явного запроса
 пользователя. После изменения перечислить рекомендуемые, но не выполненные проверки.
+
+
+## Срез invoice.finalized: ожидает review
+
+Добавлен `invoice.finalized/subscription_cycle -> RENEWAL/PENDING` с идемпотентностью по Invoice.
+Скидки недоступны; кредитный баланс не используется. Стоимость сверяется с сохранённым контекстом
+provider Subscription, без переоценки по текущему Plan. Нулевой Invoice не поддерживается и получает
+`AMOUNT_MISMATCH`. PaymentIntent при finalized не сохраняется. InvoicePayment и несколько PaymentIntent на Invoice
+исключены из текущей итерации и не являются блокером.
+Поздний finalized не понижает успешный Payment и не запускает D2. Invoice paid подтверждает существующий
+pending renewal; прежний recovery создания успешного renewal сохранён. Failure recovery и voided не входят
+в этот срез. Подробности и ограничения указаны в README payment-events.
+
+
+### Уточнённые границы итерации renewal
+
+- После review первого среза следующий event slice — `invoice.voided`.
+- Создание renewal из `invoice.payment_failed` и failure recovery подлежат обсуждению при детализации
+  следующего среза; реализация ещё не согласована.
+- `invoice.marked_uncollectible`, InvoicePayment/несколько PaymentIntent, скидки, кредитный баланс
+  и бесплатные периоды исключены из текущей итерации.
+- Изменение цены существующего recurring billing отложено на следующую итерацию.
+- Renewal дедуплицируется по `(providerType, providerInvoiceId)`; вычисляемого idempotency key
+  и передачи `idempotentKey` в контракте создания renewal нет.
+
+
+## Уточнение renewal context: metadata исходной оплаты (2026-10-23, ожидает review)
+
+Это уточнение заменяет прежний выбор первой Payment по provider Subscription ID в paid/finalized.
+Контракт Stripe metadata не меняется: `paymentId` указывает на конкретную исходную PURCHASE,
+`subscriptionId` deferred Subscription — на локальную Subscription. Адаптеры Invoice нормализуют
+снимок Subscription metadata в `sourcePaymentId` и `sourceSubscriptionId`; envelope `paymentId`
+для renewal остаётся null. Для initial Subscription без metadata subscriptionId используется
+уже установленная локальная связь конкретной исходной Payment.
+
+Исходная Payment должна быть SUCCEEDED с paidAt и установленными local/provider Subscription links.
+Она предоставляет userId, planId, periodCount, periodUnit и локальную связь, но её amount/currency
+не сравниваются с новым Invoice и не копируются в renewal. Новая сумма и валюта берутся из Invoice
+(amount_due при finalized, amount_paid при paid). Контракт recurring-подписки не изменяется.
+
+`ConfirmRenewalPaymentUseCase` обрабатывает найденную или возвращённую upsert Payment единым путём,
+без рекурсии/повторного поиска и максимум с одной попыткой подтверждения. Проверяются все поля
+контекста конкурентного upsert. Недоступный source-контекст/привязка и исчезнувшая после UPDATE
+renewal вызывают retryable PAYMENT_PERSISTENCE_FAILED вместо IGNORED/PAYMENT_NOT_FOUND.
+Повтор остаётся ответственностью workflow; ручная reconciliation может потребоваться при
+постоянно отсутствующем metadata. Старые нормализованные события читаются, но автоматически
+не обогащаются из snapshot. Существующая renewal может обрабатываться без source metadata.
+
+Скидки/credit balance/нулевые суммы и смена recurring-контракта по-прежнему не входят в scope.
+Сумма существующей PENDING сверяется с paid Invoice; данный рефакторинг исправляет сравнение
+с историческим source, не вводит отдельную модель expected/collected amounts.
+Фактические проверки этого изменения не запускались согласно verification policy.
+
+
+## Workflow V7: bounded application retry и reconciliation (2026-10-23, ожидает review)
+
+Это уточнение заменяет прежнее утверждение, что markRetrying + throw автоматически планирует
+повтор application-транзакции. В установленном DBOS datasource.runTransaction нельзя вызывать
+внутри @DBOS.step. V7 использует workflow-level bounded loop, отдельную транзакцию на попытку
+и durable DBOS.sleepSeconds между попытками. Лимит 10 попыток; интервалы 10, 20, 40, 80, 160,
+320, 640, 1280, 2560 секунд (суммарно 5110 секунд ожидания без времени выполнения).
+V6 остаётся зарегистрированным с прежней последовательностью durable-операций; новые события
+запускают processPaymentWebhookV7. Существующие workflow не мигрируются автоматически.
+
+RenewalPaymentContextUnavailableError имеет собственный application error code и больше не
+наследуется от PaymentPersistenceError. SOURCE_PAYMENT_NOT_FOUND и SOURCE_NOT_LINKED повторяются;
+SOURCE_METADATA_MISSING и PAYMENT_DISAPPEARED сразу требуют reconciliation. После исчерпания
+application-попыток событие получает RECONCILIATION_REQUIRED и код PAYMENT_APPLICATION_RETRIES_EXHAUSTED
+с кодом последней ошибки в безопасном audit message. Противоречивые business outcomes остаются DEAD.
+
+RECONCILIATION_REQUIRED — состояние PaymentWebhook, не Payment. processedAt остаётся null.
+Оно останавливает текущий workflow без изменения финансового статуса Payment. Административный
+API/worker восстановления metadata и запуска нового replay не добавлен; состояние явно выделяет
+работу для reconciliation, а не обещает самовосстановление неизменяемого события.
+
+V7 повторяет application-транзакции финансовой reconciliation, D2 linking и локальной фиксации
+результатов provider calls. Успешный внешний step не повторяется из-за ошибки следующей локальной
+записи. До появления inbox-записи также есть ограниченные durable retries; если БД недоступна
+весь лимит, workflow завершается ошибкой, так как фиксировать reconciliation ещё негде.
+Ошибка записи RETRYING не блокирует планирование следующей durable-попытки. Финальное сохранение
+DEAD/reconciliation по-прежнему требует доступности БД.
+
+Для datasource recovery безопасная классификация ошибки сохраняется в serializable Error envelope
+до rollback: решение не зависит от сохранения prototype пользовательского exception после replay.
+Неизвестные provider/SQL тексты не попадают в audit envelope. Миграция добавляет значение
+WebhookProcessingStatus.RECONCILIATION_REQUIRED; применять её нужно до запуска V7.
+Prisma Client сгенерирован штатной командой. Tests/build/lint не запускались.

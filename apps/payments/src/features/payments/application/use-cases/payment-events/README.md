@@ -116,6 +116,35 @@ terminal-доказательством не являются.
 
 ## Когда создавать Payment для автоматического продления
 
+### Первый срез: invoice.finalized (ожидает review)
+
+- Добавлены нормализация `invoice.finalized`, `EnsureRenewalPaymentUseCase` и атомарный
+  `ensurePendingRenewal` по уникальному `(providerType, providerInvoiceId)`.
+- Поддерживается только `subscription_cycle`. `subscription_create` здесь игнорируется.
+- Скидки недоступны, кредитный баланс не используется. Источник контекста — конкретная исходная
+  PURCHASE/SUCCEEDED Payment по `paymentId` из снимка Subscription metadata в Invoice.
+  Из неё берутся пользователь, план и период. Текущий Plan и первая найденная историческая Payment
+  не используются. Metadata Stripe не расширяется.
+- Сумма новой pending Payment берётся из `amount_due`, валюта — из Invoice. Сумма и валюта исходной
+  покупки не являются ожидаемыми финансовыми параметрами нового Invoice.
+  Нулевой Invoice по-прежнему не поддерживается и получает `AMOUNT_MISMATCH`.
+- `providerPaymentId` при создании остаётся `null`. Модель InvoicePayment, несколько PaymentIntent
+  и обработка их смены внутри Invoice исключены из текущей итерации и не блокируют этот срез.
+- Поздний finalized использует существующий Payment и не меняет его статус или references.
+  Результат `RENEWAL_ENSURED` завершает webhook без D2.
+- Существующий invoice.paid умеет подтвердить этот PENDING; прежний recovery-путь создания успешного
+  renewal сохранён. Извлечение providerPaymentId в paid в этом срезе не изменено.
+
+### Согласованные границы первой итерации
+
+- Следующий event slice после review текущего — `invoice.voided` для отмены неоплаченного renewal.
+- Создание renewal из `invoice.payment_failed` и его recovery-поведение обсуждаются при детализации
+  следующего среза; реализация пока не согласована.
+- InvoicePayment, несколько PaymentIntent на Invoice и обработка их смены не входят в итерацию.
+- `invoice.marked_uncollectible`, скидки, кредитный баланс и бесплатные периоды не входят в итерацию.
+- Изменение цены существующего recurring billing отложено на следующую итерацию.
+- Описание целевого recovery ниже не означает, что он уже реализован или включён в ближайший срез.
+
 ### Решение
 
 Локальный Payment типа `RENEWAL` следует создавать при получении `invoice.finalized` с
@@ -137,9 +166,9 @@ invoice.finalized
        -> invoice.voided          -> перевести в CANCELED
 ```
 
-Один Stripe Invoice соответствует одному локальному renewal Payment. Несколько попыток списания и
-несколько создаваемых Stripe PaymentIntent в рамках одного Invoice не должны создавать несколько
-локальных Payments.
+Один Stripe Invoice соответствует одному локальному renewal Payment. Повторные попытки списания
+не создают дополнительные локальные Payments. Отдельная модель нескольких PaymentIntent в текущей
+итерации не реализуется.
 
 ### Идентичность и корреляция
 
@@ -149,9 +178,9 @@ invoice.finalized
 - Повторная доставка `invoice.finalized` должна возвращать тот же Payment.
 - `providerSubscriptionId` связывает Invoice с текущей provider Subscription и помогает найти
   локальную Subscription.
-- `providerPaymentId` является ссылкой на текущий PaymentIntent, но не идентичностью renewal Payment:
-  повторная попытка оплаты Invoice может использовать другой PaymentIntent.
-- Локальный idempotency key должен детерминированно строиться из provider и `providerInvoiceId`.
+- `providerPaymentId` не является идентичностью renewal Payment; при finalized он не сохраняется.
+- Дедупликация обеспечивается уникальностью `(providerType, providerInvoiceId)`. `idempotentKey`
+  не передаётся в контракте создания renewal; обязательное поле заполняется существующим UUID default БД.
 
 Payment создаётся со следующими начальными значениями:
 
@@ -160,15 +189,19 @@ type                  = RENEWAL
 status                = PENDING
 providerInvoiceId     = Invoice.id
 providerSubscriptionId = Invoice subscription reference
-providerPaymentId     = PaymentIntent ID, если он уже доступен
+providerPaymentId     = null
 subscriptionId        = локальная Subscription
 paidAt                = null
 checkoutPurpose       = null
 ```
 
-План, период, пользователь и локальная Subscription берутся из уже сохранённой связи с provider
-Subscription. Сумма и валюта сверяются с финализированным Invoice. Несовпадение не должно создавать
-частично заполненный Payment.
+План, период и пользователь берутся из конкретной исходной Payment по `sourcePaymentId`,
+нормализованному из Subscription metadata снимка Invoice. Её локальная и provider-связи должны быть
+сохранены. `sourceSubscriptionId`, если передан, сверяется с локальной связью. Initial Subscription
+может содержать только `paymentId`; в этом случае используется установленный `Payment.subscriptionId`.
+Сумма и валюта новой Payment берутся из Invoice, без сравнения с исторической покупкой.
+Отсутствие metadata, исходной Payment или её привязки вызывает повторяемую ошибку на границе workflow;
+fallback к первой Payment по Stripe Subscription ID отсутствует.
 
 ### Как последующие события работают с Payment
 
@@ -186,13 +219,16 @@ Subscription. Сумма и валюта сверяются с финализи�
 
 #### `invoice.paid`
 
-Больше не создаёт сразу успешный renewal Payment. Оно находит существующий Payment по
-`providerInvoiceId`, сверяет сумму, валюту, Subscription, Customer и доступные references, затем
-атомарно переводит `PENDING -> SUCCEEDED` и устанавливает `paidAt`.
+`ConfirmInvoicePaidUseCase` передаёт `subscription_cycle` отдельному `ConfirmRenewalPaymentUseCase`.
+Он находит Payment по `(provider, providerInvoiceId)` и проверяет её до признания success.
+Если Payment отсутствует, use case получает конкретный источник по metadata и выполняет идемпотентный
+upsert успешной renewal с `amount_paid`, валютой и `paidAt` текущего Invoice.
 
-Если `invoice.paid` пришло раньше `invoice.finalized` или локальное создание Payment было пропущено,
-обработчик должен выполнить идемпотентный `ensure renewal Payment` из данных Invoice и сразу подтвердить
-его в одной транзакции. Это recovery-путь, а не основной сценарий.
+Upsert может вернуть конкурентную PENDING от finalized. Эта Payment обрабатывается напрямую:
+проверка полного контекста, затем максимум одна попытка атомарного подтверждения. Рекурсии и повторного
+поиска нет. `NOT_UPDATED` классифицируется по актуальной Payment, которую перечитал repository.
+Совместимая SUCCEEDED даёт идемпотентный успех с исходным `paidAt`; необъяснимое отсутствие обновления
+или исчезновение строки вызывает workflow retry. Все записи выполняются в одной локальной транзакции.
 
 #### `invoice.voided`
 
@@ -207,7 +243,7 @@ Subscription. Сумма и валюта сверяются с финализи�
 
 ### Защита от порядка доставки
 
-Каждый Invoice handler должен начинаться с одной идемпотентной операции `ensure renewal Payment`:
+Целевой recovery-подход для поддерживаемых Invoice handlers (применение к failure ещё обсуждается):
 
 1. найти Payment по `(providerType, providerInvoiceId)`;
 2. если он существует — проверить неизменяемые данные и использовать его;
@@ -218,19 +254,15 @@ Subscription. Сумма и валюта сверяются с финализи�
 Так failure, success или terminal event не потеряются, даже если `invoice.finalized` не был доставлен
 или события были обработаны не в ожидаемом порядке.
 
-### Что нужно изменить в текущей реализации
+### Статус и дальнейшие шаги
 
-Сейчас `ConfirmInvoicePaidUseCase` вызывает `createSuccessfulRenewal` и создаёт renewal Payment только
-после финансового успеха. Для целевой модели нужны отдельные шаги:
-
-1. добавить поддержку и нормализацию `invoice.finalized`;
-2. добавить idempotent use case создания `RENEWAL/PENDING`;
-3. заменить `createSuccessfulRenewal` на `ensurePendingRenewal` и отдельное подтверждение успеха;
-4. перевести `invoice.payment_failed` на корреляцию с уже созданным Payment по Invoice;
-5. добавить `invoice.voided` как terminal cancellation для неоплаченного renewal;
-6. сохранить recovery-upsert в обработчиках `invoice.paid`, `invoice.payment_failed` и
-   `invoice.voided`;
-7. отдельно решить поведение для Invoice с нулевой суммой и `invoice.marked_uncollectible`.
+1. `invoice.finalized` и идемпотентное создание `RENEWAL/PENDING` реализованы, ожидают review.
+2. `invoice.paid` подтверждает существующий pending renewal; прежний recovery через
+   `createSuccessfulRenewal` сохранён. Объединение recovery через ensure ещё не выполнено.
+3. После принятия первого среза детализировать `invoice.voided`; отдельно обсудить необходимость
+   создания renewal из `invoice.payment_failed` и поведение при отсутствии finalized.
+4. Изменение цены recurring billing планируется в следующей итерации. Исключённые возможности
+   перечислены в согласованных границах выше.
 
 Документация Stripe: [Invoice events](https://docs.stripe.com/api/events/types),
 [Invoice finalization](https://docs.stripe.com/api/invoices),
@@ -428,3 +460,38 @@ audit/correlation-событием для всех типов Payment и не в
 
 Отсутствующая nullable provider reference означает отсутствие нового знания. Конфликт возникает только
 тогда, когда сохранённое и входящее непустые значения различаются.
+
+
+### Renewal metadata: уточнение источника контекста
+
+Stripe metadata остаётся прежней: `paymentId` и, для deferred Subscription, `subscriptionId`.
+Из снимка `parent.subscription_details.metadata` (или legacy `subscription_details.metadata`)
+адаптер извлекает внутренние `sourcePaymentId` и `sourceSubscriptionId`. Envelope `paymentId` renewal
+остаётся `null`: исходная покупка не является новой оплатой Invoice. Для ранее сохранённых
+нормализованных событий эти поля optional; без существующей renewal и source-контекста потребуется
+reconciliation/replay из исходного provider snapshot, автоматического backfill нет.
+
+Неизменяемые условия: provider Subscription соответствует исходной покупке, её план и период
+не меняются. Разница новой суммы и исторической оплаты сама по себе не конфликт.
+Сравнение суммы PENDING с `amount_paid` конкретного Invoice остаётся: моделирование скидок, кредитного
+баланса и нескольких платежей Invoice не входит в этот рефакторинг. Поздний finalized не сравнивает
+свою `amount_due` с уже сохранённой собранной суммой SUCCEEDED и ничего в ней не меняет.
+
+
+### Отложенные application-попытки и reconciliation
+
+В `processPaymentWebhookV7` повтор приложения события запланирован явно: максимум 10 попыток
+в отдельных datasource-транзакциях, между ними durable `DBOS.sleepSeconds` с backoff 10 секунд ×2.
+Таймер вызывается вне транзакции. Прежний V6 сохранён для восстановления существующих историй.
+
+- `SOURCE_PAYMENT_NOT_FOUND`, `SOURCE_NOT_LINKED`: ограниченный retry.
+- `SOURCE_METADATA_MISSING`, `PAYMENT_DISAPPEARED`: сразу `PaymentWebhook.RECONCILIATION_REQUIRED`.
+- Исчерпан application retry: `RECONCILIATION_REQUIRED / PAYMENT_APPLICATION_RETRIES_EXHAUSTED`.
+- Доказанный business conflict: прежний `DEAD`.
+
+Ошибка контекста теперь имеет собственный код RENEWAL_PAYMENT_CONTEXT_UNAVAILABLE, не код ошибки
+persistence. В webhook audit сохраняется конкретная allowlisted причина, без сырого exception message.
+Reconciliation не устанавливает Payment FAILED/CANCELED, останавливает дальнейшие шаги и не
+обещает автоматическое восстановление metadata. Отдельный административный replay здесь не реализован.
+События с новым статусом не захватываются обычными recordAttempt/finish операциями.
+Требуется миграция enum до обновления сервиса; откат приложения не удаляет добавленное значение enum.
