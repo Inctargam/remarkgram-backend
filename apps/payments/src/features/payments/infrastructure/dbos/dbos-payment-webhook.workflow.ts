@@ -1,4 +1,3 @@
-import { PaymentWorkflowAttemptError, PaymentWorkflowProcessingStoppedError } from './payment-workflow-attempt.error.js';
 import { ConfiguredInstance, DBOS, type StepConfig } from '@dbos-inc/dbos-sdk';
 import { Injectable, Logger } from '@nestjs/common';
 import { PaymentWebhookEnqueueUnavailableError } from '../../../../common/application/errors/payments.error.js';
@@ -34,7 +33,15 @@ import {
 } from '../../application/use-cases/process-payment-webhook/schedule-provider-subscription-cancellation.use-case.js';
 import { PAYMENT_WEBHOOK_QUEUE } from './dbos-lifecycle.service.js';
 import { MissingDbosWorkflowContextError } from './dbos-payment-webhook.errors.js';
-import { classifyPaymentWorkflowError, isRetryablePaymentWorkflowError, toPaymentEventFailure } from './payment-workflow-error.policy.js';
+import {
+  PaymentWorkflowAttemptError,
+  PaymentWorkflowProcessingStoppedError,
+} from './payment-workflow-attempt.error.js';
+import {
+  classifyPaymentWorkflowError,
+  isRetryablePaymentWorkflowError,
+  toPaymentEventFailure,
+} from './payment-workflow-error.policy.js';
 import { PaymentsDbosDataSource } from './payments-dbos.datasource.js';
 
 const paymentWebhookStepRetryOptions = {
@@ -123,23 +130,45 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
     const eventId = await this.persistPaymentEventWithRetry({ event, workflowId });
     try {
       const result = await this.runApplicationTransactionWithRetry(
-        eventId, 'applyPaymentWebhook',
+        eventId,
+        'applyPaymentWebhook',
         () => this.applyPaymentEvent.execute({ eventId, event }, this.transactionContext()),
         true,
       );
-      if (result.status !== PaymentEventResultStatus.SUCCESS || result.code !== PaymentEventResultCode.PAYMENT_SUCCEEDED)
+      if (
+        result.status !== PaymentEventResultStatus.SUCCESS ||
+        result.code !== PaymentEventResultCode.PAYMENT_SUCCEEDED
+      )
         return;
       const subscriptionResult = await this.runApplicationTransactionWithRetry(
-        eventId, 'linkPaymentToSubscription',
-        () => this.linkPaymentToSubscription.execute({ eventId, payment: result.payment }, this.transactionContext()),
+        eventId,
+        'linkPaymentToSubscription',
+        () =>
+          this.linkPaymentToSubscription.execute(
+            { eventId, payment: result.payment },
+            this.transactionContext(),
+          ),
       );
       if (subscriptionResult.outcome !== 'SCHEDULED') return;
-      const cancellation = await this.scheduleProviderSubscriptionCancellationAtProviderStep(subscriptionResult);
-      await this.runApplicationTransactionWithRetry(eventId, 'recordProviderSubscriptionCancellationScheduled',
-        () => this.scheduleProviderSubscriptionCancellation.recordScheduled(cancellation, this.transactionContext()));
+      const cancellation =
+        await this.scheduleProviderSubscriptionCancellationAtProviderStep(subscriptionResult);
+      await this.runApplicationTransactionWithRetry(
+        eventId,
+        'recordProviderSubscriptionCancellationScheduled',
+        () =>
+          this.scheduleProviderSubscriptionCancellation.recordScheduled(
+            cancellation,
+            this.transactionContext(),
+          ),
+      );
       const created = await this.createDeferredProviderSubscriptionAtProviderStep(cancellation);
-      await this.runApplicationTransactionWithRetry(eventId, 'recordDeferredProviderSubscription',
-        () => this.createDeferredProviderSubscription.recordCreated(cancellation, created, this.transactionContext()));
+      await this.runApplicationTransactionWithRetry(eventId, 'recordDeferredProviderSubscription', () =>
+        this.createDeferredProviderSubscription.recordCreated(
+          cancellation,
+          created,
+          this.transactionContext(),
+        ),
+      );
     } catch (error) {
       if (error instanceof PaymentWorkflowProcessingStoppedError) return;
       // External provider steps retain their own DBOS step retry policy.
@@ -148,7 +177,10 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
     }
   }
 
-  private async persistPaymentEventWithRetry(params: { event: PaymentEvent; workflowId: string }): Promise<string> {
+  private async persistPaymentEventWithRetry(params: {
+    event: PaymentEvent;
+    workflowId: string;
+  }): Promise<string> {
     for (let attempt = 1; ; attempt += 1) {
       try {
         return await this.persistPaymentEventStep(params);
@@ -174,14 +206,17 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
             { name: 'recordPaymentWebhookAttempt' },
           );
         }
-        return await this.dataSource.runTransaction(async () => {
-          try {
-            return await action();
-          } catch (error) {
-            // The transaction still rolls back; only safe classification survives durable error replay.
-            throw new PaymentWorkflowAttemptError(classifyPaymentWorkflowError(error));
-          }
-        }, { name: operation });
+        return await this.dataSource.runTransaction(
+          async () => {
+            try {
+              return await action();
+            } catch (error) {
+              // The transaction still rolls back; only safe classification survives durable error replay.
+              throw new PaymentWorkflowAttemptError(classifyPaymentWorkflowError(error));
+            }
+          },
+          { name: operation },
+        );
       } catch (error) {
         const decision = classifyPaymentWorkflowError(error);
         if (decision.disposition === 'DEAD') {
@@ -192,15 +227,24 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
           throw new PaymentWorkflowProcessingStoppedError();
         }
         if (decision.disposition === 'RECONCILIATION_REQUIRED' || attempt === maxAttempts) {
-          const failure = decision.disposition === 'RECONCILIATION_REQUIRED' ? decision.failure : {
-            code: 'PAYMENT_APPLICATION_RETRIES_EXHAUSTED',
-            message: `${operation}: exhausted ${maxAttempts} attempts; last failure: ${decision.failure.code}`,
-          };
+          const failure =
+            decision.disposition === 'RECONCILIATION_REQUIRED'
+              ? decision.failure
+              : {
+                  code: 'PAYMENT_APPLICATION_RETRIES_EXHAUSTED',
+                  message: `${operation}: exhausted ${maxAttempts} attempts; last failure: ${decision.failure.code}`,
+                };
           await this.dataSource.runTransaction(
             () => this.events.markReconciliationRequired(eventId, failure, this.transactionContext()),
             { name: 'markPaymentWebhookReconciliationRequired' },
           );
-          this.logger.warn({ event: 'payment_webhook_reconciliation_required', eventId, operation, attempt, failureCode: failure.code });
+          this.logger.warn({
+            event: 'payment_webhook_reconciliation_required',
+            eventId,
+            operation,
+            attempt,
+            failureCode: failure.code,
+          });
           throw new PaymentWorkflowProcessingStoppedError();
         }
         try {
@@ -213,7 +257,14 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
           this.logger.warn({ event: 'payment_webhook_retry_audit_unavailable', eventId, operation, attempt });
         }
         const delaySeconds = 10 * 2 ** (attempt - 1);
-        this.logger.warn({ event: 'payment_webhook_retry_scheduled', eventId, operation, attempt, delaySeconds, failureCode: decision.failure.code });
+        this.logger.warn({
+          event: 'payment_webhook_retry_scheduled',
+          eventId,
+          operation,
+          attempt,
+          delaySeconds,
+          failureCode: decision.failure.code,
+        });
         // A checkpointed timer, outside any transaction. Recovery replays completed attempts and timers.
         await DBOS.sleepSeconds(delaySeconds);
       }
