@@ -110,6 +110,26 @@ export class PrismaPaymentEventRepository extends PaymentEventRepository {
     );
   }
 
+  async markReconciliationRequired(
+    eventId: string,
+    failure: PaymentEventFailure,
+    ctx: PaymentsTransactionContext,
+  ): Promise<void> {
+    await this.updateExactlyOne(
+      this.getClient(ctx).paymentWebhook.updateMany({
+        where: { id: eventId, processingStatus: { in: ['RECEIVED', 'RETRYING'] } },
+        data: {
+          processingStatus: 'RECONCILIATION_REQUIRED',
+          processedAt: null,
+          processingErrorCode: failure.code,
+          processingError: this.sanitizeError(failure.message),
+        },
+      }),
+      eventId,
+      'require reconciliation',
+    );
+  }
+
   async markDead(
     eventId: string,
     failure: PaymentEventFailure,

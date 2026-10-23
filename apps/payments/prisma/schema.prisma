@@ -34,6 +34,7 @@ enum PaymentStatus {
 enum WebhookProcessingStatus {
   RECEIVED
   RETRYING
+  RECONCILIATION_REQUIRED
   PROCESSED
   IGNORED
   DEAD

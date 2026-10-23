@@ -170,6 +170,7 @@ function eventRepository() {
     markIgnored: vi.fn<PaymentEventRepository['markIgnored']>(),
     markRetrying: vi.fn<PaymentEventRepository['markRetrying']>(),
     markDead: vi.fn<PaymentEventRepository['markDead']>(),
+    markReconciliationRequired: vi.fn<PaymentEventRepository['markReconciliationRequired']>(),
   } satisfies PaymentEventRepository;
 }
 
