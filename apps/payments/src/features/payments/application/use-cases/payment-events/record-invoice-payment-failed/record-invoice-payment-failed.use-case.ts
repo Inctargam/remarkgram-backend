@@ -18,6 +18,7 @@ export class RecordInvoicePaymentFailedUseCase {
     event: InvoicePaymentFailedEvent,
     ctx: PaymentsTransactionContext,
   ): Promise<PaymentEventResult> {
+    console.debug('event:InvoicePaymentFailedEvent ->', event);
     const payment = await this.findPayment(event, ctx);
     return payment
       ? paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, payment.id)
