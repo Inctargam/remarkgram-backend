@@ -1,28 +1,23 @@
 # Предложения по контрактам D1 ↔ D2
 
-Только для согласования с D1. Эти изменения сигнатур не применены; D2 работает с текущими контрактами.
+Предложения для согласования с D1. В коде сохраняются текущие контракты.
 
 ## Предлагаемые изменения
 
-- `markProviderSubscriptionCancellationScheduled`: заменить subscriptionId на paymentId.
-  Тогда операция находится по PK, исчезают поиск по паре ID и проверка неоднозначности.
-- `bindProviderSubscription`: убрать subscriptionId. Локальная подписка уже связана с операцией по paymentId.
+- `markProviderSubscriptionCancellationScheduled`: переименовать в `confirmAutoRenewalCancellation`.
+  Метод фиксирует подтверждённое провайдером отключение автопродления старой подписки;
+  оплаченный доступ сохраняется до конца периода. Внешний вызов выполняет D1.
+  Вместо ID новой локальной подписки передавать `paymentId`.
+  Старый `providerSubscriptionId` и `tx` оставить. D2 найдёт операцию напрямую по платежу:
+  исчезнут поиск по новой подписке и старому provider ID и проверка нескольких совпадений.
+- `bindProviderSubscription`: убрать аргумент `subscriptionId`, оставить `paymentId`, новый
+  `providerSubscriptionId` и `tx`. ID локальной подписки уже сохранён в операции платежа;
+  исчезнет проверка совпадения сохранённого и переданного ID.
 - `findActiveSubscriptionForPurchase`: заменить на `hasActiveSubscription(userId): Promise<boolean>`.
-  D1 нужна только информация о наличии подписки; ошибки чтения не превращать в false.
-- `SuccessfulPayment`: убрать targetSubscriptionId. PURCHASE выбирает очередь по userId,
-  RENEWAL — подписку по provider + providerSubscriptionId. Хранение снимка в Payment обсудить отдельно.
-
-## Что должен обеспечить D1
-
-- Вызывать `applySuccessfulPayment` только для подтверждённой оплаты. Передавать userId, planId
-  и длительность из сохранённого Payment; paidAt — время оплаты в UTC ISO, periodCount — положительное
-  целое, periodUnit — DAY/WEEK/MONTH. Для PURCHASE задавать boolean autoRenewalRequested.
-- При повторе той же оплаты сохранять paymentId, пользователя, тариф, длительность, paidAt
-  и намерение автопродления.
-- Передавать непустой providerSubscriptionId для RENEWAL и первой покупки с автопродлением.
-  В `bindProviderSubscription` передавать ID новой provider-подписки; при повторе — тот же ID.
-- Подтверждать отключение только после ответа провайдера для старого ID из
-  previousProviderSubscriptionId. Вызывать привязку после фиксации отключения и создания новой
-  provider-подписки; оба вызова должны относиться к той же покупке.
-- Передавать общий tx для записей D1 и D2 внутри каждого локального шага.
-  При ошибке D2 откатывать весь шаг и не помечать webhook обработанным.
+  Для выбора первой или дополнительной покупки D1 достаточно факта наличия активной подписки.
+  Это потребует отказаться от сохранения её ID в `Payment.targetSubscriptionId` для новых покупок.
+  `false` означает отсутствие подписки; ошибка чтения остаётся ошибкой.
+- `SuccessfulPayment`: убрать `targetSubscriptionId` — D2 не использует этот снимок Checkout.
+  При PURCHASE D2 определяет начало нового периода по оплаченным периодам пользователя (`userId`),
+  включая ещё не начавшиеся. При RENEWAL находит продлеваемую подписку по паре
+  `provider` + `providerSubscriptionId`. Хранение старых значений в Payment можно сохранить.
