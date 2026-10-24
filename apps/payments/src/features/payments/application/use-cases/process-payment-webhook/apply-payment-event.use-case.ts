@@ -1,16 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PaymentEventKind } from '../../../domain/payment-event-kind.js';
-import type {
-  CheckoutSessionCompletedEvent,
-  CheckoutSessionExpiredEvent,
-  InvoicePaidEvent,
-  InvoiceFinalizedEvent,
-  InvoicePaymentFailedEvent,
-  PaymentEvent,
-  PaymentIntentCanceledEvent,
-  PaymentIntentPaymentFailedEvent,
-  PaymentIntentSucceededEvent,
-} from '../../events/payment-event.js';
+import type { PaymentEvent } from '../../events/payment-event.js';
 import { PaymentEventRepository } from '../../ports/payment-event.repository.js';
 import type { PaymentsTransactionContext } from '../../ports/payments-unit-of-work.js';
 import { EnsureRenewalPaymentUseCase } from '../payment-events/ensure-renewal-payment/ensure-renewal-payment.use-case.js';
@@ -33,6 +23,15 @@ export type ApplyPaymentEventParams = {
   event: PaymentEvent;
 };
 
+type PaymentEventHandlers = {
+  readonly [Kind in PaymentEvent['kind']]: {
+    execute(
+      event: Extract<PaymentEvent, { kind: Kind }>,
+      ctx: PaymentsTransactionContext,
+    ): Promise<PaymentEventResult>;
+  };
+};
+
 /**
  * Application boundary for the first payment-webhook step.
  *
@@ -41,47 +40,50 @@ export type ApplyPaymentEventParams = {
  */
 @Injectable()
 export class ApplyPaymentEventUseCase {
+  private readonly handlers: PaymentEventHandlers;
+
   constructor(
     private readonly events: PaymentEventRepository,
-    private readonly applyCheckoutSessionCompleted: ApplyCheckoutSessionCompletedUseCase,
-    private readonly cancelExpiredCheckoutSession: CancelExpiredCheckoutSessionUseCase,
-    private readonly confirmPaymentIntentSucceeded: ConfirmPaymentIntentSucceededUseCase,
-    private readonly confirmInvoicePaid: ConfirmInvoicePaidUseCase,
-    private readonly recordPaymentIntentFailed: RecordPaymentIntentFailedUseCase,
-    private readonly cancelPaymentIntent: CancelPaymentIntentUseCase,
-    private readonly recordInvoicePaymentFailed: RecordInvoicePaymentFailedUseCase,
-    private readonly ensureRenewalPayment: EnsureRenewalPaymentUseCase,
-  ) {}
+    applyCheckoutSessionCompleted: ApplyCheckoutSessionCompletedUseCase,
+    cancelExpiredCheckoutSession: CancelExpiredCheckoutSessionUseCase,
+    confirmPaymentIntentSucceeded: ConfirmPaymentIntentSucceededUseCase,
+    confirmInvoicePaid: ConfirmInvoicePaidUseCase,
+    recordPaymentIntentFailed: RecordPaymentIntentFailedUseCase,
+    cancelPaymentIntent: CancelPaymentIntentUseCase,
+    recordInvoicePaymentFailed: RecordInvoicePaymentFailedUseCase,
+    ensureRenewalPayment: EnsureRenewalPaymentUseCase,
+  ) {
+    this.handlers = {
+      [PaymentEventKind.CHECKOUT_SESSION_COMPLETED]: applyCheckoutSessionCompleted,
+      [PaymentEventKind.CHECKOUT_SESSION_EXPIRED]: cancelExpiredCheckoutSession,
+      [PaymentEventKind.PAYMENT_INTENT_SUCCEEDED]: confirmPaymentIntentSucceeded,
+      [PaymentEventKind.INVOICE_FINALIZED]: ensureRenewalPayment,
+      [PaymentEventKind.INVOICE_PAID]: confirmInvoicePaid,
+      [PaymentEventKind.PAYMENT_INTENT_PAYMENT_FAILED]: recordPaymentIntentFailed,
+      [PaymentEventKind.PAYMENT_INTENT_CANCELED]: cancelPaymentIntent,
+      [PaymentEventKind.INVOICE_PAYMENT_FAILED]: recordInvoicePaymentFailed,
+    };
+  }
 
   async execute(
     params: ApplyPaymentEventParams,
     ctx: PaymentsTransactionContext,
   ): Promise<PaymentEventResult> {
     const { eventId, event } = params;
-    const eventKind: string = event.kind;
-
-    let result: PaymentEventResult;
-    if (eventKind === (PaymentEventKind.CHECKOUT_SESSION_COMPLETED as string)) {
-      result = await this.applyCheckoutSessionCompleted.execute(event as CheckoutSessionCompletedEvent, ctx);
-    } else if (eventKind === (PaymentEventKind.CHECKOUT_SESSION_EXPIRED as string)) {
-      result = await this.cancelExpiredCheckoutSession.execute(event as CheckoutSessionExpiredEvent, ctx);
-    } else if (eventKind === (PaymentEventKind.PAYMENT_INTENT_SUCCEEDED as string)) {
-      result = await this.confirmPaymentIntentSucceeded.execute(event as PaymentIntentSucceededEvent, ctx);
-    } else if (eventKind === (PaymentEventKind.INVOICE_FINALIZED as string)) {
-      result = await this.ensureRenewalPayment.execute(event as InvoiceFinalizedEvent, ctx);
-    } else if (eventKind === (PaymentEventKind.INVOICE_PAID as string)) {
-      result = await this.confirmInvoicePaid.execute(event as InvoicePaidEvent, ctx);
-    } else if (eventKind === (PaymentEventKind.PAYMENT_INTENT_PAYMENT_FAILED as string)) {
-      result = await this.recordPaymentIntentFailed.execute(event as PaymentIntentPaymentFailedEvent, ctx);
-    } else if (eventKind === (PaymentEventKind.PAYMENT_INTENT_CANCELED as string)) {
-      result = await this.cancelPaymentIntent.execute(event as PaymentIntentCanceledEvent, ctx);
-    } else if (eventKind === (PaymentEventKind.INVOICE_PAYMENT_FAILED as string)) {
-      result = await this.recordInvoicePaymentFailed.execute(event as InvoicePaymentFailedEvent, ctx);
-    } else {
-      result = paymentEventResult.ignored(PaymentEventResultCode.UNSUPPORTED_EVENT_KIND);
-    }
+    const result = await this.dispatch(event, ctx);
 
     return this.finish(eventId, result, ctx);
+  }
+
+  private async dispatch(event: PaymentEvent, ctx: PaymentsTransactionContext): Promise<PaymentEventResult> {
+    if (!Object.prototype.hasOwnProperty.call(this.handlers, event.kind)) {
+      return paymentEventResult.ignored(PaymentEventResultCode.UNSUPPORTED_EVENT_KIND);
+    }
+
+    const handler = this.handlers[event.kind];
+    // The mapped type checks each registration; TypeScript loses the key/event
+    // correlation on dynamic lookup, so the assertion stays at this boundary.
+    return handler.execute(event as never, ctx);
   }
 
   private async finish(
