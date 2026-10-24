@@ -21,6 +21,7 @@ export function createSuccessfulPayment(payment: Payment): SuccessfulPayment {
     periodUnit: payment.periodUnit,
     provider: payment.providerType,
     providerCustomerId: payment.providerCustomerId,
+    providerSubscriptionId: payment.providerSubscriptionId,
     paidAt: payment.paidAt.toISOString(),
   };
 }

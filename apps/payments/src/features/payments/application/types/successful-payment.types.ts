@@ -14,5 +14,7 @@ export type SuccessfulPayment = Readonly<{
   periodUnit: Payment['periodUnit'];
   provider: Payment['providerType'];
   providerCustomerId: string | null;
+  /** Optional for compatibility with previously saved workflow arguments. */
+  providerSubscriptionId?: string | null;
   paidAt: string;
 }>;
