@@ -13,46 +13,53 @@ const RETRYABLE_PAYMENT_ERROR_CODES = new Set<PaymentsErrorCode>([
   PaymentsErrorCode.PAYMENT_PERSISTENCE_FAILED,
 ]);
 
-/** Unknown failures are retryable so an unclassified infrastructure failure cannot lose an event. */
-export const isRetryablePaymentWorkflowError = (error: unknown): boolean => {
-  const recorded = PaymentWorkflowAttemptError.read(error);
-  if (recorded) return recorded.disposition === 'RETRY';
-  if (error instanceof RenewalPaymentContextUnavailableError)
-    return error.reason === 'SOURCE_PAYMENT_NOT_FOUND' || error.reason === 'SOURCE_NOT_LINKED';
-  if (error instanceof DbosErrors.DBOSMaxStepRetriesError) return false;
-  if (error instanceof PaymentsError) return RETRYABLE_PAYMENT_ERROR_CODES.has(error.code);
-  return true;
-};
-
-export const toPaymentEventFailure = (error: unknown): PaymentEventFailure => {
-  const recorded = PaymentWorkflowAttemptError.read(error);
-  if (recorded) return recorded.failure;
-  if (error instanceof RenewalPaymentContextUnavailableError)
-    return { code: `RENEWAL_${error.reason}`, message: `Renewal payment context: ${error.reason}` };
-  if (error instanceof DbosErrors.DBOSMaxStepRetriesError)
-    return {
-      code: 'DBOS_STEP_RETRIES_EXHAUSTED',
-      message: 'Payment webhook provider step exhausted its retry policy',
-    };
-  if (error instanceof PaymentsError)
-    return {
-      code: error.code,
-      message: `Payment webhook processing failed with ${error.code}`,
-    };
-  return {
-    code: 'UNEXPECTED_WORKFLOW_ERROR',
-    message: 'Payment webhook processing failed unexpectedly',
-  };
-};
-
+/**
+ * Единственное место с правилами классификации ошибок:
+ * RETRY — операция допускает повтор; DEAD — обработку события нужно завершить;
+ * RECONCILIATION_REQUIRED — требуется отдельное восстановление или разбор контекста.
+ * Возвращает только безопасные данные для аудита, без исходных SQL/provider-сообщений.
+ */
 export const classifyPaymentWorkflowError = (error: unknown): PaymentWorkflowAttemptFailure => {
+  // При replay используем сохранённое решение, даже если прототип исходной ошибки утрачен.
   const recorded = PaymentWorkflowAttemptError.read(error);
   if (recorded) return recorded;
-  if (error instanceof RenewalPaymentContextUnavailableError &&
-    (error.reason === 'SOURCE_METADATA_MISSING' || error.reason === 'PAYMENT_DISAPPEARED'))
-    return { disposition: 'RECONCILIATION_REQUIRED', failure: toPaymentEventFailure(error) };
+  if (error instanceof RenewalPaymentContextUnavailableError) {
+    // Отсутствующие привязки могут появиться после обработки другого события.
+    // Отсутствие metadata или исчезновение Payment требуют reconciliation.
+    const requiresReconciliation =
+      error.reason === 'SOURCE_METADATA_MISSING' || error.reason === 'PAYMENT_DISAPPEARED';
+    return {
+      disposition: requiresReconciliation ? 'RECONCILIATION_REQUIRED' : 'RETRY',
+      failure: { code: `RENEWAL_${error.reason}`, message: `Renewal payment context: ${error.reason}` },
+    };
+  }
+  // Лимит provider step уже исчерпан: новый цикл повторов здесь не создаём.
+  if (error instanceof DbosErrors.DBOSMaxStepRetriesError) {
+    return {
+      disposition: 'DEAD',
+      failure: {
+        code: 'DBOS_STEP_RETRIES_EXHAUSTED',
+        message: 'Payment webhook provider step exhausted its retry policy',
+      },
+    };
+  }
+  if (error instanceof PaymentsError) {
+    return {
+      disposition: RETRYABLE_PAYMENT_ERROR_CODES.has(error.code) ? 'RETRY' : 'DEAD',
+      failure: { code: error.code, message: `Payment webhook processing failed with ${error.code}` },
+    };
+  }
+  // Неизвестную ошибку считаем повторяемой: отсутствие классификации не должно терять событие.
   return {
-    disposition: isRetryablePaymentWorkflowError(error) ? 'RETRY' : 'DEAD',
-    failure: toPaymentEventFailure(error),
+    disposition: 'RETRY',
+    failure: { code: 'UNEXPECTED_WORKFLOW_ERROR', message: 'Payment webhook processing failed unexpectedly' },
   };
 };
+
+// Удобные представления одного решения: для shouldRetry и для записи audit-ошибки.
+// Дополнительных правил классификации в этих функциях нет.
+export const isRetryablePaymentWorkflowError = (error: unknown): boolean =>
+  classifyPaymentWorkflowError(error).disposition === 'RETRY';
+
+export const toPaymentEventFailure = (error: unknown): PaymentEventFailure =>
+  classifyPaymentWorkflowError(error).failure;

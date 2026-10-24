@@ -11,21 +11,13 @@ import type { PaymentsTransactionContext } from '../../application/ports/payment
 import {
   PaymentEventResultCode,
   PaymentEventResultStatus,
-  type PaymentEventResult,
 } from '../../application/use-cases/payment-events/payment-event-result.js';
-import {
-  ApplyPaymentEventUseCase,
-  type ApplyPaymentEventParams,
-} from '../../application/use-cases/process-payment-webhook/apply-payment-event.use-case.js';
+import { ApplyPaymentEventUseCase } from '../../application/use-cases/process-payment-webhook/apply-payment-event.use-case.js';
 import {
   CreateDeferredProviderSubscriptionUseCase,
   type CreateDeferredProviderSubscriptionParams,
 } from '../../application/use-cases/process-payment-webhook/create-deferred-provider-subscription.use-case.js';
-import {
-  LinkPaymentToSubscriptionUseCase,
-  type LinkPaymentToSubscriptionParams,
-  type LinkPaymentToSubscriptionResult,
-} from '../../application/use-cases/process-payment-webhook/link-payment-to-subscription.use-case.js';
+import { LinkPaymentToSubscriptionUseCase } from '../../application/use-cases/process-payment-webhook/link-payment-to-subscription.use-case.js';
 import {
   ScheduleProviderSubscriptionCancellationUseCase,
   type ScheduleProviderSubscriptionCancellationParams,
@@ -35,15 +27,28 @@ import { PAYMENT_WEBHOOK_QUEUE } from './dbos-lifecycle.service.js';
 import { MissingDbosWorkflowContextError } from './dbos-payment-webhook.errors.js';
 import {
   PaymentWorkflowAttemptError,
-  PaymentWorkflowProcessingStoppedError,
+  type PaymentWorkflowAttemptFailure,
 } from './payment-workflow-attempt.error.js';
+import {
+  DbosPaymentWebhookRetryService,
+  PaymentWebhookRetryError,
+  type PaymentWebhookRetryAttempt,
+  type PaymentWebhookRetryPolicy,
+} from './dbos-payment-webhook-retry.service.js';
 import {
   classifyPaymentWorkflowError,
   isRetryablePaymentWorkflowError,
-  toPaymentEventFailure,
 } from './payment-workflow-error.policy.js';
 import { PaymentsDbosDataSource } from './payments-dbos.datasource.js';
 
+// Повторы локальной операции: до 10 попыток с паузами 10, 20, 40, ... секунд.
+const paymentWebhookApplicationRetryPolicy = {
+  maxAttempts: 10,
+  initialDelaySeconds: 10,
+  backoffRate: 2,
+} satisfies PaymentWebhookRetryPolicy;
+
+// Внешние запросы повторяет сам DBOS через @DBOS.step, отдельно от локальных транзакций.
 const paymentWebhookStepRetryOptions = {
   retriesAllowed: true,
   maxAttempts: 10,
@@ -62,9 +67,14 @@ const createDeferredProviderSubscriptionStepOptions = {
   name: 'createDeferredProviderSubscriptionStep',
 } satisfies StepConfig;
 
+/**
+ * Координирует обработку webhook: задаёт порядок операций, границы транзакций и итог события.
+ * Бизнес-действия выполняют use cases; retry-сервис отвечает только за попытки и ожидание.
+ */
 @Injectable()
 export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements PaymentWebhookWorkflow {
   private readonly logger = new Logger(DbosPaymentWebhookWorkflow.name);
+  private readonly retry = new DbosPaymentWebhookRetryService();
 
   constructor(
     private readonly dataSource: PaymentsDbosDataSource,
@@ -74,34 +84,24 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
     private readonly scheduleProviderSubscriptionCancellation: ScheduleProviderSubscriptionCancellationUseCase,
     private readonly createDeferredProviderSubscription: CreateDeferredProviderSubscriptionUseCase,
   ) {
-    // DBOS uses this stable instance name to reconnect recovered workflows to
-    // the NestJS object containing their injected dependencies.
+    // По этому имени DBOS связывает восстанавливаемое выполнение с экземпляром NestJS
+    // и его внедрёнными зависимостями.
     super('payment-webhook-workflow');
   }
 
   async enqueue(event: PaymentEvent): Promise<EnqueuePaymentWebhookResult> {
     const workflowId = this.workflowId(event);
-    /** 
-     *  возвращается после записи workflow в системную БД DBOS. 
-     * Поэтому HTTP endpoint не ждёт изменения `Payment`, но к моменту ответа DBOS уже принял ответственность за дальнейшее выполнение.
-     *  
-     * Это устраняет опасный промежуток классического inbox-подхода:
-        INSERT payment_webhooks → COMMIT → падение процесса → запуск worker не состоялся
-
-        В новой схеме сначала durable создаётся workflow. Запись `PaymentWebhook` создаёт уже сам workflow.
-     */
+    // Сначала DBOS сохраняет задачу в системной БД. Запись webhook в БД payments
+    // создаётся позднее самим process(); HTTP-запрос не ждёт обработки платежа.
     try {
       await DBOS.startWorkflow(this, {
-        // workflowID связывает событие с одной durable-историей: после падения DBOS
-        // продолжит именно это выполнение, а не создаст новую обработку webhook.
+        // Стабильный ID связывает повторные доставки события с одной историей выполнения.
         workflowID: workflowId,
-        // return-existing предписывает при повторной постановке вернуть handle уже
-        // существующего workflow вместо ошибки о занятом deduplication slot.
+        // При повторной постановке возвращаем существующее выполнение.
         duplicationPolicy: 'return-existing',
         queueName: PAYMENT_WEBHOOK_QUEUE,
-        // В DBOS 4.26.10 политика return-existing требует deduplicationID.
-        // Он резервирует для provider event одно место в очереди и не позволяет
-        // конкурентным повторным доставкам Stripe создать две фоновые задачи.
+        // В DBOS 4.26.10 для return-existing нужен ключ дедупликации очереди.
+        // Одинаковые события используют один ключ даже при конкурентной доставке.
         enqueueOptions: { deduplicationID: workflowId },
       }).process(event);
     } catch (error) {
@@ -112,34 +112,49 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
         paymentId: event.paymentId,
         errorName: error instanceof Error ? error.name : typeof error,
       });
-      // DBOS details must not cross the infrastructure port. A 503 response lets
-      // Stripe redeliver the same event with the same durable workflow identity.
+      // Наружу отдаём application-ошибку без деталей DBOS. Ответ 503 позволяет
+      // провайдеру повторить доставку с тем же идентификатором события.
       throw new PaymentWebhookEnqueueUnavailableError();
     }
 
-    // startWorkflow resolves after DBOS durably records the execution. The
-    // HTTP request does not wait for the workflow's business result.
+    // RECEIVED подтверждает сохранение задачи DBOS, а не финансовый успех платежа.
     return 'RECEIVED';
   }
 
-  // V7 introduces explicit durable application retries; keep V6 registered for existing histories.
-  @DBOS.workflow({ name: 'processPaymentWebhookV7', maxRecoveryAttempts: 10 })
+  // maxRecoveryAttempts ограничивает восстановление после сбоев выполнения.
+  // Лимиты повторов отдельных операций задаются своими retry-политиками выше.
+  @DBOS.workflow({ name: 'processPaymentWebhook', maxRecoveryAttempts: 10 })
   async process(event: PaymentEvent): Promise<void> {
     const workflowId = DBOS.workflowID;
     if (!workflowId) throw new MissingDbosWorkflowContextError();
-    const eventId = await this.persistPaymentEventWithRetry({ event, workflowId });
+    // Задача уже сохранена в DBOS, но запись события в payments ещё нужно создать.
+    // Временный сбой этой БД требует отдельного повтора saveIfAbsent().
+    const eventId = await this.retry
+      .run(() => this.persistPaymentEventStep({ event, workflowId }), {
+        operation: 'persistPaymentWebhook',
+        retry: paymentWebhookApplicationRetryPolicy,
+        shouldRetry: isRetryablePaymentWorkflowError,
+      })
+      .catch((error: unknown) => {
+        // Сохранение события не завершилось: нет подтверждённого eventId для записи статуса.
+        // Поднимаем исходную причину сбоя в DBOS.
+        throw error instanceof PaymentWebhookRetryError ? error.cause : error;
+      });
     try {
+      // 1. Применяем финансовую семантику события в отдельной локальной транзакции.
       const result = await this.runApplicationTransactionWithRetry(
         eventId,
         'applyPaymentWebhook',
         () => this.applyPaymentEvent.execute({ eventId, event }, this.transactionContext()),
-        true,
+        true, // Счётчик processingAttempts учитывает попытки именно этой операции.
       );
+      // Действия с подпиской нужны только после подтверждённой успешной оплаты.
       if (
         result.status !== PaymentEventResultStatus.SUCCESS ||
         result.code !== PaymentEventResultCode.PAYMENT_SUCCEEDED
       )
         return;
+      // 2. Применяем успешную оплату к подписке и связываем её с Payment.
       const subscriptionResult = await this.runApplicationTransactionWithRetry(
         eventId,
         'linkPaymentToSubscription',
@@ -149,7 +164,11 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
             this.transactionContext(),
           ),
       );
+      // FINISHED означает, что локальная обработка завершена. Для SCHEDULED
+      // дополнительно переключаем подписки у платёжного провайдера.
       if (subscriptionResult.outcome !== 'SCHEDULED') return;
+      // 3. Внешний запрос выполняется без открытой локальной транзакции.
+      // Затем отдельно фиксируем подтверждённый результат в БД payments.
       const cancellation =
         await this.scheduleProviderSubscriptionCancellationAtProviderStep(subscriptionResult);
       await this.runApplicationTransactionWithRetry(
@@ -161,6 +180,8 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
             this.transactionContext(),
           ),
       );
+      // 4. Создаём будущую подписку у провайдера и отдельно сохраняем её привязки.
+      // Повтор локальной записи использует результат уже завершённого provider step.
       const created = await this.createDeferredProviderSubscriptionAtProviderStep(cancellation);
       await this.runApplicationTransactionWithRetry(eventId, 'recordDeferredProviderSubscription', () =>
         this.createDeferredProviderSubscription.recordCreated(
@@ -170,69 +191,29 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
         ),
       );
     } catch (error) {
-      if (error instanceof PaymentWorkflowProcessingStoppedError) return;
-      // External provider steps retain their own DBOS step retry policy.
-      await this.recordWorkflowFailure({ eventId, workflowId, event }, error);
-      if (isRetryablePaymentWorkflowError(error)) throw error;
-    }
-  }
-
-  private async persistPaymentEventWithRetry(params: {
-    event: PaymentEvent;
-    workflowId: string;
-  }): Promise<string> {
-    for (let attempt = 1; ; attempt += 1) {
-      try {
-        return await this.persistPaymentEventStep(params);
-      } catch (error) {
-        if (!isRetryablePaymentWorkflowError(error) || attempt === 10) throw error;
-        await DBOS.sleepSeconds(10 * 2 ** (attempt - 1));
-      }
-    }
-  }
-
-  private async runApplicationTransactionWithRetry<T>(
-    eventId: string,
-    operation: string,
-    action: () => Promise<T>,
-    recordAttempt = false,
-  ): Promise<T> {
-    const maxAttempts = 10;
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      try {
-        if (recordAttempt) {
-          await this.dataSource.runTransaction(
-            () => this.events.recordAttempt(eventId, attempt, this.transactionContext()),
-            { name: 'recordPaymentWebhookAttempt' },
-          );
-        }
-        return await this.dataSource.runTransaction(
-          async () => {
-            try {
-              return await action();
-            } catch (error) {
-              // The transaction still rolls back; only safe classification survives durable error replay.
-              throw new PaymentWorkflowAttemptError(classifyPaymentWorkflowError(error));
-            }
-          },
-          { name: operation },
-        );
-      } catch (error) {
-        const decision = classifyPaymentWorkflowError(error);
+      // Обёртка сообщает, какая локальная операция остановилась и на какой попытке.
+      // Решение о конечном статусе события принадлежит этому процессу.
+      if (error instanceof PaymentWebhookRetryError) {
+        const decision = classifyPaymentWorkflowError(error.cause);
+        const { operation, attempt } = error;
+        // Неповторяемая ошибка: завершаем обработку события без изменения
+        // финансового статуса Payment самим workflow.
         if (decision.disposition === 'DEAD') {
           await this.dataSource.runTransaction(
             () => this.events.markDead(eventId, decision.failure, this.transactionContext()),
             { name: 'markPaymentWebhookDead' },
           );
-          throw new PaymentWorkflowProcessingStoppedError();
+          return;
         }
-        if (decision.disposition === 'RECONCILIATION_REQUIRED' || attempt === maxAttempts) {
+        // Невосстановимый автоматически контекст или исчерпание повторов требуют
+        // reconciliation. Сбой самой записи этого статуса выходит наружу из catch.
+        if (decision.disposition === 'RECONCILIATION_REQUIRED' || error.retriesExhausted) {
           const failure =
             decision.disposition === 'RECONCILIATION_REQUIRED'
               ? decision.failure
               : {
                   code: 'PAYMENT_APPLICATION_RETRIES_EXHAUSTED',
-                  message: `${operation}: exhausted ${maxAttempts} attempts; last failure: ${decision.failure.code}`,
+                  message: `${operation}: exhausted ${attempt} attempts; last failure: ${decision.failure.code}`,
                 };
           await this.dataSource.runTransaction(
             () => this.events.markReconciliationRequired(eventId, failure, this.transactionContext()),
@@ -245,68 +226,94 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
             attempt,
             failureCode: failure.code,
           });
-          throw new PaymentWorkflowProcessingStoppedError();
+          return;
         }
-        try {
+        throw error;
+      }
+      // Сюда приходят ошибки вне обёртки локальных операций, в том числе provider steps.
+      // Их повторы настроены на @DBOS.step; эта ветка лишь фиксирует полученный исход.
+      const decision = classifyPaymentWorkflowError(error);
+      await this.recordWorkflowFailure({ eventId, workflowId, event }, decision);
+      if (decision.disposition === 'RETRY') throw error;
+    }
+  }
+
+  /**
+   * Связывает retry с локальной транзакцией. Каждая попытка открывает новую транзакцию;
+   * контекст БД получается внутри неё. Аудит следующего повтора выполняется после rollback.
+   */
+  private runApplicationTransactionWithRetry<T>(
+    eventId: string,
+    operation: string,
+    action: () => Promise<T>,
+    recordAttempt = false,
+  ): Promise<T> {
+    return this.retry.run(
+      async (attempt) => {
+        // Записываем номер попытки отдельно: rollback бизнес-операции не стирает этот аудит.
+        if (recordAttempt) {
           await this.dataSource.runTransaction(
-            () => this.events.markRetrying(eventId, decision.failure, this.transactionContext()),
-            { name: 'markPaymentWebhookRetrying' },
+            () => this.events.recordAttempt(eventId, attempt, this.transactionContext()),
+            { name: 'recordPaymentWebhookAttempt' },
           );
-        } catch {
-          // A database outage can also prevent the audit update. The durable timer must still be scheduled.
-          this.logger.warn({ event: 'payment_webhook_retry_audit_unavailable', eventId, operation, attempt });
         }
-        const delaySeconds = 10 * 2 ** (attempt - 1);
-        this.logger.warn({
-          event: 'payment_webhook_retry_scheduled',
-          eventId,
-          operation,
-          attempt,
-          delaySeconds,
-          failureCode: decision.failure.code,
-        });
-        // A checkpointed timer, outside any transaction. Recovery replays completed attempts and timers.
-        await DBOS.sleepSeconds(delaySeconds);
-      }
-    }
-    throw new Error('Payment application retry loop ended without an outcome');
+        return this.dataSource.runTransaction(
+          async () => {
+            try {
+              return await action();
+            } catch (error) {
+              // DBOS может восстановить ошибку без прототипа исходного класса.
+              // Сохраняем безопасное решение классификатора в сериализуемой обёртке;
+              // исключение по-прежнему откатывает транзакцию.
+              throw new PaymentWorkflowAttemptError(classifyPaymentWorkflowError(error));
+            }
+          },
+          { name: operation },
+        );
+      },
+      {
+        operation,
+        retry: paymentWebhookApplicationRetryPolicy,
+        shouldRetry: isRetryablePaymentWorkflowError,
+        onRetry: (attempt) => this.recordApplicationRetry(eventId, operation, attempt),
+      },
+    );
   }
 
-  // Durable step order is part of workflow history. V6 adds durable failure
-  // classification without changing already recorded V5 histories.
-  @DBOS.workflow({ name: 'processPaymentWebhookV6', maxRecoveryAttempts: 10 })
-  async processV6(event: PaymentEvent): Promise<void> {
-    const workflowId = DBOS.workflowID;
-    if (!workflowId) throw new MissingDbosWorkflowContextError();
-
-    const eventId = await this.persistPaymentEventStep({ event, workflowId });
+  // Этот callback только сохраняет аудит; задержку после него планирует retry-сервис.
+  private async recordApplicationRetry(
+    eventId: string,
+    operation: string,
+    { error, attempt, delaySeconds }: PaymentWebhookRetryAttempt,
+  ): Promise<void> {
+    const { failure } = classifyPaymentWorkflowError(error);
     try {
-      const result = await this.applyPaymentEventStep({ eventId, event });
-      if (
-        result.status === PaymentEventResultStatus.SUCCESS &&
-        result.code === PaymentEventResultCode.PAYMENT_SUCCEEDED
-      ) {
-        const subscriptionResult = await this.linkPaymentToSubscriptionStep({
-          eventId,
-          payment: result.payment,
-        });
-        if (subscriptionResult.outcome === 'SCHEDULED') {
-          const cancellation = await this.scheduleProviderSubscriptionCancellationStep(subscriptionResult);
-          await this.createDeferredProviderSubscriptionStep(cancellation);
-        }
-      }
-    } catch (error) {
-      await this.recordWorkflowFailure({ eventId, workflowId, event }, error);
-      if (isRetryablePaymentWorkflowError(error)) throw error;
+      await this.dataSource.runTransaction(
+        () => this.events.markRetrying(eventId, failure, this.transactionContext()),
+        { name: 'markPaymentWebhookRetrying' },
+      );
+    } catch {
+      // Недоступность аудита не должна отменить запланированный повтор операции.
+      this.logger.warn({ event: 'payment_webhook_retry_audit_unavailable', eventId, operation, attempt });
     }
+    this.logger.warn({
+      event: 'payment_webhook_retry_scheduled',
+      eventId,
+      operation,
+      attempt,
+      delaySeconds,
+      failureCode: failure.code,
+    });
   }
 
+  // Применяет уже готовую классификацию. Запись RETRYING сама по себе не запускает
+  // новую попытку: дальнейшее выполнение зависит от механизма DBOS и вызывающего кода.
   private async recordWorkflowFailure(
     params: { eventId: string; workflowId: string; event: PaymentEvent },
-    error: unknown,
+    decision: PaymentWorkflowAttemptFailure,
   ): Promise<void> {
-    const failure = toPaymentEventFailure(error);
-    const isRetryable = isRetryablePaymentWorkflowError(error);
+    const { failure } = decision;
+    const isRetryable = decision.disposition === 'RETRY';
     const details = {
       event: isRetryable ? 'payment_webhook_retry_scheduled' : 'payment_webhook_marked_dead',
       eventId: params.eventId,
@@ -329,6 +336,7 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
     );
   }
 
+  // Это durable-транзакция datasource, а не @DBOS.step: дубль события не создаёт новую запись.
   private async persistPaymentEventStep(params: {
     event: PaymentEvent;
     workflowId: string;
@@ -340,42 +348,7 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
     return persisted.id;
   }
 
-  private async applyPaymentEventStep(params: ApplyPaymentEventParams): Promise<PaymentEventResult> {
-    const attempt = DBOS.stepStatus?.currentAttempt ?? 1;
-    await this.dataSource.runTransaction(
-      () => this.events.recordAttempt(params.eventId, attempt, this.transactionContext()),
-      { name: 'recordPaymentWebhookAttempt' },
-    );
-
-    return this.dataSource.runTransaction(
-      async () => {
-        const ctx = this.transactionContext();
-        return this.applyPaymentEvent.execute(params, ctx);
-      },
-      { name: 'applyPaymentWebhook' },
-    );
-  }
-
-  private async linkPaymentToSubscriptionStep(
-    params: LinkPaymentToSubscriptionParams,
-  ): Promise<LinkPaymentToSubscriptionResult> {
-    return this.dataSource.runTransaction(
-      () => this.linkPaymentToSubscription.execute(params, this.transactionContext()),
-      { name: 'linkPaymentToSubscription' },
-    );
-  }
-
-  private async scheduleProviderSubscriptionCancellationStep(
-    params: ScheduleProviderSubscriptionCancellationParams,
-  ): Promise<ScheduleProviderSubscriptionCancellationResult> {
-    const result = await this.scheduleProviderSubscriptionCancellationAtProviderStep(params);
-    await this.dataSource.runTransaction(
-      () => this.scheduleProviderSubscriptionCancellation.recordScheduled(params, this.transactionContext()),
-      { name: 'recordProviderSubscriptionCancellationScheduled' },
-    );
-    return result;
-  }
-
+  // Внешний эффект и его результат отслеживает DBOS; локальная фиксация идёт следующим вызовом.
   @DBOS.step(scheduleProviderSubscriptionCancellationStepOptions)
   private async scheduleProviderSubscriptionCancellationAtProviderStep(
     params: ScheduleProviderSubscriptionCancellationParams,
@@ -383,16 +356,7 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
     return this.scheduleProviderSubscriptionCancellation.scheduleAtProvider(params);
   }
 
-  private async createDeferredProviderSubscriptionStep(
-    params: CreateDeferredProviderSubscriptionParams,
-  ): Promise<void> {
-    const created = await this.createDeferredProviderSubscriptionAtProviderStep(params);
-    await this.dataSource.runTransaction(
-      () => this.createDeferredProviderSubscription.recordCreated(params, created, this.transactionContext()),
-      { name: 'recordDeferredProviderSubscription' },
-    );
-  }
-
+  // Создание у провайдера отделено от записи привязок: у них разные границы повторов.
   @DBOS.step(createDeferredProviderSubscriptionStepOptions)
   private async createDeferredProviderSubscriptionAtProviderStep(
     params: CreateDeferredProviderSubscriptionParams,
@@ -400,10 +364,12 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
     return this.createDeferredProviderSubscription.createAtProvider(params);
   }
 
+  // Доступен только внутри runTransaction(); между durable-операциями не передаётся.
   private transactionContext(): PaymentsTransactionContext {
     return this.dataSource.client;
   }
 
+  // ID зависит от события провайдера, поэтому повторная доставка использует ту же задачу.
   private workflowId(event: PaymentEvent): string {
     return `payment-webhook:${event.provider}:${event.providerEventId}`;
   }

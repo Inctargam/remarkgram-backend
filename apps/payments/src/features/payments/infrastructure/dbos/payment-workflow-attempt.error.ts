@@ -6,13 +6,18 @@ export type PaymentWorkflowAttemptFailure = {
   failure: PaymentEventFailure;
 };
 
-/** Preserve a safe decision in Error.message: datasource replay does not preserve custom prototypes. */
+/**
+ * Сохраняет безопасное решение классификатора в Error.message перед rollback транзакции.
+ * При replay datasource может вернуть обычный Error без прототипа нашего класса;
+ * name и сериализованное решение позволяют прочитать прежнюю классификацию.
+ */
 export class PaymentWorkflowAttemptError extends Error {
   constructor(decision: PaymentWorkflowAttemptFailure) {
     super(JSON.stringify(decision));
     this.name = 'PaymentWorkflowAttemptError';
   }
 
+  // Читаем только корректную обёртку; повреждённую классифицируют как неизвестную ошибку.
   static read(error: unknown): PaymentWorkflowAttemptFailure | null {
     if (!(error instanceof Error) || error.name !== 'PaymentWorkflowAttemptError') return null;
     try {
@@ -26,5 +31,3 @@ export class PaymentWorkflowAttemptError extends Error {
   }
 }
 
-/** Local control flow after the durable event outcome has been recorded. */
-export class PaymentWorkflowProcessingStoppedError extends Error {}
