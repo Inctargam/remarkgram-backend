@@ -1,0 +1,7 @@
+export enum AutoRenewalStatus {
+  DISABLED = 'DISABLED',
+  ENABLING = 'ENABLING',
+  ENABLED = 'ENABLED',
+  DISABLING = 'DISABLING',
+  RETIRED = 'RETIRED',
+}
