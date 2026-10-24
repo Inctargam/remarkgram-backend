@@ -1,5 +1,16 @@
 # Payments: контекст для разработки и review
 
+## Актуальная регистрация workflow (2026-10-24)
+
+Для локальной разработки оставлен единственный `DbosPaymentWebhookWorkflow.process`
+с DBOS-именем `processPaymentWebhook`. Legacy `processV6` и используемые только им
+transaction wrappers удалены. Упоминания V6/V7 и сохранения старых регистраций ниже
+описывают историю решений; требование сохранять их отменено пользователем.
+Application retry, provider steps и обработка ошибок текущего сценария сохранены.
+Старые локальные DBOS execution histories не мигрируются и не удаляются автоматически.
+Tests/build/lint/formatter не запускались; рекомендованы workflow/retry/error-policy
+unit tests и проверка типов payments.
+
 ## Назначение документа
 
 Этот файл является стартовым контекстом для агента, который продолжает работу над Payments service.
@@ -969,3 +980,38 @@ DEAD/reconciliation по-прежнему требует доступности 
 Неизвестные provider/SQL тексты не попадают в audit envelope. Миграция добавляет значение
 WebhookProcessingStatus.RECONCILIATION_REQUIRED; применять её нужно до запуска V7.
 Prisma Client сгенерирован штатной командой. Tests/build/lint не запускались.
+
+
+### Infrastructure retry helper (2026-10-23)
+
+Циклы V7 вынесены в `DbosPaymentWebhookRetryService` рядом с DBOS workflow.
+Workflow передаёт явную policy: `maxAttempts: 10`, `initialDelaySeconds: 10`,
+`backoffRate: 2`. Helper — обычный объект без DBOS-декораторов, который использует
+переданные datasource, event repository и logger workflow. Он не добавляет durable
+операций и не меняет их имена, порядок, аргументы или интервалы V7; V6 не изменён.
+`runTransaction` сохраняет audit, safe error envelope и terminal/reconciliation
+семантику. `runBeforeEventPersisted` повторяет начальное сохранение без audit,
+поскольку записи события ещё может не существовать. Provider step retries не изменены.
+Tests/build/lint/formatter не запускались согласно verification policy.
+
+
+### Retry responsibility split (2026-10-24)
+
+Это уточнение заменяет описание ответственности helper от 2026-10-23.
+`classifyPaymentWorkflowError` — единственная функция с правилами классификации
+и построения безопасной audit-ошибки. `isRetryablePaymentWorkflowError` и
+`toPaymentEventFailure` только проецируют её результат для совместимости.
+Retry service больше не зависит от datasource, event repository, logger или
+payment error policy. `run` принимает операцию, retry policy, `shouldRetry` и
+необязательный `onRetry`; выполняет bounded retry и durable sleep. Окончательная
+ошибка поднимается как `PaymentWebhookRetryError` с исходной cause, именем операции,
+номером попытки и признаком исчерпания лимита. Этот envelope создаётся вне durable
+транзакций; безопасный `PaymentWorkflowAttemptError` для transaction replay сохранён.
+Workflow владеет транзакциями и retry audit. В catch `process` фиксируются DEAD или
+RECONCILIATION_REQUIRED; управляющий `PaymentWorkflowProcessingStoppedError` удалён.
+Ошибка финальной записи статуса выходит из process напрямую и не переклассифицируется
+как ошибка платёжной операции. До создания inbox-записи ошибка поднимается без
+фиксации статуса. Лимиты, имена и последовательность durable операций для успешной
+обработки и штатных retry/finalization путей V7 сохранены; V6 и provider retries
+сохраняют прежнее поведение. Добавлены unit-сценарии retry wrapper и сбоя final audit.
+Tests/build/lint/formatter не запускались согласно verification policy.

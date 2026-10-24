@@ -481,9 +481,9 @@ reconciliation/replay из исходного provider snapshot, автомат�
 
 ### Отложенные application-попытки и reconciliation
 
-В `processPaymentWebhookV7` повтор приложения события запланирован явно: максимум 10 попыток
+В `processPaymentWebhook` повтор приложения события запланирован явно: максимум 10 попыток
 в отдельных datasource-транзакциях, между ними durable `DBOS.sleepSeconds` с backoff 10 секунд ×2.
-Таймер вызывается вне транзакции. Прежний V6 сохранён для восстановления существующих историй.
+Таймер вызывается вне транзакции. Для локальной разработки зарегистрирован один workflow без legacy-версий.
 
 - `SOURCE_PAYMENT_NOT_FOUND`, `SOURCE_NOT_LINKED`: ограниченный retry.
 - `SOURCE_METADATA_MISSING`, `PAYMENT_DISAPPEARED`: сразу `PaymentWebhook.RECONCILIATION_REQUIRED`.
