@@ -1,6 +1,7 @@
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import type { PaymentsTransactionContext } from '../../../../payments/application/ports/payments-unit-of-work.js';
-import { SubscriptionPaymentProcessingStatus } from '../../../domain/enums/subscription-payment-processing-status.enum.js';
+import { AutoRenewalOperationStatus } from '../../../domain/enums/auto-renewal-operation-status.enum.js';
+import { AutoRenewalOperationType } from '../../../domain/enums/auto-renewal-operation-type.enum.js';
 import { AutoRenewalStatus } from '../../../domain/enums/auto-renewal-status.enum.js';
 import { SubscriptionBindingConflictError } from '../../errors/subscription-binding-conflict.error.js';
 import { SubscriptionsRepository } from '../../ports/subscriptions.repository.js';
@@ -29,10 +30,13 @@ export class BindProviderSubscriptionUseCase implements ICommandHandler<BindProv
 
     await this.subscriptionsRepository.lockByUserId(owner.userId, tx);
     const application = await this.subscriptionsRepository.findPaymentApplication(paymentId, tx);
+    const operation = application?.autoRenewalOperation;
     if (
       !application ||
       application.result.action !== 'SCHEDULED' ||
-      application.result.subscriptionId !== subscriptionId
+      application.result.subscriptionId !== subscriptionId ||
+      !operation ||
+      operation.type !== AutoRenewalOperationType.TRANSFER
     ) {
       throw new SubscriptionBindingConflictError(
         paymentId,
@@ -42,24 +46,25 @@ export class BindProviderSubscriptionUseCase implements ICommandHandler<BindProv
     }
 
     // Снимок операции распознаёт поздний повтор, не включая автопродление заново.
-    if (application.processingStatus === SubscriptionPaymentProcessingStatus.COMPLETED) {
-      if (application.boundProviderSubscriptionId === providerSubscriptionId) return;
+    if (operation.status === AutoRenewalOperationStatus.COMPLETED) {
+      if (operation.providerSubscriptionId === providerSubscriptionId) return;
       throw new SubscriptionBindingConflictError(
         paymentId,
         providerSubscriptionId,
         'PROVIDER_SUBSCRIPTION_MISMATCH',
       );
     }
-    if (application.processingStatus !== SubscriptionPaymentProcessingStatus.BINDING_PENDING) {
+    if (operation.status !== AutoRenewalOperationStatus.BINDING_PENDING) {
       throw new SubscriptionBindingConflictError(paymentId, providerSubscriptionId, 'CANCELLATION_NOT_CONFIRMED');
     }
 
     await this.subscriptionsRepository.bindProviderSubscription(
       {
+        operationId: operation.id,
         paymentId,
         providerSubscriptionId,
         autoRenewalStatus: AutoRenewalStatus.ENABLED,
-        processingStatus: SubscriptionPaymentProcessingStatus.COMPLETED,
+        status: AutoRenewalOperationStatus.COMPLETED,
       },
       tx,
     );

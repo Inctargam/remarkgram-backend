@@ -1,7 +1,8 @@
 import type { ApplySuccessfulPaymentResult } from '../../../payments/application/ports/subscription-payment.handler.js';
 import type { SuccessfulPayment } from '../../../payments/application/types/successful-payment.types.js';
 import type { AutoRenewalStatus } from '../../domain/enums/auto-renewal-status.enum.js';
-import type { SubscriptionPaymentProcessingStatus } from '../../domain/enums/subscription-payment-processing-status.enum.js';
+import type { AutoRenewalOperationStatus } from '../../domain/enums/auto-renewal-operation-status.enum.js';
+import type { AutoRenewalOperationType } from '../../domain/enums/auto-renewal-operation-type.enum.js';
 import type { SubscriptionStatus } from '../../domain/enums/subscription-status.enum.js';
 
 export type FindActiveSubscriptionResult = {
@@ -29,10 +30,8 @@ export type CreateSubscriptionRepositoryParams = {
   provider: SuccessfulPayment['provider'];
   providerSubscriptionId: string | null;
   autoRenewalStatus: AutoRenewalStatus;
-  autoRenewalChangeId: string | null;
-  previousSubscriptionId: string | null;
   result: ApplySuccessfulPaymentResult;
-  processingStatus: SubscriptionPaymentProcessingStatus;
+  autoRenewalOperation: AutoRenewalOperation | null;
 };
 
 export type RenewSubscriptionRepositoryParams = {
@@ -40,33 +39,43 @@ export type RenewSubscriptionRepositoryParams = {
   expiresAt: Date;
   status: SubscriptionStatus;
   result: ApplySuccessfulPaymentResult;
-  processingStatus: SubscriptionPaymentProcessingStatus;
 };
 
 export type SetSubscriptionAutoRenewalRepositoryParams = {
   subscriptionId: string;
   status: AutoRenewalStatus;
-  changeId: string;
+};
+
+export type AutoRenewalOperation = {
+  id: string;
+  userId: number;
+  type: AutoRenewalOperationType;
+  status: AutoRenewalOperationStatus;
+  paymentId: string | null;
+  subscriptionId: string;
+  provider: SuccessfulPayment['provider'];
+  providerSubscriptionId: string | null;
+  sourceSubscriptionId: string | null;
+  sourceProviderSubscriptionId: string | null;
 };
 
 export type SubscriptionPaymentApplication = {
   paymentId: string;
   userId: number;
   result: ApplySuccessfulPaymentResult;
-  previousSubscriptionId: string | null;
-  processingStatus: SubscriptionPaymentProcessingStatus;
-  boundProviderSubscriptionId: string | null;
+  autoRenewalOperation: AutoRenewalOperation | null;
 };
 
 export type CompleteProviderSubscriptionCancellationRepositoryParams = {
-  paymentId: string;
+  operationId: string;
   autoRenewalStatus: AutoRenewalStatus;
-  processingStatus: SubscriptionPaymentProcessingStatus;
+  status: AutoRenewalOperationStatus;
 };
 
 export type BindProviderSubscriptionRepositoryParams = {
+  operationId: string;
   paymentId: string;
   providerSubscriptionId: string;
   autoRenewalStatus: AutoRenewalStatus;
-  processingStatus: SubscriptionPaymentProcessingStatus;
+  status: AutoRenewalOperationStatus;
 };

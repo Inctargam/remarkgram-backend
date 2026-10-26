@@ -1,6 +1,6 @@
 import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import type { PaymentsTransactionContext } from '../../../../payments/application/ports/payments-unit-of-work.js';
-import { SubscriptionPaymentProcessingStatus } from '../../../domain/enums/subscription-payment-processing-status.enum.js';
+import { AutoRenewalOperationStatus } from '../../../domain/enums/auto-renewal-operation-status.enum.js';
 import { AutoRenewalStatus } from '../../../domain/enums/auto-renewal-status.enum.js';
 import { SubscriptionCancellationConflictError } from '../../errors/subscription-cancellation-conflict.error.js';
 import { SubscriptionsRepository } from '../../ports/subscriptions.repository.js';
@@ -21,7 +21,7 @@ export class MarkProviderSubscriptionCancellationScheduledUseCase implements ICo
 
   async execute(command: MarkProviderSubscriptionCancellationScheduledCommand) {
     const { subscriptionId, providerSubscriptionId, tx } = command;
-    const candidates = await this.subscriptionsRepository.findCancellationApplications(
+    const candidates = await this.subscriptionsRepository.findCancellationOperations(
       subscriptionId,
       providerSubscriptionId,
       tx,
@@ -36,20 +36,20 @@ export class MarkProviderSubscriptionCancellationScheduledUseCase implements ICo
     }
 
     await this.subscriptionsRepository.lockByUserId(owner.userId, tx);
-    const applications = await this.subscriptionsRepository.findCancellationApplications(
+    const operations = await this.subscriptionsRepository.findCancellationOperations(
       subscriptionId,
       providerSubscriptionId,
       tx,
     );
-    const application = applications[0];
-    if (!application || applications.length !== 1) {
+    const operation = operations[0];
+    if (!operation || operations.length !== 1) {
       throw new SubscriptionCancellationConflictError(
         subscriptionId,
         providerSubscriptionId,
-        application ? 'AMBIGUOUS_APPLICATION' : 'APPLICATION_NOT_FOUND',
+        operation ? 'AMBIGUOUS_APPLICATION' : 'APPLICATION_NOT_FOUND',
       );
     }
-    if (!application.previousSubscriptionId) {
+    if (!operation.sourceSubscriptionId) {
       throw new SubscriptionCancellationConflictError(
         subscriptionId,
         providerSubscriptionId,
@@ -59,17 +59,17 @@ export class MarkProviderSubscriptionCancellationScheduledUseCase implements ICo
 
     // Этап операции сохраняется независимо от последующих изменений новой подписки.
     if (
-      application.processingStatus === SubscriptionPaymentProcessingStatus.BINDING_PENDING ||
-      application.processingStatus === SubscriptionPaymentProcessingStatus.COMPLETED
+      operation.status === AutoRenewalOperationStatus.BINDING_PENDING ||
+      operation.status === AutoRenewalOperationStatus.COMPLETED
     ) {
       return;
     }
 
     await this.subscriptionsRepository.completeProviderSubscriptionCancellation(
       {
-        paymentId: application.paymentId,
+        operationId: operation.id,
         autoRenewalStatus: AutoRenewalStatus.RETIRED,
-        processingStatus: SubscriptionPaymentProcessingStatus.BINDING_PENDING,
+        status: AutoRenewalOperationStatus.BINDING_PENDING,
       },
       tx,
     );

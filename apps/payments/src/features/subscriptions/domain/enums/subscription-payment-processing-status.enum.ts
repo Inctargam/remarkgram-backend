@@ -1,5 +1,0 @@
-export enum SubscriptionPaymentProcessingStatus {
-  CANCELLATION_PENDING = 'CANCELLATION_PENDING',
-  BINDING_PENDING = 'BINDING_PENDING',
-  COMPLETED = 'COMPLETED',
-}

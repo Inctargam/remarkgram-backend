@@ -13,10 +13,25 @@ import type {
   CompleteProviderSubscriptionCancellationRepositoryParams,
   SubscriptionPaymentApplication,
   SubscriptionForPayment,
+  AutoRenewalOperation,
 } from '../../application/types/subscriptions.types.js';
 import { AutoRenewalStatus } from '../../domain/enums/auto-renewal-status.enum.js';
-import { SubscriptionPaymentProcessingStatus } from '../../domain/enums/subscription-payment-processing-status.enum.js';
+import { AutoRenewalOperationStatus } from '../../domain/enums/auto-renewal-operation-status.enum.js';
+import { AutoRenewalOperationType } from '../../domain/enums/auto-renewal-operation-type.enum.js';
 import { SubscriptionStatus } from '../../domain/enums/subscription-status.enum.js';
+
+const AUTO_RENEWAL_OPERATION_SELECT = {
+  id: true,
+  userId: true,
+  type: true,
+  status: true,
+  paymentId: true,
+  subscriptionId: true,
+  provider: true,
+  providerSubscriptionId: true,
+  sourceSubscriptionId: true,
+  sourceProviderSubscriptionId: true,
+} satisfies Prisma.AutoRenewalOperationSelect;
 
 @Injectable()
 export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
@@ -59,40 +74,23 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
     }));
   }
 
-  async findCancellationApplications(
+  async findCancellationOperations(
     subscriptionId: string,
     providerSubscriptionId: string,
     tx: PaymentsTransactionContext,
-  ): Promise<SubscriptionPaymentApplication[]> {
+  ): Promise<AutoRenewalOperation[]> {
     const client = tx as Prisma.TransactionClient;
-    const applications = await client.subscriptionPaymentApplication.findMany({
-      where: { subscriptionId, previousProviderSubscriptionId: providerSubscriptionId, action: 'SCHEDULED' },
+    const operations = await client.autoRenewalOperation.findMany({
+      where: {
+        subscriptionId,
+        sourceProviderSubscriptionId: providerSubscriptionId,
+        type: AutoRenewalOperationType.TRANSFER,
+        paymentApplication: { is: { action: 'SCHEDULED' } },
+      },
       take: 2,
-      select: {
-        paymentId: true,
-        payment: { select: { userId: true } },
-        previousSubscriptionId: true,
-        processingStatus: true,
-        boundProviderSubscriptionId: true,
-        subscriptionId: true,
-        action: true,
-        nextSubscriptionStartsAt: true,
-        previousProviderSubscriptionId: true,
-      },
+      select: AUTO_RENEWAL_OPERATION_SELECT,
     });
-    return applications.map((application) => ({
-      paymentId: application.paymentId,
-      userId: application.payment.userId,
-      previousSubscriptionId: application.previousSubscriptionId,
-      processingStatus: SubscriptionPaymentProcessingStatus[application.processingStatus],
-      boundProviderSubscriptionId: application.boundProviderSubscriptionId,
-      result: {
-        subscriptionId: application.subscriptionId,
-        action: application.action,
-        nextSubscriptionStartsAt: application.nextSubscriptionStartsAt.toISOString(),
-        previousProviderSubscriptionId: application.previousProviderSubscriptionId,
-      },
-    }));
+    return operations.map((operation) => this.toAutoRenewalOperation(operation));
   }
 
   async completeProviderSubscriptionCancellation(
@@ -100,14 +98,13 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
     tx: PaymentsTransactionContext,
   ): Promise<void> {
     const client = tx as Prisma.TransactionClient;
-    await client.subscriptionPaymentApplication.update({
-      where: { paymentId: params.paymentId },
+    await client.autoRenewalOperation.update({
+      where: { id: params.operationId },
       data: {
-        processingStatus: params.processingStatus,
-        previousSubscription: {
+        status: params.status,
+        sourceSubscription: {
           update: {
             autoRenewalStatus: params.autoRenewalStatus,
-            autoRenewalChangeId: params.paymentId,
           },
         },
       },
@@ -120,11 +117,11 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
   ): Promise<void> {
     const client = tx as Prisma.TransactionClient;
     try {
-      await client.subscriptionPaymentApplication.update({
-        where: { paymentId: params.paymentId },
+      await client.autoRenewalOperation.update({
+        where: { id: params.operationId },
         data: {
-          processingStatus: params.processingStatus,
-          boundProviderSubscriptionId: params.providerSubscriptionId,
+          status: params.status,
+          providerSubscriptionId: params.providerSubscriptionId,
           subscription: {
             update: {
               providerSubscriptionId: params.providerSubscriptionId,
@@ -159,6 +156,7 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
     tx: PaymentsTransactionContext,
   ): Promise<void> {
     const client = tx as Prisma.TransactionClient;
+    const operation = params.autoRenewalOperation;
     await client.subscription.create({
       data: {
         id: params.result.subscriptionId,
@@ -170,15 +168,26 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
         provider: params.provider,
         providerSubscriptionId: params.providerSubscriptionId,
         autoRenewalStatus: params.autoRenewalStatus,
-        autoRenewalChangeId: params.autoRenewalChangeId,
         paymentApplications: {
           create: {
             paymentId: params.paymentId,
-            previousSubscriptionId: params.previousSubscriptionId,
             action: params.result.action,
-            processingStatus: params.processingStatus,
             nextSubscriptionStartsAt: new Date(params.result.nextSubscriptionStartsAt),
-            previousProviderSubscriptionId: params.result.previousProviderSubscriptionId,
+            autoRenewalOperation: operation
+              ? {
+                  create: {
+                    id: operation.id,
+                    userId: operation.userId,
+                    type: operation.type,
+                    status: operation.status,
+                    subscriptionId: operation.subscriptionId,
+                    provider: operation.provider,
+                    providerSubscriptionId: operation.providerSubscriptionId,
+                    sourceSubscriptionId: operation.sourceSubscriptionId,
+                    sourceProviderSubscriptionId: operation.sourceProviderSubscriptionId,
+                  },
+                }
+              : undefined,
           },
         },
       },
@@ -192,7 +201,7 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
     const client = tx as Prisma.TransactionClient;
     await client.subscription.update({
       where: { id: params.subscriptionId },
-      data: { autoRenewalStatus: params.status, autoRenewalChangeId: params.changeId },
+      data: { autoRenewalStatus: params.status },
     });
   }
 
@@ -210,7 +219,6 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
           create: {
             paymentId: params.paymentId,
             action: params.result.action,
-            processingStatus: params.processingStatus,
             nextSubscriptionStartsAt: new Date(params.result.nextSubscriptionStartsAt),
           },
         },
@@ -228,13 +236,10 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
       select: {
         paymentId: true,
         payment: { select: { userId: true } },
-        previousSubscriptionId: true,
-        processingStatus: true,
-        boundProviderSubscriptionId: true,
+        autoRenewalOperation: { select: AUTO_RENEWAL_OPERATION_SELECT },
         subscriptionId: true,
         action: true,
         nextSubscriptionStartsAt: true,
-        previousProviderSubscriptionId: true,
       },
     });
 
@@ -245,15 +250,26 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
     return {
       paymentId: application.paymentId,
       userId: application.payment.userId,
-      previousSubscriptionId: application.previousSubscriptionId,
-      processingStatus: SubscriptionPaymentProcessingStatus[application.processingStatus],
-      boundProviderSubscriptionId: application.boundProviderSubscriptionId,
+      autoRenewalOperation: application.autoRenewalOperation
+        ? this.toAutoRenewalOperation(application.autoRenewalOperation)
+        : null,
       result: {
         subscriptionId: application.subscriptionId,
         action: application.action,
         nextSubscriptionStartsAt: application.nextSubscriptionStartsAt.toISOString(),
-        previousProviderSubscriptionId: application.previousProviderSubscriptionId,
+        previousProviderSubscriptionId: application.autoRenewalOperation?.sourceProviderSubscriptionId ?? null,
       },
+    };
+  }
+
+  private toAutoRenewalOperation(
+    operation: Prisma.AutoRenewalOperationGetPayload<{ select: typeof AUTO_RENEWAL_OPERATION_SELECT }>,
+  ): AutoRenewalOperation {
+    return {
+      ...operation,
+      type: AutoRenewalOperationType[operation.type],
+      status: AutoRenewalOperationStatus[operation.status],
+      provider: PaymentProviderFactory.create(operation.provider),
     };
   }
 }

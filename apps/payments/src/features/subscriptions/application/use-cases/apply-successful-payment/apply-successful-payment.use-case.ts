@@ -7,7 +7,8 @@ import type { SuccessfulPayment } from '../../../../payments/application/types/s
 import { SubscriptionsRepository } from '../../ports/subscriptions.repository.js';
 import { PaymentType } from '../../../../payments/domain/payment.entity.js';
 import { AutoRenewalStatus } from '../../../domain/enums/auto-renewal-status.enum.js';
-import { SubscriptionPaymentProcessingStatus } from '../../../domain/enums/subscription-payment-processing-status.enum.js';
+import { AutoRenewalOperationStatus } from '../../../domain/enums/auto-renewal-operation-status.enum.js';
+import { AutoRenewalOperationType } from '../../../domain/enums/auto-renewal-operation-type.enum.js';
 import { SubscriptionStatus } from '../../../domain/enums/subscription-status.enum.js';
 import { SubscriptionPaymentConflictError } from '../../errors/subscription-payment-conflict.error.js';
 import type { SubscriptionForPayment } from '../../types/subscriptions.types.js';
@@ -136,7 +137,6 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
         expiresAt,
         status: this.getStatus(subscription.startsAt, expiresAt, now),
         result,
-        processingStatus: SubscriptionPaymentProcessingStatus.COMPLETED,
       },
       tx,
     );
@@ -177,10 +177,8 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
         autoRenewalStatus: payment.autoRenewalRequested
           ? AutoRenewalStatus.ENABLED
           : AutoRenewalStatus.DISABLED,
-        autoRenewalChangeId: null,
-        previousSubscriptionId: null,
         result,
-        processingStatus: SubscriptionPaymentProcessingStatus.COMPLETED,
+        autoRenewalOperation: null,
       },
       tx,
     );
@@ -222,7 +220,6 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
       {
         subscriptionId: lastSubscription.subscriptionId,
         status: AutoRenewalStatus.DISABLING,
-        changeId: payment.paymentId,
       },
       tx,
     );
@@ -238,10 +235,19 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
         provider: payment.provider,
         providerSubscriptionId: null,
         autoRenewalStatus: AutoRenewalStatus.ENABLING,
-        autoRenewalChangeId: payment.paymentId,
-        previousSubscriptionId: lastSubscription.subscriptionId,
         result,
-        processingStatus: SubscriptionPaymentProcessingStatus.CANCELLATION_PENDING,
+        autoRenewalOperation: {
+          id: payment.paymentId,
+          userId: payment.userId,
+          type: AutoRenewalOperationType.TRANSFER,
+          status: AutoRenewalOperationStatus.PENDING,
+          paymentId: payment.paymentId,
+          subscriptionId: result.subscriptionId,
+          provider: payment.provider,
+          providerSubscriptionId: null,
+          sourceSubscriptionId: lastSubscription.subscriptionId,
+          sourceProviderSubscriptionId: lastSubscription.providerSubscriptionId,
+        },
       },
       tx,
     );
