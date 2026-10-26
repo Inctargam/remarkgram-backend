@@ -15,6 +15,25 @@ import { LinkPaymentToSubscriptionUseCase } from './link-payment-to-subscription
 import { createSuccessfulPayment } from './successful-payment.factory.js';
 
 describe('LinkPaymentToSubscriptionUseCase workflow step', () => {
+  it('supplies the persisted provider binding when replaying an older workflow snapshot', async () => {
+    const fixture = createFixture(null, 'sub_initial');
+    const legacyPayment = { ...fixture.params.payment };
+    delete legacyPayment.providerSubscriptionId;
+    fixture.subscriptions.applySuccessfulPayment.mockResolvedValue({
+      subscriptionId: SUBSCRIPTION_ID,
+      action: 'CREATED',
+      nextSubscriptionStartsAt: '2026-11-14T12:00:00.000Z',
+      previousProviderSubscriptionId: null,
+    });
+
+    await fixture.useCase.execute({ ...fixture.params, payment: legacyPayment }, fixture.ctx);
+
+    expect(fixture.subscriptions.applySuccessfulPayment).toHaveBeenCalledWith(
+      { ...legacyPayment, providerSubscriptionId: 'sub_initial' },
+      fixture.ctx,
+    );
+  });
+
   it('atomically links a CREATED subscription and completes the webhook', async () => {
     const fixture = createFixture();
     fixture.subscriptions.applySuccessfulPayment.mockResolvedValue({
@@ -119,7 +138,7 @@ const SUBSCRIPTION_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const SUBSCRIPTION_A_ID = SUBSCRIPTION_ID;
 const SUBSCRIPTION_B_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 
-function createFixture(subscriptionId: string | null = null) {
+function createFixture(subscriptionId: string | null = null, providerSubscriptionId: string | null = null) {
   const payment = Payment.restore({
     id: PAYMENT_ID,
     userId: 42,
@@ -132,7 +151,7 @@ function createFixture(subscriptionId: string | null = null) {
     idempotentKey: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
     providerCheckoutId: 'cs_test',
     providerPaymentId: 'pi_test',
-    providerSubscriptionId: null,
+    providerSubscriptionId,
     providerInvoiceId: null,
     providerCustomerId: 'cus_test',
     checkoutExpiresAt: null,

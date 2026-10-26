@@ -53,8 +53,6 @@ import { StripeInvoiceVoidedAdapter } from './features/payments/infrastructure/s
 import { DbosLifecycleService } from './features/payments/infrastructure/dbos/dbos-lifecycle.service.js';
 import { DbosPaymentWebhookWorkflow } from './features/payments/infrastructure/dbos/dbos-payment-webhook.workflow.js';
 import { PaymentsDbosDataSource } from './features/payments/infrastructure/dbos/payments-dbos.datasource.js';
-import { TemporarySubscriptionContextAdapter } from './features/payments/infrastructure/subscriptions/temporary-subscription-context.adapter.js';
-import { TemporarySubscriptionPaymentHandlerAdapter } from './features/payments/infrastructure/subscriptions/temporary-subscription-payment-handler.adapter.js';
 import { PaymentsProviderSubscriptionAutoRenewalAdapter } from './features/payments/infrastructure/subscriptions/payments-provider-subscription-auto-renewal.adapter.js';
 import { PaymentsGrpcController } from './features/payments/presentation/grpc/payments-grpc.controller.js';
 import { StripeWebhookController } from './features/payments/presentation/http/stripe-webhook.controller.js';
@@ -63,6 +61,16 @@ import { PlansQueryRepository } from './features/plans/application/ports/plans.q
 import { GetPlansQueryHandler } from './features/plans/application/use-cases/get-plans/get-plans.query-handler.js';
 import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-plans.repository.js';
 import { PrismaPlansQueryRepository } from './features/plans/infrastructure/prisma-plans.query-repository.js';
+import { SubscriptionsQueryRepository } from './features/subscriptions/application/ports/subscriptions-query.repository.js';
+import { FindActiveSubscriptionForPurchaseQueryHandler } from './features/subscriptions/application/use-cases/find-active-subscription-for-purchase/find-active-subscription-for-purchase.query-handler.js';
+import { LocalSubscriptionContextAdapter } from './features/subscriptions/infrastructure/payments/local-subscription-context.adapter.js';
+import { PrismaSubscriptionsQueryRepository } from './features/subscriptions/infrastructure/persistence/prisma-subscriptions-query.repository.js';
+import { SubscriptionsRepository } from './features/subscriptions/application/ports/subscriptions.repository.js';
+import { ApplySuccessfulPaymentUseCase } from './features/subscriptions/application/use-cases/apply-successful-payment/apply-successful-payment.use-case.js';
+import { MarkProviderSubscriptionCancellationScheduledUseCase } from './features/subscriptions/application/use-cases/mark-provider-subscription-cancellation-scheduled/mark-provider-subscription-cancellation-scheduled.use-case.js';
+import { BindProviderSubscriptionUseCase } from './features/subscriptions/application/use-cases/bind-provider-subscription/bind-provider-subscription.use-case.js';
+import { LocalSubscriptionPaymentHandlerAdapter } from './features/subscriptions/infrastructure/payments/local-subscription-payment-handler.adapter.js';
+import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastructure/persistence/prisma-subscriptions.repository.js';
 
 @Module({
   imports: [
@@ -137,11 +145,16 @@ import { PrismaPlansQueryRepository } from './features/plans/infrastructure/pris
         StripeInvoiceVoidedAdapter,
       ],
     },
-    // TODO: заменить на адаптер Subscription Module после появления межмодульного контракта.
-    { provide: SubscriptionContextPort, useClass: TemporarySubscriptionContextAdapter },
+    { provide: SubscriptionContextPort, useClass: LocalSubscriptionContextAdapter },
+    { provide: SubscriptionsQueryRepository, useClass: PrismaSubscriptionsQueryRepository },
+    FindActiveSubscriptionForPurchaseQueryHandler,
+    { provide: SubscriptionsRepository, useClass: PrismaSubscriptionsRepository },
+    ApplySuccessfulPaymentUseCase,
+    MarkProviderSubscriptionCancellationScheduledUseCase,
+    BindProviderSubscriptionUseCase,
     {
       provide: SubscriptionPaymentHandler,
-      useClass: TemporarySubscriptionPaymentHandlerAdapter,
+      useClass: LocalSubscriptionPaymentHandlerAdapter,
     },
     PaymentCustomerService,
     CreateCheckoutUseCase,

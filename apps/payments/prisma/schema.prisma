@@ -41,12 +41,13 @@ enum WebhookProcessingStatus {
 }
 
 model Plan {
-  id          Int        @id @default(autoincrement())
-  price       Int
-  currency    Currency   @default(USD)
-  periodCount Int        @default(1) @map("period_count")
-  periodUnit  PeriodUnit @map("period_unit")
-  payments    Payment[]
+  id            Int            @id @default(autoincrement())
+  price         Int
+  currency      Currency       @default(USD)
+  periodCount   Int            @default(1) @map("period_count")
+  periodUnit    PeriodUnit     @map("period_unit")
+  payments      Payment[]
+  subscriptions Subscription[]
 
   @@map("plans")
 }
@@ -96,8 +97,9 @@ model Payment {
   type            PaymentType
   checkoutPurpose CheckoutPurpose? @map("checkout_purpose")
 
-  plan     Plan             @relation(fields: [planId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  webhooks PaymentWebhook[]
+  plan                    Plan                            @relation(fields: [planId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  webhooks                PaymentWebhook[]
+  subscriptionApplication SubscriptionPaymentApplication?
   // customer  PaymentCustomer?  @relation(fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   //составные ограничения
@@ -154,4 +156,114 @@ model PaymentCustomer {
   @@unique([providerType, providerCustomerId])
   @@index([userId])
   @@map("payment_customers")
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+}
+
+enum AutoRenewalStatus {
+  DISABLED
+  ENABLING
+  ENABLED
+  DISABLING
+  // Автопродление этой provider-связи завершено окончательно; оплаченный доступ сохраняется.
+  RETIRED
+}
+
+// Результат применения платежа, а не состояние Subscription.
+enum SubscriptionPaymentAction {
+  CREATED
+  SCHEDULED
+  RENEWED
+}
+
+model Subscription {
+  id     String @id @default(uuid()) @db.Uuid
+  userId Int    @map("user_id")
+  planId Int    @map("plan_id")
+
+  startsAt  DateTime           @map("starts_at") @db.Timestamptz
+  expiresAt DateTime           @map("expires_at") @db.Timestamptz
+  status    SubscriptionStatus
+
+  provider               PaymentProvider
+  providerSubscriptionId String?         @map("provider_subscription_id")
+
+  autoRenewalStatus AutoRenewalStatus @default(DISABLED) @map("auto_renewal_status")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  plan                         Plan                             @relation(fields: [planId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  paymentApplications          SubscriptionPaymentApplication[] @relation("AppliedSubscription")
+  autoRenewalOperations        AutoRenewalOperation[]           @relation("AutoRenewalSubscription")
+  outgoingAutoRenewalOperations AutoRenewalOperation[]           @relation("AutoRenewalSourceSubscription")
+
+  @@unique([provider, providerSubscriptionId])
+  @@unique([userId], where: { status: "ACTIVE" })
+  @@index([userId, startsAt])
+  @@index([status, expiresAt])
+  @@index([planId])
+  @@map("subscriptions")
+}
+
+enum AutoRenewalOperationType {
+  ENABLE
+  DISABLE
+  TRANSFER
+}
+
+enum AutoRenewalOperationStatus {
+  PENDING
+  BINDING_PENDING
+  COMPLETED
+}
+
+// Неизменяемый результат начисления доступа за платёж.
+model SubscriptionPaymentApplication {
+  paymentId      String                    @id @map("payment_id") @db.Uuid
+  subscriptionId String                    @map("subscription_id") @db.Uuid
+  action         SubscriptionPaymentAction
+  // Для SCHEDULED — конец всей оплаченной цепочки, включая текущую покупку.
+  nextSubscriptionStartsAt DateTime @map("next_subscription_starts_at") @db.Timestamptz
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  payment             Payment               @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  subscription        Subscription          @relation("AppliedSubscription", fields: [subscriptionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  autoRenewalOperation AutoRenewalOperation?
+
+  @@index([subscriptionId])
+  @@map("subscription_payment_applications")
+}
+
+// ID TRANSFER равен paymentId; ID ручного изменения устойчиво создаёт будущий DBOS workflow.
+model AutoRenewalOperation {
+  id        String                     @id @db.Uuid
+  userId    Int                        @map("user_id")
+  type      AutoRenewalOperationType
+  status    AutoRenewalOperationStatus
+  paymentId String?                    @unique @map("payment_id") @db.Uuid
+
+  subscriptionId         String          @map("subscription_id") @db.Uuid
+  provider               PaymentProvider
+  // Для ENABLE/DISABLE — исходный снимок; для TRANSFER заполняется один раз при привязке.
+  providerSubscriptionId String?         @map("provider_subscription_id")
+  // Только TRANSFER: неизменяемые старая локальная связь и снимок provider ID.
+  sourceSubscriptionId         String? @map("source_subscription_id") @db.Uuid
+  sourceProviderSubscriptionId String? @map("source_provider_subscription_id")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  paymentApplication SubscriptionPaymentApplication? @relation(fields: [paymentId], references: [paymentId], onDelete: Restrict, onUpdate: Cascade)
+  subscription       Subscription                    @relation("AutoRenewalSubscription", fields: [subscriptionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sourceSubscription Subscription?                   @relation("AutoRenewalSourceSubscription", fields: [sourceSubscriptionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([subscriptionId])
+  @@index([sourceSubscriptionId])
+  @@index([userId, status])
+  @@map("auto_renewal_operations")
 }

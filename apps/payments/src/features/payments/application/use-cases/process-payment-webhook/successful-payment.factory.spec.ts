@@ -26,6 +26,7 @@ describe('createSuccessfulPayment workflow DTO factory', () => {
       periodUnit: PeriodUnit.MONTH,
       provider: PaymentProvider.STRIPE,
       providerCustomerId: 'cus_test',
+      providerSubscriptionId: null,
       paidAt: '2026-10-14T09:30:00.000Z',
     });
   });
@@ -48,6 +49,16 @@ describe('createSuccessfulPayment workflow DTO factory', () => {
         targetSubscriptionId: null,
       }),
     );
+  });
+
+  it('includes the provider subscription binding for an initial purchase', () => {
+    const initial = payment({
+      checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION,
+      targetSubscriptionId: null,
+      providerSubscriptionId: 'sub_initial',
+    });
+
+    expect(createSuccessfulPayment(initial).providerSubscriptionId).toBe('sub_initial');
   });
 
   it('rejects a Payment whose success has not been committed', () => {

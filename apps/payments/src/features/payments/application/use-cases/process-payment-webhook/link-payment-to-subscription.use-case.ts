@@ -44,7 +44,11 @@ export class LinkPaymentToSubscriptionUseCase {
         params.payment.paymentId,
         'PAYMENT_STATE_MISMATCH',
       );
-    const applied = await this.subscriptions.applySuccessfulPayment(params.payment, ctx);
+    // В старых workflow snapshot ещё не содержит providerSubscriptionId.
+    const applied = await this.subscriptions.applySuccessfulPayment(
+      { ...params.payment, providerSubscriptionId: current.providerSubscriptionId },
+      ctx,
+    );
     this.assertHandlerResult(params.payment, applied);
 
     const linked = await this.payments.linkSuccessfulPaymentToSubscription(
