@@ -34,6 +34,11 @@ export abstract class PaymentEventRepository {
     failure: PaymentEventFailure,
     ctx: PaymentsTransactionContext,
   ): Promise<void>;
+  abstract markReconciliationRequired(
+    eventId: string,
+    failure: PaymentEventFailure,
+    ctx: PaymentsTransactionContext,
+  ): Promise<void>;
   abstract markDead(
     eventId: string,
     failure: PaymentEventFailure,

@@ -56,6 +56,11 @@ export class PrismaPaymentEventRepository extends PaymentEventRepository {
     );
   }
 
+  /**
+   * Сохраняет установленную при обработке связь webhook-события с локальным Payment.
+   * Повторная привязка к тому же Payment идемпотентна, а замена ранее сохранённой
+   * связи на другой Payment отклоняется как нарушение инварианта корреляции.
+   */
   async attachPayment(eventId: string, paymentId: string, ctx: PaymentsTransactionContext): Promise<void> {
     await this.updateExactlyOne(
       this.getClient(ctx).paymentWebhook.updateMany({
@@ -102,6 +107,26 @@ export class PrismaPaymentEventRepository extends PaymentEventRepository {
       }),
       eventId,
       'schedule retry',
+    );
+  }
+
+  async markReconciliationRequired(
+    eventId: string,
+    failure: PaymentEventFailure,
+    ctx: PaymentsTransactionContext,
+  ): Promise<void> {
+    await this.updateExactlyOne(
+      this.getClient(ctx).paymentWebhook.updateMany({
+        where: { id: eventId, processingStatus: { in: ['RECEIVED', 'RETRYING'] } },
+        data: {
+          processingStatus: 'RECONCILIATION_REQUIRED',
+          processedAt: null,
+          processingErrorCode: failure.code,
+          processingError: this.sanitizeError(failure.message),
+        },
+      }),
+      eventId,
+      'require reconciliation',
     );
   }
 

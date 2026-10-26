@@ -1,3 +1,6 @@
+import { RenewalPaymentContextUnavailableError } from '../../application/errors/renewal-payment-context-unavailable.error.js';
+import { PaymentWorkflowAttemptError } from './payment-workflow-attempt.error.js';
+import { classifyPaymentWorkflowError } from './payment-workflow-error.policy.js';
 import type * as DbosSdk from '@dbos-inc/dbos-sdk';
 
 const dbosMock = vi.hoisted(() => ({
@@ -77,6 +80,7 @@ describe('DbosPaymentWebhookWorkflow', () => {
     events.markProcessed.mockResolvedValue();
     events.markRetrying.mockResolvedValue();
     events.markDead.mockResolvedValue();
+    events.markReconciliationRequired.mockResolvedValue();
     applyPaymentEvent.execute.mockResolvedValue(
       paymentEventResult.success(PaymentEventResultCode.CHECKOUT_COMPLETED, null),
     );
@@ -134,14 +138,12 @@ describe('DbosPaymentWebhookWorkflow', () => {
     expect(events.saveIfAbsent).not.toHaveBeenCalled();
   });
 
-  it('lets DBOS own retries when persisting the inbox event fails', async () => {
+  it('retries inbox persistence with a durable delay before applying the event', async () => {
     events.saveIfAbsent.mockRejectedValueOnce(new Error('database unavailable'));
-
-    await expect(workflow.process(paymentEvent())).rejects.toThrow('database unavailable');
-
-    expect(events.saveIfAbsent).toHaveBeenCalledTimes(1);
-    expect(applyPaymentEvent.execute).not.toHaveBeenCalled();
-    expect(dbosMock.sleepSeconds).not.toHaveBeenCalled();
+    await expect(workflow.process(paymentEvent())).resolves.toBeUndefined();
+    expect(events.saveIfAbsent).toHaveBeenCalledTimes(2);
+    expect(applyPaymentEvent.execute).toHaveBeenCalledOnce();
+    expect(dbosMock.sleepSeconds).toHaveBeenCalledExactlyOnceWith(10);
   });
 
   it('carries a successful payment across the step boundary before completing the webhook', async () => {
@@ -177,13 +179,11 @@ describe('DbosPaymentWebhookWorkflow', () => {
     });
   });
 
-  it('lets DBOS own retries when the application step fails', async () => {
+  it('retries a failed application in a separate transaction after a durable delay', async () => {
     applyPaymentEvent.execute.mockRejectedValueOnce(new Error('database unavailable'));
-
-    await expect(workflow.process(paymentEvent())).rejects.toThrow('database unavailable');
-
-    expect(applyPaymentEvent.execute).toHaveBeenCalledTimes(1);
-    expect(events.recordAttempt).toHaveBeenCalledWith('webhook-id', 1, dataSource.client);
+    await expect(workflow.process(paymentEvent())).resolves.toBeUndefined();
+    expect(applyPaymentEvent.execute).toHaveBeenCalledTimes(2);
+    expect(events.recordAttempt.mock.calls.map(([, attempt]) => attempt)).toEqual([1, 2]);
     expect(events.markRetrying).toHaveBeenCalledWith(
       'webhook-id',
       {
@@ -192,7 +192,146 @@ describe('DbosPaymentWebhookWorkflow', () => {
       },
       dataSource.client,
     );
+    expect(dbosMock.sleepSeconds).toHaveBeenCalledExactlyOnceWith(10);
+    expect(events.markDead).not.toHaveBeenCalled();
+  });
+
+  it('schedules the durable delay outside the failed transaction', async () => {
+    let insideTransaction = false;
+    dataSource.runTransaction.mockImplementation(async (callback) => {
+      insideTransaction = true;
+      try {
+        return await callback();
+      } finally {
+        insideTransaction = false;
+      }
+    });
+    applyPaymentEvent.execute.mockRejectedValueOnce(new Error('database unavailable'));
+    dbosMock.sleepSeconds.mockImplementationOnce(() => {
+      expect(insideTransaction).toBe(false);
+    });
+    await expect(workflow.process(paymentEvent())).resolves.toBeUndefined();
+    expect(applyPaymentEvent.execute).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['SOURCE_PAYMENT_NOT_FOUND', 'SOURCE_NOT_LINKED'] as const)(
+    'retries temporary renewal context failure %s',
+    async (reason) => {
+      applyPaymentEvent.execute.mockRejectedValueOnce(
+        new RenewalPaymentContextUnavailableError('in_test', reason),
+      );
+      await expect(workflow.process(paymentEvent())).resolves.toBeUndefined();
+      expect(applyPaymentEvent.execute).toHaveBeenCalledTimes(2);
+      expect(events.markRetrying).toHaveBeenCalledWith(
+        'webhook-id',
+        expect.objectContaining({ code: `RENEWAL_${reason}` }),
+        dataSource.client,
+      );
+      expect(dbosMock.sleepSeconds).toHaveBeenCalledExactlyOnceWith(10);
+      expect(events.markReconciliationRequired).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['SOURCE_METADATA_MISSING', 'PAYMENT_DISAPPEARED'] as const)(
+    'requires reconciliation without retry for %s',
+    async (reason) => {
+      applyPaymentEvent.execute.mockRejectedValueOnce(
+        new RenewalPaymentContextUnavailableError('in_test', reason),
+      );
+      await expect(workflow.process(paymentEvent())).resolves.toBeUndefined();
+      expect(applyPaymentEvent.execute).toHaveBeenCalledOnce();
+      expect(events.markReconciliationRequired).toHaveBeenCalledWith(
+        'webhook-id',
+        {
+          code: `RENEWAL_${reason}`,
+          message: `Renewal payment context: ${reason}`,
+        },
+        dataSource.client,
+      );
+      expect(events.markDead).not.toHaveBeenCalled();
+      expect(events.markRetrying).not.toHaveBeenCalled();
+      expect(dbosMock.sleepSeconds).not.toHaveBeenCalled();
+      expect(linkPaymentToSubscription.execute).not.toHaveBeenCalled();
+    },
+  );
+
+  it('stops after ten failed attempts and records reconciliation with the last failure code', async () => {
+    const error = new RenewalPaymentContextUnavailableError('in_test', 'SOURCE_NOT_LINKED');
+    // Use one-shot failures so other tests retain the default successful implementation.
+    for (let index = 0; index < 10; index += 1) applyPaymentEvent.execute.mockRejectedValueOnce(error);
+    await expect(workflow.process(paymentEvent())).resolves.toBeUndefined();
+    expect(applyPaymentEvent.execute).toHaveBeenCalledTimes(10);
+    expect(dbosMock.sleepSeconds.mock.calls.map(([seconds]) => seconds)).toEqual([
+      10, 20, 40, 80, 160, 320, 640, 1280, 2560,
+    ]);
+    expect(events.markRetrying).toHaveBeenCalledTimes(9);
+    expect(events.markReconciliationRequired).toHaveBeenCalledWith(
+      'webhook-id',
+      {
+        code: 'PAYMENT_APPLICATION_RETRIES_EXHAUSTED',
+        message: 'applyPaymentWebhook: exhausted 10 attempts; last failure: RENEWAL_SOURCE_NOT_LINKED',
+      },
+      dataSource.client,
+    );
+    expect(events.markDead).not.toHaveBeenCalled();
+  });
+
+  it('still schedules retry when the database also rejects the retry audit update', async () => {
+    applyPaymentEvent.execute.mockRejectedValueOnce(new Error('database unavailable'));
+    events.markRetrying.mockRejectedValueOnce(new Error('database unavailable'));
+    await expect(workflow.process(paymentEvent())).resolves.toBeUndefined();
+    expect(dbosMock.sleepSeconds).toHaveBeenCalledExactlyOnceWith(10);
+    expect(applyPaymentEvent.execute).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves reconciliation classification when a transaction error is replayed as a plain Error', async () => {
+    const original = new PaymentWorkflowAttemptError(
+      classifyPaymentWorkflowError(
+        new RenewalPaymentContextUnavailableError('in_test', 'SOURCE_METADATA_MISSING'),
+      ),
+    );
+    const replayed = new Error(original.message);
+    replayed.name = original.name;
+    dataSource.runTransaction
+      .mockImplementationOnce((callback) => callback())
+      .mockImplementationOnce((callback) => callback())
+      .mockRejectedValueOnce(replayed);
+    await expect(workflow.process(paymentEvent())).resolves.toBeUndefined();
+    expect(events.markReconciliationRequired).toHaveBeenCalledWith(
+      'webhook-id',
+      expect.objectContaining({ code: 'RENEWAL_SOURCE_METADATA_MISSING' }),
+      dataSource.client,
+    );
     expect(dbosMock.sleepSeconds).not.toHaveBeenCalled();
+  });
+
+  it('propagates a failed final reconciliation write without reclassifying it as a payment failure', async () => {
+    applyPaymentEvent.execute.mockRejectedValueOnce(
+      new RenewalPaymentContextUnavailableError('in_test', 'SOURCE_METADATA_MISSING'),
+    );
+    const auditError = new Error('reconciliation audit unavailable');
+    events.markReconciliationRequired.mockRejectedValueOnce(auditError);
+
+    await expect(workflow.process(paymentEvent())).rejects.toBe(auditError);
+    expect(events.markReconciliationRequired).toHaveBeenCalledOnce();
+    expect(events.markRetrying).not.toHaveBeenCalled();
+    expect(events.markDead).not.toHaveBeenCalled();
+    expect(dbosMock.sleepSeconds).not.toHaveBeenCalled();
+  });
+
+  it('retries Subscription application without repeating financial reconciliation', async () => {
+    const payment = successfulPayment();
+    applyPaymentEvent.execute.mockResolvedValue({
+      status: PaymentEventResultStatus.SUCCESS,
+      code: PaymentEventResultCode.PAYMENT_SUCCEEDED,
+      paymentId: payment.paymentId,
+      payment,
+    });
+    linkPaymentToSubscription.execute.mockRejectedValueOnce(new Error('database unavailable'));
+    await expect(workflow.process(paymentEvent())).resolves.toBeUndefined();
+    expect(applyPaymentEvent.execute).toHaveBeenCalledOnce();
+    expect(linkPaymentToSubscription.execute).toHaveBeenCalledTimes(2);
+    expect(dbosMock.sleepSeconds).toHaveBeenCalledExactlyOnceWith(10);
   });
 
   it('marks a permanent application failure dead without asking DBOS to retry it', async () => {
@@ -210,7 +349,7 @@ describe('DbosPaymentWebhookWorkflow', () => {
     expect(events.markRetrying).not.toHaveBeenCalled();
   });
 
-  it('для SCHEDULED регистрирует отдельный шаг отмены старой provider Subscription', async () => {
+  it('retries local binding for SCHEDULED without repeating successful provider steps', async () => {
     const payment = successfulPayment();
     applyPaymentEvent.execute.mockResolvedValue({
       status: PaymentEventResultStatus.SUCCESS,
@@ -228,6 +367,7 @@ describe('DbosPaymentWebhookWorkflow', () => {
     };
     linkPaymentToSubscription.execute.mockResolvedValue(scheduled);
     scheduleProviderSubscriptionCancellation.scheduleAtProvider.mockResolvedValue(scheduled);
+    createDeferredProviderSubscription.recordCreated.mockRejectedValueOnce(new Error('database unavailable'));
 
     await expect(workflow.process(paymentEvent())).resolves.toBeUndefined();
 
@@ -240,6 +380,10 @@ describe('DbosPaymentWebhookWorkflow', () => {
       name: 'recordDeferredProviderSubscription',
     });
     expect(createDeferredProviderSubscription.createAtProvider).toHaveBeenCalledWith(scheduled);
+    expect(createDeferredProviderSubscription.createAtProvider).toHaveBeenCalledOnce();
+    expect(scheduleProviderSubscriptionCancellation.scheduleAtProvider).toHaveBeenCalledOnce();
+    expect(createDeferredProviderSubscription.recordCreated).toHaveBeenCalledTimes(2);
+    expect(dbosMock.sleepSeconds).toHaveBeenCalledExactlyOnceWith(10);
     expect(createDeferredProviderSubscription.recordCreated).toHaveBeenCalledWith(
       expect.objectContaining({ previousProviderSubscriptionId: 'sub_previous' }),
       { providerSubscriptionId: 'sub_new' },
@@ -275,6 +419,7 @@ function eventRepository() {
     markIgnored: vi.fn<PaymentEventRepository['markIgnored']>(),
     markRetrying: vi.fn<PaymentEventRepository['markRetrying']>(),
     markDead: vi.fn<PaymentEventRepository['markDead']>(),
+    markReconciliationRequired: vi.fn<PaymentEventRepository['markReconciliationRequired']>(),
   } satisfies PaymentEventRepository;
 }
 

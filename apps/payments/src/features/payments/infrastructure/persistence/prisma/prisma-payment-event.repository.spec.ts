@@ -76,6 +76,24 @@ describe('PrismaPaymentEventRepository', () => {
     });
   });
 
+  it('parks an active event for reconciliation without marking it processed', async () => {
+    const ctx = { paymentWebhook: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) } };
+    await repository.markReconciliationRequired('webhook-id', {
+      code: 'RENEWAL_SOURCE_METADATA_MISSING', message: 'Context\nrequires reconciliation',
+    }, ctx);
+    expect(ctx.paymentWebhook.updateMany).toHaveBeenCalledWith({
+      where: { id: 'webhook-id', processingStatus: { in: ['RECEIVED', 'RETRYING'] } },
+      data: { processingStatus: 'RECONCILIATION_REQUIRED', processedAt: null,
+        processingErrorCode: 'RENEWAL_SOURCE_METADATA_MISSING', processingError: 'Context requires reconciliation' },
+    });
+  });
+
+  it('does not overwrite a completed event when requiring reconciliation', async () => {
+    const ctx = { paymentWebhook: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) } };
+    await expect(repository.markReconciliationRequired('webhook-id', { code: 'TEST', message: 'Test' }, ctx))
+      .rejects.toThrow('Cannot require reconciliation');
+  });
+
   it('attaches a correlated Payment without overwriting another correlation', async () => {
     const ctx = {
       paymentWebhook: {

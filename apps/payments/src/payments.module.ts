@@ -1,3 +1,4 @@
+import { ConfirmRenewalPaymentUseCase } from './features/payments/application/use-cases/payment-events/confirm-renewal-payment/confirm-renewal-payment.use-case.js';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
@@ -18,6 +19,8 @@ import { SubscriptionPaymentHandler } from './features/payments/application/port
 import { PaymentCustomerService } from './features/payments/application/services/payment-customer.service.js';
 import { CreateCheckoutUseCase } from './features/payments/application/use-cases/create-checkout.use-case.js';
 import { ConfirmPaymentIntentSucceededUseCase } from './features/payments/application/use-cases/payment-events/confirm-payment-intent-succeeded/confirm-payment-intent-succeeded.use-case.js';
+import { EnsureRenewalPaymentUseCase } from './features/payments/application/use-cases/payment-events/ensure-renewal-payment/ensure-renewal-payment.use-case.js';
+import { StripeInvoiceFinalizedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-invoice-finalized.adapter.js';
 import { ConfirmInvoicePaidUseCase } from './features/payments/application/use-cases/payment-events/confirm-invoice-paid/confirm-invoice-paid.use-case.js';
 import { ApplyCheckoutSessionCompletedUseCase } from './features/payments/application/use-cases/payment-events/apply-checkout-session-completed/apply-checkout-session-completed.use-case.js';
 import { CancelExpiredCheckoutSessionUseCase } from './features/payments/application/use-cases/payment-events/cancel-expired-checkout-session/cancel-expired-checkout-session.use-case.js';
@@ -91,6 +94,7 @@ import { PrismaPlansQueryRepository } from './features/plans/infrastructure/pris
     StripeCheckoutSessionCompletedAdapter,
     StripeCheckoutSessionExpiredAdapter,
     StripeInvoicePaidAdapter,
+    StripeInvoiceFinalizedAdapter,
     StripePaymentIntentSucceededAdapter,
     StripePaymentIntentPaymentFailedAdapter,
     StripePaymentIntentCanceledAdapter,
@@ -101,6 +105,7 @@ import { PrismaPlansQueryRepository } from './features/plans/infrastructure/pris
         checkoutCompleted: StripeCheckoutSessionCompletedAdapter,
         checkoutExpired: StripeCheckoutSessionExpiredAdapter,
         invoicePaid: StripeInvoicePaidAdapter,
+        invoiceFinalized: StripeInvoiceFinalizedAdapter,
         paymentIntentSucceeded: StripePaymentIntentSucceededAdapter,
         paymentIntentFailed: StripePaymentIntentPaymentFailedAdapter,
         paymentIntentCanceled: StripePaymentIntentCanceledAdapter,
@@ -109,6 +114,7 @@ import { PrismaPlansQueryRepository } from './features/plans/infrastructure/pris
         checkoutCompleted,
         checkoutExpired,
         invoicePaid,
+        invoiceFinalized,
         paymentIntentSucceeded,
         paymentIntentFailed,
         paymentIntentCanceled,
@@ -118,6 +124,7 @@ import { PrismaPlansQueryRepository } from './features/plans/infrastructure/pris
         StripeCheckoutSessionCompletedAdapter,
         StripeCheckoutSessionExpiredAdapter,
         StripeInvoicePaidAdapter,
+    StripeInvoiceFinalizedAdapter,
         StripePaymentIntentSucceededAdapter,
         StripePaymentIntentPaymentFailedAdapter,
         StripePaymentIntentCanceledAdapter,
@@ -137,6 +144,8 @@ import { PrismaPlansQueryRepository } from './features/plans/infrastructure/pris
     CancelPaymentIntentUseCase,
     ConfirmPaymentIntentSucceededUseCase,
     ConfirmInvoicePaidUseCase,
+    ConfirmRenewalPaymentUseCase,
+    EnsureRenewalPaymentUseCase,
     RecordPaymentIntentFailedUseCase,
     RecordInvoicePaymentFailedUseCase,
     ApplyPaymentEventUseCase,

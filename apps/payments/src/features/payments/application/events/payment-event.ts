@@ -78,9 +78,30 @@ export type PaymentIntentCanceledEvent = PaymentEventEnvelope & {
   };
 };
 
+/** Source purchase references copied from the Subscription metadata into this Invoice.
+ * Optional fields keep previously persisted normalized events readable; a new renewal
+ * without source context requires reconciliation rather than a historical-payment fallback.
+ */
+export type RenewalPaymentSourceReferences = {
+  sourcePaymentId?: string | null;
+  sourceSubscriptionId?: string | null;
+};
+
+export type InvoiceFinalizedEvent = PaymentEventEnvelope & {
+  kind: PaymentEventKind.INVOICE_FINALIZED;
+  payload: RenewalPaymentSourceReferences & {
+    providerInvoiceId: string;
+    providerSubscriptionId: string | null;
+    customerId: string | null;
+    billingReason: string | null;
+    amount: number;
+    currency: string;
+  };
+};
+
 export type InvoicePaidEvent = PaymentEventEnvelope & {
   kind: PaymentEventKind.INVOICE_PAID;
-  payload: SuccessfulPaymentPayload & {
+  payload: SuccessfulPaymentPayload & RenewalPaymentSourceReferences & {
     id: string;
     billingReason: string | null;
     providerPaymentId: string | null;
@@ -108,4 +129,5 @@ export type PaymentEvent =
   | SuccessfulPaymentEvent
   | PaymentIntentPaymentFailedEvent
   | PaymentIntentCanceledEvent
-  | InvoicePaymentFailedEvent;
+  | InvoicePaymentFailedEvent
+  | InvoiceFinalizedEvent;

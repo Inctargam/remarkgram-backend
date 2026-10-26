@@ -22,6 +22,7 @@ export enum PaymentEventResultCode {
    * Событие завершения Checkout Session обработано, а его provider references сохранены.
    * Не является доказательством получения денег.
    */
+  RENEWAL_ENSURED = 'RENEWAL_ENSURED',
   CHECKOUT_COMPLETED = 'CHECKOUT_COMPLETED',
   /** Истёкшая Checkout Session успешно завершила допустимый lifecycle незавершённого Payment. */
   CHECKOUT_EXPIRED = 'CHECKOUT_EXPIRED',
@@ -72,6 +73,7 @@ export enum PaymentEventResultCode {
 }
 
 type CompletedPaymentEventResultCode =
+  | PaymentEventResultCode.RENEWAL_ENSURED
   | PaymentEventResultCode.CHECKOUT_COMPLETED
   | PaymentEventResultCode.CHECKOUT_EXPIRED
   | PaymentEventResultCode.PAYMENT_FAILURE_RECORDED

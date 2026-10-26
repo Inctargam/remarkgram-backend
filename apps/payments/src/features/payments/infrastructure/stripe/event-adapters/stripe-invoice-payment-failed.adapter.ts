@@ -9,7 +9,7 @@ import { StripeEventType } from './stripe-event-type.js';
 import {
   asRecord,
   expandableId,
-  metadataPaymentId,
+  invoiceMetadataPaymentId,
   safeProviderMessage,
   stringOrNull,
 } from './stripe-event-value.helpers.js';
@@ -43,10 +43,7 @@ export class StripeInvoicePaymentFailedAdapter implements ProviderEventAdapter {
       providerEventId: webhook.id,
       providerEventType: StripeEventType.INVOICE_PAYMENT_FAILED,
       providerCreatedAt: webhook.createdAt,
-      paymentId:
-        billingReason === 'subscription_create'
-          ? (metadataPaymentId(invoice?.metadata) ?? metadataPaymentId(subscriptionDetails?.metadata))
-          : null,
+      paymentId: invoiceMetadataPaymentId(invoice),
       payload: {
         id,
         customerId: expandableId(invoice?.customer),

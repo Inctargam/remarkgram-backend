@@ -9,7 +9,8 @@ import { StripeEventType } from './stripe-event-type.js';
 import {
   asRecord,
   expandableId,
-  metadataPaymentId,
+  invoiceMetadataPaymentId,
+  invoiceRenewalSourceReferences,
   numberOrNull,
   stringOrNull,
 } from './stripe-event-value.helpers.js';
@@ -35,10 +36,7 @@ export class StripeInvoicePaidAdapter implements ProviderEventAdapter {
       throw new InvalidProviderEventError('Stripe invoice.paid payload is incomplete');
 
     const paidAtSeconds = numberOrNull(statusTransitions?.paid_at);
-    const paymentId =
-      billingReason === 'subscription_create'
-        ? (metadataPaymentId(invoice?.metadata) ?? metadataPaymentId(subscriptionDetails?.metadata))
-        : null;
+    const paymentId = invoiceMetadataPaymentId(invoice);
 
     return {
       kind: PaymentEventKind.INVOICE_PAID,
@@ -48,6 +46,7 @@ export class StripeInvoicePaidAdapter implements ProviderEventAdapter {
       providerCreatedAt: webhook.createdAt,
       paymentId,
       payload: {
+        ...(billingReason === 'subscription_cycle' ? invoiceRenewalSourceReferences(invoice) : {}),
         id,
         customerId: expandableId(invoice?.customer),
         amount,
