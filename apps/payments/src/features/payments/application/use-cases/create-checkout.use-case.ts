@@ -10,10 +10,10 @@ import {
   PaymentsError,
   PaymentSubscriptionContextError,
 } from '../../../../common/application/errors/payments.error.js';
-import { PaymentProviderOutcomeUnknownError } from '../errors/payment-provider.error.js';
 import { PlansRepository } from '../../../plans/application/ports/plans.repository.js';
 import { PaymentProviderFactory } from '../../domain/payment-provider.factory.js';
 import { CheckoutPurpose, Payment, PaymentStatus } from '../../domain/payment.entity.js';
+import { PaymentProviderOutcomeUnknownError } from '../errors/payment-provider.error.js';
 import { PaymentProviderPort } from '../ports/payment-provider.js';
 import { PaymentsRepository } from '../ports/payments.repository.js';
 import { SubscriptionContextPort } from '../ports/subscription-context.port.js';
@@ -88,9 +88,9 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
       throw new PaymentPlanUnavailableError();
     }
 
-    let activeSubscription: Awaited<ReturnType<SubscriptionContextPort['findActiveSubscriptionForPurchase']>>;
+    let hasActiveSubscription: Awaited<ReturnType<SubscriptionContextPort['hasActiveSubscription']>>;
     try {
-      activeSubscription = await this.subscription.findActiveSubscriptionForPurchase(input.userId);
+      hasActiveSubscription = await this.subscription.hasActiveSubscription(input.userId);
     } catch {
       throw new PaymentSubscriptionContextError();
     }
@@ -104,12 +104,10 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
       periodUnit: plan.periodUnit,
       providerType,
       idempotentKey: input.idempotencyKey,
-      checkoutPurpose:
-        activeSubscription === null
-          ? CheckoutPurpose.INITIAL_SUBSCRIPTION
-          : CheckoutPurpose.SUBSCRIPTION_EXTENSION,
+      checkoutPurpose: hasActiveSubscription
+        ? CheckoutPurpose.SUBSCRIPTION_EXTENSION
+        : CheckoutPurpose.INITIAL_SUBSCRIPTION,
       autoRenewalRequested: input.autoRenewal,
-      targetSubscriptionId: activeSubscription?.subscriptionId ?? null,
     });
 
     let created: Awaited<ReturnType<PaymentsRepository['create']>>;

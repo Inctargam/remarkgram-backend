@@ -86,7 +86,6 @@ model Payment {
 
   idempotentKey        String   @default(uuid()) @map("idempotent_key") @db.Uuid
   subscriptionId       String?  @map("subscription_id") @db.Uuid
-  targetSubscriptionId String?  @map("target_subscription_id") @db.Uuid
   autoRenewalRequested Boolean? @map("auto_renewal_requested")
 
   status            PaymentStatus @default(CREATED)

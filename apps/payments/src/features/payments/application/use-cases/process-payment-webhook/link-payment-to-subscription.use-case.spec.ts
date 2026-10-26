@@ -157,7 +157,6 @@ function createFixture(subscriptionId: string | null = null, providerSubscriptio
     checkoutExpiresAt: null,
     providerSnapshot: null,
     subscriptionId,
-    targetSubscriptionId: SUBSCRIPTION_ID,
     status: PaymentStatus.SUCCEEDED,
     createdAt: new Date('2026-10-14T11:00:00.000Z'),
     paidAt: new Date('2026-10-14T12:00:00.000Z'),

@@ -38,8 +38,8 @@ export class TemporarySubscriptionPaymentHandlerAdapter extends SubscriptionPaym
     };
   }
 
-  async markProviderSubscriptionCancellationScheduled(
-    _subscriptionId: string,
+  async confirmAutoRenewalCancellation(
+    _paymentId: string,
     _providerSubscriptionId: string,
     _tx: PaymentsTransactionContext,
   ): Promise<void> {
@@ -48,7 +48,6 @@ export class TemporarySubscriptionPaymentHandlerAdapter extends SubscriptionPaym
 
   async bindProviderSubscription(
     _paymentId: string,
-    _subscriptionId: string,
     _providerSubscriptionId: string,
     _tx: PaymentsTransactionContext,
   ): Promise<void> {

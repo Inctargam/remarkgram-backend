@@ -14,7 +14,6 @@ export function createSuccessfulPayment(payment: Payment): SuccessfulPayment {
     planId: payment.planId,
     type: payment.type,
     autoRenewalRequested: payment.autoRenewalRequested,
-    targetSubscriptionId: payment.targetSubscriptionId,
     amount: payment.amount,
     currency: payment.currency,
     periodCount: payment.periodCount,

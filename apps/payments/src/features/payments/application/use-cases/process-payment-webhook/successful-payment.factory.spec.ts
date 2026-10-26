@@ -19,7 +19,6 @@ describe('createSuccessfulPayment workflow DTO factory', () => {
       planId: 20,
       type: PaymentType.PURCHASE,
       autoRenewalRequested: true,
-      targetSubscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
       amount: 1_500,
       currency: Currency.USD,
       periodCount: 2,
@@ -31,12 +30,11 @@ describe('createSuccessfulPayment workflow DTO factory', () => {
     });
   });
 
-  it('preserves nullable purchase context for a renewal', () => {
+  it('preserves nullable renewal intent', () => {
     const renewal = payment({
       type: PaymentType.RENEWAL,
       checkoutPurpose: null,
       autoRenewalRequested: null,
-      targetSubscriptionId: null,
       providerCheckoutId: null,
       providerInvoiceId: 'in_test',
       subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
@@ -46,7 +44,6 @@ describe('createSuccessfulPayment workflow DTO factory', () => {
       expect.objectContaining({
         type: PaymentType.RENEWAL,
         autoRenewalRequested: null,
-        targetSubscriptionId: null,
       }),
     );
   });
@@ -54,7 +51,6 @@ describe('createSuccessfulPayment workflow DTO factory', () => {
   it('includes the provider subscription binding for an initial purchase', () => {
     const initial = payment({
       checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION,
-      targetSubscriptionId: null,
       providerSubscriptionId: 'sub_initial',
     });
 
@@ -89,7 +85,6 @@ function payment(overrides: Partial<RestorePaymentProps> = {}): Payment {
     checkoutExpiresAt: new Date('2026-10-14T10:00:00.000Z'),
     providerSnapshot: null,
     subscriptionId: null,
-    targetSubscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     status: PaymentStatus.SUCCEEDED,
     createdAt: new Date('2026-10-14T09:00:00.000Z'),
     paidAt: new Date('2026-10-14T09:30:00.000Z'),

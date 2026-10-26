@@ -113,7 +113,6 @@ describe('CreateCheckoutUseCase', () => {
         idempotentKey: input.idempotencyKey,
         checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION,
         autoRenewalRequested: true,
-        targetSubscriptionId: null,
       }),
     );
     const useCase = new CreateCheckoutUseCase(
@@ -139,6 +138,25 @@ describe('CreateCheckoutUseCase', () => {
 
     await expect(useCase.execute(new CreateCheckoutCommand(input))).rejects.toBeInstanceOf(
       PaymentInitialReservationConflictError,
+    );
+  });
+
+  it('creates an extension without persisting a target Subscription snapshot', async () => {
+    const create = vi.fn<PaymentsRepository['create']>((payment) =>
+      Promise.resolve({ outcome: 'INITIAL_RESERVATION_CONFLICT', payment: PaymentWithCreatedAt(payment) }),
+    );
+    const useCase = checkoutUseCase({ create }, providerPort(), {
+      hasActiveSubscription: vi.fn().mockResolvedValue(true),
+    });
+
+    await expect(useCase.execute(new CreateCheckoutCommand(input))).rejects.toBeInstanceOf(
+      PaymentInitialReservationConflictError,
+    );
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION,
+      }),
     );
   });
 
@@ -185,6 +203,7 @@ describe('CreateCheckoutUseCase', () => {
 function checkoutUseCase(
   repository: Partial<PaymentsRepository>,
   provider: PaymentProviderPort = providerPort(),
+  subscription: SubscriptionContextPort = subscriptionContext(),
 ): CreateCheckoutUseCase {
   const plan = Plan.restore({
     id: 3,
@@ -201,7 +220,7 @@ function checkoutUseCase(
     } as unknown as PaymentsRepository,
     provider,
     customerService(),
-    subscriptionContext(),
+    subscription,
   );
 }
 
@@ -235,7 +254,6 @@ function initialPayment(idempotentKey: string): Payment {
       idempotentKey,
       checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION,
       autoRenewalRequested: input.autoRenewal,
-      targetSubscriptionId: null,
     }),
   );
 }
@@ -248,7 +266,7 @@ function customerService(): PaymentCustomerService {
 
 function subscriptionContext(): SubscriptionContextPort {
   return {
-    findActiveSubscriptionForPurchase: vi.fn().mockResolvedValue(null),
+    hasActiveSubscription: vi.fn().mockResolvedValue(false),
   };
 }
 
@@ -277,7 +295,6 @@ function paymentShape(payment: Parameters<PaymentsRepository['create']>[0]): Res
     checkoutExpiresAt: null,
     providerSnapshot: null,
     subscriptionId: null,
-    targetSubscriptionId: payment.targetSubscriptionId,
     type: PaymentType.PURCHASE,
     status: PaymentStatus.CREATED,
     createdAt: new Date(),

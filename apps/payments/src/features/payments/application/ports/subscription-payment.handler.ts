@@ -34,14 +34,13 @@ export abstract class SubscriptionPaymentHandler {
    * After commit it remains active only until its paid period ends and must no
    * longer be eligible for auto-renewal enable/disable commands.
    */
-  abstract markProviderSubscriptionCancellationScheduled(
-    subscriptionId: string,
+  abstract confirmAutoRenewalCancellation(
+    paymentId: string,
     providerSubscriptionId: string,
     tx: PaymentsTransactionContext,
   ): Promise<void>;
   abstract bindProviderSubscription(
     paymentId: string,
-    subscriptionId: string,
     providerSubscriptionId: string,
     tx: PaymentsTransactionContext,
   ): Promise<void>;

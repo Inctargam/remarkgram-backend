@@ -31,7 +31,6 @@ function successfulPayment(): SuccessfulPayment {
     planId: 20,
     type: PaymentType.PURCHASE,
     autoRenewalRequested: true,
-    targetSubscriptionId: null,
     amount: 1_000,
     currency: Currency.USD,
     periodCount: 1,

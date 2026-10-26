@@ -7,7 +7,6 @@ export type SuccessfulPayment = Readonly<{
   planId: number;
   type: Payment['type'];
   autoRenewalRequested: Payment['autoRenewalRequested'];
-  targetSubscriptionId: string | null;
   amount: number;
   currency: Payment['currency'];
   periodCount: number;

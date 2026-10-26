@@ -14,8 +14,8 @@ describe('ScheduleProviderSubscriptionCancellationUseCase workflow step', () => 
         }),
     };
     const subscriptions = {
-      markProviderSubscriptionCancellationScheduled: vi
-        .fn<SubscriptionPaymentHandler['markProviderSubscriptionCancellationScheduled']>()
+      confirmAutoRenewalCancellation: vi
+        .fn<SubscriptionPaymentHandler['confirmAutoRenewalCancellation']>()
         .mockResolvedValue(),
     };
     const useCase = new ScheduleProviderSubscriptionCancellationUseCase(
@@ -24,7 +24,7 @@ describe('ScheduleProviderSubscriptionCancellationUseCase workflow step', () => 
     );
     const params = {
       eventId: 'event-id',
-      payment: {} as never,
+      payment: { paymentId: 'payment-id' } as never,
       subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
       nextSubscriptionStartsAt: '2026-11-14T10:00:00.000Z',
       previousProviderSubscriptionId: 'sub_previous',
@@ -33,8 +33,8 @@ describe('ScheduleProviderSubscriptionCancellationUseCase workflow step', () => 
     await expect(useCase.scheduleAtProvider(params)).resolves.toEqual(params);
     const tx = {};
     await useCase.recordScheduled(params, tx);
-    expect(subscriptions.markProviderSubscriptionCancellationScheduled).toHaveBeenCalledWith(
-      params.subscriptionId,
+    expect(subscriptions.confirmAutoRenewalCancellation).toHaveBeenCalledWith(
+      params.payment.paymentId,
       params.previousProviderSubscriptionId,
       tx,
     );

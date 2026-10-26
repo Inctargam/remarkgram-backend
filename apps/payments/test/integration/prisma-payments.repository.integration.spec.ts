@@ -376,19 +376,14 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
   }
 
   function initialPayment(userId: number, idempotentKey: string): Payment {
-    return payment(userId, idempotentKey, CheckoutPurpose.INITIAL_SUBSCRIPTION, null);
+    return payment(userId, idempotentKey, CheckoutPurpose.INITIAL_SUBSCRIPTION);
   }
 
   function extensionPayment(userId: number, idempotentKey: string): Payment {
-    return payment(userId, idempotentKey, CheckoutPurpose.SUBSCRIPTION_EXTENSION, randomUUID());
+    return payment(userId, idempotentKey, CheckoutPurpose.SUBSCRIPTION_EXTENSION);
   }
 
-  function payment(
-    userId: number,
-    idempotentKey: string,
-    checkoutPurpose: CheckoutPurpose,
-    targetSubscriptionId: string | null,
-  ): Payment {
+  function payment(userId: number, idempotentKey: string, checkoutPurpose: CheckoutPurpose): Payment {
     return Payment.create({
       userId,
       planId,
@@ -400,7 +395,6 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
       idempotentKey,
       checkoutPurpose,
       autoRenewalRequested: true,
-      targetSubscriptionId,
     });
   }
 });

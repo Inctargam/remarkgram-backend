@@ -40,8 +40,8 @@ export class ScheduleProviderSubscriptionCancellationUseCase {
     params: ScheduleProviderSubscriptionCancellationParams,
     tx: PaymentsTransactionContext,
   ): Promise<void> {
-    return this.subscriptions.markProviderSubscriptionCancellationScheduled(
-      params.subscriptionId,
+    return this.subscriptions.confirmAutoRenewalCancellation(
+      params.payment.paymentId,
       params.previousProviderSubscriptionId,
       tx,
     );

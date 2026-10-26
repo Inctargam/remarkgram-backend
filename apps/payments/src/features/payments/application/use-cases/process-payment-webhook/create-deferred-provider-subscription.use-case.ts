@@ -77,7 +77,6 @@ export class CreateDeferredProviderSubscriptionUseCase {
 
     await this.subscriptions.bindProviderSubscription(
       params.payment.paymentId,
-      params.subscriptionId,
       created.providerSubscriptionId,
       tx,
     );

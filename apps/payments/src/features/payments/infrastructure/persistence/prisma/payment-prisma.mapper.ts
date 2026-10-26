@@ -29,7 +29,6 @@ export class PaymentPrismaMapper {
       checkoutExpiresAt: row.checkoutExpiresAt,
       providerSnapshot: row.providerSnapshot as Record<string, unknown> | null,
       subscriptionId: row.subscriptionId,
-      targetSubscriptionId: row.targetSubscriptionId,
       type: row.type as PaymentType,
       checkoutPurpose: row.checkoutPurpose as CheckoutPurpose | null,
       autoRenewalRequested: row.autoRenewalRequested,

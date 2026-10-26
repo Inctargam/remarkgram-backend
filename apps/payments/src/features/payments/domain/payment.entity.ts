@@ -47,7 +47,6 @@ export type CreatePaymentProps = {
   idempotentKey: string;
   checkoutPurpose: CheckoutPurpose | null;
   autoRenewalRequested: boolean | null;
-  targetSubscriptionId: string | null;
 };
 export type RestorePaymentProps = CreatePaymentProps & {
   id: string;
@@ -81,7 +80,6 @@ export class Payment {
   readonly providerInvoiceId: string | null;
   readonly providerSnapshot: PaymentProviderSnapshot | null;
   readonly subscriptionId: string | null;
-  readonly targetSubscriptionId: string | null;
   readonly status: PaymentStatus;
   readonly createdAt: Date | null;
   readonly paidAt: Date | null;
@@ -109,7 +107,6 @@ export class Payment {
     this.checkoutExpiresAt = 'checkoutExpiresAt' in props ? props.checkoutExpiresAt : null;
     this.providerSnapshot = 'providerSnapshot' in props ? props.providerSnapshot : null;
     this.subscriptionId = 'subscriptionId' in props ? (props.subscriptionId ?? null) : null;
-    this.targetSubscriptionId = props.targetSubscriptionId;
     this.type = 'type' in props ? props.type : PaymentType.PURCHASE;
     this.status = 'status' in props ? props.status : PaymentStatus.CREATED;
     this.createdAt = 'createdAt' in props ? new Date(props.createdAt) : null;

@@ -90,7 +90,6 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
           type: payment.type,
           checkoutPurpose: payment.checkoutPurpose,
           autoRenewalRequested: payment.autoRenewalRequested,
-          targetSubscriptionId: payment.targetSubscriptionId,
           providerCheckoutId: payment.providerCheckoutId,
           providerPaymentId: payment.providerPaymentId,
           providerSubscriptionId: payment.providerSubscriptionId,
@@ -439,7 +438,6 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
         type: PaymentType.RENEWAL,
         checkoutPurpose: null,
         autoRenewalRequested: null,
-        targetSubscriptionId: null,
       },
       update: {},
     });
@@ -477,7 +475,6 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
           type: PaymentType.RENEWAL,
           checkoutPurpose: null,
           autoRenewalRequested: null,
-          targetSubscriptionId: null,
         },
         update: {},
       });
