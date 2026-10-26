@@ -2,6 +2,7 @@ import { RenewalPaymentContextUnavailableError } from '../../application/errors/
 import { PaymentWorkflowAttemptError } from './payment-workflow-attempt.error.js';
 import { classifyPaymentWorkflowError } from './payment-workflow-error.policy.js';
 import type * as DbosSdk from '@dbos-inc/dbos-sdk';
+import { Logger } from '@nestjs/common';
 
 const dbosMock = vi.hoisted(() => ({
   workflowID: 'payment-webhook:STRIPE:evt_test',
@@ -194,6 +195,29 @@ describe('DbosPaymentWebhookWorkflow', () => {
     );
     expect(dbosMock.sleepSeconds).toHaveBeenCalledExactlyOnceWith(10);
     expect(events.markDead).not.toHaveBeenCalled();
+  });
+
+  it('audits an unexpected application error before DBOS serializes it', async () => {
+    const error = new Error('database unavailable');
+    const log = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    applyPaymentEvent.execute.mockRejectedValueOnce(error);
+
+    await expect(workflow.process(paymentEvent())).resolves.toBeUndefined();
+
+    expect(log).toHaveBeenCalledWith(
+      {
+        event: 'payment_webhook_operation_failed',
+        eventId: 'webhook-id',
+        workflowId: 'payment-webhook:STRIPE:evt_test',
+        operation: 'applyPaymentWebhook',
+        attempt: 1,
+        disposition: 'RETRY',
+        failureCode: 'UNEXPECTED_WORKFLOW_ERROR',
+        errorName: 'Error',
+      },
+      error.stack,
+    );
+    log.mockRestore();
   });
 
   it('schedules the durable delay outside the failed transaction', async () => {

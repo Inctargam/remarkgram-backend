@@ -262,10 +262,12 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
             try {
               return await action();
             } catch (error) {
+              const decision = classifyPaymentWorkflowError(error);
+              this.auditOperationFailure({ eventId, operation, attempt, error, decision });
               // DBOS может восстановить ошибку без прототипа исходного класса.
               // Сохраняем безопасное решение классификатора в сериализуемой обёртке;
               // исключение по-прежнему откатывает транзакцию.
-              throw new PaymentWorkflowAttemptError(classifyPaymentWorkflowError(error));
+              throw new PaymentWorkflowAttemptError(decision);
             }
           },
           { name: operation },
@@ -278,6 +280,46 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
         onRetry: (attempt) => this.recordApplicationRetry(eventId, operation, attempt),
       },
     );
+  }
+
+  /**
+   * Пишет runtime-аудит до сериализации ошибки DBOS. В webhook inbox сохраняется только
+   * безопасная классификация; stack нужен в журнале процесса для диагностики неизвестной причины.
+   */
+  private auditOperationFailure(params: {
+    eventId: string;
+    operation: string;
+    attempt: number;
+    error: unknown;
+    decision: PaymentWorkflowAttemptFailure;
+  }): void {
+    const errorName = params.error instanceof Error ? params.error.name : typeof params.error;
+    const errorCode = this.errorCode(params.error);
+    const details = {
+      event: 'payment_webhook_operation_failed',
+      eventId: params.eventId,
+      workflowId: DBOS.workflowID,
+      operation: params.operation,
+      attempt: params.attempt,
+      disposition: params.decision.disposition,
+      failureCode: params.decision.failure.code,
+      errorName,
+      ...(errorCode ? { errorCode } : {}),
+    };
+
+    if (
+      params.decision.failure.code === 'UNEXPECTED_WORKFLOW_ERROR' &&
+      params.error instanceof Error
+    ) {
+      this.logger.error(details, params.error.stack);
+      return;
+    }
+    this.logger.warn(details);
+  }
+
+  private errorCode(error: unknown): string | null {
+    if (typeof error !== 'object' || error === null || !('code' in error)) return null;
+    return typeof error.code === 'string' ? error.code : null;
   }
 
   // Этот callback только сохраняет аудит; задержку после него планирует retry-сервис.
