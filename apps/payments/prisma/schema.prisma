@@ -1,0 +1,157 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/database/prisma/generated"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Currency {
+  USD
+}
+
+enum PeriodUnit {
+  DAY
+  WEEK
+  MONTH
+}
+
+enum PaymentProvider {
+  STRIPE
+  PAYPAL
+}
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+enum WebhookProcessingStatus {
+  RECEIVED
+  RETRYING
+  RECONCILIATION_REQUIRED
+  PROCESSED
+  IGNORED
+  DEAD
+}
+
+model Plan {
+  id          Int        @id @default(autoincrement())
+  price       Int
+  currency    Currency   @default(USD)
+  periodCount Int        @default(1) @map("period_count")
+  periodUnit  PeriodUnit @map("period_unit")
+  payments    Payment[]
+
+  @@map("plans")
+}
+
+// фиксирует намерение платежа, для локальной подписки служит семантической блокировкой на создание паралельных первых оплат
+enum CheckoutPurpose {
+  INITIAL_SUBSCRIPTION
+  SUBSCRIPTION_EXTENSION
+}
+
+// показывает источник финансовой операции и определяет контракт применения успешного платежа.
+enum PaymentType {
+  PURCHASE // может быть первой покупкой или докупкой.
+  RENEWAL // автоматическое списание существующей provider Subscription.
+}
+
+model Payment {
+  id     String @id @default(uuid()) @db.Uuid
+  userId Int    @map("user_id")
+  // customerId       String?         @map("customer_id")
+
+  planId      Int        @map("plan_id")
+  amount      Int
+  currency    Currency
+  periodCount Int        @default(1) @map("period_count")
+  periodUnit  PeriodUnit @map("period_unit")
+
+  providerCheckoutId     String? @map("provider_checkout_id")
+  providerPaymentId      String? @map("provider_payment_id")
+  providerSubscriptionId String? @map("provider_subscription_id")
+  providerInvoiceId      String? @map("provider_invoice_id")
+  providerCustomerId     String? @map("provider_customer_id")
+
+  providerType     PaymentProvider @map("provider_type")
+  providerSnapshot Json?           @map("provider_snapshot") @db.JsonB
+
+  idempotentKey        String   @default(uuid()) @map("idempotent_key") @db.Uuid
+  subscriptionId       String?  @map("subscription_id") @db.Uuid
+  targetSubscriptionId String?  @map("target_subscription_id") @db.Uuid
+  autoRenewalRequested Boolean? @map("auto_renewal_requested")
+
+  status            PaymentStatus @default(CREATED)
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  paidAt            DateTime?     @map("paid_at") @db.Timestamptz
+  checkoutExpiresAt DateTime?     @map("checkout_expires_at") @db.Timestamptz
+
+  type            PaymentType
+  checkoutPurpose CheckoutPurpose? @map("checkout_purpose")
+
+  plan     Plan             @relation(fields: [planId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  webhooks PaymentWebhook[]
+  // customer  PaymentCustomer?  @relation(fields: [customerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  //составные ограничения
+  @@unique([userId, idempotentKey])
+  @@unique([providerType, providerCheckoutId])
+  @@unique([providerType, providerPaymentId])
+  @@unique([providerType, providerInvoiceId])
+  // Первая покупка остается зарезервированной после оплаты, пока локальная подписка
+  // не создана и ее идентификатор не сохранен в Payment.
+  @@unique([userId], map: "payments_active_initial_subscription_key", where: raw("\"checkout_purpose\" = 'INITIAL_SUBSCRIPTION' AND (\"status\" IN ('CREATED', 'PENDING') OR (\"status\" = 'SUCCEEDED' AND \"subscription_id\" IS NULL))"))
+  @@index([planId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([subscriptionId])
+  @@index([providerType, providerSubscriptionId])
+  @@map("payments")
+}
+
+model PaymentWebhook {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  paymentId           String?                 @map("payment_id") @db.Uuid
+  providerType        PaymentProvider         @map("provider_type")
+  providerEventId     String                  @map("provider_event_id")
+  eventType           String                  @map("event_type")
+  payload             Json                    @db.JsonB
+  providerCreatedAt   DateTime                @map("provider_created_at") @db.Timestamptz
+  receivedAt          DateTime                @default(now()) @map("received_at") @db.Timestamptz
+  processingStatus    WebhookProcessingStatus @default(RECEIVED) @map("processing_status")
+  processingAttempts  Int                     @default(0) @map("processing_attempts")
+  workflowId          String                  @unique @map("workflow_id")
+  processedAt         DateTime?               @map("processed_at") @db.Timestamptz
+  processingErrorCode String?                 @map("processing_error_code")
+  processingError     String?                 @map("processing_error")
+
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@unique([providerType, providerEventId])
+  @@index([paymentId])
+  @@index([processingStatus, receivedAt])
+  @@index([eventType, receivedAt])
+  @@map("payment_webhooks")
+}
+
+model PaymentCustomer {
+  id                 String          @id @default(uuid()) @db.Uuid
+  userId             Int             @map("user_id")
+  providerType       PaymentProvider @map("provider_type")
+  providerCustomerId String          @map("provider_customer_id")
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([userId, providerType])
+  @@unique([providerType, providerCustomerId])
+  @@index([userId])
+  @@map("payment_customers")
+}

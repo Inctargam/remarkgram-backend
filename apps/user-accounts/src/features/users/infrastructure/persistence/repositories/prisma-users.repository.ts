@@ -1,17 +1,20 @@
+import { AvatarUpdateConflictError } from '../../../application/errors/avatar.errors.js';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../../../../database/generated/client.js';
 import { PrismaService } from '../../../../../database/prisma.service.js';
 import {
   EmailAlreadyExistsError,
   UsernameAlreadyExistsError,
+  UserNotFoundError,
 } from '../../../application/errors/users.errors.js';
 import { UsersRepository } from '../../../application/ports/users.repository.js';
-import type {
+import {
   CreateUserRepositoryParams,
   CreateOAuthRepositoryParams,
   ReleaseExpiredRegistrationCredentialsParams,
   ReleaseExpiredRegistrationByEmailParams,
   UpdateConfirmationCodeParams,
+  UpdateProfileInfoRepositoryParams,
 } from '../../../application/types/users.types.js';
 import { User } from '../../../domain/entities/user.entity.js';
 import { UserPrismaMapper } from '../mappers/user-prisma.mapper.js';
@@ -226,5 +229,69 @@ export class PrismaUsersRepository implements UsersRepository {
     });
 
     return result.count > 0;
+  }
+
+  async updateProfileInfo(params: UpdateProfileInfoRepositoryParams): Promise<void> {
+    const personalInfoData = {
+      firstName: params.personalInfo.firstName,
+      lastName: params.personalInfo.lastName,
+      dateOfBirth: params.personalInfo.dateOfBirth?.value ?? null,
+      aboutMe: params.personalInfo.aboutMe,
+      countryCode: params.personalInfo.countryCode?.value ?? null,
+      city: params.personalInfo.city?.value ?? null,
+    };
+    try {
+      await this.prisma.user.update({
+        where: {
+          id: params.userId,
+          deletedAt: null,
+        },
+        data: {
+          username: params.username,
+          profile: {
+            upsert: {
+              create: personalInfoData,
+              update: personalInfoData,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      // Предварительные проверки в UpdateProfileInfoUseCase не исключают конкурентную вставку. В таком случае
+      // уникальный индекс отклоняет второй Update username, а Prisma возвращает ошибку P2002.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const meta = error.meta as UniqueConstraintMeta | undefined;
+        const fields = meta?.driverAdapterError?.cause?.constraint?.fields ?? [];
+
+        if (!fields.includes('username')) {
+          throw error;
+        }
+
+        throw new UsernameAlreadyExistsError();
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new UserNotFoundError();
+      }
+
+      // Неизвестную инфраструктурную ошибку нельзя безопасно преобразовать в доменную.
+      throw error;
+    }
+  }
+
+  async lockActiveById(userId: number, ctx: TransactionContext): Promise<boolean> {
+    // Та же блокировка, что у SetAvatar: Profile может ещё не существовать.
+    const users = await (ctx as Prisma.TransactionClient).$queryRaw<Array<{ id: number }>>`
+      SELECT id FROM users WHERE id = ${userId} AND "deletedAt" IS NULL FOR UPDATE`;
+    return users.length > 0;
+  }
+
+  async clearAvatar(userId: number, ctx: TransactionContext): Promise<string | null> {
+    const tx = ctx as Prisma.TransactionClient;
+    const profile = await tx.profile.findUnique({ where: { userId } });
+    if (profile?.avatarUpdateId) throw new AvatarUpdateConflictError();
+    if (profile?.avatarFileId) {
+      await tx.profile.update({ where: { userId }, data: { avatarFileId: null } });
+    }
+    return profile?.avatarFileId ?? null;
   }
 }

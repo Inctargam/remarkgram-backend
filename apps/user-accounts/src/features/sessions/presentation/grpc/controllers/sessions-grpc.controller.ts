@@ -84,9 +84,7 @@ export class SessionsGrpcController {
   }
 
   /** Отзывает все пользовательские сессии, кроме текущей. */
-  async revokeOtherSessions(
-    request: RevokeOtherSessionsRequest,
-  ): Promise<RevokeOtherSessionsResponse> {
+  async revokeOtherSessions(request: RevokeOtherSessionsRequest): Promise<RevokeOtherSessionsResponse> {
     if (!request.auth) {
       throw new RpcException({
         code: status.UNAUTHENTICATED,

@@ -1,0 +1,329 @@
+import { Inject, Injectable } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
+import Stripe from 'stripe';
+import { PeriodUnit } from '../../../../common/domain/period-unit.enum.js';
+import { stripeConfig } from '../../../../config/stripe.config.js';
+import {
+  PaymentProviderPort,
+  type CreateDeferredProviderSubscriptionInput,
+  type CreateDeferredProviderSubscriptionResult,
+  type CreatePaymentCustomerProps,
+  type CreatePaymentCustomerResult,
+  type CreateProviderCheckoutInput,
+  type CreateProviderCheckoutResult,
+  type ScheduleProviderSubscriptionCancellationResult,
+  type SetProviderSubscriptionAutoRenewalInput,
+  type SetProviderSubscriptionAutoRenewalResult,
+  type VerifiedProviderWebhook,
+} from '../../application/ports/payment-provider.js';
+import { CheckoutPurpose, PaymentProvider } from '../../domain/payment.entity.js';
+import { StripePaymentErrorMapper } from './stripe-payment-error.mapper.js';
+
+@Injectable()
+export class StripePaymentProvider extends PaymentProviderPort {
+  private readonly stripe: Stripe;
+  private readonly errorMapper = new StripePaymentErrorMapper();
+  constructor(@Inject(stripeConfig.KEY) private readonly config: ConfigType<typeof stripeConfig>) {
+    super();
+    this.stripe = new Stripe(config.secretKey, { apiVersion: '2026-08-26.dahlia' });
+  }
+
+  async createCheckout(input: CreateProviderCheckoutInput): Promise<CreateProviderCheckoutResult> {
+    // Режим Checkout определяется локальным бизнес-контекстом до обращения к Stripe.
+    // Чтение Stripe Schedule здесь не защищало от конкурентного создания двух первых подписок.
+    let session: Stripe.Checkout.Session;
+    try {
+      session =
+        input.checkoutPurpose === CheckoutPurpose.INITIAL_SUBSCRIPTION
+          ? await this.createSubscriptionCheckout(input)
+          : await this.createOneTimeCheckout(input);
+    } catch (error) {
+      throw this.classifyOperationError(error, {
+        operation: 'CREATE_CHECKOUT',
+        paymentId: input.paymentId,
+      });
+    }
+
+    if (!session.url)
+      throw this.errorMapper.toApplicationError(new Error('Stripe Checkout Session URL is missing'), {
+        operation: 'CREATE_CHECKOUT',
+        aggregateId: input.paymentId,
+      });
+    const providerPaymentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent?.id ?? null);
+    return {
+      checkout: {
+        checkoutId: session.id,
+        checkoutUrl: session.url,
+        providerPaymentId,
+        providerSubscriptionId: this.getExpandableId(session.subscription),
+        providerInvoiceId: this.getExpandableId(session.invoice),
+        providerCustomerId: input.customerId,
+        checkoutExpiresAt: new Date(session.expires_at * 1000),
+        snapshot: {
+          id: session.id,
+          url: session.url,
+          mode: session.mode,
+          paymentStatus: session.payment_status,
+          status: session.status,
+        },
+      },
+    };
+  }
+
+  private createSubscriptionCheckout(input: CreateProviderCheckoutInput): Promise<Stripe.Checkout.Session> {
+    // Subscription Checkout обязан содержать recurring Price. Метаданные копируются
+    // в Subscription, чтобы последующие invoice/subscription webhook можно было связать с оплатой.
+    return this.stripe.checkout.sessions.create(
+      {
+        mode: 'subscription',
+        payment_method_types: ['card'],
+        customer: input.customerId,
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: input.currency.toLowerCase(),
+              unit_amount: input.amount,
+              recurring: {
+                interval: this.toStripeInterval(input.periodUnit),
+                interval_count: input.periodCount,
+              },
+              product_data: { name: 'Remarkgram subscription period' },
+            },
+          },
+        ],
+        metadata: { paymentId: input.paymentId },
+        subscription_data: { metadata: { paymentId: input.paymentId } },
+        success_url: this.config.successUrl,
+        cancel_url: this.config.cancelUrl,
+        client_reference_id: input.paymentId,
+      },
+      { idempotencyKey: this.idempotencyKey('checkout:STRIPE', input.operationId) },
+    );
+  }
+
+  private createOneTimeCheckout(input: CreateProviderCheckoutInput): Promise<Stripe.Checkout.Session> {
+    // Докупка оплачивается сейчас как разовый платеж. Фазу расписания можно добавлять
+    // только после достоверного webhook, а не после возврата пользователя по success_url.
+    return this.stripe.checkout.sessions.create(
+      {
+        mode: 'payment',
+        payment_method_types: ['card'],
+        customer: input.customerId,
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: input.currency.toLowerCase(),
+              unit_amount: input.amount,
+              product_data: { name: 'Remarkgram subscription period' },
+            },
+          },
+        ],
+        metadata: { paymentId: input.paymentId },
+        payment_intent_data: { metadata: { paymentId: input.paymentId } },
+        success_url: this.config.successUrl,
+        cancel_url: this.config.cancelUrl,
+        client_reference_id: input.paymentId,
+      },
+      { idempotencyKey: this.idempotencyKey('checkout:STRIPE', input.operationId) },
+    );
+  }
+
+  private toStripeInterval(periodUnit: PeriodUnit): Stripe.Price.Recurring.Interval {
+    switch (periodUnit) {
+      case PeriodUnit.DAY:
+        return 'day';
+      case PeriodUnit.WEEK:
+        return 'week';
+      case PeriodUnit.MONTH:
+        return 'month';
+    }
+  }
+
+  private getExpandableId(value: string | { id: string } | null): string | null {
+    return typeof value === 'string' ? value : (value?.id ?? null);
+  }
+
+  verifyWebhook(rawBody: Buffer, signature: string): VerifiedProviderWebhook {
+    // Проверка выполняется по исходному raw body: любое предварительное JSON-преобразование
+    // изменит байты запроса, и Stripe не сможет подтвердить подпись. При неверной подписи
+    // constructEvent выбросит исключение, поэтому недоверенные данные дальше не обрабатываются.
+    let event: Stripe.Event;
+    try {
+      event = this.stripe.webhooks.constructEvent(rawBody, signature, this.config.webhookSecret);
+    } catch (error) {
+      throw this.errorMapper.toWebhookVerificationError(error);
+    }
+
+    const snapshot = JSON.parse(JSON.stringify(event)) as Record<string, unknown>;
+    return {
+      provider: PaymentProvider.STRIPE,
+      id: event.id,
+      type: event.type,
+      createdAt: new Date(event.created * 1000),
+      payload: event.data.object,
+      snapshot,
+    };
+  }
+
+  async createCustomer(props: CreatePaymentCustomerProps): CreatePaymentCustomerResult {
+    try {
+      const customer = await this.stripe.customers.create(
+        {
+          metadata: {
+            internalUserId: String(props.internalUserId),
+          },
+        },
+        { idempotencyKey: this.idempotencyKey('customer:create', String(props.internalUserId)) },
+      );
+
+      return { providerCustomerId: customer.id };
+    } catch (error) {
+      throw this.classifyOperationError(error, {
+        operation: 'CREATE_CUSTOMER',
+        internalUserId: props.internalUserId,
+      });
+    }
+  }
+
+  // Отменить старую подписку
+  async scheduleSubscriptionCancellation(
+    providerSubscriptionId: string,
+  ): Promise<ScheduleProviderSubscriptionCancellationResult> {
+    let subscription: Stripe.Subscription;
+    try {
+      subscription = await this.stripe.subscriptions.update(
+        providerSubscriptionId,
+        { cancel_at_period_end: true },
+        {
+          // D2 permits this terminal transition only once per retiring provider
+          // Subscription, so its provider ID is also the stable replay identity.
+          idempotencyKey: this.idempotencyKey('subscription:cancel-at-period-end', providerSubscriptionId),
+        },
+      );
+    } catch (error) {
+      throw this.errorMapper.toApplicationError(error, {
+        operation: 'SCHEDULE_SUBSCRIPTION_CANCELLATION',
+        aggregateId: providerSubscriptionId,
+      });
+    }
+    if (!subscription.cancel_at_period_end)
+      throw this.errorMapper.toApplicationError(
+        new Error(`Stripe did not schedule cancellation for Subscription ${providerSubscriptionId}`),
+        { operation: 'SCHEDULE_SUBSCRIPTION_CANCELLATION', aggregateId: providerSubscriptionId },
+      );
+
+    return {
+      providerSubscriptionId: subscription.id,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    };
+  }
+
+  // Создать отложенную подписку
+  async createDeferredSubscription(
+    input: CreateDeferredProviderSubscriptionInput,
+  ): Promise<CreateDeferredProviderSubscriptionResult> {
+    try {
+      return await this.createDeferredStripeSubscription(input);
+    } catch (error) {
+      throw this.errorMapper.toApplicationError(error, {
+        operation: 'CREATE_DEFERRED_SUBSCRIPTION',
+        aggregateId: input.paymentId,
+      });
+    }
+  }
+
+  private async createDeferredStripeSubscription(
+    input: CreateDeferredProviderSubscriptionInput,
+  ): Promise<CreateDeferredProviderSubscriptionResult> {
+    const billingCycleAnchor = Math.floor(new Date(input.billingCycleAnchor).getTime() / 1000);
+    // При прямом создании Stripe Subscription можно описать Price inline через
+    // items[].price_data, но для него обязателен ID существующего Product.
+    // В отличие от Checkout, subscriptions.create не поддерживает product_data,
+    // поэтому Product необходимо создать до отложенной Subscription.
+    const product = await this.stripe.products.create(
+      {
+        name: 'Remarkgram subscription period',
+        metadata: { paymentId: input.paymentId, subscriptionId: input.subscriptionId },
+      },
+      { idempotencyKey: this.idempotencyKey('subscription-product', input.operationId) },
+    );
+    const subscription = await this.stripe.subscriptions.create(
+      {
+        customer: input.customerId,
+        items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: input.currency.toLowerCase(),
+              unit_amount: input.amount,
+              recurring: {
+                interval: this.toStripeInterval(input.periodUnit),
+                interval_count: input.periodCount,
+              },
+              product: product.id,
+            },
+          },
+        ],
+        billing_cycle_anchor: billingCycleAnchor, // дата первого инвойса
+        proration_behavior: 'none', // не создавать инвойс за период до якоря
+        metadata: {
+          paymentId: input.paymentId,
+          subscriptionId: input.subscriptionId,
+        },
+      },
+      { idempotencyKey: this.idempotencyKey('subscription:create', input.operationId) },
+    );
+    return { providerSubscriptionId: subscription.id };
+  }
+
+  async setSubscriptionAutoRenewal(
+    input: SetProviderSubscriptionAutoRenewalInput,
+  ): Promise<SetProviderSubscriptionAutoRenewalResult> {
+    let subscription: Stripe.Subscription;
+    try {
+      subscription = await this.stripe.subscriptions.update(
+        input.providerSubscriptionId,
+        { cancel_at_period_end: !input.autoRenewalEnabled },
+        {
+          idempotencyKey: this.idempotencyKey(
+            'subscription-auto-renewal',
+            input.autoRenewalChangeId,
+            input.autoRenewalEnabled ? 'enable' : 'disable',
+          ),
+        },
+      );
+    } catch (error) {
+      throw this.errorMapper.toApplicationError(error, {
+        operation: 'SET_SUBSCRIPTION_AUTO_RENEWAL',
+        aggregateId: input.providerSubscriptionId,
+      });
+    }
+    const autoRenewalEnabled = !subscription.cancel_at_period_end;
+
+    return {
+      providerSubscriptionId: subscription.id,
+      autoRenewalEnabled,
+    };
+  }
+
+  private classifyOperationError(
+    error: unknown,
+    context:
+      | { operation: 'CREATE_CHECKOUT'; paymentId: string }
+      | { operation: 'CREATE_CUSTOMER'; internalUserId: string },
+  ) {
+    return this.errorMapper.toApplicationError(error, {
+      operation: context.operation,
+      aggregateId: context.operation === 'CREATE_CHECKOUT' ? context.paymentId : context.internalUserId,
+    });
+  }
+
+  private idempotencyKey(scope: string, ...identity: string[]): string {
+    return [scope, ...identity].join(':');
+  }
+}
