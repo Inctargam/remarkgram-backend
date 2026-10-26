@@ -4,7 +4,7 @@
 
 Документ описывает стык, в котором Payment Module (D1) после подтверждения оплаты вызывает
 Subscription Module (D2). Источником фактической последовательности является
-`DbosPaymentWebhookWorkflow.processPaymentWebhookV5`; общие правила и принятые решения находятся в
+`DbosPaymentWebhookWorkflow.process`; общие правила и принятые решения находятся в
 [agent-context.md](./agent-context.md).
 
 Этот сценарий начинается не при создании Checkout, а после того, как доверенное provider event уже
@@ -43,14 +43,14 @@ CREATED в той же транзакции. Текущие/будущие пе�
 незавершённые изменения и прежнее включённое автопродление исключают ветку первой покупки.
 Месяцы считаются календарно с ограничением последним днём месяца; обработка запоздавшего события
 не сдвигает даты доступа. Дополнительная покупка создаёт строку после последнего оплаченного
-периода, сохраняет связь операции со старой подпиской и состояния DISABLING/ENABLING с paymentId.
+периода, сохраняет TRANSFER-операцию с id=paymentId и состояния DISABLING/ENABLING подписок.
 RENEWAL находит подписку пользователя по provider + providerSubscriptionId и продлевает её
 от текущего expiresAt без изменения настройки автопродления. Повтор каждого action возвращает
 сохранённый результат; все изменения используют переданную транзакцию и блокировку по userId.
 Подробные правила и ограничения приведены в карточке 2 `d2-method-cards.md`.
 `markProviderSubscriptionCancellationScheduled` реализован: через сохранённую операцию переводит
 старую подписку из DISABLING в RETIRED, повтор не меняет состояние.
-`bindProviderSubscription` реализован: по paymentId находит SCHEDULED-операцию, сохраняет новый
+`bindProviderSubscription` реализован: по paymentId находит применение SCHEDULED и связанную TRANSFER-операцию, сохраняет новый
 provider ID и завершает ENABLING → ENABLED. Поздний replay не меняет настройки автопродления.
 События Business-доступа ещё не публикуются.
 
@@ -222,12 +222,11 @@ workflow не использует это поле как billing anchor. D2 в�
 D1 вызывает `recordScheduled` после внешнего подтверждения `cancel_at_period_end=true`.
 Аргументы: ID новой локальной `subscriptionId`, старый `providerSubscriptionId`, общий `tx`.
 
-- Найти единственную SCHEDULED-операцию по subscriptionId и старому provider ID (take: 2),
-  взять lock пользователя и повторить поиск. Отсутствие или неоднозначность — конфликт.
-- Требовать SCHEDULED, previousSubscriptionId и совпадение provider ID с сохранённым
-  previousProviderSubscriptionId. Ошибка — SubscriptionCancellationConflictError.
-- При CANCELLATION_PENDING одной nested-записью сохранить старой подписке RETIRED
-  с autoRenewalChangeId=paymentId, операции — BINDING_PENDING.
+- Найти единственную AutoRenewalOperation типа TRANSFER с SCHEDULED-применением
+  по subscriptionId и sourceProviderSubscriptionId (take: 2), взять lock пользователя
+  и повторить поиск. Отсутствие или неоднозначность — конфликт.
+- Требовать сохранённую sourceSubscriptionId. Ошибка — SubscriptionCancellationConflictError.
+- При PENDING одной nested-записью сохранить старой подписке RETIRED, операции — BINDING_PENDING.
 - При BINDING_PENDING или COMPLETED вернуть успешный повтор без записи.
 - Не менять даты, provider ID и новую подписку. Старая связь больше не принимает enable/disable.
 
@@ -236,23 +235,31 @@ D1 вызывает `recordScheduled` после внешнего подтвер
 D1 вызывает `recordCreated` после создания новой provider-подписки.
 Аргументы: `paymentId`, новая локальная `subscriptionId`, новый `providerSubscriptionId`, общий `tx`.
 
-- Получить владельца операции, взять тот же lock и перечитать её по paymentId.
-- Требовать SCHEDULED и совпадение входящего subscriptionId со связью операции.
+- Получить владельца применения, взять тот же lock и перечитать применение вместе с операцией.
+- Требовать SCHEDULED, соответствующий subscriptionId и связанную TRANSFER-операцию.
 - При BINDING_PENDING одной nested-записью сохранить новой подписке provider ID и ENABLED,
-  операции — COMPLETED и boundProviderSubscriptionId. Даты, статус доступа и change ID не менять.
-- При COMPLETED сравнить входящий provider ID с boundProviderSubscriptionId:
+  операции — COMPLETED и снимок providerSubscriptionId. Даты и статус доступа не менять.
+- При COMPLETED сравнить входящий provider ID со снимком операции:
   совпадение — повтор без записи, различие — конфликт. Текущие настройки подписки не влияют на replay.
-- При CANCELLATION_PENDING вернуть конфликт: отключение ещё не подтверждено.
+- При PENDING вернуть конфликт: отключение ещё не подтверждено.
 - Ошибки аргументов, этапа и уникальности provider-привязки — SubscriptionBindingConflictError;
   остальные ошибки БД передавать вызывающей стороне.
 
-### Сохранённый этап и гарантии
+### Сохранённый результат и операция автопродления
 
-SubscriptionPaymentApplication хранит неизменяемый публичный результат applySuccessfulPayment,
-изменяемый processingStatus и неизменяемый после привязки boundProviderSubscriptionId.
-SCHEDULED проходит CANCELLATION_PENDING → BINDING_PENDING → COMPLETED.
-CREATED и RENEWED сразу сохраняются с COMPLETED и null в boundProviderSubscriptionId.
-Повтор applySuccessfulPayment возвращает только публичный результат, без служебных полей операции.
+SubscriptionPaymentApplication хранит paymentId, subscriptionId, action, nextSubscriptionStartsAt,
+createdAt и связи. Это запись о начисленном доступе; изменяемого этапа в ней нет.
+AutoRenewalOperation хранит этап, старую локальную связь и provider-снимки.
+Для SCHEDULED создаётся TRANSFER с id=paymentId; этапы PENDING → BINDING_PENDING → COMPLETED.
+CREATED и RENEWED не создают операцию автопродления.
+Публичный previousProviderSubscriptionId восстанавливается из sourceProviderSubscriptionId операции,
+а новый providerSubscriptionId записывается в неё один раз при привязке и далее неизменяем.
+Повтор applySuccessfulPayment возвращает только прежний публичный результат, без внутренних полей.
+
+Из Subscription удалён autoRenewalChangeId. Для будущих ручных ENABLE/DISABLE ID операции
+один раз устойчиво создаёт DBOS workflow; клиентский ключ в таблице не хранится.
+Ручной workflow будет передавать AutoRenewalOperation.id в существующий аргумент D1 autoRenewalChangeId.
+Ручные use case и workflow в текущий рефакторинг не входят.
 
 Корректность владельцев и связей обеспечивается при создании операции; связи неизменяемы.
 Завершающие методы не загружают состояния обеих подписок для повторной проверки.
@@ -268,9 +275,9 @@ recordScheduled передаёт params.subscriptionId согласно дейс
 
 1. До Checkout отвечать через `findActiveSubscriptionForPurchase`, не изменяя состояние.
 2. После financial success получить `SuccessfulPayment` в `applySuccessfulPayment`.
-3. Найти ранее применённый результат по `paymentId`; при наличии вернуть его.
+3. Взять общую блокировку пользователя, найти ранее применённый результат по `paymentId`; при наличии вернуть его.
 4. По текущему D2 lifecycle определить `CREATED`, `RENEWED` или `SCHEDULED` и атомарно сохранить
-   результат применения.
+   результат применения и необходимую TRANSFER-операцию.
 5. Для `CREATED`/`RENEWED` больше вызовов D2 в этом workflow не будет.
 6. Для `SCHEDULED` дождаться отдельного вызова `markProviderSubscriptionCancellationScheduled` после
    provider confirmation.
@@ -517,10 +524,10 @@ D2 должен связать новую provider Subscription с той же �
 
 ## Текущее состояние реализации
 
-D1 orchestration и contracts подключены к `processPaymentWebhookV5`. Реальный D2 persistence и
-production implementation `SubscriptionPaymentHandler` пока отсутствуют; в composition root подключён
-временный adapter. Временный adapter нужен только для локальной отработки workflow и не является
-реализацией описанных D2 invariants.
+В composition root подключены реальные D2 адаптеры и Prisma-репозиторий. Применение платежа
+и настройка автопродления хранятся раздельно; публичные контракты D1 сохранены.
+Неприменённая миграция подписок обновлена на месте, перенос данных не требуется.
+Миграция и тесты не запускались. Ручное автопродление, lifecycle worker и события доступа — отдельные задачи.
 
 ## Минимальные сценарии приёмки стыка
 

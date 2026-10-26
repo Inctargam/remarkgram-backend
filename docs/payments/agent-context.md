@@ -146,123 +146,112 @@ verified provider event
 Для автоматического `RENEWAL` выполняются только шаги 1 и 2. Полный согласованный контракт и правила
 recovery зафиксированы в разделе «План применения успешного платежа».
 
-В Prisma-схему добавлены `Subscription` и `SubscriptionPaymentApplication`; подготовлена миграция
-`20261021120000_add_subscriptions`. Для `applySuccessfulPayment` подключена цепочка:
-`LocalSubscriptionPaymentHandlerAdapter` → `CommandBus` → `ApplySuccessfulPaymentUseCase` →
-`SubscriptionsRepository` (`PrismaSubscriptionsRepository`). Команда передаёт исходные
-`SuccessfulPayment` и `PaymentsTransactionContext`; транзакцией управляет вызывающий D1.
-Перед чтением результата применения D2 вызывает `SubscriptionsRepository.lockByUserId`:
-метод формирует строковый ключ `subscriptions:user:${userId}` и выполняет
-`pg_advisory_xact_lock(hashtextextended(lockKey, 0))` через переданный Prisma transaction client.
-Формирование ключа сосредоточено в репозитории; вызывающие операции используют `lockByUserId`.
-Это сериализует применения платежей одного пользователя, в том числе первую покупку без строк
-Subscription. Блокировка освобождается при commit/rollback. Шаг `linkPaymentToSubscription`
-использует стандартный уровень PostgreSQL `ReadCommitted` без явного переопределения;
-уровень по умолчанию не меняем. Чтение после ожидания видит предыдущий commit.
-Будущие операции изменения очереди и автопродления должны брать ту же блокировку до чтения
-состояния. Между транзакциями и на время вызовов provider API она не удерживается:
-для этого остаются проверки сохранённых переходных состояний.
-Чтение результата по `paymentId` реализовано через `tx.subscriptionPaymentApplication.findUnique`:
-возвращается сохранённый результат с ISO-датой либо `null`, если платёж ещё не применён.
-Повторный вызов use case возвращает этот результат без изменений подписок.
-Реализована первая `PURCHASE` с результатом `CREATED`: нет текущих/будущих оплаченных периодов,
-незавершённых изменений автопродления и прежних подписок с включённым recurring billing.
-Исторические периоды допускаются, если новый период с ними не пересекается.
-Период начинается в `paidAt`; DAY/WEEK считаются в UTC, MONTH — календарными месяцами с ограничением
-последним днём месяца. Запоздавшее событие не сдвигает оплаченный период: уже закончившийся период
-сохраняется как EXPIRED; будущий — PENDING; действующий — ACTIVE. Перед созданием актуализируются
-устаревшие статусы уже закончившихся периодов этого пользователя.
-Подписка и `SubscriptionPaymentApplication` сохраняются одним nested create через переданный `tx`;
-ошибки не подавляются, чтобы D1 мог откатить весь шаг. Для CREATED `nextSubscriptionStartsAt` равен
-`expiresAt`, прежние локальная и provider-связи отсутствуют.
-Для первой provider-привязки в `SuccessfulPayment` добавлено необязательное поле
-`providerSubscriptionId`. Фабрика D1 заполняет его, а `LinkPaymentToSubscriptionUseCase` перед вызовом
-D2 берёт актуальную привязку из уже прочитанного Payment — в том числе для старых workflow snapshots.
-Если запрошено автопродление, ID обязателен и сохраняется вместе с ENABLED; без него операция
-завершается конфликтом, а не ложным успехом. Одноразовая покупка без provider-подписки сохраняет DISABLED.
-Дополнительный PURCHASE реализован: выбирается последняя подписка оплаченной очереди,
-включая PENDING; новый период начинается в max(paidAt, expiresAt последней подписки).
-Результат SCHEDULED хранит предыдущую локальную связь и снимок provider ID.
-В той же транзакции старая подписка получает DISABLING, новая ENABLING;
-autoRenewalChangeId у обеих равен paymentId. Пока переход не завершён, другие применения
-платежей возвращают конфликт, но replay уже применённого paymentId возвращается до этой проверки.
-Истёкший период с ENABLED также направляется в SCHEDULED, чтобы не оставить прежнее списание.
-SCHEDULED требует прежнюю незавершённую provider-связь того же провайдера и намерение включить
-автопродление: D1 в этой ветке всегда отключает прежнее и создаёт новое recurring billing.
-Для покупки после одноразовой подписки без provider ID и для SCHEDULED без автопродления
-требуется расширение D1-контракта; сейчас возвращается явный конфликт.
-RENEWAL находит подписку пользователя по provider + providerSubscriptionId, проверяет план
-и добавляет период к её текущему expiresAt. Сохраняются та же строка и её настройка auto-renewal.
-Даты не сдвигаются к paidAt при задержке webhook; пересечение с другим оплаченным периодом
-отклоняется без перестройки очереди. Контракт не содержит границ периода Invoice:
-последовательное начисление локальных периодов не заменяет точную сверку с provider-периодами.
-`SubscriptionPaymentApplication.processingStatus` хранит этап обработки:
-для SCHEDULED — CANCELLATION_PENDING → BINDING_PENDING → COMPLETED;
-для CREATED и RENEWED — сразу COMPLETED. `boundProviderSubscriptionId` хранит неизменяемый
-результат завершающей привязки SCHEDULED; для CREATED/RENEWED он остаётся null.
-Публичный результат applySuccessfulPayment неизменяем и не содержит этих внутренних полей.
+### Модель D2: доступ и автопродление (2026-10-26)
 
-D1-контракты сохраняются. Изменения сигнатур перечислены только как предложения
-в contract-simplification-proposals.md.
+В Prisma-схеме три модели: `Subscription`, `SubscriptionPaymentApplication` и `AutoRenewalOperation`.
+Существующая миграция `20261021120000_add_subscriptions` обновлена на месте: она ещё не применялась,
+перенос данных не требуется. Миграция не запускалась.
+
+`Subscription` хранит период доступа, текущую provider-связь и `autoRenewalStatus`.
+Поля `autoRenewalChangeId` в Subscription больше нет. `ENABLING`/`DISABLING` сохраняются как запрет
+конкурирующих изменений между транзакциями; `RETIRED` запрещает включать прежнюю provider-связь,
+но не сокращает оплаченный доступ.
+
+`SubscriptionPaymentApplication` хранит неизменяемые `paymentId`, `subscriptionId`, `action`,
+`nextSubscriptionStartsAt`, `createdAt`. Наличие записи означает, что доступ за платёж уже начислен.
+Этапов настройки автопродления в этой таблице нет.
+
+`AutoRenewalOperation` хранит `id`, `userId`, `type`, `status`, необязательный уникальный `paymentId`,
+`subscriptionId`, `provider`, `providerSubscriptionId`, `sourceSubscriptionId`,
+`sourceProviderSubscriptionId`, `createdAt`, `updatedAt`. `paymentId` ссылается на применение платежа.
+Для TRANSFER `id = paymentId`, обязательны старая локальная связь и снимок её provider ID;
+новый provider ID появляется при binding и затем неизменяем.
+Этапы TRANSFER: PENDING → BINDING_PENDING → COMPLETED.
+CREATED/RENEWED не создают AutoRenewalOperation; SCHEDULED создаёт TRANSFER/PENDING.
+
+Для будущих ручных ENABLE/DISABLE модель допускает null в paymentId и полях старой связи.
+ID операции один раз устойчиво создаёт новый DBOS workflow; клиентский ключ в таблице не хранится.
+Дедупликация клиентского запуска и сверка его аргументов остаются на уровне workflow.
+Ручные use case и workflow пока не реализованы. В D1 `autoRenewalChangeId` будет передаваться
+из `AutoRenewalOperation.id`; внешний контракт этого аргумента сохраняется.
+
+### Применение платежа и сериализация
+
+Цепочка: `LocalSubscriptionPaymentHandlerAdapter` → `CommandBus` → use case →
+`SubscriptionsRepository` (`PrismaSubscriptionsRepository`). Все изменения используют переданный
+`PaymentsTransactionContext`; транзакцией управляет D1. Репозиторий возвращает application-типы.
+
+До чтения результата `applySuccessfulPayment` берёт `lockByUserId`:
+`pg_advisory_xact_lock(hashtextextended('subscriptions:user:<userId>', 0))`.
+Одинаковая блокировка используется в завершающих обработчиках и должна использоваться будущими
+ручными изменениями. Уровень изоляции по умолчанию ReadCommitted не переопределяется.
+Блокировка освобождается при commit/rollback; на время provider-вызовов остаётся запрет через
+ENABLING/DISABLING. Решения принимаются по чтению после получения блокировки.
+
+`findPaymentApplication(paymentId, tx)` читает применение вместе с операцией автопродления.
+Публичный `previousProviderSubscriptionId` восстанавливается из её sourceProviderSubscriptionId,
+для CREATED/RENEWED возвращается null. Replay возвращает только прежний публичный результат,
+до проверки конкурирующих изменений: ни нового периода, ни второй операции не создаётся.
+
+Первая PURCHASE создаёт период от paidAt, если нет текущих/будущих периодов, незавершённых
+изменений и старого включённого автопродления. DAY/WEEK считаются в UTC, MONTH — календарно
+с ограничением последним днём месяца. Исторические периоды не должны пересекаться с новым.
+Запоздавшее событие не сдвигает доступ: истёкший период сохраняется EXPIRED, будущий PENDING,
+действующий ACTIVE. Перед созданием актуализируются статусы истёкших периодов.
+Для первой покупки с автопродлением обязателен providerSubscriptionId, иначе конфликт.
+D1 передаёт его из текущего Payment, включая обработку старого snapshot SuccessfulPayment.
+Без автопродления допускается отсутствие provider ID и сохраняется DISABLED.
+
+Дополнительная PURCHASE выбирает конец очереди, включая PENDING, и создаёт новую подписку
+от max(paidAt, expiresAt последней подписки). Старая получает DISABLING, новая ENABLING.
+В той же транзакции сохраняются применение платежа и TRANSFER/PENDING со снимками связей.
+Истёкшая подписка с ENABLED также требует переноса, чтобы не оставить старое списание.
+SCHEDULED требует старую provider-связь, не RETIRED, того же провайдера и autoRenewalRequested=true:
+текущий D1 всегда выполняет оба внешних шага. Другие сценарии требуют отдельного согласования.
+
+RENEWAL находит подписку пользователя по provider + providerSubscriptionId, проверяет план
+и продлевает существующую строку от expiresAt, сохраняя настройку автопродления.
+Пересечение с другим оплаченным периодом отклоняется; очередь автоматически не сдвигается.
+Контракт не содержит границ Invoice, поэтому последовательное начисление не заменяет сверку
+с provider-периодами. События Business-доступа пока не реализованы.
+
+### Завершающие обработчики: прежний интерфейс D1
+
+Изменения сигнатур остаются предложениями в contract-simplification-proposals.md.
 
 `markProviderSubscriptionCancellationScheduled(subscriptionId, providerSubscriptionId, tx)`
-получает ID новой локальной подписки и старый provider ID. D2 ищет SCHEDULED-операцию
-по этой паре (take: 2), определяет пользователя, берёт общий lock и повторяет поиск.
-Отсутствие или неоднозначность — SubscriptionCancellationConflictError.
-При CANCELLATION_PENDING одна nested-запись переводит старую подписку в RETIRED
-с autoRenewalChangeId=paymentId найденной операции, а операцию — в BINDING_PENDING.
-BINDING_PENDING и COMPLETED означают успешный повтор без записи.
-Старую локальную подписку определяет previousSubscriptionId операции.
+получает ID новой локальной подписки и старый provider ID. `findCancellationOperations` ищет
+TRANSFER, связанный с SCHEDULED-применением, по этой паре (take: 2), затем поиск повторяется
+под блокировкой владельца. Отсутствие или неоднозначность — SubscriptionCancellationConflictError.
+При PENDING одна nested-запись переводит sourceSubscription в RETIRED, операцию — в BINDING_PENDING.
+BINDING_PENDING/COMPLETED означают успешный повтор без записи. Даты доступа не меняются.
 
 `bindProviderSubscription(paymentId, subscriptionId, providerSubscriptionId, tx)`
-получает владельца через findPaymentApplication, берёт lock и перечитывает операцию.
-Требует SCHEDULED и совпадение входящего subscriptionId со связью операции.
-При BINDING_PENDING одна nested-запись сохраняет новой подписке provider ID и ENABLED,
-а операции — COMPLETED и boundProviderSubscriptionId. Даты и change ID не меняются.
-При COMPLETED совпадающий снимок provider ID означает успешный повтор, другой ID — конфликт.
-CANCELLATION_PENDING отклоняется: отключение ещё не подтверждено.
-Конфликт уникальности provider-привязки переводится в SubscriptionBindingConflictError;
-остальные ошибки передаются D1 для отката общего шага.
+получает владельца применения, берёт lock и перечитывает применение вместе с операцией.
+Требует SCHEDULED, соответствующий subscriptionId и наличие TRANSFER.
+При BINDING_PENDING одна nested-запись сохраняет provider ID и ENABLED новой подписки,
+а операции — COMPLETED и неизменяемый снимок нового providerSubscriptionId.
+При COMPLETED совпадающий снимок означает повтор без записи; другой ID — конфликт.
+PENDING отклоняется: отключение ещё не подтверждено. Состояния обеих подписок для replay
+не перечитываются, поздний повтор не отменяет последующее ручное отключение.
+P2002 при привязке преобразуется в SubscriptionBindingConflictError; остальные ошибки передаются
+D1 для отката всего локального шага. Внешний API эти методы не вызывают.
 
-Состояния обеих подписок для этих шагов повторно не загружаются и не проверяются.
-Принадлежность, различие подписок и корректность связей обеспечиваются созданием операции;
-связи и владельцы неизменяемы. Непустой новый provider ID гарантирует D1.
-ENABLING/DISABLING и общий lock остаются обязательными для координации с будущими ручными
-изменениями автопродления; RETIRED остаётся терминальным состоянием старой связи.
-Provider API внутри этих методов не вызывается; транзакцией управляет D1.
-События Business-доступа пока не реализованы.
-Для `findActiveSubscriptionForPurchase` подключено чтение из БД:
+Связи, их принадлежность пользователю и различие старой/новой подписок обеспечиваются при создании
+операции и не меняются. Provider-снимки не пересчитываются из текущего состояния Subscription.
+Будущие ручные операции обязаны соблюдать общий lock, переходные состояния и запрет RETIRED.
+Успех локального replay не заменяет идемпотентность внешних шагов D1.
+
+### Чтение текущего доступа
+
 `LocalSubscriptionContextAdapter` → `FindActiveSubscriptionForPurchaseQueryHandler` →
-`SubscriptionsQueryRepository`. `PrismaSubscriptionsQueryRepository` ищет подписку пользователя
-со статусом `ACTIVE` или `PENDING` и периодом `startsAt <= now < expiresAt`. Так задержка
-переключения статуса фоновой задачей не скрывает уже начавшийся оплаченный период.
-Одно совпадение — `{ subscriptionId }`, нет совпадений — `null`; несколько — `MultipleActiveSubscriptionsError`.
-Ошибки БД передаются вызывающей стороне. Для работы нужна применённая миграция подписок.
-Прежний `TemporarySubscriptionPaymentHandlerAdapter` больше не подключён к `PaymentsModule`.
-
-`SubscriptionPaymentApplication` хранит результат применения каждого `paymentId` для replay.
-Для переноса автопродления `previousSubscriptionId` ссылается на старую локальную подписку,
-а `previousProviderSubscriptionId` сохраняет неизменяемый снимок её provider ID для операции.
-Снимок новой привязки хранится в `boundProviderSubscriptionId`, этап — в `processingStatus`.
-`previousSubscriptionId` nullable: для `CREATED` и `RENEWED` перенос не требуется.
-Связь имеет внешний ключ и индекс; при создании D2 обеспечивает, что старая и новая подписки принадлежат
-пользователю платежа и различаются. В `Subscription` прежний provider ID
-не дублируется: она хранит текущий provider ID и состояние автопродления.
-`AutoRenewalStatus.RETIRED` — терминальное состояние автопродления конкретной provider-связи.
-Обычное отключение пользователем завершается переходом `DISABLING → DISABLED`, а отключение
-при переносе на новую подписку — `DISABLING → RETIRED`. В `RETIRED` включение запрещено;
-оплаченный доступ сохраняется до `expiresAt`. `autoRenewalChangeId` завершённой операции
-не очищается и не перезаписывается: повтор с тем же ID и той же provider-связью успешен без изменений,
-другая операция над завершённой связью отклоняется. DISABLING → RETIRED реализован указанным use case;
-завершение привязки ENABLING → ENABLED также реализовано; ручные enable/disable ещё требуют реализации D2.
-В Subscription отдельного статуса переключения нет: этап хранится в операции платежа.
-Частичный уникальный индекс допускает одну ACTIVE-подписку на пользователя.
-Применение платежей, подтверждение отключения и привязка используют одну блокировку по userId.
-Будущие ручные переключения должны соблюдать ту же блокировку
-и состояния autoRenewalStatus; общая координация lifecycle ещё не завершена.
-Проверку доступности новой покупки до списания денег, защиту от пересечения периодов и координацию
-auto-renewal с переключением provider-связи должен реализовать application-слой. FK из существующего
-`Payment.subscriptionId` не добавлен: прежний временный handler мог записывать ID без настоящей Subscription.
+`SubscriptionsQueryRepository`. Prisma-репозиторий ищет ACTIVE/PENDING с startsAt <= now < expiresAt:
+задержка фонового переключения не скрывает начавшийся период. Одно совпадение возвращает
+{ subscriptionId }, отсутствие — null, несколько — MultipleActiveSubscriptionsError.
+Ошибки БД передаются вызывающему коду. Частичный уникальный индекс сохраняет одну ACTIVE-строку
+на пользователя. Общая координация lifecycle, ручное автопродление и события доступа ещё требуют
+реализации. FK из Payment.subscriptionId не добавлен: старый временный handler мог сохранять
+ID без настоящей Subscription. В composition root подключены реальные D2 адаптеры.
 
 ## Основная модель Payment
 

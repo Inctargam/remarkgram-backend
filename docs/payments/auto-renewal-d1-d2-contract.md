@@ -31,12 +31,18 @@ D2:
 
 - принимает бизнес-решение о включении или отключении auto-renewal;
 - проверяет владельца и допустимость перехода Subscription;
-- хранит desired и фактическое локальное состояние;
-- создаёт идентификатор изменения `autoRenewalChangeId`;
+- хранит намерение и этап в AutoRenewalOperation, состояние подписки — в Subscription;
+- передаёт устойчивый ID операции из будущего DBOS workflow как `autoRenewalChangeId`;
 - вызывает D1 только после фиксации переходного состояния;
 - организует retry/recovery и подтверждает итоговое состояние после ответа D1.
 
-Реальный D2 application boundary пока не реализован. D1 предоставляет готовый
+В Subscription поле autoRenewalChangeId удалено; история хранится в AutoRenewalOperation.
+Для ручных ENABLE/DISABLE paymentId и поля source-связи отсутствуют, существующий provider ID
+фиксируется при создании. Этапы: PENDING → COMPLETED. ID один раз устойчиво создаёт будущий
+DBOS workflow, повтор использует тот же ID. Клиентский ключ идемпотентности в таблице не хранится;
+его дедупликация и сверка аргументов относятся к запуску workflow.
+
+Реальный D2 application boundary ручного переключения пока не реализован. D1 предоставляет готовый
 `PaymentsProviderSubscriptionAutoRenewalAdapter`, зарегистрированный и экспортированный из
 `PaymentsModule` по class token. D2 use cases не должны импортировать
 `SetProviderSubscriptionAutoRenewalUseCase` напрямую.
@@ -149,7 +155,8 @@ response, в том числе полный Stripe Subscription object, чере
 
 ```text
 D2: business decision
-  -> D2 transaction: desired state + ENABLING/DISABLING + autoRenewalChangeId
+  -> D2 workflow: устойчивый AutoRenewalOperation.id
+  -> D2 transaction: AutoRenewalOperation(PENDING) + ENABLING/DISABLING
   -> commit
   -> D2 ProviderSubscriptionAutoRenewalGateway.enable|disable
   -> D1 PaymentsProviderSubscriptionAutoRenewalAdapter
@@ -157,10 +164,15 @@ D2: business decision
   -> D1 PaymentProviderPort
   -> Stripe API                              (без открытой DB-транзакции)
   -> D1 normalized result
-  -> D2 transaction: сверка change ID и подтверждение ENABLED/DISABLED
+  -> D2 transaction: чтение операции под lock + ENABLED/DISABLED + COMPLETED
 ```
 
-Внешний provider-вызов нельзя выполнять внутри длинной DB-транзакции. Если процесс завершился после
+Обе локальные транзакции используют общую блокировку пользователя. Завершённый повтор
+возвращает результат операции, не восстанавливая прежнюю настройку поверх последующего изменения.
+Новая несовместимая операция не начинается при ENABLING/DISABLING; RETIRED запрещает включение.
+Это требования к будущей реализации ручных workflow, а не уже готовый D2 API.
+
+Внешний provider-вызов нельзя выполнять внутри длинной DB-транзакции. Если процесс остановился после
 provider success, но до локального подтверждения D2, повтор с тем же `autoRenewalChangeId` и desired
 state должен безопасно получить тот же эффект.
 

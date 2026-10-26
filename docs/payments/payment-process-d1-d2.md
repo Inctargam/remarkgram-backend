@@ -139,9 +139,10 @@
    Его нужно передать своим репозиториям; самостоятельно завершать транзакцию
    или сохранять контекст для следующего шага нельзя.
 
-   Ты сохраняешь изменения и результат применения платежа. Этап операции:
-   CANCELLATION_PENDING для SCHEDULED, сразу COMPLETED для CREATED и RENEWED.
-   Для последних двух boundProviderSubscriptionId остаётся null.
+   Ты сохраняешь изменения и SubscriptionPaymentApplication с неизменяемым результатом.
+   Для SCHEDULED дополнительно создаётся AutoRenewalOperation типа TRANSFER со статусом PENDING
+   и ID, равным paymentId. Для CREATED/RENEWED операция автопродления не создаётся.
+   Старую связь и provider-снимки хранит AutoRenewalOperation; этапов в применении платежа нет.
    D1 записывает возвращённый
    `subscriptionId` в Payment.
 
@@ -173,9 +174,9 @@
    В `markProviderSubscriptionCancellationScheduled` D1 передаёт:
    `subscriptionId` новой локальной подписки, прежний `previousProviderSubscriptionId`
    как аргумент `providerSubscriptionId` и контекст новой локальной транзакции.
-   По новой подписке и старому provider ID ты находишь единственную SCHEDULED-операцию,
+   По новой подписке и старому provider ID ты находишь единственную TRANSFER-операцию, связанную с SCHEDULED-применением,
    берёшь lock пользователя и повторяешь поиск.
-   При CANCELLATION_PENDING записываешь старой подписке RETIRED, операции — BINDING_PENDING.
+   При PENDING записываешь старой подписке RETIRED, операции — BINDING_PENDING.
    BINDING_PENDING и COMPLETED означают повтор без записи после проверки старого provider ID.
 
    Затем D1 создаёт новую provider-подписку с датой следующего списания,
@@ -188,9 +189,9 @@
    В `bindProviderSubscription` приходят paymentId, локальный subscriptionId, новый ID Stripe и tx.
    Проверяешь совпадение локального ID со связью операции.
    При BINDING_PENDING ты атомарно сохраняешь новой подписке provider ID и ENABLED,
-   операции — COMPLETED и снимок boundProviderSubscriptionId. При COMPLETED повтор
+   операции — COMPLETED и снимок AutoRenewalOperation.providerSubscriptionId. При COMPLETED повтор
    сравнивается со снимком и ничего не меняет. Другой provider ID — конфликт.
-   При CANCELLATION_PENDING привязка отклоняется: старое отключение ещё не подтверждено.
+   При PENDING привязка отклоняется: старое отключение ещё не подтверждено.
    Оба метода возвращают `Promise<void>`: успешное завершение означает, что
    локальные изменения выполнены в переданном `tx`; commit выполняет вызывающая сторона.
    Эти методы не начисляют оплаченный период повторно и не вызывают Stripe.
@@ -251,8 +252,11 @@ abstract class ProviderSubscriptionAutoRenewalGateway {
 Готовый адаптер D1 — `PaymentsProviderSubscriptionAutoRenewalAdapter` —
 уже предоставляет `enable` и `disable` с этими входными и выходными данными.
 
-Ты создаёшь `autoRenewalChangeId` один раз на логическое изменение и сохраняешь
-его для всех повторов. Следующее изменение получает новый ID.
+Будущий DBOS workflow один раз устойчиво создаёт AutoRenewalOperation.id и использует его
+для всех повторов, в том числе передаёт D1 как autoRenewalChangeId. В Subscription это поле
+больше не хранится. Следующее изменение получает новую операцию; клиентский ключ в таблицу
+не записывается. Дедупликация запуска и сверка аргументов остаются на уровне workflow.
+Ручные use case/workflow ещё не реализованы.
 Вызов выполняется после commit переходного состояния, без открытой DB-транзакции.
 Стабильное состояние подтверждается только после ответа для нужной provider-связи
 и нужной операции. Timeout не доказывает, что настройка не изменилась;

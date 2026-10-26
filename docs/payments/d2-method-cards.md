@@ -96,10 +96,11 @@ UTC ISO-строка даты тоже обязательна, хотя D1 не 
 
 **Дополнительная покупка реализована:** выбрать конец оплаченной очереди (включая PENDING),
 создать новую строку от `max(paidAt, expiresAt последней подписки)` и вернуть SCHEDULED.
-Старая связь получает DISABLING, новая — ENABLING; обе получают `autoRenewalChangeId = paymentId`.
-Операция получает CANCELLATION_PENDING. Для CREATED и RENEWED этап сразу COMPLETED;
-снимок boundProviderSubscriptionId для этих двух действий остаётся null.
-В результате операции сохраняются `previousSubscriptionId` и снимок прежнего provider ID.
+Старая связь получает DISABLING, новая — ENABLING. В той же транзакции сохраняются
+SubscriptionPaymentApplication и AutoRenewalOperation типа TRANSFER со статусом PENDING.
+ID операции равен paymentId; sourceSubscriptionId и sourceProviderSubscriptionId сохраняют старую связь.
+CREATED и RENEWED создают только применение платежа, без операции автопродления.
+Публичный previousProviderSubscriptionId при повторе берётся из неизменяемого снимка операции.
 Истёкшая подписка с ENABLED тоже требует отключения прежнего recurring billing.
 
 **RENEWAL реализован:** найти подписку этого пользователя по паре provider + providerSubscriptionId,
@@ -130,10 +131,10 @@ markProviderSubscriptionCancellationScheduled(
 
 **Что приходит:** ID новой локальной подписки B и старый `sub_old`.
 
-**Сделать:** найти единственную SCHEDULED-операцию по B и снимку старого provider ID,
+**Сделать:** найти единственную TRANSFER-операцию с SCHEDULED-применением по B и снимку старого provider ID,
 взять lock её пользователя и повторить поиск. Отсутствие или неоднозначность — конфликт.
-При CANCELLATION_PENDING одной nested-записью установить A = RETIRED с change ID платежа,
-операции — BINDING_PENDING. A определяется через previousSubscriptionId; даты A и B не менять.
+При PENDING одной nested-записью установить A = RETIRED, операции — BINDING_PENDING.
+A определяется через sourceSubscriptionId; даты A и B не менять.
 
 **Повтор:** BINDING_PENDING или COMPLETED → успех без записи после проверки входящих ID.
 Текущее состояние B не читаем: оно могло измениться после завершения операции.
@@ -154,10 +155,10 @@ bindProviderSubscription(
 
 **Что приходит:** paymentId дополнительной покупки, ID локальной B и новый `sub_new`.
 
-**Сделать:** получить владельца операции, взять lock и перечитать её по paymentId.
-Проверить SCHEDULED и совпадение входящего ID B со связью операции. При BINDING_PENDING одной nested-записью сохранить B.providerSubscriptionId
-и ENABLED, операции — COMPLETED и снимок boundProviderSubscriptionId. Даты и change ID сохранить.
-CANCELLATION_PENDING → ошибка: отключение ещё не подтверждено.
+**Сделать:** получить владельца применения платежа, взять lock и перечитать применение вместе с операцией.
+Проверить SCHEDULED, наличие TRANSFER и совпадение входящего ID B со связью применения. При BINDING_PENDING одной nested-записью сохранить B.providerSubscriptionId
+и ENABLED, операции — COMPLETED и снимок providerSubscriptionId. Даты доступа сохранить.
+PENDING → ошибка: отключение ещё не подтверждено.
 
 **Повтор:** при COMPLETED тот же provider ID в снимке операции → успех без изменений;
 другой ID → SubscriptionBindingConflictError. Текущие состояния A и B не проверяем.
@@ -169,6 +170,10 @@ CANCELLATION_PENDING → ошибка: отключение ещё не подт
 обязаны соблюдать их и общий lock. RETIRED запрещает повторное включение старой связи.
 D1 гарантирует непустой новый provider ID и управляет commit/rollback общего tx.
 Эти методы не начисляют периоды и не вызывают Stripe.
+
+В Subscription больше нет autoRenewalChangeId. Будущий ручной workflow один раз устойчиво
+создаст AutoRenewalOperation.id и передаст его D1 как autoRenewalChangeId. Клиентский ключ
+в таблице не хранится; дедупликация запуска остаётся на уровне workflow.
 
 Переключение автопродления пользователем, expiration и события Business-доступа —
 отдельные задачи D2; эти четыре метода их полностью не реализуют.
