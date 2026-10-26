@@ -1,23 +1,24 @@
-# Предложения по контрактам D1 ↔ D2
+# Упрощение контрактов D1 ↔ D2
 
-Предложения для согласования с D1. В коде сохраняются текущие контракты.
+Изменения реализованы на стороне D1. Concrete adapters и use cases D2 должны реализовать
+обновлённые порты отдельно; этот документ не фиксирует завершение D2-интеграции.
 
-## Предлагаемые изменения
+## Реализованные изменения D1
 
-- `markProviderSubscriptionCancellationScheduled`: переименовать в `confirmAutoRenewalCancellation`.
+- `markProviderSubscriptionCancellationScheduled` переименован в `confirmAutoRenewalCancellation`.
   Метод фиксирует подтверждённое провайдером отключение автопродления старой подписки;
   оплаченный доступ сохраняется до конца периода. Внешний вызов выполняет D1.
   Вместо ID новой локальной подписки передавать `paymentId`.
   Старый `providerSubscriptionId` и `tx` оставить. D2 найдёт операцию напрямую по платежу:
   исчезнут поиск по новой подписке и старому provider ID и проверка нескольких совпадений.
-- `bindProviderSubscription`: убрать аргумент `subscriptionId`, оставить `paymentId`, новый
+- Из `bindProviderSubscription` убран аргумент `subscriptionId`; оставлены `paymentId`, новый
   `providerSubscriptionId` и `tx`. ID локальной подписки уже сохранён в операции платежа;
   исчезнет проверка совпадения сохранённого и переданного ID.
-- `findActiveSubscriptionForPurchase`: заменить на `hasActiveSubscription(userId): Promise<boolean>`.
+- `findActiveSubscriptionForPurchase` заменён на `hasActiveSubscription(userId): Promise<boolean>`.
   Для выбора первой или дополнительной покупки D1 достаточно факта наличия активной подписки.
-  Это потребует отказаться от сохранения её ID в `Payment.targetSubscriptionId` для новых покупок.
+  D1 больше не сохраняет её ID в Payment.
   `false` означает отсутствие подписки; ошибка чтения остаётся ошибкой.
-- `SuccessfulPayment`: убрать `targetSubscriptionId` — D2 не использует этот снимок Checkout.
+- Из `SuccessfulPayment` удалён `targetSubscriptionId` — D2 не использует этот снимок Checkout.
   При PURCHASE D2 определяет начало нового периода по оплаченным периодам пользователя (`userId`),
   включая ещё не начавшиеся. При RENEWAL находит продлеваемую подписку по паре
-  `provider` + `providerSubscriptionId`. Хранение старых значений в Payment можно сохранить.
+  `provider` + `providerSubscriptionId`. Поле удалено и из Payment в отдельном cleanup-срезе.

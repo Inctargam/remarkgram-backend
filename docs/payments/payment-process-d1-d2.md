@@ -8,16 +8,16 @@
 
    Пользователь выбирает тариф и нажимает оплатить.
 
-   **Ты:** через `findActiveSubscriptionForPurchase(userId)` возвращаешь ID активной подписки или null.
+   **Ты:** через `hasActiveSubscription(userId)` сообщаешь, есть ли активная подписка.
 
    ```ts
    abstract class SubscriptionContextPort {
-     abstract findActiveSubscriptionForPurchase(userId: number): Promise<{ subscriptionId: string } | null>;
+     abstract hasActiveSubscription(userId: number): Promise<boolean>;
    }
    ```
 
-   Объект с subscriptionId — подписка есть, null — нет. Ошибка чтения пробрасывается.
-   D1 выбирает CheckoutPurpose и сохраняет ID в Payment.targetSubscriptionId.
+   `true` — подписка есть, `false` — нет. Ошибка чтения пробрасывается.
+   D1 использует результат только для выбора CheckoutPurpose.
    Этот запрос не резервирует период и не гарантирует состояние на момент оплаты.
 
    D1 сохраняет Payment с условиями покупки и контекстом подписки, создаёт checkout
@@ -56,7 +56,6 @@
      planId: number;
      type: PaymentType;
      autoRenewalRequested: boolean | null;
-     targetSubscriptionId: string | null;
      amount: number;
      currency: Currency;
      periodCount: number;
@@ -71,7 +70,6 @@
    Здесь поля раскрыты для чтения: в исходном типе используется `Readonly`,
    а часть типов берётся из `Payment`. Сам объект является неизменяемым снимком оплаты.
    Текущие значения enum:
-
    - `PaymentType`: `PURCHASE`, `RENEWAL`;
    - `Currency`: `USD`;
    - `PeriodUnit`: `DAY`, `WEEK`, `MONTH`;
@@ -80,17 +78,17 @@
    `paymentId` — ключ идемпотентности применения платежа.
    `periodCount` и `periodUnit` — оплаченная длительность из snapshot платежа.
    `paidAt` — время оплаты в UTC ISO-8601, а не дата начала будущего периода.
-   targetSubscriptionId — снимок Checkout. Очередь определяется по userId;
-   цель автопродления — по provider + providerSubscriptionId.
+   Очередь PURCHASE определяется по userId; цель автопродления — по
+   provider + providerSubscriptionId.
    `autoRenewalRequested` — намерение при покупке, а не текущее состояние автопродления.
 
    **Ты:** проверяешь, не применялся ли этот `paymentId`, и определяешь результат:
 
-   | Сценарий | Твоя операция | `action` |
-   | --- | --- | --- |
-   | Первая покупка | Создать первую локальную подписку и оплаченный период | `CREATED` |
+   | Сценарий               | Твоя операция                                                     | `action`    |
+   | ---------------------- | ----------------------------------------------------------------- | ----------- |
+   | Первая покупка         | Создать первую локальную подписку и оплаченный период             | `CREATED`   |
    | Дополнительная покупка | Запланировать новый период после существующих оплаченных периодов | `SCHEDULED` |
-   | Автосписание | Продлить соответствующую существующую подписку | `RENEWED` |
+   | Автосписание           | Продлить соответствующую существующую подписку                    | `RENEWED`   |
 
    Контракт твоего результата:
 
@@ -120,15 +118,14 @@
        tx: PaymentsTransactionContext,
      ): Promise<ApplySuccessfulPaymentResult>;
 
-     abstract markProviderSubscriptionCancellationScheduled(
-       subscriptionId: string,
+     abstract confirmAutoRenewalCancellation(
+       paymentId: string,
        providerSubscriptionId: string,
        tx: PaymentsTransactionContext,
      ): Promise<void>;
 
      abstract bindProviderSubscription(
        paymentId: string,
-       subscriptionId: string,
        providerSubscriptionId: string,
        tx: PaymentsTransactionContext,
      ): Promise<void>;
@@ -167,15 +164,15 @@
    D1 просит Stripe отключить продление старой provider-подписки в конце её
    оплаченного периода.
 
-   **Ты:** после подтверждения через `markProviderSubscriptionCancellationScheduled`
+   **Ты:** после подтверждения через `confirmAutoRenewalCancellation`
    фиксируешь завершение старой provider-связи. Она сохраняется для учёта,
    но больше не допускает переключения автопродления.
 
-   В `markProviderSubscriptionCancellationScheduled` D1 передаёт:
-   `subscriptionId` новой локальной подписки, прежний `previousProviderSubscriptionId`
-   как аргумент `providerSubscriptionId` и контекст новой локальной транзакции.
-   По новой подписке и старому provider ID ты находишь единственную TRANSFER-операцию, связанную с SCHEDULED-применением,
-   берёшь lock пользователя и повторяешь поиск.
+   В `confirmAutoRenewalCancellation` D1 передаёт:
+   `paymentId`, прежний `previousProviderSubscriptionId` как аргумент
+   `providerSubscriptionId` и контекст новой локальной транзакции.
+   По paymentId ты находишь SCHEDULED-применение и TRANSFER-операцию,
+   сверяешь старый provider ID, берёшь lock пользователя и повторяешь чтение.
    При PENDING записываешь старой подписке RETIRED, операции — BINDING_PENDING.
    BINDING_PENDING и COMPLETED означают повтор без записи после проверки старого provider ID.
 
@@ -186,8 +183,10 @@
    и завершаешь переход. D1 в той же локальной транзакции сохраняет новый
    `Payment.providerSubscriptionId` и помечает webhook обработанным.
 
-   В `bindProviderSubscription` приходят paymentId, локальный subscriptionId, новый ID Stripe и tx.
-   Проверяешь совпадение локального ID со связью операции.
+   В `bindProviderSubscription` приходят paymentId, новый ID Stripe и tx. Локальную Subscription
+   ты восстанавливаешь из сохранённого применения и TRANSFER-операции.
+   Проверяешь, что сохранённое применение является SCHEDULED и связано с ожидаемой
+   TRANSFER-операцией; входящий локальный ID для этого больше не требуется.
    При BINDING_PENDING ты атомарно сохраняешь новой подписке provider ID и ENABLED,
    операции — COMPLETED и снимок AutoRenewalOperation.providerSubscriptionId. При COMPLETED повтор
    сравнивается со снимком и ничего не меняет. Другой provider ID — конфликт.

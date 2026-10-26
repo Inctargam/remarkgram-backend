@@ -644,15 +644,15 @@ use case и spec, например `payment-events/confirm-invoice-paid/` или
 Step 1 передаёт дальше provider-independent `SuccessfulPayment` со следующими полями:
 
 - `paymentId`, `userId`, `planId`;
-- `type`, `autoRenewalRequested`, nullable `targetSubscriptionId`;
+- `type`, `autoRenewalRequested`;
 - `amount`, `currency`, `periodCount`, `periodUnit`;
 - `provider`, `providerCustomerId`, `providerSubscriptionId`;
 - `paidAt` как ISO-8601 string.
 
-D1 до создания Payment читает `SubscriptionContextPort.findActiveSubscriptionForPurchase(userId)`:
-объект с subscriptionId означает дополнительную покупку, null — первую. ID сохраняется
-в Payment.targetSubscriptionId и передаётся в SuccessfulPayment. Это снимок контекста Checkout;
-D2 определяет очередь по userId, а цель RENEWAL — по provider-связи.
+D1 до создания Payment читает `SubscriptionContextPort.hasActiveSubscription(userId)`:
+`true` означает дополнительную покупку, `false` — первую. Локальный ID Subscription
+не сохраняется в Payment и не передаётся в SuccessfulPayment. D2 определяет очередь
+по userId, а цель RENEWAL — по provider-связи.
 Резервация первой покупки остаётся в Payments. Ошибка чтения останавливает Checkout.
 
 `CheckoutPurpose` не входит в `SuccessfulPayment`. Он описывает исходный purchase intent и

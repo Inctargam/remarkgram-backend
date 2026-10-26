@@ -17,10 +17,10 @@ D1 определяет два outbound application ports. Абстракции 
 принадлежат D2 и должны делегировать работу в application use cases D2, а не обращаться к D2
 persistence непосредственно из D1 workflow.
 
-| D1 port                      | Когда вызывает D1                                                            | Что реализует D2                                                                                                                                        |
-| ---------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SubscriptionContextPort`    | `CreateCheckoutUseCase`, до создания Payment и до обращения к provider       | Контекст активной Subscription: ID или null для различения покупок и сохранения targetSubscriptionId. |
-| `SubscriptionPaymentHandler` | `DbosPaymentWebhookWorkflow`, только после подтверждённого financial success | Применение успешного Payment к Subscription lifecycle, фиксация завершения старой provider-связи и binding новой provider Subscription.                 |
+| D1 port                      | Когда вызывает D1                                                            | Что реализует D2                                                                                                                        |
+| ---------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `SubscriptionContextPort`    | `CreateCheckoutUseCase`, до создания Payment и до обращения к provider       | Boolean-признак активной Subscription для различения первой и дополнительной покупки.                                                   |
+| `SubscriptionPaymentHandler` | `DbosPaymentWebhookWorkflow`, только после подтверждённого financial success | Применение успешного Payment к Subscription lifecycle, фиксация завершения старой provider-связи и binding новой provider Subscription. |
 
 В `PaymentsModule` подключены:
 
@@ -33,7 +33,7 @@ persistence непосредственно из D1 workflow.
 
 `LocalSubscriptionContextAdapter` вызывает D2 query handler через `QueryBus`. Репозиторий
 читает подписку пользователя со статусом `ACTIVE` или `PENDING`, для которой
-`startsAt <= now < expiresAt`; возвращает ID или null, а при нескольких совпадениях — ошибку.
+`startsAt <= now < expiresAt`; возвращает boolean, а при нескольких совпадениях — ошибку.
 Для работы нужна применённая миграция подписок.
 `LocalSubscriptionPaymentHandlerAdapter.applySuccessfulPayment` передаёт команду через `CommandBus`
 в `ApplySuccessfulPaymentUseCase`. После блокировки по пользователю use case читает сохранённый
@@ -48,9 +48,9 @@ RENEWAL находит подписку пользователя по provider +
 от текущего expiresAt без изменения настройки автопродления. Повтор каждого action возвращает
 сохранённый результат; все изменения используют переданную транзакцию и блокировку по userId.
 Подробные правила и ограничения приведены в карточке 2 `d2-method-cards.md`.
-`markProviderSubscriptionCancellationScheduled` реализован: через сохранённую операцию переводит
+`confirmAutoRenewalCancellation` должен через сохранённую операцию переводить
 старую подписку из DISABLING в RETIRED, повтор не меняет состояние.
-`bindProviderSubscription` реализован: по paymentId находит применение SCHEDULED и связанную TRANSFER-операцию, сохраняет новый
+`bindProviderSubscription` должен по paymentId находить применение SCHEDULED и связанную TRANSFER-операцию, сохранять новый
 provider ID и завершает ENABLING → ENABLED. Поздний replay не меняет настройки автопродления.
 События Business-доступа ещё не публикуются.
 
@@ -59,15 +59,15 @@ provider ID и завершает ENABLING → ENABLED. Поздний replay н
 ```text
 D1 SubscriptionContextPort
   -> D2 adapter
-  -> FindActiveSubscriptionForPurchaseQueryHandler
+  -> D2 boolean query handler
 
 D1 SubscriptionPaymentHandler.applySuccessfulPayment
   -> D2 adapter
   -> ApplySuccessfulPaymentUseCase
 
-D1 SubscriptionPaymentHandler.markProviderSubscriptionCancellationScheduled
+D1 SubscriptionPaymentHandler.confirmAutoRenewalCancellation
   -> D2 adapter
-  -> MarkProviderSubscriptionCancellationScheduledUseCase
+  -> D2 cancellation confirmation use case
 
 D1 SubscriptionPaymentHandler.bindProviderSubscription
   -> D2 adapter
@@ -85,14 +85,14 @@ query не должен изменять Subscription, а provider-transition me
 
 ```ts
 abstract class SubscriptionContextPort {
-  abstract findActiveSubscriptionForPurchase(userId: number): Promise<{ subscriptionId: string } | null>;
+  abstract hasActiveSubscription(userId: number): Promise<boolean>;
 }
 ```
 
-### `findActiveSubscriptionForPurchase`
+### `hasActiveSubscription`
 
-D1 получает `{ subscriptionId }` при наличии текущей подписки или null при отсутствии.
-ID сохраняется в Payment.targetSubscriptionId. Метод не резервирует период; резервация остаётся в Payments.
+D1 получает `true` при наличии текущей подписки или `false` при отсутствии.
+Локальный ID Subscription не пересекает границу. Метод не резервирует период; резервация остаётся в Payments.
 Ошибки чтения D1 преобразует в PaymentSubscriptionContextError и не создаёт Payment/Checkout.
 D2 ищет ACTIVE/PENDING с startsAt <= now < expiresAt. Несколько совпадений — MultipleActiveSubscriptionsError.
 
@@ -108,15 +108,14 @@ abstract class SubscriptionPaymentHandler {
     tx: PaymentsTransactionContext,
   ): Promise<ApplySuccessfulPaymentResult>;
 
-  abstract markProviderSubscriptionCancellationScheduled(
-    subscriptionId: string,
+  abstract confirmAutoRenewalCancellation(
+    paymentId: string,
     providerSubscriptionId: string,
     tx: PaymentsTransactionContext,
   ): Promise<void>;
 
   abstract bindProviderSubscription(
     paymentId: string,
-    subscriptionId: string,
     providerSubscriptionId: string,
     tx: PaymentsTransactionContext,
   ): Promise<void>;
@@ -156,7 +155,7 @@ type ApplySuccessfulPaymentResult = {
 
 | Поле результата                  | Что обязан вернуть D2                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `subscriptionId`                 | UUID Subscription, которую D2 создал или выбрал как фактический результат применения Payment. Replay того же `paymentId` обязан вернуть тот же `subscriptionId`.                                                                                                                                                                                                                                 |
+| `subscriptionId`                 | UUID Subscription, которую D2 создал или выбрал как фактический результат применения Payment. Replay того же `paymentId` обязан вернуть тот же `subscriptionId`.                                                                                                                                                                                                                                                                                             |
 | `action=CREATED`                 | Создана новая локальная Subscription/первый период. Допустимо для `PURCHASE`, недопустимо для `RENEWAL`.                                                                                                                                                                                                                                                                                                                                                     |
 | `action=RENEWED`                 | Existing Subscription получила идемпотентный renewal-период. Обязательно для `PaymentType.RENEWAL`, недопустимо для `PURCHASE`.                                                                                                                                                                                                                                                                                                                              |
 | `action=SCHEDULED`               | D2 создал/выбрал будущую локальную Subscription или период и требует заменить текущую provider Subscription. Допустимо для `PURCHASE`. После ответа D1 продолжит steps 3–4.                                                                                                                                                                                                                                                                                  |
@@ -217,14 +216,14 @@ workflow не использует это поле как billing anchor. D2 в�
 До возврата D2 должен сохранить достаточно данных, чтобы replay по `paymentId` воспроизвёл тот же
 `ApplySuccessfulPaymentResult`, включая action, `subscriptionId`, start и previous provider ID.
 
-### Метод `markProviderSubscriptionCancellationScheduled`
+### Метод `confirmAutoRenewalCancellation`
 
 D1 вызывает `recordScheduled` после внешнего подтверждения `cancel_at_period_end=true`.
-Аргументы: ID новой локальной `subscriptionId`, старый `providerSubscriptionId`, общий `tx`.
+Аргументы: `paymentId`, старый `providerSubscriptionId`, общий `tx`.
 
-- Найти единственную AutoRenewalOperation типа TRANSFER с SCHEDULED-применением
-  по subscriptionId и sourceProviderSubscriptionId (take: 2), взять lock пользователя
-  и повторить поиск. Отсутствие или неоднозначность — конфликт.
+- Найти SCHEDULED-применение и AutoRenewalOperation типа TRANSFER по paymentId,
+  сверить sourceProviderSubscriptionId, взять lock пользователя и повторить чтение.
+  Отсутствие или несовпадение — конфликт.
 - Требовать сохранённую sourceSubscriptionId. Ошибка — SubscriptionCancellationConflictError.
 - При PENDING одной nested-записью сохранить старой подписке RETIRED, операции — BINDING_PENDING.
 - При BINDING_PENDING или COMPLETED вернуть успешный повтор без записи.
@@ -233,10 +232,10 @@ D1 вызывает `recordScheduled` после внешнего подтвер
 ### Метод `bindProviderSubscription`
 
 D1 вызывает `recordCreated` после создания новой provider-подписки.
-Аргументы: `paymentId`, новая локальная `subscriptionId`, новый `providerSubscriptionId`, общий `tx`.
+Аргументы: `paymentId`, новый `providerSubscriptionId`, общий `tx`.
 
 - Получить владельца применения, взять тот же lock и перечитать применение вместе с операцией.
-- Требовать SCHEDULED, соответствующий subscriptionId и связанную TRANSFER-операцию.
+- Требовать SCHEDULED и связанную TRANSFER-операцию; целевую Subscription восстановить из операции.
 - При BINDING_PENDING одной nested-записью сохранить новой подписке provider ID и ENABLED,
   операции — COMPLETED и снимок providerSubscriptionId. Даты и статус доступа не менять.
 - При COMPLETED сравнить входящий provider ID со снимком операции:
@@ -269,17 +268,17 @@ RETIRED остаётся терминальным состоянием стар�
 Оба метода используют переданный tx, не вызывают provider API и не начисляют доступ повторно.
 `void` означает локальную фиксацию; commit выполняет D1. Ошибка откатывает весь шаг,
 включая D1 Payment binding и отметку webhook. Формат сохранённых аргументов workflow не меняется:
-recordScheduled передаёт params.subscriptionId согласно действующему контракту.
+recordScheduled передаёт paymentId и старый provider ID согласно действующему контракту D1.
 
 ## Краткий алгоритм D2 implementation
 
-1. До Checkout отвечать через `findActiveSubscriptionForPurchase`, не изменяя состояние.
+1. До Checkout отвечать через `hasActiveSubscription`, не изменяя состояние.
 2. После financial success получить `SuccessfulPayment` в `applySuccessfulPayment`.
 3. Взять общую блокировку пользователя, найти ранее применённый результат по `paymentId`; при наличии вернуть его.
 4. По текущему D2 lifecycle определить `CREATED`, `RENEWED` или `SCHEDULED` и атомарно сохранить
    результат применения и необходимую TRANSFER-операцию.
 5. Для `CREATED`/`RENEWED` больше вызовов D2 в этом workflow не будет.
-6. Для `SCHEDULED` дождаться отдельного вызова `markProviderSubscriptionCancellationScheduled` после
+6. Для `SCHEDULED` дождаться отдельного вызова `confirmAutoRenewalCancellation` после
    provider confirmation.
 7. Затем принять `bindProviderSubscription` с новым provider ID и завершить transition.
 
@@ -355,7 +354,6 @@ type SuccessfulPayment = Readonly<{
   planId: number;
   type: PaymentType;
   autoRenewalRequested: boolean | null;
-  targetSubscriptionId: string | null;
   amount: number;
   currency: Currency;
   periodCount: number;
@@ -367,18 +365,18 @@ type SuccessfulPayment = Readonly<{
 }>;
 ```
 
-| Поле                        | Источник и значение                                                                                                         | Как D2 использует значение                                                                                                                                                                                                                                                                                                                                      |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `paymentId`                 | UUID успешного Payment                                                                                                      | Idempotency identity применения Payment. Повтор с тем же ID не создаёт второй период или Subscription.                                                                                                                                                                                                                                                          |
-| `userId`                    | Владелец Payment                                                                                                            | Определяет владельца локальной Subscription.                                                                                                                                                                                                                                                                                                                    |
-| `planId`                    | Оплаченный Plan                                                                                                             | Определяет приобретаемый план; D2 получает нужные plan rules через согласованный контракт, а не доверяет transport DTO.                                                                                                                                                                                                                                         |
-| `type`                      | `PURCHASE` или `RENEWAL`                                                                                                    | `RENEWAL` обязан вернуть действие `RENEWED`; `PURCHASE` не может вернуть `RENEWED`.                                                                                                                                                                                                                                                                             |
-| `autoRenewalRequested`      | Снимок намерения пользователя при покупке                                                                                   | Используется только как входное намерение при создании/планировании Subscription; не является текущим состоянием auto-renewal.                                                                                                                                                                                                                                  |
-| `amount`, `currency`        | Подтверждённые финансовые параметры                                                                                         | Audit и данные для последующей provider Subscription в ветке `SCHEDULED`; не используются D2 как доказательство success вместо статуса D1.                                                                                                                                                                                                                      |
-| `periodCount`, `periodUnit` | Оплаченная длительность                                                                                                     | D2 вычисляет границы периода и не допускает пересечений.                                                                                                                                                                                                                                                                                                        |
-| `provider`                  | Сейчас `STRIPE`                                                                                                             | Provider binding context.                                                                                                                                                                                                                                                                                                                                       |
-| `providerCustomerId`        | Nullable provider Customer ID                                                                                               | Для `SCHEDULED` D1 позднее требует ненулевое значение при создании новой provider Subscription.                                                                                                                                                                                                                                                                 |
-| `paidAt`                    | Canonical UTC ISO-8601                                                                                                      | Время доказанного success; не обязательно совпадает с началом будущего периода.                                                                                                                                                                                                                                                                                 |
+| Поле                        | Источник и значение                       | Как D2 использует значение                                                                                                                 |
+| --------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `paymentId`                 | UUID успешного Payment                    | Idempotency identity применения Payment. Повтор с тем же ID не создаёт второй период или Subscription.                                     |
+| `userId`                    | Владелец Payment                          | Определяет владельца локальной Subscription.                                                                                               |
+| `planId`                    | Оплаченный Plan                           | Определяет приобретаемый план; D2 получает нужные plan rules через согласованный контракт, а не доверяет transport DTO.                    |
+| `type`                      | `PURCHASE` или `RENEWAL`                  | `RENEWAL` обязан вернуть действие `RENEWED`; `PURCHASE` не может вернуть `RENEWED`.                                                        |
+| `autoRenewalRequested`      | Снимок намерения пользователя при покупке | Используется только как входное намерение при создании/планировании Subscription; не является текущим состоянием auto-renewal.             |
+| `amount`, `currency`        | Подтверждённые финансовые параметры       | Audit и данные для последующей provider Subscription в ветке `SCHEDULED`; не используются D2 как доказательство success вместо статуса D1. |
+| `periodCount`, `periodUnit` | Оплаченная длительность                   | D2 вычисляет границы периода и не допускает пересечений.                                                                                   |
+| `provider`                  | Сейчас `STRIPE`                           | Provider binding context.                                                                                                                  |
+| `providerCustomerId`        | Nullable provider Customer ID             | Для `SCHEDULED` D1 позднее требует ненулевое значение при создании новой provider Subscription.                                            |
+| `paidAt`                    | Canonical UTC ISO-8601                    | Время доказанного success; не обязательно совпадает с началом будущего периода.                                                            |
 
 DTO должен оставаться сериализуемым: даты передаются ISO-строками, а не объектами `Date`.
 
@@ -391,10 +389,9 @@ Payment и возвращает явное действие `CREATED`, `SCHEDULE
 
 ### Контекст покупки
 
-D1 использует результат findActiveSubscriptionForPurchase для выбора CheckoutPurpose
-и сохраняет найденный ID в Payment.targetSubscriptionId. Поле входит в SuccessfulPayment.
-D2 не использует его для выбора очереди: PURCHASE определяется по userId, RENEWAL — по provider-связи.
-Удаление поля из контракта остаётся предложением для D1.
+D1 использует результат `hasActiveSubscription` только для выбора CheckoutPurpose.
+Локальный ID Subscription не сохраняется в Payment и не входит в SuccessfulPayment.
+PURCHASE определяется D2 по userId, RENEWAL — по provider-связи.
 
 ## Step 2: `SubscriptionPaymentHandler.applySuccessfulPayment`
 
@@ -469,8 +466,8 @@ D1 вне DB-транзакции устанавливает прежней prov
 provider confirmation отдельная локальная транзакция вызывает:
 
 ```ts
-markProviderSubscriptionCancellationScheduled(
-  subscriptionId: string,
+confirmAutoRenewalCancellation(
+  paymentId: string,
   providerSubscriptionId: string,
   tx: PaymentsTransactionContext,
 ): Promise<void>;
@@ -498,7 +495,6 @@ D1 создаёт provider Subscription вне DB-транзакции со сл
 ```ts
 bindProviderSubscription(
   paymentId: string,
-  subscriptionId: string,
   providerSubscriptionId: string,
   tx: PaymentsTransactionContext,
 ): Promise<void>;
