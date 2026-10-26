@@ -18,31 +18,28 @@ describe('RecordInvoicePaymentFailedUseCase', () => {
     },
   );
 
-  it('correlates a renewal failure through the Subscription chain', async () => {
+  it('correlates a renewal failure by its Invoice', async () => {
     const payments = repository();
-    payments.findByProviderInvoiceId.mockResolvedValue(null);
-    payments.findByProviderSubscriptionId.mockResolvedValue(payment());
+    payments.findByProviderInvoiceId.mockResolvedValue(payment({ providerInvoiceId: 'in_failed' }));
     const useCase = new RecordInvoicePaymentFailedUseCase(payments as unknown as PaymentsRepository);
 
     await expect(
       useCase.execute(event({ paymentId: null, billingReason: 'subscription_cycle' }), {}),
     ).resolves.toEqual(CORRELATED);
-    expect(payments.findByProviderSubscriptionId).toHaveBeenCalledWith(
-      PaymentProvider.STRIPE,
-      'sub_test',
-      {},
-    );
+    expect(payments.findByProviderInvoiceId).toHaveBeenCalledWith(PaymentProvider.STRIPE, 'in_failed', {});
+    expect(payments.findByProviderSubscriptionId).not.toHaveBeenCalled();
   });
 
-  it('keeps an Invoice failure without correlation as processed audit data', async () => {
+  it('does not correlate a renewal failure to the source purchase by Subscription', async () => {
     const payments = repository();
     payments.findByProviderInvoiceId.mockResolvedValue(null);
-    payments.findByProviderSubscriptionId.mockResolvedValue(null);
+    payments.findByProviderSubscriptionId.mockResolvedValue(payment({ providerInvoiceId: null }));
     const useCase = new RecordInvoicePaymentFailedUseCase(payments as unknown as PaymentsRepository);
 
     await expect(
       useCase.execute(event({ paymentId: null, billingReason: 'subscription_cycle' }), {}),
     ).resolves.toEqual(UNCORRELATED);
+    expect(payments.findByProviderSubscriptionId).not.toHaveBeenCalled();
   });
 
   it('does not correlate metadata to conflicting Invoice references', async () => {

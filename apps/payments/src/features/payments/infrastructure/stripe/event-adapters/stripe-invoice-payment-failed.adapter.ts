@@ -43,7 +43,9 @@ export class StripeInvoicePaymentFailedAdapter implements ProviderEventAdapter {
       providerEventId: webhook.id,
       providerEventType: StripeEventType.INVOICE_PAYMENT_FAILED,
       providerCreatedAt: webhook.createdAt,
-      paymentId: invoiceMetadataPaymentId(invoice),
+      // For a cycle Invoice, metadata identifies the source PURCHASE. A failed
+      // attempt belongs to the renewal Payment correlated by providerInvoiceId.
+      paymentId: billingReason === 'subscription_cycle' ? null : invoiceMetadataPaymentId(invoice),
       payload: {
         id,
         customerId: expandableId(invoice?.customer),

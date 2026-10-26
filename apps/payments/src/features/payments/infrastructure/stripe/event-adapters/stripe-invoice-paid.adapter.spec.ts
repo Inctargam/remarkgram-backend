@@ -27,7 +27,7 @@ describe('StripeInvoicePaidAdapter', () => {
     };
     const event = adapter.adapt(renewalWebhook);
 
-    expect(event.paymentId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    expect(event.paymentId).toBeNull();
     expect(event.payload.sourcePaymentId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
     expect(event.payload.sourceSubscriptionId).toBe('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
     expect(event.payload.billingReason).toBe('subscription_cycle');

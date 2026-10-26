@@ -44,7 +44,9 @@ export class StripeInvoicePaidAdapter implements ProviderEventAdapter {
       providerEventId: webhook.id,
       providerEventType: StripeEventType.INVOICE_PAID,
       providerCreatedAt: webhook.createdAt,
-      paymentId,
+      // A cycle Invoice carries the source PURCHASE identity in Subscription metadata.
+      // The webhook is attached to the resulting RENEWAL Payment after reconciliation.
+      paymentId: billingReason === 'subscription_cycle' ? null : paymentId,
       payload: {
         ...(billingReason === 'subscription_cycle' ? invoiceRenewalSourceReferences(invoice) : {}),
         id,

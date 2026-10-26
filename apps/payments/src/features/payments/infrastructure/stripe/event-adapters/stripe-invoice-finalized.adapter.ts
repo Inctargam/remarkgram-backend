@@ -29,6 +29,7 @@ export class StripeInvoiceFinalizedAdapter implements ProviderEventAdapter {
     const id = stringOrNull(invoice?.id);
     const amount = numberOrNull(invoice?.amount_due);
     const currency = stringOrNull(invoice?.currency);
+    const billingReason = stringOrNull(invoice?.billing_reason);
     if (!id || amount === null || !Number.isSafeInteger(amount) || amount < 0 || !currency)
       throw new InvalidProviderEventError('Stripe invoice.finalized payload is incomplete');
     const details = asRecord(asRecord(invoice?.parent)?.subscription_details);
@@ -38,13 +39,15 @@ export class StripeInvoiceFinalizedAdapter implements ProviderEventAdapter {
       providerEventId: webhook.id,
       providerEventType: StripeEventType.INVOICE_FINALIZED,
       providerCreatedAt: webhook.createdAt,
-      paymentId: invoiceMetadataPaymentId(invoice),
+      // For a cycle Invoice, Subscription metadata identifies the source PURCHASE,
+      // not the new RENEWAL Payment that will be created by the application use case.
+      paymentId: billingReason === 'subscription_cycle' ? null : invoiceMetadataPaymentId(invoice),
       payload: {
         ...invoiceRenewalSourceReferences(invoice),
         providerInvoiceId: id,
         providerSubscriptionId: expandableId(details?.subscription) ?? expandableId(invoice?.subscription),
         customerId: expandableId(invoice?.customer),
-        billingReason: stringOrNull(invoice?.billing_reason),
+        billingReason,
         amount,
         currency,
       },

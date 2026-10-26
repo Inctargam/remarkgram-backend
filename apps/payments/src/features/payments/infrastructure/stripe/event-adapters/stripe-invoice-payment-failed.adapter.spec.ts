@@ -25,10 +25,10 @@ describe('StripeInvoicePaymentFailedAdapter', () => {
     expect(JSON.stringify(event)).not.toContain('4242');
   });
 
-  it('extracts Payment metadata for a renewal failure independently of billing reason', () => {
+  it('keeps source Payment metadata out of renewal failure correlation', () => {
     const event = adapter.adapt(webhook('subscription_cycle'));
 
-    expect(event.paymentId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    expect(event.paymentId).toBeNull();
     expect(event.payload.providerSubscriptionId).toBe('sub_test');
   });
 });

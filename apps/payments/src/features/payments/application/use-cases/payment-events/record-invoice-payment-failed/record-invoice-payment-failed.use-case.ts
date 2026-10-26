@@ -18,7 +18,6 @@ export class RecordInvoicePaymentFailedUseCase {
     event: InvoicePaymentFailedEvent,
     ctx: PaymentsTransactionContext,
   ): Promise<PaymentEventResult> {
-    console.debug('event:InvoicePaymentFailedEvent ->', event);
     const payment = await this.findPayment(event, ctx);
     return payment
       ? paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, payment.id)
@@ -40,14 +39,7 @@ export class RecordInvoicePaymentFailedUseCase {
       ctx,
     );
     if (this.hasCompatibleInvoiceReferences(byInvoice, event)) return byInvoice;
-
-    if (!event.payload.providerSubscriptionId) return null;
-    const bySubscription = await this.payments.findByProviderSubscriptionId(
-      event.provider,
-      event.payload.providerSubscriptionId,
-      ctx,
-    );
-    return this.hasCompatibleSubscriptionContext(bySubscription, event) ? bySubscription : null;
+    return null;
   }
 
   private hasCompatibleMetadataReferences(
@@ -75,20 +67,6 @@ export class RecordInvoicePaymentFailedUseCase {
       payment.providerType === event.provider &&
       !hasProviderReferenceConflict(
         [payment.providerPaymentId, event.payload.providerPaymentId],
-        [payment.providerSubscriptionId, event.payload.providerSubscriptionId],
-        [payment.providerCustomerId, event.payload.customerId],
-      )
-    );
-  }
-
-  private hasCompatibleSubscriptionContext(
-    payment: Payment | null,
-    event: InvoicePaymentFailedEvent,
-  ): payment is Payment {
-    return (
-      payment !== null &&
-      payment.providerType === event.provider &&
-      !hasProviderReferenceConflict(
         [payment.providerSubscriptionId, event.payload.providerSubscriptionId],
         [payment.providerCustomerId, event.payload.customerId],
       )

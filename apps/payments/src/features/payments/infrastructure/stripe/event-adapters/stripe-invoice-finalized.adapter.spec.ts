@@ -17,7 +17,7 @@ function webhook(payload: Record<string, unknown> = {}): VerifiedProviderWebhook
 describe('StripeInvoiceFinalizedAdapter', () => {
   it('uses amount_due and correlates the event with Payment metadata', () => {
     const event = adapter.adapt(webhook());
-    expect(event.paymentId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    expect(event.paymentId).toBeNull();
     expect(event.payload).toEqual({ providerInvoiceId: 'in_cycle', amount: 1000, currency: 'usd',
       billingReason: 'subscription_cycle', customerId: 'cus_test', providerSubscriptionId: 'sub_test',
       sourcePaymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
