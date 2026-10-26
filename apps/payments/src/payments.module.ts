@@ -27,6 +27,7 @@ import { CancelExpiredCheckoutSessionUseCase } from './features/payments/applica
 import { CancelPaymentIntentUseCase } from './features/payments/application/use-cases/payment-events/cancel-payment-intent/cancel-payment-intent.use-case.js';
 import { RecordPaymentIntentFailedUseCase } from './features/payments/application/use-cases/payment-events/record-payment-intent-failed/record-payment-intent-failed.use-case.js';
 import { RecordInvoicePaymentFailedUseCase } from './features/payments/application/use-cases/payment-events/record-invoice-payment-failed/record-invoice-payment-failed.use-case.js';
+import { CancelVoidedInvoiceUseCase } from './features/payments/application/use-cases/payment-events/cancel-voided-invoice/cancel-voided-invoice.use-case.js';
 import { ApplyPaymentEventUseCase } from './features/payments/application/use-cases/process-payment-webhook/apply-payment-event.use-case.js';
 import { CreateDeferredProviderSubscriptionUseCase } from './features/payments/application/use-cases/process-payment-webhook/create-deferred-provider-subscription.use-case.js';
 import { LinkPaymentToSubscriptionUseCase } from './features/payments/application/use-cases/process-payment-webhook/link-payment-to-subscription.use-case.js';
@@ -48,6 +49,7 @@ import { StripePaymentIntentSucceededAdapter } from './features/payments/infrast
 import { StripePaymentIntentPaymentFailedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-payment-intent-payment-failed.adapter.js';
 import { StripePaymentIntentCanceledAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-payment-intent-canceled.adapter.js';
 import { StripeInvoicePaymentFailedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-invoice-payment-failed.adapter.js';
+import { StripeInvoiceVoidedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-invoice-voided.adapter.js';
 import { DbosLifecycleService } from './features/payments/infrastructure/dbos/dbos-lifecycle.service.js';
 import { DbosPaymentWebhookWorkflow } from './features/payments/infrastructure/dbos/dbos-payment-webhook.workflow.js';
 import { PaymentsDbosDataSource } from './features/payments/infrastructure/dbos/payments-dbos.datasource.js';
@@ -99,6 +101,7 @@ import { PrismaPlansQueryRepository } from './features/plans/infrastructure/pris
     StripePaymentIntentPaymentFailedAdapter,
     StripePaymentIntentCanceledAdapter,
     StripeInvoicePaymentFailedAdapter,
+    StripeInvoiceVoidedAdapter,
     {
       provide: PROVIDER_EVENT_ADAPTERS,
       useFactory: (
@@ -110,6 +113,7 @@ import { PrismaPlansQueryRepository } from './features/plans/infrastructure/pris
         paymentIntentFailed: StripePaymentIntentPaymentFailedAdapter,
         paymentIntentCanceled: StripePaymentIntentCanceledAdapter,
         invoicePaymentFailed: StripeInvoicePaymentFailedAdapter,
+        invoiceVoided: StripeInvoiceVoidedAdapter,
       ) => [
         checkoutCompleted,
         checkoutExpired,
@@ -119,16 +123,18 @@ import { PrismaPlansQueryRepository } from './features/plans/infrastructure/pris
         paymentIntentFailed,
         paymentIntentCanceled,
         invoicePaymentFailed,
+        invoiceVoided,
       ],
       inject: [
         StripeCheckoutSessionCompletedAdapter,
         StripeCheckoutSessionExpiredAdapter,
         StripeInvoicePaidAdapter,
-    StripeInvoiceFinalizedAdapter,
+        StripeInvoiceFinalizedAdapter,
         StripePaymentIntentSucceededAdapter,
         StripePaymentIntentPaymentFailedAdapter,
         StripePaymentIntentCanceledAdapter,
         StripeInvoicePaymentFailedAdapter,
+        StripeInvoiceVoidedAdapter,
       ],
     },
     // TODO: заменить на адаптер Subscription Module после появления межмодульного контракта.
@@ -148,6 +154,7 @@ import { PrismaPlansQueryRepository } from './features/plans/infrastructure/pris
     EnsureRenewalPaymentUseCase,
     RecordPaymentIntentFailedUseCase,
     RecordInvoicePaymentFailedUseCase,
+    CancelVoidedInvoiceUseCase,
     ApplyPaymentEventUseCase,
     CreateDeferredProviderSubscriptionUseCase,
     LinkPaymentToSubscriptionUseCase,

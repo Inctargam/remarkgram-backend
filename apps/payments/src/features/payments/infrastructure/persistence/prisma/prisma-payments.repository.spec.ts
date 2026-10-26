@@ -205,6 +205,43 @@ describe('PrismaPaymentsRepository.cancelPendingPayment', () => {
       status: PaymentStatus.CANCELED,
     });
   });
+
+  it('can reconcile and persist cancellation by Invoice ID', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const repository = new PrismaPaymentsRepository({} as PrismaService);
+
+    await repository.cancelPendingPayment(
+      {
+        paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        providerInvoiceId: 'in_voided',
+        providerCustomerId: 'cus_test',
+      },
+      { payment: { updateMany } },
+    );
+
+    const update = updateMany.mock.calls[0]?.[0] as {
+      data: Record<string, unknown>;
+      where: { AND: unknown[] };
+    };
+    expect(update.data).toMatchObject({
+      providerInvoiceId: 'in_voided',
+      status: PaymentStatus.CANCELED,
+    });
+    expect(JSON.stringify(update.where.AND)).toContain('providerInvoiceId');
+  });
+
+  it('reports a concurrent status or reference change without mutating another state', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 0 });
+    const repository = new PrismaPaymentsRepository({} as PrismaService);
+
+    await expect(repository.cancelPendingPayment(
+      {
+        paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        providerInvoiceId: 'in_voided',
+      },
+      { payment: { updateMany } },
+    )).resolves.toEqual({ outcome: 'INVALID_TRANSITION' });
+  });
 });
 
 describe('PrismaPaymentsRepository.linkSuccessfulPaymentToSubscription', () => {

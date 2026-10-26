@@ -7,6 +7,7 @@ import type { ConfirmPaymentIntentSucceededUseCase } from '../payment-events/con
 import type { RecordInvoicePaymentFailedUseCase } from '../payment-events/record-invoice-payment-failed/record-invoice-payment-failed.use-case.js';
 import type { RecordPaymentIntentFailedUseCase } from '../payment-events/record-payment-intent-failed/record-payment-intent-failed.use-case.js';
 import type { EnsureRenewalPaymentUseCase } from '../payment-events/ensure-renewal-payment/ensure-renewal-payment.use-case.js';
+import type { CancelVoidedInvoiceUseCase } from '../payment-events/cancel-voided-invoice/cancel-voided-invoice.use-case.js';
 import { ApplyPaymentEventUseCase } from './apply-payment-event.use-case.js';
 import { PaymentEventKind } from '../../../domain/payment-event-kind.js';
 import {
@@ -30,6 +31,7 @@ describe('ApplyPaymentEventUseCase', () => {
   const paymentCanceled = { execute: vi.fn<CancelPaymentIntentUseCase['execute']>() };
   const invoiceFailed = { execute: vi.fn<RecordInvoicePaymentFailedUseCase['execute']>() };
   const renewalEnsured = { execute: vi.fn<EnsureRenewalPaymentUseCase['execute']>() };
+  const invoiceVoided = { execute: vi.fn<CancelVoidedInvoiceUseCase['execute']>() };
   const useCase = new ApplyPaymentEventUseCase(
     events,
     checkoutCompleted as ApplyCheckoutSessionCompletedUseCase,
@@ -40,6 +42,7 @@ describe('ApplyPaymentEventUseCase', () => {
     paymentCanceled as CancelPaymentIntentUseCase,
     invoiceFailed as RecordInvoicePaymentFailedUseCase,
     renewalEnsured as EnsureRenewalPaymentUseCase,
+    invoiceVoided as CancelVoidedInvoiceUseCase,
   );
   const ctx = {};
 
@@ -117,6 +120,32 @@ describe('ApplyPaymentEventUseCase', () => {
 
     await useCase.execute({ eventId: 'webhook-id', event }, ctx);
 
+    expect(events.attachPayment).toHaveBeenCalledWith('webhook-id', PAYMENT_ID, ctx);
+    expect(events.markProcessed).toHaveBeenCalledWith('webhook-id', ctx);
+  });
+
+  it('completes a voided Invoice and attaches its renewal Payment atomically', async () => {
+    const event: PaymentEvent = {
+      kind: PaymentEventKind.INVOICE_VOIDED,
+      provider: PaymentProvider.STRIPE,
+      providerEventId: 'evt_voided',
+      providerEventType: 'invoice.voided',
+      providerCreatedAt: new Date('2026-10-26T12:00:00.000Z'),
+      paymentId: null,
+      payload: {
+        providerInvoiceId: 'in_voided',
+        providerSubscriptionId: 'sub_test',
+        customerId: 'cus_test',
+        billingReason: 'subscription_cycle',
+      },
+    };
+    invoiceVoided.execute.mockResolvedValue(
+      paymentEventResult.success(PaymentEventResultCode.PAYMENT_CANCELED, PAYMENT_ID),
+    );
+
+    await useCase.execute({ eventId: 'webhook-id', event }, ctx);
+
+    expect(invoiceVoided.execute).toHaveBeenCalledWith(event, ctx);
     expect(events.attachPayment).toHaveBeenCalledWith('webhook-id', PAYMENT_ID, ctx);
     expect(events.markProcessed).toHaveBeenCalledWith('webhook-id', ctx);
   });

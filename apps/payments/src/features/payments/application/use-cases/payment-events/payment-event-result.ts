@@ -36,7 +36,7 @@ export enum PaymentEventResultCode {
    * Позднее успешное списание всё ещё допускается.
    */
   PAYMENT_FAILURE_RECORDED = 'PAYMENT_FAILURE_RECORDED',
-  /** Provider подтвердил отмену PaymentIntent, и соответствующий Payment безопасно отменён. */
+  /** Provider подтвердил terminal cancellation, и соответствующий Payment безопасно отменён. */
   PAYMENT_CANCELED = 'PAYMENT_CANCELED',
   /**
    * Локальный Payment, к которому относится provider event, не найден: internal paymentId

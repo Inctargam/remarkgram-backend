@@ -137,7 +137,7 @@ terminal-доказательством не являются.
 
 ### Согласованные границы первой итерации
 
-- Следующий event slice после review текущего — `invoice.voided` для отмены неоплаченного renewal.
+- `invoice.voided` реализован для отмены неоплаченного renewal по `providerInvoiceId`.
 - Создание renewal из `invoice.payment_failed` и его recovery-поведение обсуждаются при детализации
   следующего среза; реализация пока не согласована.
 - InvoicePayment, несколько PaymentIntent на Invoice и обработка их смены не входят в итерацию.
@@ -232,8 +232,11 @@ Upsert может вернуть конкурентную PENDING от finalized
 
 #### `invoice.voided`
 
-Находит Payment по `providerInvoiceId` и переводит `CREATED/PENDING -> CANCELED`. Уже успешный Payment
-не понижается.
+Обрабатывает только `subscription_cycle`, находит renewal Payment строго по `providerInvoiceId` и
+переводит `CREATED/PENDING -> CANCELED`. `paymentId` из Subscription metadata обозначает исходную
+покупку и не используется для выбора отменяемого Payment. Уже успешный Payment не понижается,
+повтор для `CANCELED` идемпотентен. Если renewal ещё не создан обработчиком `invoice.finalized`,
+workflow повторяет обработку; terminal Payment из metadata не отменяется и новый Payment не создаётся.
 
 #### `invoice.marked_uncollectible`
 
@@ -247,7 +250,8 @@ Upsert может вернуть конкурентную PENDING от finalized
 
 1. найти Payment по `(providerType, providerInvoiceId)`;
 2. если он существует — проверить неизменяемые данные и использовать его;
-3. если его нет и событие содержит достаточный invoice context — создать `RENEWAL/PENDING`;
+3. если его нет, применить event-specific recovery: `invoice.paid` может восстановить renewal,
+   а `invoice.voided` ожидает `invoice.finalized` через workflow retry;
 4. в той же транзакции применить текущее событие;
 5. конфликт references завершить как `DEAD` без partial update.
 
@@ -259,8 +263,8 @@ Upsert может вернуть конкурентную PENDING от finalized
 1. `invoice.finalized` и идемпотентное создание `RENEWAL/PENDING` реализованы, ожидают review.
 2. `invoice.paid` подтверждает существующий pending renewal; прежний recovery через
    `createSuccessfulRenewal` сохранён. Объединение recovery через ensure ещё не выполнено.
-3. После принятия первого среза детализировать `invoice.voided`; отдельно обсудить необходимость
-   создания renewal из `invoice.payment_failed` и поведение при отсутствии finalized.
+3. `invoice.voided` отменяет существующий renewal и ожидает `invoice.finalized` через retry, если
+   renewal ещё отсутствует. Создание terminal renewal из metadata намеренно не выполняется.
 4. Изменение цены recurring billing планируется в следующей итерации. Исключённые возможности
    перечислены в согласованных границах выше.
 

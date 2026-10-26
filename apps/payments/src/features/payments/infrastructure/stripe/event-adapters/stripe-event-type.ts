@@ -8,6 +8,7 @@ export enum StripeEventType {
   INVOICE_FINALIZED = 'invoice.finalized',
   INVOICE_PAID = 'invoice.paid',
   INVOICE_PAYMENT_FAILED = 'invoice.payment_failed',
+  INVOICE_VOIDED = 'invoice.voided',
   CUSTOMER_SUBSCRIPTION_UPDATED = 'customer.subscription.updated',
   CUSTOMER_SUBSCRIPTION_DELETED = 'customer.subscription.deleted',
 }

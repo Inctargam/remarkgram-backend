@@ -66,8 +66,9 @@ type CancelPendingPaymentCommandBase = {
 
 export type CancelPendingPaymentCommand = CancelPendingPaymentCommandBase &
   (
-    | { providerCheckoutId: string; providerPaymentId?: never }
-    | { providerCheckoutId?: never; providerPaymentId: string }
+    | { providerCheckoutId: string; providerPaymentId?: never; providerInvoiceId?: never }
+    | { providerCheckoutId?: never; providerPaymentId: string; providerInvoiceId?: never }
+    | { providerCheckoutId?: never; providerPaymentId?: never; providerInvoiceId: string }
   );
 
 export type CancelPendingPaymentUpdateResult =

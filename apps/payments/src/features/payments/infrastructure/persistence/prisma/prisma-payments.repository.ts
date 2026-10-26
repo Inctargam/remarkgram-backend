@@ -15,9 +15,9 @@ import {
   type ConfirmSuccessfulPaymentCommand,
   type ConfirmSuccessfulPaymentUpdateResult,
   type CreatePaymentResult,
-  type EnsurePendingRenewalRepositoryParams,
   type CreateSuccessfulRenewalCommand,
   type CreateSuccessfulRenewalResult,
+  type EnsurePendingRenewalRepositoryParams,
   type LinkPaymentSubscriptionCommand,
   type LinkPaymentSubscriptionResult,
 } from '../../../application/ports/payments.repository.js';
@@ -352,11 +352,15 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
     const providerReference =
       command.providerCheckoutId !== undefined
         ? this.compatibleReference('providerCheckoutId', command.providerCheckoutId)
-        : this.compatibleReference('providerPaymentId', command.providerPaymentId);
+        : command.providerPaymentId !== undefined
+          ? this.compatibleReference('providerPaymentId', command.providerPaymentId)
+          : this.compatibleReference('providerInvoiceId', command.providerInvoiceId);
     const providerData: Prisma.PaymentUpdateManyMutationInput =
       command.providerCheckoutId !== undefined
         ? { providerCheckoutId: command.providerCheckoutId }
-        : { providerPaymentId: command.providerPaymentId };
+        : command.providerPaymentId !== undefined
+          ? { providerPaymentId: command.providerPaymentId }
+          : { providerInvoiceId: command.providerInvoiceId };
     try {
       const updated = await client.payment.updateMany({
         where: {

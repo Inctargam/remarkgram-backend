@@ -7,6 +7,7 @@ import { EnsureRenewalPaymentUseCase } from '../payment-events/ensure-renewal-pa
 import { ApplyCheckoutSessionCompletedUseCase } from '../payment-events/apply-checkout-session-completed/apply-checkout-session-completed.use-case.js';
 import { CancelExpiredCheckoutSessionUseCase } from '../payment-events/cancel-expired-checkout-session/cancel-expired-checkout-session.use-case.js';
 import { CancelPaymentIntentUseCase } from '../payment-events/cancel-payment-intent/cancel-payment-intent.use-case.js';
+import { CancelVoidedInvoiceUseCase } from '../payment-events/cancel-voided-invoice/cancel-voided-invoice.use-case.js';
 import { ConfirmInvoicePaidUseCase } from '../payment-events/confirm-invoice-paid/confirm-invoice-paid.use-case.js';
 import { ConfirmPaymentIntentSucceededUseCase } from '../payment-events/confirm-payment-intent-succeeded/confirm-payment-intent-succeeded.use-case.js';
 import {
@@ -52,6 +53,7 @@ export class ApplyPaymentEventUseCase {
     cancelPaymentIntent: CancelPaymentIntentUseCase,
     recordInvoicePaymentFailed: RecordInvoicePaymentFailedUseCase,
     ensureRenewalPayment: EnsureRenewalPaymentUseCase,
+    cancelVoidedInvoice: CancelVoidedInvoiceUseCase,
   ) {
     this.handlers = {
       [PaymentEventKind.CHECKOUT_SESSION_COMPLETED]: applyCheckoutSessionCompleted,
@@ -62,6 +64,7 @@ export class ApplyPaymentEventUseCase {
       [PaymentEventKind.PAYMENT_INTENT_PAYMENT_FAILED]: recordPaymentIntentFailed,
       [PaymentEventKind.PAYMENT_INTENT_CANCELED]: cancelPaymentIntent,
       [PaymentEventKind.INVOICE_PAYMENT_FAILED]: recordInvoicePaymentFailed,
+      [PaymentEventKind.INVOICE_VOIDED]: cancelVoidedInvoice,
     };
   }
 

@@ -213,7 +213,7 @@ extension purchase и не становится initial purchase.
 | `invoice.payment_failed`               | Audit/correlation; не меняет lifecycle status                                       | Реализовано                            |
 | `checkout.session.expired`             | `CREATED/PENDING -> CANCELED` после reconciliation                                  | Реализовано в worktree, ожидает review |
 | `payment_intent.canceled`              | Terminal cancellation только для `PURCHASE + SUBSCRIPTION_EXTENSION`                 | Реализовано, ожидает review            |
-| `invoice.voided`                       | Будущая terminal cancellation для unpaid invoice-backed Payment                     | Не реализовано                         |
+| `invoice.voided`                       | Terminal cancellation для unpaid `subscription_cycle` renewal по Invoice ID          | Реализовано, ожидает review            |
 | `invoice.marked_uncollectible`         | Не считать автоматически `CANCELED`; требуется отдельное решение о terminal failure | Не реализовано                         |
 | `customer.subscription.deleted`        | Subscription lifecycle, не отмена исторического Payment                             | Не реализовано                         |
 | `charge.refunded` / `refund.*`         | Refund lifecycle, не `CANCELED`                                                     | Не реализовано                         |
@@ -842,11 +842,10 @@ Refactor разделяет два разных назначения данны�
 - adapter сохраняет только PaymentIntent ID, nullable Customer ID и время события; cancellation
   reason и payment-method данные не входят в нормализованный event.
 
-После принятия `payment_intent.canceled`:
+После принятия `invoice.voided`:
 
-1. `invoice.voided`;
-2. отдельное архитектурное решение для `invoice.marked_uncollectible`;
-3. отдельно refund lifecycle и subscription lifecycle events.
+1. отдельное архитектурное решение для `invoice.marked_uncollectible`;
+2. отдельно refund lifecycle и subscription lifecycle events.
 
 Не реализовывать несколько новых cancellation events одним изменением.
 
@@ -902,13 +901,15 @@ provider Subscription, без переоценки по текущему Plan. �
 `AMOUNT_MISMATCH`. PaymentIntent при finalized не сохраняется. InvoicePayment и несколько PaymentIntent на Invoice
 исключены из текущей итерации и не являются блокером.
 Поздний finalized не понижает успешный Payment и не запускает D2. Invoice paid подтверждает существующий
-pending renewal; прежний recovery создания успешного renewal сохранён. Failure recovery и voided не входят
-в этот срез. Подробности и ограничения указаны в README payment-events.
+pending renewal; прежний recovery создания успешного renewal сохранён. Failure recovery не входит
+в этот срез. `invoice.voided` реализован отдельным slice и отменяет только найденный по Invoice ID
+renewal. Подробности и ограничения указаны в README payment-events.
 
 
 ### Уточнённые границы итерации renewal
 
-- После review первого среза следующий event slice — `invoice.voided`.
+- `invoice.voided` реализован для `subscription_cycle`: source `paymentId` из metadata не отменяется,
+  renewal ищется только по `(providerType, providerInvoiceId)`, а его отсутствие вызывает retry.
 - Создание renewal из `invoice.payment_failed` и failure recovery подлежат обсуждению при детализации
   следующего среза; реализация ещё не согласована.
 - `invoice.marked_uncollectible`, InvoicePayment/несколько PaymentIntent, скидки, кредитный баланс

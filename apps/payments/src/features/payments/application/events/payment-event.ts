@@ -122,6 +122,16 @@ export type InvoicePaymentFailedEvent = PaymentEventEnvelope & {
   };
 };
 
+export type InvoiceVoidedEvent = PaymentEventEnvelope & {
+  kind: PaymentEventKind.INVOICE_VOIDED;
+  payload: RenewalPaymentSourceReferences & {
+    providerInvoiceId: string;
+    providerSubscriptionId: string | null;
+    customerId: string | null;
+    billingReason: string | null;
+  };
+};
+
 export type SuccessfulPaymentEvent = PaymentIntentSucceededEvent | InvoicePaidEvent;
 export type PaymentEvent =
   | CheckoutSessionCompletedEvent
@@ -130,4 +140,5 @@ export type PaymentEvent =
   | PaymentIntentPaymentFailedEvent
   | PaymentIntentCanceledEvent
   | InvoicePaymentFailedEvent
+  | InvoiceVoidedEvent
   | InvoiceFinalizedEvent;
