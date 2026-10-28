@@ -35,11 +35,18 @@ describe('StripeInvoicePaidAdapter', () => {
   });
   it('reads the legacy Invoice Subscription metadata snapshot', () => {
     const value = webhook();
-    value.payload = { ...(value.payload as Record<string, unknown>), billing_reason: 'subscription_cycle', parent: null,
-      subscription: 'sub_test', subscription_details: { metadata: {
-        paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-        subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-      } } };
+    value.payload = {
+      ...(value.payload as Record<string, unknown>),
+      billing_reason: 'subscription_cycle',
+      parent: null,
+      subscription: 'sub_test',
+      subscription_details: {
+        metadata: {
+          paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        },
+      },
+    };
     expect(adapter.adapt(value).payload).toMatchObject({
       sourcePaymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       sourceSubscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
@@ -48,19 +55,24 @@ describe('StripeInvoicePaidAdapter', () => {
 
   it('does not use top-level Invoice metadata as the renewal source snapshot', () => {
     const value = webhook();
-    value.payload = { ...(value.payload as Record<string, unknown>), billing_reason: 'subscription_cycle',
+    value.payload = {
+      ...(value.payload as Record<string, unknown>),
+      billing_reason: 'subscription_cycle',
       parent: { subscription_details: { subscription: 'sub_test', metadata: {} } },
-      metadata: { paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } };
+      metadata: { paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+    };
     expect(adapter.adapt(value).payload.sourcePaymentId).toBeNull();
   });
 
   it('rejects a malformed identifier in Subscription metadata', () => {
     const value = webhook();
-    value.payload = { ...(value.payload as Record<string, unknown>), billing_reason: 'subscription_cycle',
-      parent: { subscription_details: { subscription: 'sub_test', metadata: { paymentId: 'bad-id' } } } };
+    value.payload = {
+      ...(value.payload as Record<string, unknown>),
+      billing_reason: 'subscription_cycle',
+      parent: { subscription_details: { subscription: 'sub_test', metadata: { paymentId: 'bad-id' } } },
+    };
     expect(() => adapter.adapt(value)).toThrow();
   });
-
 });
 
 function webhook(overrides: Partial<VerifiedProviderWebhook> = {}): VerifiedProviderWebhook {
@@ -79,7 +91,10 @@ function webhook(overrides: Partial<VerifiedProviderWebhook> = {}): VerifiedProv
       parent: {
         subscription_details: {
           subscription: 'sub_test',
-          metadata: { paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' },
+          metadata: {
+            paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            subscriptionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          },
         },
       },
     },

@@ -17,9 +17,7 @@ import {
 @Injectable()
 export class StripeInvoiceVoidedAdapter implements ProviderEventAdapter {
   supports(webhook: VerifiedProviderWebhook): boolean {
-    return (
-      webhook.provider === PaymentProvider.STRIPE && webhook.type === StripeEventType.INVOICE_VOIDED
-    );
+    return webhook.provider === PaymentProvider.STRIPE && webhook.type === StripeEventType.INVOICE_VOIDED;
   }
 
   adapt(webhook: VerifiedProviderWebhook): InvoiceVoidedEvent {

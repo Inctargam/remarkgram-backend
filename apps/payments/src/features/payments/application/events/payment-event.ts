@@ -101,13 +101,14 @@ export type InvoiceFinalizedEvent = PaymentEventEnvelope & {
 
 export type InvoicePaidEvent = PaymentEventEnvelope & {
   kind: PaymentEventKind.INVOICE_PAID;
-  payload: SuccessfulPaymentPayload & RenewalPaymentSourceReferences & {
-    id: string;
-    billingReason: string | null;
-    providerPaymentId: string | null;
-    providerSubscriptionId: string | null;
-    providerInvoiceId: string;
-  };
+  payload: SuccessfulPaymentPayload &
+    RenewalPaymentSourceReferences & {
+      id: string;
+      billingReason: string | null;
+      providerPaymentId: string | null;
+      providerSubscriptionId: string | null;
+      providerInvoiceId: string;
+    };
 };
 
 export type InvoicePaymentFailedEvent = PaymentEventEnvelope & {

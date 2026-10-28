@@ -22,12 +22,13 @@ export class PaymentWorkflowAttemptError extends Error {
     if (!(error instanceof Error) || error.name !== 'PaymentWorkflowAttemptError') return null;
     try {
       const decision = JSON.parse(error.message) as Partial<PaymentWorkflowAttemptFailure> | null;
-      if (!decision || !['RETRY', 'RECONCILIATION_REQUIRED', 'DEAD'].includes(decision.disposition ?? '')) return null;
-      if (typeof decision.failure?.code !== 'string' || typeof decision.failure.message !== 'string') return null;
+      if (!decision || !['RETRY', 'RECONCILIATION_REQUIRED', 'DEAD'].includes(decision.disposition ?? ''))
+        return null;
+      if (typeof decision.failure?.code !== 'string' || typeof decision.failure.message !== 'string')
+        return null;
       return decision as PaymentWorkflowAttemptFailure;
     } catch {
       return null;
     }
   }
 }
-
