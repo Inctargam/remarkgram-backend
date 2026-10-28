@@ -1,5 +1,24 @@
 # Payments: контекст для разработки и review
 
+## Границы текущей работы (2026-10-27)
+
+Текущий контекст разработки — Payment Module (D1). Subscription Module (D2) принадлежит
+другому разработчику. Адаптация D2 к опубликованным application ports D1, ручное автопродление
+D2, lifecycle подписок, API подписок и события доступа не входят в список доработок D1.
+Документы D1/D2 описывают требования к интеграции, а не подтверждают её готовность.
+
+На стороне D1 уже действуют `hasActiveSubscription(userId)`,
+`confirmAutoRenewalCancellation(paymentId, providerSubscriptionId, tx)` и
+`bindProviderSubscription(paymentId, providerSubscriptionId, tx)`.
+`targetSubscriptionId` удалён из SuccessfulPayment и Payment.
+Подключённые LocalSubscriptionContextAdapter и LocalSubscriptionPaymentHandlerAdapter пока
+реализуют прежние сигнатуры. Их обновление выполняет разработчик D2; это внешняя зависимость
+сквозного сценария, а не основание возвращать старые контракты D1.
+Подробности: [изменения контрактов](./contract-simplification-proposals.md).
+
+Наличие реализации не означает завершённое review или выполненную проверку.
+Пометки «ожидает review» сохраняются до явного решения; эта актуализация их не закрывает.
+
 ## Актуальная регистрация workflow (2026-10-24)
 
 Для локальной разработки оставлен единственный `DbosPaymentWebhookWorkflow.process`
@@ -19,7 +38,7 @@ unit tests и проверка типов payments.
 - исходное распределение ответственности D1/D2 из `payments_d1_d2_tasks.pdf`;
 - уточнённое ТЗ по обработке Stripe webhook;
 - решения, принятые во время реализации;
-- фактическое состояние кода на 2026-10-14;
+- состояние реализации и последующие уточнения вплоть до 2026-10-27;
 - ограничения и известные незавершённые вопросы.
 
 Перед изменением Payments agent должен прочитать:
@@ -215,43 +234,36 @@ RENEWAL находит подписку пользователя по provider +
 Контракт не содержит границ Invoice, поэтому последовательное начисление не заменяет сверку
 с provider-периодами. События Business-доступа пока не реализованы.
 
-### Завершающие обработчики: прежний интерфейс D1
+### Завершающие обработчики: актуальный контракт D1
 
-Изменения сигнатур остаются предложениями в contract-simplification-proposals.md.
+`confirmAutoRenewalCancellation(paymentId, providerSubscriptionId, tx)` передаёт ID платежа
+и прежний provider ID. D2 должен найти SCHEDULED-применение и TRANSFER по paymentId,
+проверить снимок старой связи под блокировкой пользователя и подтвердить отключение:
+старая связь получает RETIRED, операция — BINDING_PENDING. Повтор после подтверждения
+не меняет даты доступа или последующие настройки.
 
-`markProviderSubscriptionCancellationScheduled(subscriptionId, providerSubscriptionId, tx)`
-получает ID новой локальной подписки и старый provider ID. `findCancellationOperations` ищет
-TRANSFER, связанный с SCHEDULED-применением, по этой паре (take: 2), затем поиск повторяется
-под блокировкой владельца. Отсутствие или неоднозначность — SubscriptionCancellationConflictError.
-При PENDING одна nested-запись переводит sourceSubscription в RETIRED, операцию — в BINDING_PENDING.
-BINDING_PENDING/COMPLETED означают успешный повтор без записи. Даты доступа не меняются.
+`bindProviderSubscription(paymentId, providerSubscriptionId, tx)` передаёт ID платежа
+и новый provider ID. Целевая локальная Subscription определяется D2 из сохранённого применения
+и операции, отдельный subscriptionId не передаётся. D2 должен атомарно сохранить новую связь,
+ENABLED и COMPLETED; совпадающий replay не меняет состояние, другой provider ID — конфликт.
+PENDING до подтверждения отключения не допускает binding.
 
-`bindProviderSubscription(paymentId, subscriptionId, providerSubscriptionId, tx)`
-получает владельца применения, берёт lock и перечитывает применение вместе с операцией.
-Требует SCHEDULED, соответствующий subscriptionId и наличие TRANSFER.
-При BINDING_PENDING одна nested-запись сохраняет provider ID и ENABLED новой подписки,
-а операции — COMPLETED и неизменяемый снимок нового providerSubscriptionId.
-При COMPLETED совпадающий снимок означает повтор без записи; другой ID — конфликт.
-PENDING отклоняется: отключение ещё не подтверждено. Состояния обеих подписок для replay
-не перечитываются, поздний повтор не отменяет последующее ручное отключение.
-P2002 при привязке преобразуется в SubscriptionBindingConflictError; остальные ошибки передаются
-D1 для отката всего локального шага. Внешний API эти методы не вызывают.
-
-Связи, их принадлежность пользователю и различие старой/новой подписок обеспечиваются при создании
-операции и не меняются. Provider-снимки не пересчитываются из текущего состояния Subscription.
-Будущие ручные операции обязаны соблюдать общий lock, переходные состояния и запрет RETIRED.
-Успех локального replay не заменяет идемпотентность внешних шагов D1.
+Это действующие порты и вызовы D1. Подключённый адаптер и use cases D2 ещё используют старые
+сигнатуры; разработчик D2 обновит их отдельно. Требования к lock, неизменяемым снимкам,
+идемпотентности и общему tx остаются в successful-payment-d1-d2-contract.md.
 
 ### Чтение текущего доступа
 
-`LocalSubscriptionContextAdapter` → `FindActiveSubscriptionForPurchaseQueryHandler` →
-`SubscriptionsQueryRepository`. Prisma-репозиторий ищет ACTIVE/PENDING с startsAt <= now < expiresAt:
-задержка фонового переключения не скрывает начавшийся период. Одно совпадение возвращает
-{ subscriptionId }, отсутствие — null, несколько — MultipleActiveSubscriptionsError.
-Ошибки БД передаются вызывающему коду. Частичный уникальный индекс сохраняет одну ACTIVE-строку
-на пользователя. Общая координация lifecycle, ручное автопродление и события доступа ещё требуют
-реализации. FK из Payment.subscriptionId не добавлен: старый временный handler мог сохранять
-ID без настоящей Subscription. В composition root подключены реальные D2 адаптеры.
+D1 вызывает только `SubscriptionContextPort.hasActiveSubscription(userId): Promise<boolean>`:
+true — активный период есть, false — отсутствует, ошибка чтения пробрасывается.
+Запрос не резервирует период. Резервация первой покупки принадлежит D1.
+
+Требование к D2: учитывать ACTIVE/PENDING с startsAt <= now < expiresAt; несколько совпадений —
+ошибка инварианта. Текущий D2 query возвращает { subscriptionId } или null;
+преобразование в актуальную boolean-границу ещё должен реализовать разработчик D2.
+В composition root зарегистрированы реальные D2 адаптеры, но сама регистрация не означает
+совместимость с обновлёнными портами. FK из Payment.subscriptionId не добавлен: старый временный
+handler мог сохранять ID без настоящей Subscription.
 
 ## Основная модель Payment
 
@@ -349,7 +361,7 @@ Optional provider reference означает отсутствие знания, 
 | Event                                             | References, участвующие в reconciliation/enrichment                                                                                      | Не проверять в этом event                                                                         |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `checkout.session.completed`, `mode=payment`      | `providerCheckoutId` — обязателен; `providerCustomerId` и `providerPaymentId` — optional knowledge                                       | `providerSubscriptionId`, `providerInvoiceId`                                                     |
-| `checkout.session.completed`, `mode=subscription` | `providerCheckoutId` — обязателен; `providerCustomerId` и `providerSubscriptionId` — optional knowledge                                  | `providerInvoiceId`; `providerPaymentId`, если он не является частью явно согласованного contract |
+| `checkout.session.completed`, `mode=subscription` | `providerCheckoutId` — обязателен; `providerCustomerId` и `providerSubscriptionId` — optional knowledge                                  | `providerInvoiceId` и `providerPaymentId` (Session не предоставляет его для subscription mode) |
 | `checkout.session.expired`                        | `providerCheckoutId` — обязателен; `providerCustomerId` — optional knowledge                                                             | `providerPaymentId`, `providerSubscriptionId`, `providerInvoiceId`                                |
 | `payment_intent.succeeded`                        | `providerPaymentId` — ID самого PaymentIntent; `providerCustomerId` — optional knowledge                                                 | `providerSubscriptionId`, `providerInvoiceId`                                                     |
 | `payment_intent.payment_failed`                   | `providerPaymentId` для correlation; Customer только если contract его нормализует                                                       | `providerSubscriptionId`, `providerInvoiceId`                                                     |
@@ -408,10 +420,13 @@ Repository атомарно проверяет совместимость и о�
 
 - использует стабильный workflow ID из provider + provider event ID;
 - сохраняет webhook audit;
-- выполняет mutation Payment и завершение webhook в одной локальной транзакции;
+- для событий без применения доступа выполняет mutation Payment и завершение webhook
+  в одной локальной транзакции; успешная оплата запускает отдельный шаг D2 linking;
+- при успешной оплате фиксирует финансовый факт в step 1, применение доступа и Payment.subscriptionId
+  в step 2; для SCHEDULED завершает webhook только после provider steps и атомарного binding;
 - преобразует ошибку durable enqueue в `PaymentWebhookEnqueueUnavailableError`, чтобы HTTP вернул
   Stripe статус `503` без утечки DBOS-контрактов в application/presentation;
-- в V7 повторяет временные application failures в новых транзакциях через durable таймеры;
+- в текущем process повторяет временные application failures в новых транзакциях через durable таймеры;
   `RETRYING` — audit-состояние, а не самостоятельный механизм планирования;
 - отделяет недоступный контекст от доказанного конфликта: нерешаемые ожиданием случаи и
   исчерпание application retry переводит в `RECONCILIATION_REQUIRED`;
@@ -457,12 +472,12 @@ Provider-independent reconciliation conflicts определены в одном
 
 - `PAYMENT_RECONCILIATION_CONFLICT` содержит стабильные runtime-значения outcomes;
 - `PaymentReconciliationConflict` выводится из этого объекта и не дублирует строковый union;
-- reconciliation conflict преобразуется в `PaymentEventResultCode` внутри event handler;
+- reconciliation conflict преобразуется в `PaymentEventRejectionReason` внутри event handler;
 - `paymentEventResult` является единственной фабрикой нормализованных результатов;
 - use cases не должны вручную создавать result или возвращать строковые outcome literals.
 
 Добавление нового общего reconciliation conflict выполняется в vocabulary один раз. После этого
-`PaymentEventResultCode` и нужные event policies расширяются согласованно. Связанные данные
+`PaymentEventRejectionReason` и нужные event policies расширяются согласованно. Связанные данные
 (`paymentId` и успешный `Payment`) контролируются типом и фабрикой общего result contract.
 
 ## Принятые решения реализации
@@ -594,9 +609,10 @@ provider events. DBOS infrastructure импортирует orchestration use ca
 `process-payment-webhook` и не зависит напрямую от event-specific handlers.
 
 Все event-specific handlers возвращают единый `PaymentEventResult` из
-`payment-events/payment-event-result.ts`. Result содержит только нормализованный processing status
-`SUCCESS`, `IGNORED` или `DEAD`, централизованный `PaymentEventResultCode` и связанные данные,
-разрешённые фабрикой `paymentEventResult`. Собственные handler outcomes вроде `APPLIED`, `CANCELED`,
+`payment-events/payment-event-result.ts`. PaymentEventOutcome определяет COMPLETED, PAYMENT_CONFIRMED
+или REJECTED. COMPLETED содержит PaymentEventCompletionCode и nullable paymentId; PAYMENT_CONFIRMED —
+SuccessfulPayment; REJECTED — PaymentEventRejectionReason и PaymentEventRejectionDisposition
+(IGNORED/DEAD). Фабрика paymentEventResult разделяет completed, paymentConfirmed, ignored и dead. Собственные handler outcomes вроде `APPLIED`, `CANCELED`,
 `CORRELATED` и `UNCORRELATED` не являются application boundary. `ApplyPaymentEventUseCase` является
 единственным местом, которое преобразует `PaymentEventResult` в webhook audit transition или
 продолжение successful-payment workflow.
@@ -627,17 +643,15 @@ use case и spec, например `payment-events/confirm-invoice-paid/` или
 - slice 2 — принят;
 - slice 3 — реализован, ожидает review;
 - slice 4a — D1→D2 port реализован;
-- slice 4b — application use case второго шага, атомарный persistence contract и временный
-  infrastructure handler подключены к workflow; обязательный refactor атомарного
-  linking выполнен, срез ожидает review; реальный D2 handler по-прежнему должен заменить временный
-  adapter;
-- slice 5 — provider contract, Stripe adapter и `scheduleProviderSubscriptionCancellationStep`
-  подключены к workflow; временный D2 handler фиксирует transition как no-op,
-  срез ожидает review;
-- slice 6 — создание deferred Stripe Subscription и атомарный local binding подключены к
-  `processPaymentWebhookV6`; V6 дополнительно фиксирует retryable/terminal workflow failures,
-  обязательный refactor безопасных audit/log сообщений выполнен, срез принят;
-- slice 7 — не начат.
+- slice 4b — второй шаг и атомарный D1 linking реализованы; срез ожидает review.
+  В composition root зарегистрирован реальный D2 adapter, его адаптация к новым портам — задача D2;
+- slice 5 — provider contract и Stripe-вызов отключения старого автопродления подключены к workflow;
+  D1 вызывает confirmAutoRenewalCancellation по paymentId. Срез ожидает review;
+- slice 6 — deferred Stripe Subscription и атомарный local binding реализованы;
+  обязательный refactor безопасного audit выполнен, срез принят;
+- slice 7 — единственный processPaymentWebhook зарегистрирован, bounded application retry
+  реализован. Сквозная готовность зависит от адаптации D2 и recovery/idempotency-проверок;
+  запуск таких проверок и принятие всех последующих изменений этим документом не подтверждаются.
 
 ### Данные успешного платежа
 
@@ -659,12 +673,12 @@ D1 до создания Payment читает `SubscriptionContextPort.hasActive
 pre-payment concurrency policy. После financial reconciliation дальнейший workflow следует явному
 результату D2 (`CREATED`, `SCHEDULED` или `RENEWED`) и не интерпретирует CheckoutPurpose повторно.
 
-Step 1 возвращает единый `PaymentEventResult` со статусом `SUCCESS`, `IGNORED` или `DEAD` и
-операционным `PaymentEventResultCode`. Только результат
-`SUCCESS + PAYMENT_SUCCEEDED` содержит `SuccessfulPayment` для step 2. `eventId` остаётся контекстом
+Step 1 возвращает единый `PaymentEventResult` с явным outcome, кодом выполненного действия
+либо причиной отклонения. Только результат
+`outcome=PAYMENT_CONFIRMED` содержит `SuccessfulPayment` для step 2. `eventId` остаётся контекстом
 workflow и не дублируется в результате event-specific use case.
 
-При replay уже успешного Payment step 1 также возвращает `SUCCEEDED` с существующим Payment:
+При replay уже успешного Payment step 1 также возвращает `PAYMENT_CONFIRMED` со снимком существующего Payment:
 повтор финансового события не должен пропустить ещё не завершённое применение Payment в D2. При этом
 финансовая запись повторно не изменяется и исходный `paidAt` сохраняется.
 
@@ -707,7 +721,7 @@ Application boundary этого шага называется `LinkPaymentToSubs
 `linkPaymentToSubscriptionStep`. Названия отражают результат orchestration: успешный Payment получает
 связь с локальной Subscription, выбранной или созданной D2. Step зарегистрирован через
 `@DBOS.step({ name: 'linkPaymentToSubscriptionStep', ...retryPolicy })`, вызывается из
-актуального `processPaymentWebhookV6` после результата `SUCCESS + PAYMENT_SUCCEEDED` и выполняет use case в отдельной
+актуального `processPaymentWebhook` после результата `outcome=PAYMENT_CONFIRMED` и выполняет use case в отдельной
 транзакции `linkPaymentToSubscription`.
 
 Payments определяет только этот application port и orchestration вокруг него. Domain model,
@@ -789,11 +803,11 @@ Step получает `eventId`, `paymentId`, `subscriptionId`, `previousProvide
 Реализованный application boundary `ScheduleProviderSubscriptionCancellationUseCase` разделяет
 provider-вызов и локальную фиксацию. `scheduleProviderSubscriptionCancellationStep` сначала вызывает
 Stripe adapter с `cancel_at_period_end: true`, не удерживая Prisma-транзакцию, а затем в отдельной
-транзакции вызывает `SubscriptionPaymentHandler.markProviderSubscriptionCancellationScheduled`
-с `params.subscriptionId`, прежним provider ID и общим tx.
+транзакции вызывает `SubscriptionPaymentHandler.confirmAutoRenewalCancellation`
+с `params.payment.paymentId`, прежним provider ID и общим tx.
 Ответ provider подтверждает только идентификатор Subscription и `cancel_at_period_end: true`.
 Billing anchor следующей Subscription берётся исключительно из `nextSubscriptionStartsAt`; ответ Stripe
-его не корректирует. Подключён LocalSubscriptionPaymentHandlerAdapter с фиксацией этапа операции.
+его не корректирует. Адаптацию LocalSubscriptionPaymentHandlerAdapter к этому вызову выполняет D2.
 
 ### Step 4: создание отложенной Stripe Subscription
 
@@ -812,14 +826,13 @@ provider ID.
 - в этой же транзакции пометить webhook `PROCESSED`;
 - другой уже сохранённый provider ID является reconciliation conflict и не перезаписывается.
 
-Для атомарной фиксации локальных связей расширить `SubscriptionPaymentHandler` отдельным методом:
+Для атомарной фиксации локальных связей D1 использует действующий метод `SubscriptionPaymentHandler`:
 
 ```ts
 bindProviderSubscription(
   paymentId: string,
-  subscriptionId: string,
   providerSubscriptionId: string,
-  tx: TransactionContext,
+  tx: PaymentsTransactionContext,
 ): Promise<void>;
 ```
 
@@ -860,29 +873,43 @@ idempotency key обязан получить ту же Stripe Subscription и �
 Этот раздел фиксирует известные архитектурные долги, которые не должны теряться между event slices.
 Новый Stripe event нельзя начинать, если для предыдущего slice указан обязательный refactor.
 
-### `providerPaymentId` не извлекается из Stripe event
+### `providerPaymentId`: доступность в Stripe payload (2026-10-27)
 
-Статус: открытый дефект, требует investigation до изменения event contract.
+Статус: отсутствие PaymentIntent ID в subscription/invoice payload само по себе не является
+дефектом. Прежняя задача обязательного извлечения ID из каждого success-event снята.
 
-В фактической обработке Stripe webhook значение PaymentIntent ID не извлекается из
-события, и `Payment.providerPaymentId` (`provider_payment_id` в БД) остаётся `null`. Текущий код
-ожидает ID в `checkout.session.payment_intent`, `invoice.payment_intent` или в `id` объекта
-`payment_intent.*`, но реальная форма полученного event ещё не сопоставлена с этими
-ожиданиями.
+`providerPaymentId` означает именно PaymentIntent ID (`pi_*`). `mode` принадлежит Checkout Session,
+а не Subscription. Для текущего сценария действуют следующие правила:
 
-Перед исправлением нужно:
+- Checkout Session предоставляет `payment_intent` для `mode=payment` (одноразовая оплата).
+  Поле nullable: сам mode не гарантирует наличие ID на любой стадии Session.
+- Для Checkout `mode=subscription` нельзя ожидать PaymentIntent ID в session.payment_intent.
+  Используется providerSubscriptionId, а финансовый успех подтверждается invoice.paid.
+- Начиная с `2025-03-31.basil` прямое поле Invoice.payment_intent удалено.
+  У Subscription также нет прямого payment_intent; latest_invoice — ссылка на Invoice,
+  а не PaymentIntent. Поэтому текущие invoice/subscription webhook не обязаны содержать этот ID,
+  и providerPaymentId может оставаться null без ошибки reconciliation.
+- Это ограничение прямого чтения из соответствующих объектов, а не запрет получить ID вообще:
+  связь Invoice с PaymentIntent представлена InvoicePayment.payment.payment_intent и может
+  читаться через Invoice Payments API или expansion invoice.payments.
+  InvoicePayment/несколько PaymentIntent остаются вне текущей итерации; дополнительные запросы
+  ради заполнения providerPaymentId здесь не требуются.
+- В payment_intent.* событиях ID доступен как data.object.id. Нельзя распространять ограничение
+  Checkout mode на сами PaymentIntent objects или подменять ID значением Invoice/Subscription/Charge.
 
-- определить конкретный event type и Checkout mode, на которых поле остаётся пустым;
-- сверить sanitized `PaymentWebhook.providerSnapshot` с формой Stripe object для
-  API version `2026-08-26.dahlia`;
-- проверить, где в этой версии API находится связь Invoice/Checkout с PaymentIntent и не
-  была ли она перенесена в другой object;
-- проверить normalized event после Stripe adapter и command, передаваемую в repository;
-- не подменять PaymentIntent ID значением Checkout, Invoice, Charge или Subscription ID.
+Stripe client проекта настроен на `2026-08-26.dahlia`, то есть после изменения Basil.
+Версия webhook payload определяется конфигурацией event destination, а не настройкой SDK:
+при анализе исторического события нужно учитывать его api_version. Старые payload могут иметь
+прямое invoice.payment_intent; это не делает поле обязательным для актуальных событий.
+Текущий invoice adapter ещё читает optional invoice.payment_intent; отсутствие значения даёт null.
+Это описание поведения, а не реализация InvoicePayment integration.
 
-Критерий исправления: для каждого supported success-event определён авторитетный
-источник PaymentIntent ID, adapter нормализует его в `providerPaymentId`, repository атомарно
-сохраняет его, а replay того же event идемпотентен.
+Источники Stripe, сверены 2026-10-27:
+
+- [Checkout Session: payment_intent и mode](https://docs.stripe.com/api/checkout/sessions/object).
+- [Basil: удаление Invoice.payment_intent и переход к InvoicePayment](https://docs.stripe.com/changelog/basil/2025-03-31/add-support-for-multiple-partial-payments-on-invoices).
+- [InvoicePayment: связь с PaymentIntent](https://docs.stripe.com/api/invoice-payment/object).
+- [Subscription: latest_invoice и структура объекта](https://docs.stripe.com/api/subscriptions/object).
 
 ### Безопасная фиксация ошибок webhook workflow
 
@@ -1027,15 +1054,17 @@ envelope `paymentId` из Invoice metadata с fallback на снимок Subscri
 `sourcePaymentId` и `sourceSubscriptionId`. Для initial Subscription без metadata subscriptionId используется
 уже установленная локальная связь конкретной исходной Payment.
 
-Исходная Payment должна быть SUCCEEDED с paidAt и установленными local/provider Subscription links.
+Исходная Payment используется как исторический снимок условий с установленными local/provider
+Subscription links; её type, status и paidAt не определяют допустимость чтения снимка.
 Она предоставляет userId, planId, periodCount, periodUnit и локальную связь, но её amount/currency
 не сравниваются с новым Invoice и не копируются в renewal. Новая сумма и валюта берутся из Invoice
 (amount_due при finalized, amount_paid при paid). Контракт recurring-подписки не изменяется.
 
 `ConfirmRenewalPaymentUseCase` обрабатывает найденную или возвращённую upsert Payment единым путём,
 без рекурсии/повторного поиска и максимум с одной попыткой подтверждения. Проверяются все поля
-контекста конкурентного upsert. Недоступный source-контекст/привязка и исчезнувшая после UPDATE
-renewal вызывают retryable PAYMENT_PERSISTENCE_FAILED вместо IGNORED/PAYMENT_NOT_FOUND.
+контекста конкурентного upsert. Недоступный source-контекст/привязка классифицируется через
+RenewalPaymentContextUnavailableError. NOT_UPDATED вызывает PAYMENT_CONFIRMATION_NOT_APPLIED:
+дополнительного чтения после UPDATE нет, повторяется весь финансовый шаг.
 Повтор остаётся ответственностью workflow; ручная reconciliation может потребоваться при
 постоянно отсутствующем metadata. Старые нормализованные события читаются, но автоматически
 не обогащаются из snapshot. Существующая renewal может обрабатываться без source metadata.
@@ -1053,12 +1082,14 @@ renewal вызывают retryable PAYMENT_PERSISTENCE_FAILED вместо IGNOR
 внутри @DBOS.step. V7 использует workflow-level bounded loop, отдельную транзакцию на попытку
 и durable DBOS.sleepSeconds между попытками. Лимит 10 попыток; интервалы 10, 20, 40, 80, 160,
 320, 640, 1280, 2560 секунд (суммарно 5110 секунд ожидания без времени выполнения).
-V6 остаётся зарегистрированным с прежней последовательностью durable-операций; новые события
-запускают processPaymentWebhookV7. Существующие workflow не мигрируются автоматически.
+Исторически этот срез вводил processPaymentWebhookV7 с сохранением V6. Решение от 2026-10-24
+заменило регистрацию единственным processPaymentWebhook; legacy V6 удалён. Старые локальные
+execution histories автоматически не мигрируются.
 
 RenewalPaymentContextUnavailableError имеет собственный application error code и больше не
 наследуется от PaymentPersistenceError. SOURCE_PAYMENT_NOT_FOUND и SOURCE_NOT_LINKED повторяются;
-SOURCE_METADATA_MISSING и PAYMENT_DISAPPEARED сразу требуют reconciliation. После исчерпания
+SOURCE_METADATA_MISSING сразу требует reconciliation. Причина PAYMENT_DISAPPEARED удалена
+при упрощении условного подтверждения; новый NOT_UPDATED повторяет весь шаг. После исчерпания
 application-попыток событие получает RECONCILIATION_REQUIRED и код PAYMENT_APPLICATION_RETRIES_EXHAUSTED
 с кодом последней ошибки в безопасном audit message. Противоречивые business outcomes остаются DEAD.
 
@@ -1077,7 +1108,7 @@ DEAD/reconciliation по-прежнему требует доступности 
 Для datasource recovery безопасная классификация ошибки сохраняется в serializable Error envelope
 до rollback: решение не зависит от сохранения prototype пользовательского exception после replay.
 Неизвестные provider/SQL тексты не попадают в audit envelope. Миграция добавляет значение
-WebhookProcessingStatus.RECONCILIATION_REQUIRED; применять её нужно до запуска V7.
+WebhookProcessingStatus.RECONCILIATION_REQUIRED; применять её нужно до запуска workflow с поддержкой нового статуса.
 Prisma Client сгенерирован штатной командой. Tests/build/lint не запускались.
 
 
@@ -1114,3 +1145,93 @@ RECONCILIATION_REQUIRED; управляющий `PaymentWorkflowProcessingStoppe
 обработки и штатных retry/finalization путей V7 сохранены; V6 и provider retries
 сохраняют прежнее поведение. Добавлены unit-сценарии retry wrapper и сбоя final audit.
 Tests/build/lint/formatter не запускались согласно verification policy.
+
+## Навигация по workflow
+
+[Архитектурные диаграммы Payment Webhook](./architecture/README.md) показывают C4-компоненты,
+порядок шагов координатора, внутренний процесс каждого шага, его результат и решение координатора.
+
+## Результат финансового шага: разделение понятий (2026-10-27)
+
+PaymentEventResultStatus и общий PaymentEventResultCode заменены отдельными enum:
+PaymentEventOutcome, PaymentEventCompletionCode, PaymentEventRejectionReason и
+PaymentEventRejectionDisposition. Координатор продолжает Step 2 только при PAYMENT_CONFIRMED.
+PAYMENT_SUCCEEDED больше не является кодом нового application result; статус Payment SUCCEEDED
+и persisted webhook statuses не изменены. Rejection reason по-прежнему сохраняется как audit failure.code.
+
+Для уже сохранённого результата applyPaymentWebhook infrastructure mapper читает прежний формат
+status/code и преобразует его перед развилкой координатора. Durable-имена, порядок операций
+и аргументы не меняются; старые history не переписываются. Это совместимость формата результата
+текущего process, а не восстановление удалённой регистрации V6. Проверки рефакторинга не запускались.
+
+## Условное подтверждение Payment: retry всего шага (2026-10-27)
+
+ConfirmSuccessfulPaymentUpdateResult.NOT_UPDATED больше не содержит Payment. Prisma adapter
+выполняет только условный UPDATE без follow-up SELECT. ConfirmPaymentIntentSucceededUseCase,
+ConfirmInvoicePaidUseCase (initial) и ConfirmRenewalPaymentUseCase выбрасывают
+PaymentConfirmationNotAppliedError с code PAYMENT_CONFIRMATION_NOT_APPLIED; workflow policy
+разрешает bounded retry. Статус и provider references остаются условиями атомарной записи.
+
+Следующая попытка заново выполняет correlation/reconciliation. Уже SUCCEEDED возвращает
+PAYMENT_CONFIRMED с сохранённым paidAt, terminal state и reference conflicts проходят исходные
+проверки. Отсутствующая renewal обрабатывается существующим recovery по Invoice, без отдельной
+PAYMENT_DISAPPEARED. Существующая renewal по-прежнему не требует source metadata; recovery требует.
+Результаты/безопасные error envelopes, сохранённые до изменения, не переписываются.
+
+Цена упрощения: дополнительная durable-пауза при NOT_UPDATED, а на последней попытке —
+RECONCILIATION_REQUIRED / PAYMENT_APPLICATION_RETRIES_EXHAUSTED даже при возможном успехе
+соседнего workflow. Старый financial commit не откатывается. D2 и provider steps до подтверждения
+не запускаются. Изменение P2002/savepoint отложено. Миграции БД не требуются.
+Обновлены unit/integration-сценарии; tests/build/lint/formatter не запускались.
+
+Независимое статическое review субагентом выполнено по запросу пользователя: рекомендация
+ACCEPT_AND_CONTINUE. Два замечания к покрытию закрыты: восстановлены initial-purchase сценарии
+reconciliation на следующей попытке и добавлен legacy RENEWAL_PAYMENT_DISAPPEARED error envelope.
+Повторное review дополнений — без замечаний. Это результат чтения кода, не свидетельство
+прохождения tests/build; обязательный запуск проверок этим review не заменяется.
+
+## Source Payment для renewal: исторический снимок условий (2026-10-27)
+
+Это решение заменяет прежнее требование PURCHASE + SUCCEEDED + paidAt для source Payment.
+В invoice.finalized и invoice.paid/subscription_cycle sourcePaymentId из provider metadata указывает
+на локальный исторический снимок userId, planId, periodCount, periodUnit и subscriptionId.
+Тип, статус, paidAt, сумма и валюта source не являются доказательством оплаты нового Invoice
+и не проверяются для извлечения этих условий. Сумма/валюта новой renewal берутся из Invoice;
+финансовый success подтверждает invoice.paid, а finalized создаёт только PENDING.
+
+Сохраняются проверки: sourcePaymentId присутствует, source существует, provider совпадает,
+непустые providerSubscriptionId совпадают, локальная subscriptionId установлена и совпадает
+с sourceSubscriptionId из события, если он передан; непустые Customer ID не противоречат друг другу.
+Отсутствующие local/provider links дают SOURCE_NOT_LINKED (bounded retry), отсутствие source —
+SOURCE_PAYMENT_NOT_FOUND (bounded retry), отсутствие metadata — SOURCE_METADATA_MISSING
+(reconciliation). Разные непустые provider/local links или Customer ID — business conflict.
+
+Это правило действует только при получении source snapshot для создания/recovery renewal.
+Проверки типа RENEWAL, финансовых значений, статуса и обязательного paidAt подтверждённой
+renewal остаются на своих границах. Полный снимок в metadata не переносится, отдельный recurring
+contract в этой итерации не добавляется. Обновлены сценарии finalized и paid; проверки не запускались.
+
+## Получение renewal: PENDING перед подтверждением (2026-10-27)
+
+Это решение заменяет промежуточное переименование createSuccessfulRenewal в findOrCreateRenewalPayment.
+Оба метода создания сразу SUCCEEDED и отдельный PERSISTED-result удалены.
+В paid recovery используется тот же ensurePendingRenewal, что и при invoice.finalized:
+находит Payment по provider + Invoice либо создаёт PENDING с paidAt=null и providerPaymentId=null.
+Существующая строка возвращается без изменения её данных или lifecycle state.
+
+Затем reconcileAndConfirmRenewalPayment проверяет запись и подтверждает её по текущему invoice.paid.
+Уже SUCCEEDED возвращается идемпотентно; terminal state сохраняется, противоречия отклоняются.
+Только условное подтверждение устанавливает SUCCEEDED, paidAt и optional providerPaymentId.
+Подтверждение и создание используют один tx, промежуточная PENDING отдельно не коммитится.
+NOT_UPDATED вызывает PAYMENT_CONFIRMATION_NOT_APPLIED и откат всей попытки, включая новую строку.
+На следующей попытке выполняется обычный поиск/recovery. Русские комментарии в порте и use case
+фиксируют это поведение. Financial/source validation и retry policy сохраняются.
+Обновлены сценарии recovery и rollback; tests/build/lint/formatter не запускались.
+
+## Навигация по event handlers
+
+В [финансовом шаге](./architecture/steps/apply-payment-event.md) имена всех девяти handlers
+связаны с отдельными Mermaid-диаграммами в architecture/handlers. Invoice Paid раскрыт
+в initial purchase и renewal. Диаграммы показывают текущие проверки, записи, application outcomes
+и влияние результата на coordinator; исключения связаны с общей retry policy.
+Рендеринг диаграмм при добавлении не запускался.

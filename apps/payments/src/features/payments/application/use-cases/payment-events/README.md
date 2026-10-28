@@ -122,7 +122,7 @@ terminal-доказательством не являются.
   `ensurePendingRenewal` по уникальному `(providerType, providerInvoiceId)`.
 - Поддерживается только `subscription_cycle`. `subscription_create` здесь игнорируется.
 - Скидки недоступны, кредитный баланс не используется. Источник контекста — конкретная исходная
-  PURCHASE/SUCCEEDED Payment по `paymentId` из снимка Subscription metadata в Invoice.
+  Payment-снимок условий по `paymentId` из снимка Subscription metadata в Invoice.
   Из неё берутся пользователь, план и период. Текущий Plan и первая найденная историческая Payment
   не используются. Metadata Stripe не расширяется.
 - Сумма новой pending Payment берётся из `amount_due`, валюта — из Invoice. Сумма и валюта исходной
@@ -222,13 +222,17 @@ fallback к первой Payment по Stripe Subscription ID отсутству�
 `ConfirmInvoicePaidUseCase` передаёт `subscription_cycle` отдельному `ConfirmRenewalPaymentUseCase`.
 Он находит Payment по `(provider, providerInvoiceId)` и проверяет её до признания success.
 Если Payment отсутствует, use case получает конкретный источник по metadata и выполняет идемпотентный
-upsert успешной renewal с `amount_paid`, валютой и `paidAt` текущего Invoice.
+ensurePendingRenewal с amount_paid и валютой Invoice, затем отдельное условное подтверждение
+с paidAt текущего Invoice в той же транзакции.
 
 Upsert может вернуть конкурентную PENDING от finalized. Эта Payment обрабатывается напрямую:
 проверка полного контекста, затем максимум одна попытка атомарного подтверждения. Рекурсии и повторного
-поиска нет. `NOT_UPDATED` классифицируется по актуальной Payment, которую перечитал repository.
-Совместимая SUCCEEDED даёт идемпотентный успех с исходным `paidAt`; необъяснимое отсутствие обновления
-или исчезновение строки вызывает workflow retry. Все записи выполняются в одной локальной транзакции.
+поиска внутри попытки нет. `NOT_UPDATED` не содержит Payment: repository не выполняет дополнительный SELECT.
+Use case выбрасывает PaymentConfirmationNotAppliedError, вся транзакция шага откатывается.
+Workflow после durable-паузы повторяет обработчик с первого чтения. SUCCEEDED при новом чтении
+даёт идемпотентный успех с исходным paidAt; конфликт и terminal state классифицируются обычным путём.
+Если renewal отсутствует, применяется существующий Invoice recovery. Отдельная причина
+PAYMENT_DISAPPEARED больше не создаётся. Все записи одной попытки используют общий локальный tx.
 
 #### `invoice.voided`
 
@@ -261,8 +265,8 @@ workflow повторяет обработку; terminal Payment из metadata �
 ### Статус и дальнейшие шаги
 
 1. `invoice.finalized` и идемпотентное создание `RENEWAL/PENDING` реализованы, ожидают review.
-2. `invoice.paid` подтверждает существующий pending renewal; прежний recovery через
-   `createSuccessfulRenewal` сохранён. Объединение recovery через ensure ещё не выполнено.
+2. `invoice.paid` подтверждает существующий pending renewal; при отсутствии использует
+   общий ensurePendingRenewal и затем подтверждает Payment в том же tx.
 3. `invoice.voided` отменяет существующий renewal и ожидает `invoice.finalized` через retry, если
    renewal ещё отсутствует. Создание terminal renewal из metadata намеренно не выполняется.
 4. Изменение цены recurring billing планируется в следующей итерации. Исключённые возможности
@@ -428,8 +432,12 @@ audit/correlation-событием для всех типов Payment и не в
    initial purchase, subscription extension и automatic renewal.
 2. Для каждого пути проверить, создаёт ли Stripe отдельное `payment_intent.payment_failed` помимо
    `invoice.payment_failed`, и определить авторитетный источник локального `paymentId`.
-3. Проверить фактическое расположение PaymentIntent ID в Stripe API version проекта и устранить
-   известный дефект, при котором `providerPaymentId` может не извлекаться или не сохраняться.
+3. Учитывать доступность PaymentIntent ID по объекту: Checkout Session.payment_intent относится
+   к mode=payment; в payment_intent.* ID находится в data.object.id. Отсутствие прямого
+   payment_intent в актуальных Invoice/Subscription не является дефектом. Прямое поле Invoice
+   удалено в Basil, связь через InvoicePayment исключена из текущей итерации.
+   [Подтверждение Stripe](https://docs.stripe.com/changelog/basil/2025-03-31/add-support-for-multiple-partial-payments-on-invoices);
+   подробные правила и источники — в разделе providerPaymentId в [agent-context.md](../../../../../../../docs/payments/agent-context.md).
 4. Зафиксировать порядок корреляции: metadata `paymentId` как основной источник, сохранённый
    `providerPaymentId` как fallback. Для invoice-backed событий определить безопасный fallback через
    Invoice/Subscription только при наличии этих references в нормализованном контракте; не подменять
@@ -457,10 +465,20 @@ audit/correlation-событием для всех типов Payment и не в
 
 ## Общая семантика результата
 
-- `SUCCESS` — событие применено либо корректно распознано как идемпотентный повтор.
-- `IGNORED` — событие осознанно не применено, например Payment не найден или уже находится в
-  несовместимом terminal-состоянии.
-- `DEAD` — событие нельзя безопасно применить из-за нарушения инварианта или reconciliation conflict.
+PaymentEventOutcome определяет направление обработки:
+
+- COMPLETED — обработка завершена; PaymentEventCompletionCode описывает выполненное действие,
+  nullable paymentId позволяет связать webhook с Payment. ApplyPaymentEventUseCase помечает webhook PROCESSED.
+- PAYMENT_CONFIRMED — финансовый успех подтверждён; результат содержит SuccessfulPayment.
+  Только этот outcome запускает Step 2 координатора. Дублирующего кода PAYMENT_SUCCEEDED нет.
+- REJECTED — событие не применено; PaymentEventRejectionReason объясняет причину,
+  PaymentEventRejectionDisposition определяет IGNORED либо DEAD в webhook audit.
+
+Фабрика: completed(code, paymentId), paymentConfirmed(payment), ignored(reason), dead(reason).
+Код выполненного действия нельзя передать как причину отклонения и наоборот.
+Статус Payment SUCCEEDED, persisted webhook statuses и audit failure.code не меняются.
+Старый DBOS result status/code читается infrastructure mapper перед решением координатора;
+новые результаты используют только outcome/code/reason/disposition.
 
 Отсутствующая nullable provider reference означает отсутствие нового знания. Конфликт возникает только
 тогда, когда сохранённое и входящее непустые значения различаются.
@@ -490,7 +508,8 @@ reconciliation/replay из исходного provider snapshot, автомат�
 Таймер вызывается вне транзакции. Для локальной разработки зарегистрирован один workflow без legacy-версий.
 
 - `SOURCE_PAYMENT_NOT_FOUND`, `SOURCE_NOT_LINKED`: ограниченный retry.
-- `SOURCE_METADATA_MISSING`, `PAYMENT_DISAPPEARED`: сразу `PaymentWebhook.RECONCILIATION_REQUIRED`.
+- `SOURCE_METADATA_MISSING`: сразу `PaymentWebhook.RECONCILIATION_REQUIRED`.
+- `PAYMENT_CONFIRMATION_NOT_APPLIED`: bounded retry всего финансового шага после NOT_UPDATED.
 - Исчерпан application retry: `RECONCILIATION_REQUIRED / PAYMENT_APPLICATION_RETRIES_EXHAUSTED`.
 - Доказанный business conflict: прежний `DEAD`.
 
@@ -500,3 +519,40 @@ Reconciliation не устанавливает Payment FAILED/CANCELED, оста
 обещает автоматическое восстановление metadata. Отдельный административный replay здесь не реализован.
 События с новым статусом не захватываются обычными recordAttempt/finish операциями.
 Требуется миграция enum до обновления сервиса; откат приложения не удаляет добавленное значение enum.
+
+### Условное подтверждение: общая политика initial / extension / renewal
+
+confirmSuccessfulPayment возвращает SUCCEEDED с обновлённой Payment, NOT_UPDATED без Payment
+либо REFERENCE_CONFLICT. В трёх success handlers NOT_UPDATED преобразуется в
+PaymentConfirmationNotAppliedError (PAYMENT_CONFIRMATION_NOT_APPLIED, RETRY). Это несовпадение
+условия UPDATE, а не доказательство недоступности БД. Бизнес-reconciliation выполняется один раз
+за попытку, до записи. Условия статуса и совместимости references в UPDATE сохранены.
+
+Первая пауза — 10 секунд; максимум 10 попыток. Даже если другое выполнение уже подтвердило оплату,
+NOT_UPDATED на последней попытке переводит webhook в RECONCILIATION_REQUIRED без дополнительного
+чтения. Финансовый commit другого выполнения сохраняется; Step 2 запускается только после
+PAYMENT_CONFIRMED. DBOS дедуплицирует один event ID; разные event ID могут относиться к одной Payment.
+Проблема P2002/прерванного tx и savepoint отложена и этим изменением не исправлена.
+
+### Source snapshot: границы проверки
+
+Для finalized и paid renewal исходная Payment предоставляет только исторические userId, planId,
+periodCount, periodUnit и local Subscription link. sourceConflict не проверяет type, status, paidAt,
+amount/currency источника. Факт оплаты и сумма нового Invoice не выводятся из source lifecycle.
+Сохраняются provider, provider Subscription, optional Customer и optional metadata local-link
+проверки; обязательные local/provider связи проверяют use cases (SOURCE_NOT_LINKED → retry).
+Отсутствие metadata требует reconciliation, отсутствие source допускает bounded retry.
+Проверки существующей/созданной renewal перед признанием success не ослабляются.
+Полное решение: [agent-context.md](../../../../../../../docs/payments/agent-context.md).
+
+### Гарантии получения и подтверждения renewal
+
+ensurePendingRenewal находит Payment по provider + Invoice либо создаёт PENDING с paidAt=null
+и providerPaymentId=null. Существующая запись не изменяется, включая terminal state и paidAt.
+Оба события, finalized и paid recovery, используют этот метод. Только invoice.paid затем вызывает
+reconcileAndConfirmRenewalPayment: проверка, replay SUCCEEDED или условное подтверждение pending.
+Новая запись не создаётся сразу SUCCEEDED. Подтверждение записывает paidAt и optional PaymentIntent ID.
+Создание и подтверждение в одном tx: NOT_UPDATED/исключение откатывает также новую PENDING;
+на следующей попытке запись создаётся/reconciles заново. Конфликт уникального PaymentIntent
+обрабатывается на условном подтверждении; отложенный P2002/savepoint вопрос сохраняется.
+Прежний findOrCreateRenewalPayment и его PERSISTED-result удалены как дублирующая ветка записи.

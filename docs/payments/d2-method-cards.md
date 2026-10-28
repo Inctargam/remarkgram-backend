@@ -1,7 +1,8 @@
 # Карточки методов D2 для работы с подписками
 
-Твоя задача — реализовать четыре метода, которые вызывает D1. Начинай с первой
-карточки; устройство Stripe и DBOS для неё не требуется.
+Документ предназначен разработчику D2 и описывает четыре обязанности по актуальным портам D1.
+Реализация и адаптация D2 выполняются отдельно от текущей работы над D1.
+Описания уже написанной логики ниже не означают, что адаптеры D2 обновлены под новые сигнатуры.
 
 **Общие правила.** D1 проверяет оплату и вызывает Stripe. Ты работаешь с локальными
 подписками. В методах с `tx` все записи идут через переданную транзакцию: её завершает
@@ -11,21 +12,21 @@
 Подписка приложения и подписка Stripe — разные объекты. Ниже `A` и `B` обозначают
 локальные UUID, а `sub_old` и `sub_new` — идентификаторы Stripe.
 
-**1. Найти активную подписку — `findActiveSubscriptionForPurchase`**
+**1. Найти активную подписку — `hasActiveSubscription`**
 
 **Когда:** перед созданием платежа. D1 нужно узнать, есть ли сейчас активная подписка.
 
 ```ts
-findActiveSubscriptionForPurchase(userId: number): Promise<{ subscriptionId: string } | null>;
+hasActiveSubscription(userId: number): Promise<boolean>;
 ```
 
-**Сделать:** найти текущий оплаченный период указанного пользователя и вернуть ID подписки.
+**Сделать:** найти текущий оплаченный период указанного пользователя и вернуть boolean-признак её наличия.
 Ничего не создавать, не резервировать и не менять статусы.
 
 **Результаты:**
 
-- Найдена A → `{ subscriptionId: A }`.
-- Нет активной подписки → `null`.
+- Найдена A → `true`.
+- Нет активной подписки → `false`.
 - Ошибка БД → выбросить ошибку. Несколько активных подписок → ошибка нарушения правил,
   а не выбор первой строки.
 
@@ -49,10 +50,10 @@ applySuccessfulPayment(
 
 **Что приходит:** `paymentId`, `userId`, `planId`, тип `PURCHASE` или `RENEWAL`,
 длительность `periodCount/periodUnit`, время оплаты `paidAt`,
-`targetSubscriptionId`, намерение `autoRenewalRequested`, сумма, валюта,
+намерение `autoRenewalRequested`, сумма, валюта,
 провайдер, `providerSubscriptionId` и `providerCustomerId`. Даты передаются UTC ISO-строками.
-targetSubscriptionId — снимок Checkout; цель PURCHASE определяется по очереди пользователя,
-RENEWAL — по provider-связи.
+Цель PURCHASE определяется по очереди пользователя, RENEWAL — по provider-связи.
+targetSubscriptionId удалён из контракта и не передаётся.
 
 **Сделать:** сначала найти сохранённый результат по `paymentId`. Если его нет,
 проверить владельца и состояние, применить оплаченный период и сохранить результат
@@ -117,22 +118,23 @@ RENEWAL начисляется последовательно от локаль�
 расчётного периода Invoice, поэтому точная сверка с ними и разрешение позднего конфликта с очередью
 требуют отдельного решения. События Business-доступа ещё не реализованы.
 
-**3. Зафиксировать отключение старого продления — `markProviderSubscriptionCancellationScheduled`**
+**3. Зафиксировать отключение старого продления — `confirmAutoRenewalCancellation`**
 
 **Когда:** после SCHEDULED и подтверждения Stripe, что старое автопродление отключено.
 
 ```ts
-markProviderSubscriptionCancellationScheduled(
-  subscriptionId: string,
+confirmAutoRenewalCancellation(
+  paymentId: string,
   providerSubscriptionId: string,
   tx: PaymentsTransactionContext,
 ): Promise<void>;
 ```
 
-**Что приходит:** ID новой локальной подписки B и старый `sub_old`.
+**Что приходит:** paymentId дополнительной покупки и старый `sub_old`.
 
-**Сделать:** найти единственную TRANSFER-операцию с SCHEDULED-применением по B и снимку старого provider ID,
-взять lock её пользователя и повторить поиск. Отсутствие или неоднозначность — конфликт.
+**Сделать:** найти SCHEDULED-применение и TRANSFER-операцию по paymentId,
+взять lock её пользователя и повторить чтение. Проверить снимок старого provider ID.
+Отсутствие или несовпадение — конфликт.
 При PENDING одной nested-записью установить A = RETIRED, операции — BINDING_PENDING.
 A определяется через sourceSubscriptionId; даты A и B не менять.
 
@@ -147,16 +149,15 @@ A определяется через sourceSubscriptionId; даты A и B не
 ```ts
 bindProviderSubscription(
   paymentId: string,
-  subscriptionId: string,
   providerSubscriptionId: string,
   tx: PaymentsTransactionContext,
 ): Promise<void>;
 ```
 
-**Что приходит:** paymentId дополнительной покупки, ID локальной B и новый `sub_new`.
+**Что приходит:** paymentId дополнительной покупки и новый `sub_new`. Локальная B определяется из сохранённой операции.
 
 **Сделать:** получить владельца применения платежа, взять lock и перечитать применение вместе с операцией.
-Проверить SCHEDULED, наличие TRANSFER и совпадение входящего ID B со связью применения. При BINDING_PENDING одной nested-записью сохранить B.providerSubscriptionId
+Проверить SCHEDULED и наличие TRANSFER; определить B из сохранённых связей применения и операции. При BINDING_PENDING одной nested-записью сохранить B.providerSubscriptionId
 и ENABLED, операции — COMPLETED и снимок providerSubscriptionId. Даты доступа сохранить.
 PENDING → ошибка: отключение ещё не подтверждено.
 

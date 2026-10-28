@@ -33,7 +33,8 @@ persistence непосредственно из D1 workflow.
 
 `LocalSubscriptionContextAdapter` вызывает D2 query handler через `QueryBus`. Репозиторий
 читает подписку пользователя со статусом `ACTIVE` или `PENDING`, для которой
-`startsAt <= now < expiresAt`; возвращает boolean, а при нескольких совпадениях — ошибку.
+`startsAt <= now < expiresAt`; текущий query возвращает ID или null, а при нескольких совпадениях — ошибку.
+D2 должен адаптировать результат к boolean-порту hasActiveSubscription.
 Для работы нужна применённая миграция подписок.
 `LocalSubscriptionPaymentHandlerAdapter.applySuccessfulPayment` передаёт команду через `CommandBus`
 в `ApplySuccessfulPaymentUseCase`. После блокировки по пользователю use case читает сохранённый
@@ -303,13 +304,13 @@ provider webhook
   -> applyPaymentEventStep
        D1 financial reconciliation
        PaymentEventResult
-  -> linkPaymentToSubscriptionStep             только SUCCESS + PAYMENT_SUCCEEDED
+  -> linkPaymentToSubscriptionStep             только PAYMENT_CONFIRMED
        D2 applySuccessfulPayment
        D1 Payment.subscriptionId binding
        FINISHED | SCHEDULED
   -> scheduleProviderSubscriptionCancellationStep  только SCHEDULED
        provider cancel_at_period_end=true
-       D2 markProviderSubscriptionCancellationScheduled
+       D2 confirmAutoRenewalCancellation
   -> createDeferredProviderSubscriptionStep        только SCHEDULED
        provider creates replacement Subscription
        D1 binds Payment.providerSubscriptionId
@@ -326,18 +327,17 @@ provider webhook
 
 ```ts
 type PaymentEventResult =
-  | { status: 'SUCCESS'; code: PaymentEventResultCode; paymentId: string | null }
+  | { outcome: 'COMPLETED'; code: PaymentEventCompletionCode; paymentId: string | null }
+  | { outcome: 'PAYMENT_CONFIRMED'; payment: SuccessfulPayment }
   | {
-      status: 'SUCCESS';
-      code: 'PAYMENT_SUCCEEDED';
-      paymentId: string;
-      payment: SuccessfulPayment;
-    }
-  | { status: 'IGNORED' | 'DEAD'; code: PaymentEventResultCode };
+      outcome: 'REJECTED';
+      disposition: PaymentEventRejectionDisposition; // IGNORED | DEAD
+      reason: PaymentEventRejectionReason;
+    };
 ```
 
-Только `SUCCESS + PAYMENT_SUCCEEDED` означает, что Payment финансово подтверждён и должен быть
-идемпотентно применён в D2. Остальные комбинации завершаются в step 1 согласно статусу. `eventId`
+Только `outcome=PAYMENT_CONFIRMED` означает, что Payment финансово подтверждён и должен быть
+идемпотентно применён в D2. COMPLETED завершает webhook как PROCESSED; REJECTED — как IGNORED/DEAD по disposition. `eventId`
 остаётся контекстом DBOS workflow и передаётся в step 2 coordinator-ом, а не дублируется в результате.
 
 ### `SuccessfulPayment`
@@ -520,8 +520,11 @@ D2 должен связать новую provider Subscription с той же �
 
 ## Текущее состояние реализации
 
-В composition root подключены реальные D2 адаптеры и Prisma-репозиторий. Применение платежа
-и настройка автопродления хранятся раздельно; публичные контракты D1 сохранены.
+В composition root зарегистрированы реальные D2 адаптеры и Prisma-репозиторий.
+Применение платежа и настройка автопродления хранятся раздельно. Порты D1 уже упрощены,
+но подключённые адаптеры D2 ещё реализуют прежние сигнатуры чтения, подтверждения отключения
+и binding. Их обновление выполняет другой разработчик в контексте D2.
+Этот документ фиксирует актуальные требования D1, а не завершение сквозной интеграции.
 Неприменённая миграция подписок обновлена на месте, перенос данных не требуется.
 Миграция и тесты не запускались. Ручное автопродление, lifecycle worker и события доступа — отдельные задачи.
 
