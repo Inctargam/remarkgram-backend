@@ -10,7 +10,11 @@ import {
   PaymentType,
 } from '../../../../domain/payment.entity.js';
 import { CancelPaymentIntentUseCase } from './cancel-payment-intent.use-case.js';
-import { PaymentEventResultCode, paymentEventResult } from '../payment-event-result.js';
+import {
+  PaymentEventCompletionCode,
+  PaymentEventRejectionReason,
+  paymentEventResult,
+} from '../payment-event-result.js';
 
 describe('CancelPaymentIntentUseCase', () => {
   it.each([PaymentStatus.CREATED, PaymentStatus.PENDING])(
@@ -50,7 +54,7 @@ describe('CancelPaymentIntentUseCase', () => {
     const useCase = new CancelPaymentIntentUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual(
-      paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE),
+      paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_TERMINAL_STATE),
     );
     expect(payments.cancelPendingPayment).not.toHaveBeenCalled();
   });
@@ -61,7 +65,7 @@ describe('CancelPaymentIntentUseCase', () => {
     const useCase = new CancelPaymentIntentUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual(
-      paymentEventResult.ignored(PaymentEventResultCode.INELIGIBLE_PAYMENT),
+      paymentEventResult.ignored(PaymentEventRejectionReason.INELIGIBLE_PAYMENT),
     );
     expect(payments.cancelPendingPayment).not.toHaveBeenCalled();
   });
@@ -81,7 +85,7 @@ describe('CancelPaymentIntentUseCase', () => {
     const useCase = new CancelPaymentIntentUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual(
-      paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT),
+      paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT),
     );
     expect(payments.cancelPendingPayment).not.toHaveBeenCalled();
   });
@@ -123,4 +127,4 @@ function event(overrides: Partial<PaymentIntentCanceledEvent> = {}): PaymentInte
 
 const PAYMENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const CANCELED_AT = new Date('2026-10-17T12:00:00.000Z');
-const CANCELED = paymentEventResult.success(PaymentEventResultCode.PAYMENT_CANCELED, PAYMENT_ID);
+const CANCELED = paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_CANCELED, PAYMENT_ID);

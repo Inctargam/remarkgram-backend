@@ -1,4 +1,4 @@
-import { PaymentPersistenceError } from '../../../../../../common/application/errors/payments.error.js';
+import { PaymentConfirmationNotAppliedError } from '../../../errors/payment-confirmation-not-applied.error.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { PaymentIntentSucceededEvent } from '../../../events/payment-event.js';
 import type { PaymentsRepository } from '../../../ports/payments.repository.js';
@@ -11,7 +11,7 @@ import {
   PaymentType,
 } from '../../../../domain/payment.entity.js';
 import { ConfirmPaymentIntentSucceededUseCase } from './confirm-payment-intent-succeeded.use-case.js';
-import { PaymentEventResultCode, paymentEventResult } from '../payment-event-result.js';
+import { PaymentEventRejectionReason, paymentEventResult } from '../payment-event-result.js';
 
 describe('ConfirmPaymentIntentSucceededUseCase', () => {
   it('correlates by metadata paymentId and confirms a matching extension', async () => {
@@ -22,7 +22,7 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual(
-      paymentEventResult.successfulPayment(confirmed),
+      paymentEventResult.paymentConfirmed(confirmed),
     );
     expect(payments.findById).toHaveBeenCalledWith(event().paymentId, {});
     expect(payments.findByProviderPaymentId).not.toHaveBeenCalled();
@@ -45,7 +45,7 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event({ paymentId: null }), {})).resolves.toEqual(
-      paymentEventResult.successfulPayment(confirmed),
+      paymentEventResult.paymentConfirmed(confirmed),
     );
     expect(payments.findByProviderPaymentId).toHaveBeenCalledWith(PaymentProvider.STRIPE, 'pi_test', {});
   });
@@ -60,53 +60,63 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual(
-      paymentEventResult.successfulPayment(confirmed),
+      paymentEventResult.paymentConfirmed(confirmed),
     );
   });
 
-  it('accepts concurrent success with the persisted paidAt without another read or write', async () => {
+  it('retries an unapplied confirmation and reads the winning success with its original paidAt', async () => {
     const payments = repository();
-    payments.findById.mockResolvedValue(candidate());
     const confirmed = confirmedPayment({ paidAt: new Date('2026-10-12T11:00:00.000Z') });
-    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'NOT_UPDATED', payment: confirmed });
+    payments.findById.mockResolvedValueOnce(candidate()).mockResolvedValueOnce(confirmed);
+    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'NOT_UPDATED' });
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event(), {})).resolves.toEqual(paymentEventResult.successfulPayment(confirmed));
-    expect(payments.findById).toHaveBeenCalledOnce();
+    await expect(useCase.execute(event(), {})).rejects.toBeInstanceOf(PaymentConfirmationNotAppliedError);
+    await expect(useCase.execute(event(), {})).resolves.toEqual(
+      paymentEventResult.paymentConfirmed(confirmed),
+    );
+    expect(payments.findById).toHaveBeenCalledTimes(2);
     expect(payments.confirmSuccessfulPayment).toHaveBeenCalledOnce();
   });
 
   it.each([
-    [null, paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND)],
-    [confirmedPayment({ providerPaymentId: 'pi_other' }), paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT)],
-    [confirmedPayment({ providerCustomerId: 'cus_other' }), paymentEventResult.dead(PaymentEventResultCode.CUSTOMER_MISMATCH)],
-    [confirmedPayment({ amount: 999 }), paymentEventResult.dead(PaymentEventResultCode.AMOUNT_MISMATCH)],
-    [candidate({ status: PaymentStatus.CANCELED }), paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE)],
-    [candidate({ status: PaymentStatus.FAILED }), paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE)],
-  ])('classifies the reread Payment after an unsuccessful update: %j', async (payment, expected) => {
+    [null, paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_NOT_FOUND)],
+    [
+      confirmedPayment({ providerPaymentId: 'pi_other' }),
+      paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT),
+    ],
+    [
+      confirmedPayment({ providerCustomerId: 'cus_other' }),
+      paymentEventResult.dead(PaymentEventRejectionReason.CUSTOMER_MISMATCH),
+    ],
+    [confirmedPayment({ amount: 999 }), paymentEventResult.dead(PaymentEventRejectionReason.AMOUNT_MISMATCH)],
+    [
+      candidate({ status: PaymentStatus.CANCELED }),
+      paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_TERMINAL_STATE),
+    ],
+    [
+      candidate({ status: PaymentStatus.FAILED }),
+      paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_TERMINAL_STATE),
+    ],
+  ])('reconciles current state at the start of the next attempt: %j', async (payment, expected) => {
     const payments = repository();
-    payments.findById.mockResolvedValue(candidate());
-    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'NOT_UPDATED', payment });
+    payments.findById.mockResolvedValueOnce(candidate()).mockResolvedValueOnce(payment);
+    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'NOT_UPDATED' });
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
+    await expect(useCase.execute(event(), {})).rejects.toBeInstanceOf(PaymentConfirmationNotAppliedError);
     await expect(useCase.execute(event(), {})).resolves.toEqual(expected);
-    expect(payments.findById).toHaveBeenCalledOnce();
+    expect(payments.confirmSuccessfulPayment).toHaveBeenCalledOnce();
   });
 
-  it.each([PaymentStatus.CREATED, PaymentStatus.PENDING])('throws a retryable error for an unexplained unchanged %s Payment', async (status) => {
+  it('rejects a successful Payment without paidAt on the next attempt', async () => {
     const payments = repository();
-    payments.findById.mockResolvedValue(candidate());
-    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'NOT_UPDATED', payment: candidate({ status }) });
+    payments.findById
+      .mockResolvedValueOnce(candidate())
+      .mockResolvedValueOnce(confirmedPayment({ paidAt: null }));
+    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'NOT_UPDATED' });
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
-
-    await expect(useCase.execute(event(), {})).rejects.toBeInstanceOf(PaymentPersistenceError);
-  });
-
-  it('rejects a concurrent success without paidAt', async () => {
-    const payments = repository();
-    payments.findById.mockResolvedValue(candidate());
-    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'NOT_UPDATED', payment: confirmedPayment({ paidAt: null }) });
-    const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
+    await expect(useCase.execute(event(), {})).rejects.toBeInstanceOf(PaymentConfirmationNotAppliedError);
     await expect(useCase.execute(event(), {})).rejects.toThrow();
   });
 
@@ -116,7 +126,7 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual(
-      paymentEventResult.dead(PaymentEventResultCode.PURPOSE_MISMATCH),
+      paymentEventResult.dead(PaymentEventRejectionReason.PURPOSE_MISMATCH),
     );
     expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
   });
@@ -128,7 +138,7 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual(
-      paymentEventResult.successfulPayment(confirmed),
+      paymentEventResult.paymentConfirmed(confirmed),
     );
     expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
   });
@@ -139,7 +149,7 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual(
-      paymentEventResult.dead(PaymentEventResultCode.AMOUNT_MISMATCH),
+      paymentEventResult.dead(PaymentEventRejectionReason.AMOUNT_MISMATCH),
     );
     expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
   });
@@ -150,7 +160,7 @@ describe('ConfirmPaymentIntentSucceededUseCase', () => {
     const useCase = new ConfirmPaymentIntentSucceededUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual(
-      paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT),
+      paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT),
     );
     expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
   });

@@ -11,8 +11,9 @@ import { CancelVoidedInvoiceUseCase } from '../payment-events/cancel-voided-invo
 import { ConfirmInvoicePaidUseCase } from '../payment-events/confirm-invoice-paid/confirm-invoice-paid.use-case.js';
 import { ConfirmPaymentIntentSucceededUseCase } from '../payment-events/confirm-payment-intent-succeeded/confirm-payment-intent-succeeded.use-case.js';
 import {
-  PaymentEventResultCode,
-  PaymentEventResultStatus,
+  PaymentEventOutcome,
+  PaymentEventRejectionReason,
+  PaymentEventRejectionDisposition,
   paymentEventResult,
   type PaymentEventResult,
 } from '../payment-events/payment-event-result.js';
@@ -80,10 +81,13 @@ export class ApplyPaymentEventUseCase {
 
   private async dispatch(event: PaymentEvent, ctx: PaymentsTransactionContext): Promise<PaymentEventResult> {
     if (!Object.prototype.hasOwnProperty.call(this.handlers, event.kind)) {
-      return paymentEventResult.ignored(PaymentEventResultCode.UNSUPPORTED_EVENT_KIND);
+      return paymentEventResult.ignored(PaymentEventRejectionReason.UNSUPPORTED_EVENT_KIND);
     }
 
     const handler = this.handlers[event.kind];
+    if (!handler) {
+      return paymentEventResult.ignored(PaymentEventRejectionReason.UNSUPPORTED_EVENT_KIND);
+    }
     // The mapped type checks each registration; TypeScript loses the key/event
     // correlation on dynamic lookup, so the assertion stays at this boundary.
     return handler.execute(event as never, ctx);
@@ -94,20 +98,17 @@ export class ApplyPaymentEventUseCase {
     result: PaymentEventResult,
     ctx: PaymentsTransactionContext,
   ): Promise<PaymentEventResult> {
-    if (
-      result.status === PaymentEventResultStatus.SUCCESS &&
-      result.code === PaymentEventResultCode.PAYMENT_SUCCEEDED
-    ) {
+    if (result.outcome === PaymentEventOutcome.PAYMENT_CONFIRMED) {
       return result;
     }
-    if (result.status === PaymentEventResultStatus.SUCCESS) {
+    if (result.outcome === PaymentEventOutcome.COMPLETED) {
       if (result.paymentId) await this.events.attachPayment(eventId, result.paymentId, ctx);
       await this.events.markProcessed(eventId, ctx);
       return result;
     }
 
-    const failure = { code: result.code, message: `Payment event processing result: ${result.code}` };
-    if (result.status === PaymentEventResultStatus.IGNORED)
+    const failure = { code: result.reason, message: `Payment event processing result: ${result.reason}` };
+    if (result.disposition === PaymentEventRejectionDisposition.IGNORED)
       await this.events.markIgnored(eventId, failure, ctx);
     else await this.events.markDead(eventId, failure, ctx);
     return result;

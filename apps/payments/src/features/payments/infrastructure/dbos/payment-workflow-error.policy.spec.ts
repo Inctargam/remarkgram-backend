@@ -1,3 +1,4 @@
+import { PaymentConfirmationNotAppliedError } from '../../application/errors/payment-confirmation-not-applied.error.js';
 import { PaymentWorkflowAttemptError } from './payment-workflow-attempt.error.js';
 import { RenewalPaymentContextUnavailableError } from '../../application/errors/renewal-payment-context-unavailable.error.js';
 import { Error as DbosErrors } from '@dbos-inc/dbos-sdk';
@@ -7,31 +8,57 @@ import {
   PaymentProviderUnavailableError,
 } from '../../application/errors/payment-provider.error.js';
 import { PaymentPersistenceError } from '../../../../common/application/errors/payments.error.js';
-import { classifyPaymentWorkflowError, isRetryablePaymentWorkflowError, toPaymentEventFailure } from './payment-workflow-error.policy.js';
+import {
+  classifyPaymentWorkflowError,
+  isRetryablePaymentWorkflowError,
+  toPaymentEventFailure,
+} from './payment-workflow-error.policy.js';
 
 describe('payment workflow error policy', () => {
-  it.each([new PaymentProviderUnavailableError(), new PaymentPersistenceError(), new RenewalPaymentContextUnavailableError('in_test', 'SOURCE_NOT_LINKED'), new Error('unknown')])(
-    'keeps transient or unknown failures retryable',
-    (error) => {
-      expect(isRetryablePaymentWorkflowError(error)).toBe(true);
-    },
-  );
+  it.each([
+    new PaymentProviderUnavailableError(),
+    new PaymentPersistenceError(),
+    new PaymentConfirmationNotAppliedError('payment-id'),
+    new RenewalPaymentContextUnavailableError('in_test', 'SOURCE_NOT_LINKED'),
+    new Error('unknown'),
+  ])('keeps transient or unknown failures retryable', (error) => {
+    expect(isRetryablePaymentWorkflowError(error)).toBe(true);
+  });
 
   it.each([
     ['SOURCE_METADATA_MISSING', 'RECONCILIATION_REQUIRED'],
-    ['PAYMENT_DISAPPEARED', 'RECONCILIATION_REQUIRED'],
     ['SOURCE_PAYMENT_NOT_FOUND', 'RETRY'],
     ['SOURCE_NOT_LINKED', 'RETRY'],
     ['INVOICE_PAYMENT_NOT_FOUND', 'RETRY'],
   ] as const)('classifies renewal context reason %s as %s', (reason, disposition) => {
-    const decision = classifyPaymentWorkflowError(new RenewalPaymentContextUnavailableError('in_test', reason));
-    expect(decision).toEqual({ disposition, failure: {
-      code: `RENEWAL_${reason}`, message: `Renewal payment context: ${reason}`,
-    } });
+    const decision = classifyPaymentWorkflowError(
+      new RenewalPaymentContextUnavailableError('in_test', reason),
+    );
+    expect(decision).toEqual({
+      disposition,
+      failure: {
+        code: `RENEWAL_${reason}`,
+        message: `Renewal payment context: ${reason}`,
+      },
+    });
     const recorded = new PaymentWorkflowAttemptError(decision);
     const replayed = new Error(recorded.message);
     replayed.name = recorded.name;
     expect(classifyPaymentWorkflowError(replayed)).toEqual(decision);
+  });
+
+  it('preserves the reconciliation decision from a legacy PAYMENT_DISAPPEARED envelope', () => {
+    const decision = {
+      disposition: 'RECONCILIATION_REQUIRED',
+      failure: {
+        code: 'RENEWAL_PAYMENT_DISAPPEARED',
+        message: 'Renewal payment context: PAYMENT_DISAPPEARED',
+      },
+    };
+    const replayed = new Error(JSON.stringify(decision));
+    replayed.name = 'PaymentWorkflowAttemptError';
+    expect(classifyPaymentWorkflowError(replayed)).toEqual(decision);
+    expect(isRetryablePaymentWorkflowError(replayed)).toBe(false);
   });
 
   it('preserves permanent failures across error replay without exposing raw error details', () => {
@@ -46,9 +73,13 @@ describe('payment workflow error policy', () => {
   it('treats a malformed replay envelope as an unknown retryable failure', () => {
     const error = new Error('{bad-json');
     error.name = 'PaymentWorkflowAttemptError';
-    expect(classifyPaymentWorkflowError(error)).toEqual({ disposition: 'RETRY', failure: {
-      code: 'UNEXPECTED_WORKFLOW_ERROR', message: 'Payment webhook processing failed unexpectedly',
-    } });
+    expect(classifyPaymentWorkflowError(error)).toEqual({
+      disposition: 'RETRY',
+      failure: {
+        code: 'UNEXPECTED_WORKFLOW_ERROR',
+        message: 'Payment webhook processing failed unexpectedly',
+      },
+    });
   });
 
   it('does not retry a known provider result conflict', () => {

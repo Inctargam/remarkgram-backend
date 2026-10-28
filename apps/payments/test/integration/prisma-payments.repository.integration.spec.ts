@@ -1,3 +1,4 @@
+import { PaymentConfirmationNotAppliedError } from '../../src/features/payments/application/errors/payment-confirmation-not-applied.error.js';
 import { ConfirmRenewalPaymentUseCase } from '../../src/features/payments/application/use-cases/payment-events/confirm-renewal-payment/confirm-renewal-payment.use-case.js';
 import { ConfirmPaymentIntentSucceededUseCase } from '../../src/features/payments/application/use-cases/payment-events/confirm-payment-intent-succeeded/confirm-payment-intent-succeeded.use-case.js';
 import type { PaymentIntentSucceededEvent } from '../../src/features/payments/application/events/payment-event.js';
@@ -108,6 +109,39 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
     expect(rows[0]!.paidAt).not.toBeNull();
   });
 
+  it('rolls back a newly ensured renewal when confirmation is not applied, then recovers on retry', async () => {
+    const source = await createdExtension(nextUser());
+    const subscriptionId = randomUUID();
+    const providerSubscriptionId = `sub_${randomUUID()}`;
+    const providerInvoiceId = `in_${randomUUID()}`;
+    await prisma.payment.update({ where: { id: source.id }, data: { subscriptionId, providerSubscriptionId } });
+    const event: InvoicePaidEvent = {
+      kind: PaymentEventKind.INVOICE_PAID, provider: PaymentProvider.STRIPE,
+      providerEventId: `evt_${randomUUID()}`, providerEventType: 'invoice.paid',
+      providerCreatedAt: new Date(), paymentId: null,
+      payload: {
+        id: providerInvoiceId, providerInvoiceId, providerSubscriptionId,
+        sourcePaymentId: source.id, sourceSubscriptionId: subscriptionId,
+        customerId: null, providerPaymentId: null, billingReason: 'subscription_cycle',
+        amount: source.amount, currency: source.currency, paidAt: new Date('2026-10-13T12:00:00Z'),
+      },
+    };
+    const useCase = new ConfirmRenewalPaymentUseCase(repository);
+    const confirmation = vi.spyOn(repository, 'confirmSuccessfulPayment')
+      .mockResolvedValueOnce({ outcome: 'NOT_UPDATED' });
+    try {
+      await expect(prisma.$transaction((tx) => useCase.execute(event, tx)))
+        .rejects.toBeInstanceOf(PaymentConfirmationNotAppliedError);
+      await expect(repository.findByProviderInvoiceId(event.provider, providerInvoiceId)).resolves.toBeNull();
+    } finally {
+      confirmation.mockRestore();
+    }
+    await prisma.$transaction((tx) => useCase.execute(event, tx));
+    await expect(repository.findByProviderInvoiceId(event.provider, providerInvoiceId)).resolves.toMatchObject({
+      status: PaymentStatus.SUCCEEDED, paidAt: event.payload.paidAt, subscriptionId,
+    });
+  });
+
   it('creates one renewal from the metadata source for concurrent paid events without finalized', async () => {
     const source = await createdExtension(nextUser());
     const subscriptionId = randomUUID();
@@ -148,7 +182,7 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
       const rows = await prisma.payment.findMany({ where: { providerInvoiceId, providerType: event.provider } });
       expect(rows).toHaveLength(1);
       const stored = await repository.findById(rows[0]!.id);
-      const expected = paymentEventResult.successfulPayment(stored!);
+      const expected = paymentEventResult.paymentConfirmed(stored!);
       expect(results).toEqual([expected, expected]);
       expect(stored).toMatchObject({
         amount: source.amount + 400, planId: source.planId, userId: source.userId,
@@ -162,7 +196,7 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
     }
   });
 
-  it('returns business success to both concurrent confirmations and preserves the winning paidAt', async () => {
+  it('rolls back an unapplied concurrent confirmation and accepts the winning paidAt on retry', async () => {
     const payment = await createdExtension(nextUser());
     const event: PaymentIntentSucceededEvent = {
       kind: PaymentEventKind.PAYMENT_INTENT_SUCCEEDED,
@@ -197,14 +231,21 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
     });
     const useCase = new ConfirmPaymentIntentSucceededUseCase(repository);
     try {
-      const results = await Promise.all([
+      const attempts = await Promise.allSettled([
         prisma.$transaction((tx) => useCase.execute(event, tx)),
         prisma.$transaction((tx) => useCase.execute(concurrentEvent, tx)),
       ]);
       const stored = await repository.findById(payment.id);
       expect(stored).not.toBeNull();
-      const expected = paymentEventResult.successfulPayment(stored!);
-      expect(results).toEqual([expected, expected]);
+      const expected = paymentEventResult.paymentConfirmed(stored!);
+      const winner = attempts.filter((attempt) => attempt.status === 'fulfilled');
+      const loser = attempts.filter((attempt) => attempt.status === 'rejected');
+      expect(winner).toHaveLength(1);
+      expect(loser).toHaveLength(1);
+      expect(winner[0]).toMatchObject({ status: 'fulfilled', value: expected });
+      expect(loser[0]).toMatchObject({ status: 'rejected', reason: expect.any(PaymentConfirmationNotAppliedError) });
+      const retryEvent = attempts[0].status === 'rejected' ? event : concurrentEvent;
+      await expect(prisma.$transaction((tx) => useCase.execute(retryEvent, tx))).resolves.toEqual(expected);
       const updates = await Promise.all(confirmation.mock.results.map(({ value }) => value));
       expect(updates.map(({ outcome }) => outcome).sort()).toEqual(['NOT_UPDATED', 'SUCCEEDED']);
       expect([event.payload.paidAt.getTime(), concurrentEvent.payload.paidAt.getTime()])
@@ -326,42 +367,7 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
     });
   });
 
-  it('creates only one successful renewal for concurrent deliveries of the same Invoice', async () => {
-    const userId = nextUser();
-    const localSubscriptionId = randomUUID();
-    const command = {
-      userId,
-      planId,
-      amount: 1_000,
-      currency: Currency.USD,
-      periodCount: 1,
-      periodUnit: PeriodUnit.MONTH,
-      providerType: PaymentProvider.STRIPE,
-      providerPaymentId: `pi_${randomUUID()}`,
-      providerSubscriptionId: `sub_${randomUUID()}`,
-      providerInvoiceId: `in_${randomUUID()}`,
-      providerCustomerId: `cus_${randomUUID()}`,
-      subscriptionId: localSubscriptionId,
-      paidAt: new Date('2026-10-13T12:00:00.000Z'),
-    };
 
-    const [left, right] = await Promise.all([
-      repository.createSuccessfulRenewal(command, prisma as never),
-      repository.createSuccessfulRenewal(command, prisma as never),
-    ]);
-
-    expect(left.outcome).toBe('PERSISTED');
-    expect(right.outcome).toBe('PERSISTED');
-    await expect(
-      prisma.payment.count({
-        where: {
-          providerType: command.providerType,
-          providerInvoiceId: command.providerInvoiceId,
-          type: PaymentType.RENEWAL,
-        },
-      }),
-    ).resolves.toBe(1);
-  });
 
   function nextUser(): number {
     const userId = 1_500_000_000 + users.length + Math.floor(Math.random() * 100_000_000);

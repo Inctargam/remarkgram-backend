@@ -4,7 +4,8 @@ import type { CheckoutSessionExpiredEvent } from '../../../events/payment-event.
 import type { PaymentsTransactionContext } from '../../../ports/payments-unit-of-work.js';
 import { PaymentsRepository } from '../../../ports/payments.repository.js';
 import {
-  PaymentEventResultCode,
+  PaymentEventCompletionCode,
+  PaymentEventRejectionReason,
   paymentEventResult,
   type PaymentEventResult,
 } from '../payment-event-result.js';
@@ -25,14 +26,14 @@ export class CancelExpiredCheckoutSessionUseCase {
     const payment = event.paymentId
       ? await this.payments.findById(event.paymentId, ctx)
       : await this.payments.findByProviderCheckoutId(event.provider, event.payload.id, ctx);
-    if (!payment) return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND);
+    if (!payment) return paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_NOT_FOUND);
 
     const conflict = this.reconciliationConflict(payment, event);
-    if (conflict) return paymentEventResult.dead(PaymentEventResultCode[conflict]);
+    if (conflict) return paymentEventResult.dead(PaymentEventRejectionReason[conflict]);
     if (payment.status === PaymentStatus.CANCELED)
-      return paymentEventResult.success(PaymentEventResultCode.CHECKOUT_EXPIRED, payment.id);
+      return paymentEventResult.completed(PaymentEventCompletionCode.CHECKOUT_EXPIRED, payment.id);
     if (![PaymentStatus.CREATED, PaymentStatus.PENDING].includes(payment.status))
-      return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
+      return paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_TERMINAL_STATE);
 
     const result = await this.payments.cancelPendingPayment(
       {
@@ -43,32 +44,38 @@ export class CancelExpiredCheckoutSessionUseCase {
       ctx,
     );
     return result.outcome === 'CANCELED'
-      ? paymentEventResult.success(PaymentEventResultCode.CHECKOUT_EXPIRED, payment.id)
+      ? paymentEventResult.completed(PaymentEventCompletionCode.CHECKOUT_EXPIRED, payment.id)
       : result.outcome === 'REFERENCE_CONFLICT'
-        ? paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT)
-        : paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
+        ? paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT)
+        : paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_TERMINAL_STATE);
   }
 
   private reconciliationConflict(
     payment: Payment,
     event: CheckoutSessionExpiredEvent,
   ): PaymentReconciliationConflict | null {
-    if (payment.providerType !== event.provider) return PAYMENT_RECONCILIATION_CONFLICT.PROVIDER_MISMATCH;
-    if (event.payload.amount !== null && payment.amount !== event.payload.amount)
+    if (payment.providerType.toLowerCase() !== event.provider.toLowerCase()) {
+      return PAYMENT_RECONCILIATION_CONFLICT.PROVIDER_MISMATCH;
+    }
+    if (event.payload.amount !== null && payment.amount !== event.payload.amount) {
       return PAYMENT_RECONCILIATION_CONFLICT.AMOUNT_MISMATCH;
+    }
     if (
       event.payload.currency !== null &&
       payment.currency.toLowerCase() !== event.payload.currency.toLowerCase()
-    )
+    ) {
       return PAYMENT_RECONCILIATION_CONFLICT.CURRENCY_MISMATCH;
+    }
     if (
       payment.providerCustomerId !== null &&
       event.payload.customerId !== null &&
       payment.providerCustomerId !== event.payload.customerId
-    )
+    ) {
       return PAYMENT_RECONCILIATION_CONFLICT.CUSTOMER_MISMATCH;
-    if (hasProviderReferenceConflict([payment.providerCheckoutId, event.payload.id]))
+    }
+    if (hasProviderReferenceConflict([payment.providerCheckoutId, event.payload.id])) {
       return PAYMENT_RECONCILIATION_CONFLICT.REFERENCE_CONFLICT;
+    }
     return null;
   }
 }

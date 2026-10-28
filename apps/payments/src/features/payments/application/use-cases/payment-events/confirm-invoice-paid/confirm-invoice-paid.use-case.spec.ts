@@ -1,5 +1,5 @@
 import { ConfirmRenewalPaymentUseCase } from '../confirm-renewal-payment/confirm-renewal-payment.use-case.js';
-import { PaymentPersistenceError } from '../../../../../../common/application/errors/payments.error.js';
+import { PaymentConfirmationNotAppliedError } from '../../../errors/payment-confirmation-not-applied.error.js';
 import { describe, expect, it, vi } from 'vitest';
 import { Currency, PeriodUnit } from '../../../../../plans/domain/plan.entity.js';
 import { PaymentEventKind } from '../../../../domain/payment-event-kind.js';
@@ -13,65 +13,83 @@ import {
 import type { InvoicePaidEvent } from '../../../events/payment-event.js';
 import type { PaymentsRepository } from '../../../ports/payments.repository.js';
 import { ConfirmInvoicePaidUseCase } from './confirm-invoice-paid.use-case.js';
-import { PaymentEventResultCode, paymentEventResult } from '../payment-event-result.js';
+import { PaymentEventRejectionReason, paymentEventResult } from '../payment-event-result.js';
 
 describe('ConfirmInvoicePaidUseCase', () => {
-  describe.each(['subscription_create'] as const)('concurrent %s confirmation', (billingReason) => {
-    const paymentForSlice = initialPayment;
-
-    function setup(latest: Payment | null) {
+  it.each([
+    [initialPayment({ paidAt: new Date('2026-10-12T11:00:00.000Z') }), 'confirmed'],
+    [initialPayment({ providerInvoiceId: 'in_other' }), 'conflict'],
+    [initialPayment({ status: PaymentStatus.CANCELED, paidAt: null }), 'terminal'],
+    [null, 'missing'],
+  ] as const)(
+    'reconciles the next initial-purchase attempt after NOT_UPDATED: %s',
+    async (latest, outcome) => {
       const payments = repository();
-      const pending = paymentForSlice({ status: PaymentStatus.PENDING, paidAt: null });
-      payments.findById.mockResolvedValue(pending);
-      payments.findByProviderInvoiceId.mockResolvedValue(pending);
-      payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'NOT_UPDATED', payment: latest });
-      return { payments, useCase: new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository, new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository)) };
-    }
+      payments.findById
+        .mockResolvedValueOnce(initialPayment({ status: PaymentStatus.PENDING, paidAt: null }))
+        .mockResolvedValueOnce(latest);
+      payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'NOT_UPDATED' });
+      const useCase = new ConfirmInvoicePaidUseCase(
+        payments as unknown as PaymentsRepository,
+        new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository),
+      );
+      const event = invoiceEvent({ billingReason: 'subscription_create' });
 
-    it('returns compatible success with the original paidAt without another lookup', async () => {
-      const confirmed = paymentForSlice({ paidAt: new Date('2026-10-12T11:00:00.000Z') });
-      const { payments, useCase } = setup(confirmed);
-      await expect(useCase.execute(invoiceEvent({ billingReason }), {}))
-        .resolves.toEqual(paymentEventResult.successfulPayment(confirmed));
-      expect(payments.findById).toHaveBeenCalledTimes(billingReason === 'subscription_create' ? 1 : 0);
-      expect(payments.findByProviderInvoiceId).toHaveBeenCalledTimes(0);
+      await expect(useCase.execute(event, {})).rejects.toBeInstanceOf(PaymentConfirmationNotAppliedError);
+      const expected =
+        outcome === 'confirmed'
+          ? paymentEventResult.paymentConfirmed(latest)
+          : outcome === 'conflict'
+            ? paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT)
+            : paymentEventResult.ignored(
+                outcome === 'missing'
+                  ? PaymentEventRejectionReason.PAYMENT_NOT_FOUND
+                  : PaymentEventRejectionReason.PAYMENT_TERMINAL_STATE,
+              );
+      await expect(useCase.execute(event, {})).resolves.toEqual(expected);
       expect(payments.confirmSuccessfulPayment).toHaveBeenCalledOnce();
-    });
+      expect(payments.findById).toHaveBeenCalledTimes(2);
+    },
+  );
 
-    it.each([
-      [{ providerPaymentId: 'pi_other' }, PaymentEventResultCode.REFERENCE_CONFLICT],
-      [{ providerInvoiceId: 'in_other' }, PaymentEventResultCode.REFERENCE_CONFLICT],
-      [{ providerSubscriptionId: 'sub_other' }, PaymentEventResultCode.REFERENCE_CONFLICT],
-      [{ providerCustomerId: 'cus_other' }, PaymentEventResultCode.CUSTOMER_MISMATCH],
-      [{ amount: 999 }, PaymentEventResultCode.AMOUNT_MISMATCH],
-      [{ type: PaymentType.RENEWAL }, PaymentEventResultCode.PURPOSE_MISMATCH],
-    ] as const)('reconciles the latest successful Payment before accepting it: %j', async (overrides, code) => {
-      const { useCase } = setup(paymentForSlice(overrides));
-      await expect(useCase.execute(invoiceEvent({ billingReason }), {}))
-        .resolves.toEqual(paymentEventResult.dead(code));
-    });
+  it.each([
+    [{ providerPaymentId: 'pi_other' }, PaymentEventRejectionReason.REFERENCE_CONFLICT],
+    [{ providerSubscriptionId: 'sub_other' }, PaymentEventRejectionReason.REFERENCE_CONFLICT],
+    [{ providerCustomerId: 'cus_other' }, PaymentEventRejectionReason.CUSTOMER_MISMATCH],
+    [{ amount: 999 }, PaymentEventRejectionReason.AMOUNT_MISMATCH],
+    [{ type: PaymentType.RENEWAL }, PaymentEventRejectionReason.PURPOSE_MISMATCH],
+  ] as const)('validates the current initial Payment on retry: %j', async (overrides, reason) => {
+    const payments = repository();
+    payments.findById
+      .mockResolvedValueOnce(initialPayment({ status: PaymentStatus.PENDING, paidAt: null }))
+      .mockResolvedValueOnce(initialPayment(overrides));
+    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'NOT_UPDATED' });
+    const useCase = new ConfirmInvoicePaidUseCase(
+      payments as unknown as PaymentsRepository,
+      new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository),
+    );
+    await expect(useCase.execute(invoiceEvent(), {})).rejects.toBeInstanceOf(
+      PaymentConfirmationNotAppliedError,
+    );
+    await expect(useCase.execute(invoiceEvent(), {})).resolves.toEqual(paymentEventResult.dead(reason));
+    expect(payments.confirmSuccessfulPayment).toHaveBeenCalledOnce();
+  });
 
-    it('reports a missing Payment', async () => {
-      const { useCase } = setup(null);
-      await expect(useCase.execute(invoiceEvent({ billingReason }), {}))
-        .resolves.toEqual(paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND));
-    });
-
-    it.each([PaymentStatus.FAILED, PaymentStatus.CANCELED])('preserves terminal state %s', async (status) => {
-      const { useCase } = setup(paymentForSlice({ status, paidAt: null }));
-      await expect(useCase.execute(invoiceEvent({ billingReason }), {}))
-        .resolves.toEqual(paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE));
-    });
-
-    it.each([PaymentStatus.CREATED, PaymentStatus.PENDING])('throws a retryable error for unexplained state %s', async (status) => {
-      const { useCase } = setup(paymentForSlice({ status, paidAt: null }));
-      await expect(useCase.execute(invoiceEvent({ billingReason }), {})).rejects.toBeInstanceOf(PaymentPersistenceError);
-    });
-
-    it('rejects success without paidAt', async () => {
-      const { useCase } = setup(paymentForSlice({ paidAt: null }));
-      await expect(useCase.execute(invoiceEvent({ billingReason }), {})).rejects.toThrow();
-    });
+  it('rejects an initial Payment without paidAt when success is read on retry', async () => {
+    const payments = repository();
+    payments.findById
+      .mockResolvedValueOnce(initialPayment({ status: PaymentStatus.PENDING, paidAt: null }))
+      .mockResolvedValueOnce(initialPayment({ paidAt: null }));
+    payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'NOT_UPDATED' });
+    const useCase = new ConfirmInvoicePaidUseCase(
+      payments as unknown as PaymentsRepository,
+      new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository),
+    );
+    await expect(useCase.execute(invoiceEvent(), {})).rejects.toBeInstanceOf(
+      PaymentConfirmationNotAppliedError,
+    );
+    await expect(useCase.execute(invoiceEvent(), {})).rejects.toThrow();
+    expect(payments.confirmSuccessfulPayment).toHaveBeenCalledOnce();
   });
 
   it('confirms an initial purchase correlated by metadata paymentId', async () => {
@@ -86,10 +104,13 @@ describe('ConfirmInvoicePaidUseCase', () => {
     );
     const confirmed = initialPayment();
     payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'SUCCEEDED', payment: confirmed });
-    const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository, new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository));
+    const useCase = new ConfirmInvoicePaidUseCase(
+      payments as unknown as PaymentsRepository,
+      new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository),
+    );
 
     await expect(useCase.execute(invoiceEvent(), {})).resolves.toEqual(
-      paymentEventResult.successfulPayment(confirmed),
+      paymentEventResult.paymentConfirmed(confirmed),
     );
     expect(payments.confirmSuccessfulPayment).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -107,10 +128,13 @@ describe('ConfirmInvoicePaidUseCase', () => {
     payments.findByProviderInvoiceId.mockResolvedValue(initialPayment());
     const confirmed = initialPayment();
     payments.confirmSuccessfulPayment.mockResolvedValue({ outcome: 'SUCCEEDED', payment: confirmed });
-    const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository, new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository));
+    const useCase = new ConfirmInvoicePaidUseCase(
+      payments as unknown as PaymentsRepository,
+      new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository),
+    );
 
     await expect(useCase.execute(invoiceEvent({ paymentId: null }), {})).resolves.toEqual(
-      paymentEventResult.successfulPayment(confirmed),
+      paymentEventResult.paymentConfirmed(confirmed),
     );
     expect(payments.findByProviderInvoiceId).toHaveBeenCalledWith(PaymentProvider.STRIPE, 'in_test', {});
   });
@@ -119,10 +143,13 @@ describe('ConfirmInvoicePaidUseCase', () => {
     const payments = repository();
     const confirmed = initialPayment({ paidAt: new Date('2026-10-12T11:00:00.000Z') });
     payments.findById.mockResolvedValue(confirmed);
-    const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository, new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository));
+    const useCase = new ConfirmInvoicePaidUseCase(
+      payments as unknown as PaymentsRepository,
+      new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository),
+    );
 
     await expect(useCase.execute(invoiceEvent(), {})).resolves.toEqual(
-      paymentEventResult.successfulPayment(confirmed),
+      paymentEventResult.paymentConfirmed(confirmed),
     );
     expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
   });
@@ -132,17 +159,23 @@ describe('ConfirmInvoicePaidUseCase', () => {
     payments.findById.mockResolvedValue(
       initialPayment({ checkoutPurpose: CheckoutPurpose.SUBSCRIPTION_EXTENSION }),
     );
-    const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository, new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository));
+    const useCase = new ConfirmInvoicePaidUseCase(
+      payments as unknown as PaymentsRepository,
+      new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository),
+    );
 
     await expect(useCase.execute(invoiceEvent(), {})).resolves.toEqual(
-      paymentEventResult.dead(PaymentEventResultCode.PURPOSE_MISMATCH),
+      paymentEventResult.dead(PaymentEventRejectionReason.PURPOSE_MISMATCH),
     );
     expect(payments.confirmSuccessfulPayment).not.toHaveBeenCalled();
   });
 
   it('requires a Subscription reference for subscription_create', async () => {
     const payments = repository();
-    const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository, new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository));
+    const useCase = new ConfirmInvoicePaidUseCase(
+      payments as unknown as PaymentsRepository,
+      new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository),
+    );
 
     await expect(
       useCase.execute(
@@ -152,14 +185,14 @@ describe('ConfirmInvoicePaidUseCase', () => {
         },
         {},
       ),
-    ).resolves.toEqual(paymentEventResult.dead(PaymentEventResultCode.SUBSCRIPTION_REFERENCE_MISSING));
+    ).resolves.toEqual(paymentEventResult.dead(PaymentEventRejectionReason.SUBSCRIPTION_REFERENCE_MISSING));
     expect(payments.findById).not.toHaveBeenCalled();
   });
 
   it('delegates subscription_cycle to the renewal use case with the same transaction', async () => {
     const payments = repository();
     const renewal = new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository);
-    const expected = paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
+    const expected = paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_TERMINAL_STATE);
     const execute = vi.spyOn(renewal, 'execute').mockResolvedValue(expected);
     const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository, renewal);
     const event = invoiceEvent({ billingReason: 'subscription_cycle' });
@@ -171,10 +204,13 @@ describe('ConfirmInvoicePaidUseCase', () => {
 
   it('rejects unsupported billing reasons before repository access', async () => {
     const payments = repository();
-    const useCase = new ConfirmInvoicePaidUseCase(payments as unknown as PaymentsRepository, new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository));
+    const useCase = new ConfirmInvoicePaidUseCase(
+      payments as unknown as PaymentsRepository,
+      new ConfirmRenewalPaymentUseCase(payments as unknown as PaymentsRepository),
+    );
 
     await expect(useCase.execute(invoiceEvent({ billingReason: 'manual' }), {})).resolves.toEqual(
-      paymentEventResult.dead(PaymentEventResultCode.UNSUPPORTED_BILLING_REASON),
+      paymentEventResult.dead(PaymentEventRejectionReason.UNSUPPORTED_BILLING_REASON),
     );
     expect(payments.findById).not.toHaveBeenCalled();
   });
@@ -190,7 +226,7 @@ function repository() {
     findByProviderInvoiceId: vi.fn(),
     findByProviderSubscriptionId: vi.fn(),
     confirmSuccessfulPayment: vi.fn(),
-    createSuccessfulRenewal: vi.fn(),
+    ensurePendingRenewal: vi.fn(),
   };
 }
 

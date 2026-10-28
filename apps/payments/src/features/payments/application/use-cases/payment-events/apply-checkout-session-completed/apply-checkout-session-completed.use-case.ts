@@ -4,7 +4,8 @@ import type { CheckoutSessionCompletedEvent } from '../../../events/payment-even
 import type { PaymentsTransactionContext } from '../../../ports/payments-unit-of-work.js';
 import { PaymentsRepository } from '../../../ports/payments.repository.js';
 import {
-  PaymentEventResultCode,
+  PaymentEventCompletionCode,
+  PaymentEventRejectionReason,
   paymentEventResult,
   type PaymentEventResult,
 } from '../payment-event-result.js';
@@ -18,17 +19,17 @@ export class ApplyCheckoutSessionCompletedUseCase {
     event: CheckoutSessionCompletedEvent,
     ctx: PaymentsTransactionContext,
   ): Promise<PaymentEventResult> {
-    if (!event.paymentId) return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND);
+    if (!event.paymentId) return paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_NOT_FOUND);
     const payment = await this.payments.findById(event.paymentId, ctx);
-    if (!payment) return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND);
+    if (!payment) return paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_NOT_FOUND);
 
     const validation = this.validate(payment, event);
     if (validation) {
-      const code = PaymentEventResultCode[validation];
+      const code = PaymentEventRejectionReason[validation];
       return paymentEventResult.dead(code);
     }
     if (this.isAlreadyApplied(payment, event))
-      return paymentEventResult.success(PaymentEventResultCode.CHECKOUT_COMPLETED, payment.id);
+      return paymentEventResult.completed(PaymentEventCompletionCode.CHECKOUT_COMPLETED, payment.id);
 
     const command =
       event.payload.mode === 'subscription'
@@ -46,25 +47,29 @@ export class ApplyCheckoutSessionCompletedUseCase {
           };
     const result = await this.payments.applyCheckoutCompleted(command, ctx);
     return result.outcome === 'APPLIED'
-      ? paymentEventResult.success(PaymentEventResultCode.CHECKOUT_COMPLETED, payment.id)
-      : paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT);
+      ? paymentEventResult.completed(PaymentEventCompletionCode.CHECKOUT_COMPLETED, payment.id)
+      : paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT);
   }
 
-  private validate(payment: Payment, event: CheckoutSessionCompletedEvent): PaymentEventResultCode | null {
-    if (payment.providerType !== event.provider) return PaymentEventResultCode.PROVIDER_MISMATCH;
+  private validate(
+    payment: Payment,
+    event: CheckoutSessionCompletedEvent,
+  ): PaymentEventRejectionReason | null {
+    if (payment.providerType.toLowerCase() !== event.provider.toLowerCase())
+      return PaymentEventRejectionReason.PROVIDER_MISMATCH;
     if (event.payload.amount !== null && payment.amount !== event.payload.amount)
-      return PaymentEventResultCode.AMOUNT_MISMATCH;
+      return PaymentEventRejectionReason.AMOUNT_MISMATCH;
     if (
       event.payload.currency !== null &&
       payment.currency.toLowerCase() !== event.payload.currency.toLowerCase()
     )
-      return PaymentEventResultCode.CURRENCY_MISMATCH;
+      return PaymentEventRejectionReason.CURRENCY_MISMATCH;
     if (
       payment.providerCustomerId !== null &&
       event.payload.customerId !== null &&
       payment.providerCustomerId !== event.payload.customerId
     )
-      return PaymentEventResultCode.CUSTOMER_MISMATCH;
+      return PaymentEventRejectionReason.CUSTOMER_MISMATCH;
 
     const providerObjectReference =
       event.payload.mode === 'subscription'
@@ -74,7 +79,7 @@ export class ApplyCheckoutSessionCompletedUseCase {
       [payment.providerCheckoutId, event.payload.id],
       providerObjectReference,
     )
-      ? PaymentEventResultCode.REFERENCE_CONFLICT
+      ? PaymentEventRejectionReason.REFERENCE_CONFLICT
       : null;
   }
 

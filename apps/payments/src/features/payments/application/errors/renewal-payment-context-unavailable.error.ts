@@ -4,8 +4,7 @@ export type RenewalPaymentContextUnavailableReason =
   | 'SOURCE_METADATA_MISSING'
   | 'SOURCE_PAYMENT_NOT_FOUND'
   | 'SOURCE_NOT_LINKED'
-  | 'INVOICE_PAYMENT_NOT_FOUND'
-  | 'PAYMENT_DISAPPEARED';
+  | 'INVOICE_PAYMENT_NOT_FOUND';
 
 /** Application context failure; infrastructure decides between bounded retry and reconciliation. */
 export class RenewalPaymentContextUnavailableError extends PaymentsError {

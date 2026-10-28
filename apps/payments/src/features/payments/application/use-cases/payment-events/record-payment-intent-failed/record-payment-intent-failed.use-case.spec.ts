@@ -3,7 +3,11 @@ import { PaymentEventKind } from '../../../../domain/payment-event-kind.js';
 import { type Payment, PaymentProvider, PaymentStatus } from '../../../../domain/payment.entity.js';
 import type { PaymentIntentPaymentFailedEvent } from '../../../events/payment-event.js';
 import type { PaymentsRepository } from '../../../ports/payments.repository.js';
-import { PaymentEventResultCode, paymentEventResult } from '../payment-event-result.js';
+import {
+  PaymentEventCompletionCode,
+  PaymentEventRejectionReason,
+  paymentEventResult,
+} from '../payment-event-result.js';
 import { RecordPaymentIntentFailedUseCase } from './record-payment-intent-failed.use-case.js';
 
 describe('RecordPaymentIntentFailedUseCase', () => {
@@ -16,7 +20,7 @@ describe('RecordPaymentIntentFailedUseCase', () => {
       const useCase = new RecordPaymentIntentFailedUseCase(payments as unknown as PaymentsRepository);
 
       await expect(useCase.execute(event(), {})).resolves.toEqual(
-        paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, stored.id),
+        paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_FAILURE_RECORDED, stored.id),
       );
       expect(payments.findById).toHaveBeenCalledWith(stored.id, {});
     },
@@ -28,7 +32,7 @@ describe('RecordPaymentIntentFailedUseCase', () => {
     const useCase = new RecordPaymentIntentFailedUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event({ paymentId: null }), {})).resolves.toEqual(
-      paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, payment().id),
+      paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_FAILURE_RECORDED, payment().id),
     );
     expect(payments.findByProviderPaymentId).toHaveBeenCalledWith(PaymentProvider.STRIPE, 'pi_test', {});
   });
@@ -39,7 +43,7 @@ describe('RecordPaymentIntentFailedUseCase', () => {
     const useCase = new RecordPaymentIntentFailedUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event({ paymentId: null }), {})).resolves.toEqual(
-      paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND),
+      paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_NOT_FOUND),
     );
   });
 
@@ -49,7 +53,7 @@ describe('RecordPaymentIntentFailedUseCase', () => {
     const useCase = new RecordPaymentIntentFailedUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual(
-      paymentEventResult.dead(PaymentEventResultCode.PAYMENT_NOT_FOUND),
+      paymentEventResult.dead(PaymentEventRejectionReason.PAYMENT_NOT_FOUND),
     );
   });
 
@@ -59,7 +63,7 @@ describe('RecordPaymentIntentFailedUseCase', () => {
     const useCase = new RecordPaymentIntentFailedUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual(
-      paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT),
+      paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT),
     );
   });
 });

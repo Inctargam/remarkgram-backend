@@ -15,8 +15,6 @@ import {
   type ConfirmSuccessfulPaymentCommand,
   type ConfirmSuccessfulPaymentUpdateResult,
   type CreatePaymentResult,
-  type CreateSuccessfulRenewalCommand,
-  type CreateSuccessfulRenewalResult,
   type EnsurePendingRenewalRepositoryParams,
   type LinkPaymentSubscriptionCommand,
   type LinkPaymentSubscriptionResult,
@@ -325,10 +323,7 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
           paidAt: command.paidAt,
         },
       });
-      if (!row) {
-        const latest = await client.payment.findUnique({ where: { id: command.paymentId } });
-        return { outcome: 'NOT_UPDATED', payment: latest ? PaymentPrismaMapper.toDomain(latest) : null };
-      }
+      if (!row) return { outcome: 'NOT_UPDATED' };
 
       return { outcome: 'SUCCEEDED', payment: PaymentPrismaMapper.toDomain(row) };
     } catch (error) {
@@ -337,7 +332,7 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
       // (providerType, providerPaymentId) и (providerType, providerInvoiceId).
       // Это не позволяет подтвердить два Payment одним provider-объектом.
       // Несовместимые ссылки у самого Payment отсекаются условиями where без P2002;
-      // отсутствие обновлённой строки возвращается с актуальным Payment для application reconciliation.
+      // отсутствие обновлённой строки возвращается как NOT_UPDATED без дополнительного чтения.
       if (this.isUniqueConflict(error)) return { outcome: 'REFERENCE_CONFLICT' };
       throw error;
     }
@@ -422,7 +417,7 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
   ): Promise<Payment> {
     const client = ctx as Prisma.TransactionClient;
     // The invoice uniqueness constraint serializes concurrent finalized/paid deliveries.
-    // No existing values or lifecycle state are overwritten by a late finalized event.
+    // Существующие значения и lifecycle state не меняются ни от finalized, ни от paid recovery.
     const row = await client.payment.upsert({
       where: {
         providerType_providerInvoiceId: {
@@ -442,47 +437,6 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
       update: {},
     });
     return PaymentPrismaMapper.toDomain(row);
-  }
-
-  async createSuccessfulRenewal(
-    command: CreateSuccessfulRenewalCommand,
-    ctx: PaymentsTransactionContext,
-  ): Promise<CreateSuccessfulRenewalResult> {
-    const client = ctx as Prisma.TransactionClient;
-    try {
-      const row = await client.payment.upsert({
-        where: {
-          providerType_providerInvoiceId: {
-            providerType: command.providerType,
-            providerInvoiceId: command.providerInvoiceId,
-          },
-        },
-        create: {
-          userId: command.userId,
-          planId: command.planId,
-          amount: command.amount,
-          currency: command.currency,
-          periodCount: command.periodCount,
-          periodUnit: command.periodUnit,
-          providerType: command.providerType,
-          providerPaymentId: command.providerPaymentId,
-          providerSubscriptionId: command.providerSubscriptionId,
-          providerInvoiceId: command.providerInvoiceId,
-          providerCustomerId: command.providerCustomerId,
-          subscriptionId: command.subscriptionId,
-          status: PaymentStatus.SUCCEEDED,
-          paidAt: command.paidAt,
-          type: PaymentType.RENEWAL,
-          checkoutPurpose: null,
-          autoRenewalRequested: null,
-        },
-        update: {},
-      });
-      return { outcome: 'PERSISTED', payment: PaymentPrismaMapper.toDomain(row) };
-    } catch (error) {
-      if (this.isUniqueConflict(error)) return { outcome: 'REFERENCE_CONFLICT' };
-      throw error;
-    }
   }
 
   private compatibleReference(

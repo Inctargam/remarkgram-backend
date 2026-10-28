@@ -6,7 +6,8 @@ import type { InvoiceFinalizedEvent } from '../../../events/payment-event.js';
 import { PaymentsRepository } from '../../../ports/payments.repository.js';
 import type { PaymentsTransactionContext } from '../../../ports/payments-unit-of-work.js';
 import {
-  PaymentEventResultCode,
+  PaymentEventCompletionCode,
+  PaymentEventRejectionReason,
   paymentEventResult,
   type PaymentEventResult,
 } from '../payment-event-result.js';
@@ -18,10 +19,10 @@ export class EnsureRenewalPaymentUseCase {
 
   async execute(event: InvoiceFinalizedEvent, ctx: PaymentsTransactionContext): Promise<PaymentEventResult> {
     if (event.payload.billingReason !== 'subscription_cycle')
-      return paymentEventResult.ignored(PaymentEventResultCode.UNSUPPORTED_BILLING_REASON);
+      return paymentEventResult.ignored(PaymentEventRejectionReason.UNSUPPORTED_BILLING_REASON);
     const providerSubscriptionId = event.payload.providerSubscriptionId;
     if (!providerSubscriptionId)
-      return paymentEventResult.dead(PaymentEventResultCode.SUBSCRIPTION_REFERENCE_MISSING);
+      return paymentEventResult.dead(PaymentEventRejectionReason.SUBSCRIPTION_REFERENCE_MISSING);
     const invoiceConflict = Reconciliation.invoiceConflict(event);
     if (invoiceConflict) return paymentEventResult.dead(invoiceConflict);
     const existing = await this.payments.findByProviderInvoiceId(
@@ -70,6 +71,6 @@ export class EnsureRenewalPaymentUseCase {
   private result(payment: Payment, event: InvoiceFinalizedEvent, source?: Payment): PaymentEventResult {
     const conflict = Reconciliation.paymentConflict(payment, event, source);
     if (conflict) return paymentEventResult.dead(conflict);
-    return paymentEventResult.success(PaymentEventResultCode.RENEWAL_ENSURED, payment.id);
+    return paymentEventResult.completed(PaymentEventCompletionCode.RENEWAL_ENSURED, payment.id);
   }
 }

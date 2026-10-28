@@ -2,35 +2,31 @@ import type { Payment } from '../../../domain/payment.entity.js';
 import type { SuccessfulPayment } from '../../types/successful-payment.types.js';
 import { createSuccessfulPayment } from '../process-payment-webhook/successful-payment.factory.js';
 
-export enum PaymentEventResultStatus {
-  /** Событие успешно применено; повторная обработка не требуется. */
-  SUCCESS = 'SUCCESS',
-  /** Событие осознанно не применено, но противоречия или повреждения данных нет. */
-  IGNORED = 'IGNORED',
-  /** Событие нельзя безопасно применить из-за противоречия или нарушения инварианта. */
-  DEAD = 'DEAD',
+/** Результат application-операции; не является статусом Payment или webhook audit. */
+export enum PaymentEventOutcome {
+  /** Обработка завершена без продолжения в D2. */
+  COMPLETED = 'COMPLETED',
+  /** Финансовый успех подтверждён; требуется применение оплаты в D2. */
+  PAYMENT_CONFIRMED = 'PAYMENT_CONFIRMED',
+  /** Событие не применено; причина и способ завершения заданы отдельно. */
+  REJECTED = 'REJECTED',
 }
 
-/**
- * Бизнес-причина результата обработки provider event.
- *
- * Полная семантика определяется парой `PaymentEventResultStatus + PaymentEventResultCode`:
- * один только код не всегда определяет, было ли событие применено, проигнорировано или признано dead.
- */
-export enum PaymentEventResultCode {
+/** Выполненное действие при COMPLETED. Не доказывает финансовый успех. */
+export enum PaymentEventCompletionCode {
+  /**
+   * Для subscription_cycle Invoice найдена или идемпотентно создана RENEWAL Payment.
+   * Новая Payment ожидает оплаты в PENDING; существующая сохраняет свой статус.
+   * Результат завершает webhook без применения доступа в D2 и не доказывает оплату.
+   */
+  RENEWAL_ENSURED = 'RENEWAL_ENSURED',
   /**
    * Событие завершения Checkout Session обработано, а его provider references сохранены.
    * Не является доказательством получения денег.
    */
-  RENEWAL_ENSURED = 'RENEWAL_ENSURED',
   CHECKOUT_COMPLETED = 'CHECKOUT_COMPLETED',
   /** Истёкшая Checkout Session успешно завершила допустимый lifecycle незавершённого Payment. */
   CHECKOUT_EXPIRED = 'CHECKOUT_EXPIRED',
-  /**
-   * Provider подтвердил финансовый успех; Payment имеет статус SUCCEEDED и непустой paidAt.
-   * Только этот код содержит SuccessfulPayment и запускает применение платежа к Subscription.
-   */
-  PAYMENT_SUCCEEDED = 'PAYMENT_SUCCEEDED',
   /**
    * Неуспешная попытка оплаты зафиксирована для аудита без terminal-перехода Payment в FAILED.
    * Позднее успешное списание всё ещё допускается.
@@ -38,6 +34,10 @@ export enum PaymentEventResultCode {
   PAYMENT_FAILURE_RECORDED = 'PAYMENT_FAILURE_RECORDED',
   /** Provider подтвердил terminal cancellation, и соответствующий Payment безопасно отменён. */
   PAYMENT_CANCELED = 'PAYMENT_CANCELED',
+}
+
+/** Бизнес-причина неприменения события. */
+export enum PaymentEventRejectionReason {
   /**
    * Локальный Payment, к которому относится provider event, не найден: internal paymentId
    * отсутствует в событии либо соответствующая запись отсутствует в локальном хранилище.
@@ -72,55 +72,57 @@ export enum PaymentEventResultCode {
   REFERENCE_CONFLICT = 'REFERENCE_CONFLICT',
 }
 
-type CompletedPaymentEventResultCode =
-  | PaymentEventResultCode.RENEWAL_ENSURED
-  | PaymentEventResultCode.CHECKOUT_COMPLETED
-  | PaymentEventResultCode.CHECKOUT_EXPIRED
-  | PaymentEventResultCode.PAYMENT_FAILURE_RECORDED
-  | PaymentEventResultCode.PAYMENT_CANCELED;
+/** Способ фиксации отклонённого события в webhook audit. */
+export enum PaymentEventRejectionDisposition {
+  IGNORED = 'IGNORED',
+  DEAD = 'DEAD',
+}
 
 export type PaymentEventResult =
   | {
-      status: PaymentEventResultStatus.SUCCESS;
-      code: CompletedPaymentEventResultCode;
+      outcome: PaymentEventOutcome.COMPLETED;
+      code: PaymentEventCompletionCode;
       paymentId: string | null;
-      payment?: never;
     }
   | {
-      status: PaymentEventResultStatus.SUCCESS;
-      code: PaymentEventResultCode.PAYMENT_SUCCEEDED;
-      paymentId: string;
+      outcome: PaymentEventOutcome.PAYMENT_CONFIRMED;
       payment: SuccessfulPayment;
     }
   | {
-      status: PaymentEventResultStatus.IGNORED | PaymentEventResultStatus.DEAD;
-      code: PaymentEventResultCode;
+      outcome: PaymentEventOutcome.REJECTED;
+      disposition: PaymentEventRejectionDisposition;
+      reason: PaymentEventRejectionReason;
     };
 
 export const paymentEventResult = {
-  /** Создаёт terminal-результат успешно применённого события, не требующего продолжения в D2. */
-  success(code: CompletedPaymentEventResultCode, paymentId: string | null): PaymentEventResult {
-    return { status: PaymentEventResultStatus.SUCCESS, code, paymentId };
+  /** Завершает обработку события без применения доступа в D2. */
+  completed(code: PaymentEventCompletionCode, paymentId: string | null): PaymentEventResult {
+    return { outcome: PaymentEventOutcome.COMPLETED, code, paymentId };
   },
 
-  /** Создаёт результат финансового успеха с durable DTO для следующего шага workflow. */
-  successfulPayment(payment: Payment): PaymentEventResult {
-    const successfulPayment = createSuccessfulPayment(payment);
+  /** Передаёт снимок подтверждённой оплаты следующему шагу workflow. */
+  paymentConfirmed(payment: Payment): PaymentEventResult {
     return {
-      status: PaymentEventResultStatus.SUCCESS,
-      code: PaymentEventResultCode.PAYMENT_SUCCEEDED,
-      paymentId: payment.id,
-      payment: successfulPayment,
+      outcome: PaymentEventOutcome.PAYMENT_CONFIRMED,
+      payment: createSuccessfulPayment(payment),
     };
   },
 
-  /** Создаёт результат осознанно неприменённого события, не требующего retry. */
-  ignored(code: PaymentEventResultCode): PaymentEventResult {
-    return { status: PaymentEventResultStatus.IGNORED, code };
+  /** Событие осознанно не применено без признания его противоречивым. */
+  ignored(reason: PaymentEventRejectionReason): PaymentEventResult {
+    return {
+      outcome: PaymentEventOutcome.REJECTED,
+      disposition: PaymentEventRejectionDisposition.IGNORED,
+      reason,
+    };
   },
 
-  /** Создаёт результат события, которое нельзя безопасно применить или повторить. */
-  dead(code: PaymentEventResultCode): PaymentEventResult {
-    return { status: PaymentEventResultStatus.DEAD, code };
+  /** Событие нельзя безопасно применить из-за противоречия или нарушения инварианта. */
+  dead(reason: PaymentEventRejectionReason): PaymentEventResult {
+    return {
+      outcome: PaymentEventOutcome.REJECTED,
+      disposition: PaymentEventRejectionDisposition.DEAD,
+      reason,
+    };
   },
 };

@@ -6,7 +6,8 @@ import { PaymentsRepository } from '../../../ports/payments.repository.js';
 import { PaymentStatus, PaymentType } from '../../../../domain/payment.entity.js';
 import { hasProviderReferenceConflict } from '../payment-reconciliation.policy.js';
 import {
-  PaymentEventResultCode,
+  PaymentEventCompletionCode,
+  PaymentEventRejectionReason,
   paymentEventResult,
   type PaymentEventResult,
 } from '../payment-event-result.js';
@@ -15,12 +16,9 @@ import {
 export class CancelVoidedInvoiceUseCase {
   constructor(private readonly payments: PaymentsRepository) {}
 
-  async execute(
-    event: InvoiceVoidedEvent,
-    ctx: PaymentsTransactionContext,
-  ): Promise<PaymentEventResult> {
+  async execute(event: InvoiceVoidedEvent, ctx: PaymentsTransactionContext): Promise<PaymentEventResult> {
     if (event.payload.billingReason !== 'subscription_cycle')
-      return paymentEventResult.ignored(PaymentEventResultCode.UNSUPPORTED_BILLING_REASON);
+      return paymentEventResult.ignored(PaymentEventRejectionReason.UNSUPPORTED_BILLING_REASON);
 
     const payment = await this.payments.findByProviderInvoiceId(
       event.provider,
@@ -33,9 +31,9 @@ export class CancelVoidedInvoiceUseCase {
         'INVOICE_PAYMENT_NOT_FOUND',
       );
     if (payment.providerType !== event.provider)
-      return paymentEventResult.dead(PaymentEventResultCode.PROVIDER_MISMATCH);
+      return paymentEventResult.dead(PaymentEventRejectionReason.PROVIDER_MISMATCH);
     if (payment.type !== PaymentType.RENEWAL || payment.checkoutPurpose !== null)
-      return paymentEventResult.ignored(PaymentEventResultCode.INELIGIBLE_PAYMENT);
+      return paymentEventResult.ignored(PaymentEventRejectionReason.INELIGIBLE_PAYMENT);
     if (
       hasProviderReferenceConflict(
         [payment.providerInvoiceId, event.payload.providerInvoiceId],
@@ -43,11 +41,11 @@ export class CancelVoidedInvoiceUseCase {
         [payment.providerCustomerId, event.payload.customerId],
       )
     )
-      return paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT);
+      return paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT);
     if (payment.status === PaymentStatus.CANCELED)
-      return paymentEventResult.success(PaymentEventResultCode.PAYMENT_CANCELED, payment.id);
+      return paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_CANCELED, payment.id);
     if (![PaymentStatus.CREATED, PaymentStatus.PENDING].includes(payment.status))
-      return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
+      return paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_TERMINAL_STATE);
 
     const result = await this.payments.cancelPendingPayment(
       {
@@ -58,9 +56,9 @@ export class CancelVoidedInvoiceUseCase {
       ctx,
     );
     return result.outcome === 'CANCELED'
-      ? paymentEventResult.success(PaymentEventResultCode.PAYMENT_CANCELED, payment.id)
+      ? paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_CANCELED, payment.id)
       : result.outcome === 'REFERENCE_CONFLICT'
-        ? paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT)
-        : paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
+        ? paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT)
+        : paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_TERMINAL_STATE);
   }
 }

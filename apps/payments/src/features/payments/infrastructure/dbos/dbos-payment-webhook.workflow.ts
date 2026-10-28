@@ -8,10 +8,7 @@ import {
   type EnqueuePaymentWebhookResult,
 } from '../../application/ports/payment-webhook.workflow.js';
 import type { PaymentsTransactionContext } from '../../application/ports/payments-unit-of-work.js';
-import {
-  PaymentEventResultCode,
-  PaymentEventResultStatus,
-} from '../../application/use-cases/payment-events/payment-event-result.js';
+import { PaymentEventOutcome } from '../../application/use-cases/payment-events/payment-event-result.js';
 import { ApplyPaymentEventUseCase } from '../../application/use-cases/process-payment-webhook/apply-payment-event.use-case.js';
 import {
   CreateDeferredProviderSubscriptionUseCase,
@@ -40,6 +37,7 @@ import {
   isRetryablePaymentWorkflowError,
 } from './payment-workflow-error.policy.js';
 import { PaymentsDbosDataSource } from './payments-dbos.datasource.js';
+import { mapPaymentEventHistoryResult } from './payment-event-history-result.mapper.js';
 
 // Повторы локальной операции: до 10 попыток с паузами 10, 20, 40, ... секунд.
 const paymentWebhookApplicationRetryPolicy = {
@@ -142,18 +140,17 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
       });
     try {
       // 1. Применяем финансовую семантику события в отдельной локальной транзакции.
-      const result = await this.runApplicationTransactionWithRetry(
+      const recordedResult = await this.runApplicationTransactionWithRetry(
         eventId,
         'applyPaymentWebhook',
         () => this.applyPaymentEvent.execute({ eventId, event }, this.transactionContext()),
         true, // Счётчик processingAttempts учитывает попытки именно этой операции.
       );
+      const result = mapPaymentEventHistoryResult(recordedResult);
       // Действия с подпиской нужны только после подтверждённой успешной оплаты.
-      if (
-        result.status !== PaymentEventResultStatus.SUCCESS ||
-        result.code !== PaymentEventResultCode.PAYMENT_SUCCEEDED
-      )
+      if (result.outcome !== PaymentEventOutcome.PAYMENT_CONFIRMED) {
         return;
+      }
       // 2. Применяем успешную оплату к подписке и связываем её с Payment.
       const subscriptionResult = await this.runApplicationTransactionWithRetry(
         eventId,
@@ -307,10 +304,7 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
       ...(errorCode ? { errorCode } : {}),
     };
 
-    if (
-      params.decision.failure.code === 'UNEXPECTED_WORKFLOW_ERROR' &&
-      params.error instanceof Error
-    ) {
+    if (params.decision.failure.code === 'UNEXPECTED_WORKFLOW_ERROR' && params.error instanceof Error) {
       this.logger.error(details, params.error.stack);
       return;
     }

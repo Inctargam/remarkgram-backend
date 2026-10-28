@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PaymentPersistenceError } from '../../../../../../common/application/errors/payments.error.js';
+import { PaymentConfirmationNotAppliedError } from '../../../errors/payment-confirmation-not-applied.error.js';
 import type { Currency } from '../../../../../../common/domain/currency.enum.js';
 import { PaymentStatus, type Payment } from '../../../../domain/payment.entity.js';
 import { RenewalPaymentContextUnavailableError } from '../../../errors/renewal-payment-context-unavailable.error.js';
@@ -7,7 +7,7 @@ import type { InvoicePaidEvent } from '../../../events/payment-event.js';
 import type { PaymentsTransactionContext } from '../../../ports/payments-unit-of-work.js';
 import { PaymentsRepository } from '../../../ports/payments.repository.js';
 import {
-  PaymentEventResultCode,
+  PaymentEventRejectionReason,
   paymentEventResult,
   type PaymentEventResult,
 } from '../payment-event-result.js';
@@ -18,39 +18,45 @@ export class ConfirmRenewalPaymentUseCase {
   constructor(private readonly payments: PaymentsRepository) {}
 
   async execute(event: InvoicePaidEvent, ctx: PaymentsTransactionContext): Promise<PaymentEventResult> {
-    if (event.payload.billingReason !== 'subscription_cycle')
-      return paymentEventResult.dead(PaymentEventResultCode.UNSUPPORTED_BILLING_REASON);
+    if (event.payload.billingReason !== 'subscription_cycle') {
+      return paymentEventResult.dead(PaymentEventRejectionReason.UNSUPPORTED_BILLING_REASON);
+    }
     const providerSubscriptionId = event.payload.providerSubscriptionId;
-    if (!providerSubscriptionId)
-      return paymentEventResult.dead(PaymentEventResultCode.SUBSCRIPTION_REFERENCE_MISSING);
+    if (!providerSubscriptionId) {
+      return paymentEventResult.dead(PaymentEventRejectionReason.SUBSCRIPTION_REFERENCE_MISSING);
+    }
     const invoiceConflict = Reconciliation.invoiceConflict(event);
-    if (invoiceConflict) return paymentEventResult.dead(invoiceConflict);
+    if (invoiceConflict) {
+      return paymentEventResult.dead(invoiceConflict);
+    }
 
     const existing = await this.payments.findByProviderInvoiceId(
       event.provider,
       event.payload.providerInvoiceId,
       ctx,
     );
-    if (existing) return this.confirmPayment(existing, event, ctx);
+    if (existing) return this.reconcileAndConfirmRenewalPayment(existing, event, ctx);
 
     const sourcePaymentId = event.payload.sourcePaymentId;
-    if (!sourcePaymentId)
+    if (!sourcePaymentId) {
       throw new RenewalPaymentContextUnavailableError(
         event.payload.providerInvoiceId,
         'SOURCE_METADATA_MISSING',
       );
+    }
     const source = await this.payments.findById(sourcePaymentId, ctx);
-    if (!source)
+    if (!source) {
       throw new RenewalPaymentContextUnavailableError(
         event.payload.providerInvoiceId,
         'SOURCE_PAYMENT_NOT_FOUND',
       );
+    }
     const sourceConflict = Reconciliation.sourceConflict(source, event);
     if (sourceConflict) return paymentEventResult.dead(sourceConflict);
     if (!source.subscriptionId || !source.providerSubscriptionId)
       throw new RenewalPaymentContextUnavailableError(event.payload.providerInvoiceId, 'SOURCE_NOT_LINKED');
 
-    const persisted = await this.payments.createSuccessfulRenewal(
+    const payment = await this.payments.ensurePendingRenewal(
       {
         userId: source.userId,
         planId: source.planId,
@@ -59,22 +65,22 @@ export class ConfirmRenewalPaymentUseCase {
         subscriptionId: source.subscriptionId,
         amount: event.payload.amount,
         currency: event.payload.currency.toUpperCase() as Currency,
-        paidAt: event.payload.paidAt,
         providerType: event.provider,
-        providerPaymentId: event.payload.providerPaymentId,
         providerSubscriptionId,
         providerInvoiceId: event.payload.providerInvoiceId,
         providerCustomerId: event.payload.customerId ?? source.providerCustomerId,
       },
       ctx,
     );
-    if (persisted.outcome === 'REFERENCE_CONFLICT')
-      return paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT);
-    // The upsert may return a concurrent finalized/paid row. Process it directly, without another lookup.
-    return this.confirmPayment(persisted.payment, event, ctx, source);
+    // При отсутствии записи создаём PENDING без paidAt и PaymentIntent ID.
+    // Если Payment уже появилась, ensure возвращает её без изменений, включая terminal status.
+    // Затем единая обработка проверяет условия и подтверждает оплату по текущему invoice.paid.
+    // Создание и подтверждение выполняются в одном tx; ошибка подтверждения откатывает создание.
+    return this.reconcileAndConfirmRenewalPayment(payment, event, ctx, source);
   }
 
-  private async confirmPayment(
+  /** Проверяет найденную/полученную через upsert renewal и подтверждает её только при необходимости. */
+  private async reconcileAndConfirmRenewalPayment(
     payment: Payment,
     event: InvoicePaidEvent,
     ctx: PaymentsTransactionContext,
@@ -82,9 +88,9 @@ export class ConfirmRenewalPaymentUseCase {
   ): Promise<PaymentEventResult> {
     const conflict = Reconciliation.paymentConflict(payment, event, source);
     if (conflict) return paymentEventResult.dead(conflict);
-    if (payment.status === PaymentStatus.SUCCEEDED) return paymentEventResult.successfulPayment(payment);
+    if (payment.status === PaymentStatus.SUCCEEDED) return paymentEventResult.paymentConfirmed(payment);
     if ([PaymentStatus.FAILED, PaymentStatus.CANCELED].includes(payment.status))
-      return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
+      return paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_TERMINAL_STATE);
 
     const confirmed = await this.payments.confirmSuccessfulPayment(
       {
@@ -97,17 +103,9 @@ export class ConfirmRenewalPaymentUseCase {
       },
       ctx,
     );
-    if (confirmed.outcome === 'SUCCEEDED') return paymentEventResult.successfulPayment(confirmed.payment);
+    if (confirmed.outcome === 'SUCCEEDED') return paymentEventResult.paymentConfirmed(confirmed.payment);
     if (confirmed.outcome === 'REFERENCE_CONFLICT')
-      return paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT);
-    const latest = confirmed.payment;
-    if (!latest)
-      throw new RenewalPaymentContextUnavailableError(event.payload.providerInvoiceId, 'PAYMENT_DISAPPEARED');
-    const latestConflict = Reconciliation.paymentConflict(latest, event, source);
-    if (latestConflict) return paymentEventResult.dead(latestConflict);
-    if (latest.status === PaymentStatus.SUCCEEDED) return paymentEventResult.successfulPayment(latest);
-    if ([PaymentStatus.FAILED, PaymentStatus.CANCELED].includes(latest.status))
-      return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
-    throw new PaymentPersistenceError();
+      return paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT);
+    throw new PaymentConfirmationNotAppliedError(payment.id);
   }
 }

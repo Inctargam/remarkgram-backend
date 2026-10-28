@@ -9,7 +9,11 @@ import {
   PaymentStatus,
 } from '../../../../domain/payment.entity.js';
 import { CancelExpiredCheckoutSessionUseCase } from './cancel-expired-checkout-session.use-case.js';
-import { PaymentEventResultCode, paymentEventResult } from '../payment-event-result.js';
+import {
+  PaymentEventCompletionCode,
+  PaymentEventRejectionReason,
+  paymentEventResult,
+} from '../payment-event-result.js';
 
 describe('CancelExpiredCheckoutSessionUseCase', () => {
   it.each([PaymentStatus.CREATED, PaymentStatus.PENDING])(
@@ -49,7 +53,7 @@ describe('CancelExpiredCheckoutSessionUseCase', () => {
     const useCase = new CancelExpiredCheckoutSessionUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual(
-      paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE),
+      paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_TERMINAL_STATE),
     );
     expect(payments.cancelPendingPayment).not.toHaveBeenCalled();
   });
@@ -69,7 +73,7 @@ describe('CancelExpiredCheckoutSessionUseCase', () => {
     const useCase = new CancelExpiredCheckoutSessionUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual(
-      paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT),
+      paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT),
     );
     expect(payments.cancelPendingPayment).not.toHaveBeenCalled();
   });
@@ -129,4 +133,4 @@ function event(overrides: Partial<CheckoutSessionExpiredEvent> = {}): CheckoutSe
 }
 
 const PAYMENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const CANCELED = paymentEventResult.success(PaymentEventResultCode.CHECKOUT_EXPIRED, PAYMENT_ID);
+const CANCELED = paymentEventResult.completed(PaymentEventCompletionCode.CHECKOUT_EXPIRED, PAYMENT_ID);

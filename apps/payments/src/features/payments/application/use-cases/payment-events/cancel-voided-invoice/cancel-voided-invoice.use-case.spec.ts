@@ -2,25 +2,40 @@ import { describe, expect, it, vi } from 'vitest';
 import type { InvoiceVoidedEvent } from '../../../events/payment-event.js';
 import type { PaymentsRepository } from '../../../ports/payments.repository.js';
 import { PaymentEventKind } from '../../../../domain/payment-event-kind.js';
-import { type Payment, PaymentProvider, PaymentStatus, PaymentType } from '../../../../domain/payment.entity.js';
-import { PaymentEventResultCode, paymentEventResult } from '../payment-event-result.js';
+import {
+  type Payment,
+  PaymentProvider,
+  PaymentStatus,
+  PaymentType,
+} from '../../../../domain/payment.entity.js';
+import {
+  PaymentEventCompletionCode,
+  PaymentEventRejectionReason,
+  paymentEventResult,
+} from '../payment-event-result.js';
 import { CancelVoidedInvoiceUseCase } from './cancel-voided-invoice.use-case.js';
 
 describe('CancelVoidedInvoiceUseCase', () => {
-  it.each([PaymentStatus.CREATED, PaymentStatus.PENDING])('cancels a renewal in %s by Invoice ID', async (status) => {
-    const payments = repository();
-    payments.findByProviderInvoiceId.mockResolvedValue(payment({ status }));
-    payments.cancelPendingPayment.mockResolvedValue({ outcome: 'CANCELED' });
-    const useCase = new CancelVoidedInvoiceUseCase(payments as unknown as PaymentsRepository);
+  it.each([PaymentStatus.CREATED, PaymentStatus.PENDING])(
+    'cancels a renewal in %s by Invoice ID',
+    async (status) => {
+      const payments = repository();
+      payments.findByProviderInvoiceId.mockResolvedValue(payment({ status }));
+      payments.cancelPendingPayment.mockResolvedValue({ outcome: 'CANCELED' });
+      const useCase = new CancelVoidedInvoiceUseCase(payments as unknown as PaymentsRepository);
 
-    await expect(useCase.execute(event(), {})).resolves.toEqual(CANCELED);
-    expect(payments.findById).not.toHaveBeenCalled();
-    expect(payments.cancelPendingPayment).toHaveBeenCalledWith({
-      paymentId: RENEWAL_ID,
-      providerInvoiceId: 'in_voided',
-      providerCustomerId: 'cus_test',
-    }, {});
-  });
+      await expect(useCase.execute(event(), {})).resolves.toEqual(CANCELED);
+      expect(payments.findById).not.toHaveBeenCalled();
+      expect(payments.cancelPendingPayment).toHaveBeenCalledWith(
+        {
+          paymentId: RENEWAL_ID,
+          providerInvoiceId: 'in_voided',
+          providerCustomerId: 'cus_test',
+        },
+        {},
+      );
+    },
+  );
 
   it('requests a retry when finalized has not created the renewal yet', async () => {
     const payments = repository();
@@ -48,7 +63,7 @@ describe('CancelVoidedInvoiceUseCase', () => {
     const useCase = new CancelVoidedInvoiceUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual(
-      paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE),
+      paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_TERMINAL_STATE),
     );
     expect(payments.cancelPendingPayment).not.toHaveBeenCalled();
   });
@@ -58,7 +73,7 @@ describe('CancelVoidedInvoiceUseCase', () => {
     const useCase = new CancelVoidedInvoiceUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event({ billingReason: 'subscription_create' }), {})).resolves.toEqual(
-      paymentEventResult.ignored(PaymentEventResultCode.UNSUPPORTED_BILLING_REASON),
+      paymentEventResult.ignored(PaymentEventRejectionReason.UNSUPPORTED_BILLING_REASON),
     );
     expect(payments.findByProviderInvoiceId).not.toHaveBeenCalled();
   });
@@ -69,7 +84,7 @@ describe('CancelVoidedInvoiceUseCase', () => {
     const useCase = new CancelVoidedInvoiceUseCase(payments as unknown as PaymentsRepository);
 
     await expect(useCase.execute(event(), {})).resolves.toEqual(
-      paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT),
+      paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT),
     );
     expect(payments.cancelPendingPayment).not.toHaveBeenCalled();
   });
@@ -114,4 +129,4 @@ function event(payload: Partial<InvoiceVoidedEvent['payload']> = {}): InvoiceVoi
 
 const RENEWAL_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const SOURCE_PAYMENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const CANCELED = paymentEventResult.success(PaymentEventResultCode.PAYMENT_CANCELED, RENEWAL_ID);
+const CANCELED = paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_CANCELED, RENEWAL_ID);

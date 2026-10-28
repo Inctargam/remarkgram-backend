@@ -1,4 +1,4 @@
-import { PaymentPersistenceError } from '../../../../../../common/application/errors/payments.error.js';
+import { PaymentConfirmationNotAppliedError } from '../../../errors/payment-confirmation-not-applied.error.js';
 import { Injectable } from '@nestjs/common';
 import { ConfirmRenewalPaymentUseCase } from '../confirm-renewal-payment/confirm-renewal-payment.use-case.js';
 import {
@@ -11,7 +11,7 @@ import type { InvoicePaidEvent } from '../../../events/payment-event.js';
 import type { PaymentsTransactionContext } from '../../../ports/payments-unit-of-work.js';
 import { PaymentsRepository } from '../../../ports/payments.repository.js';
 import {
-  PaymentEventResultCode,
+  PaymentEventRejectionReason,
   paymentEventResult,
   type PaymentEventResult,
 } from '../payment-event-result.js';
@@ -31,24 +31,31 @@ export class ConfirmInvoicePaidUseCase {
   async execute(event: InvoicePaidEvent, ctx: PaymentsTransactionContext): Promise<PaymentEventResult> {
     if (event.payload.billingReason === 'subscription_create') return this.confirmInitialPurchase(event, ctx);
     if (event.payload.billingReason === 'subscription_cycle') return this.confirmRenewal.execute(event, ctx);
-    return paymentEventResult.dead(PaymentEventResultCode.UNSUPPORTED_BILLING_REASON);
+    return paymentEventResult.dead(PaymentEventRejectionReason.UNSUPPORTED_BILLING_REASON);
   }
 
   private async confirmInitialPurchase(
     event: InvoicePaidEvent,
     ctx: PaymentsTransactionContext,
   ): Promise<PaymentEventResult> {
-    if (!event.payload.providerSubscriptionId)
-      return paymentEventResult.dead(PaymentEventResultCode.SUBSCRIPTION_REFERENCE_MISSING);
+    if (!event.payload.providerSubscriptionId) {
+      return paymentEventResult.dead(PaymentEventRejectionReason.SUBSCRIPTION_REFERENCE_MISSING);
+    }
     const payment = await this.findInitialPurchase(event, ctx);
-    if (!payment) return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND);
+    if (!payment) {
+      return paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_NOT_FOUND);
+    }
     const reconciliationConflict = this.findInitialReconciliationConflict(payment, event);
-    if (reconciliationConflict)
-      return paymentEventResult.dead(PaymentEventResultCode[reconciliationConflict]);
-    if (payment.status === PaymentStatus.SUCCEEDED) return paymentEventResult.successfulPayment(payment);
+    if (reconciliationConflict) {
+      return paymentEventResult.dead(PaymentEventRejectionReason[reconciliationConflict]);
+    }
+    if (payment.status === PaymentStatus.SUCCEEDED) {
+      return paymentEventResult.paymentConfirmed(payment);
+    }
 
-    if (![PaymentStatus.CREATED, PaymentStatus.PENDING].includes(payment.status))
-      return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
+    if (![PaymentStatus.CREATED, PaymentStatus.PENDING].includes(payment.status)) {
+      return paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_TERMINAL_STATE);
+    }
 
     const result = await this.payments.confirmSuccessfulPayment(
       {
@@ -61,22 +68,13 @@ export class ConfirmInvoicePaidUseCase {
       },
       ctx,
     );
-    if (result.outcome === 'SUCCEEDED') return paymentEventResult.successfulPayment(result.payment);
-    if (result.outcome === 'REFERENCE_CONFLICT') {
-      return paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT);
+    if (result.outcome === 'SUCCEEDED') {
+      return paymentEventResult.paymentConfirmed(result.payment);
     }
-    return this.reconcileUnchangedPayment(result.payment, event);
-  }
-
-  private reconcileUnchangedPayment(payment: Payment | null, event: InvoicePaidEvent): PaymentEventResult {
-    if (!payment) return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND);
-    const conflict = this.findInitialReconciliationConflict(payment, event);
-    if (conflict) return paymentEventResult.dead(PaymentEventResultCode[conflict]);
-    if (payment.status === PaymentStatus.SUCCEEDED) return paymentEventResult.successfulPayment(payment);
-    if ([PaymentStatus.FAILED, PaymentStatus.CANCELED].includes(payment.status))
-      return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
-    // A compatible pending Payment should have matched the conditional update. Retry the transaction.
-    throw new PaymentPersistenceError();
+    if (result.outcome === 'REFERENCE_CONFLICT') {
+      return paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT);
+    }
+    throw new PaymentConfirmationNotAppliedError(payment.id);
   }
 
   private async findInitialPurchase(
@@ -97,12 +95,15 @@ export class ConfirmInvoicePaidUseCase {
     payment: Payment,
     event: InvoicePaidEvent,
   ): PaymentReconciliationConflict | null {
-    if (payment.providerType !== event.provider) return PAYMENT_RECONCILIATION_CONFLICT.PROVIDER_MISMATCH;
+    if (payment.providerType.toLowerCase() !== event.provider.toLowerCase()) {
+      return PAYMENT_RECONCILIATION_CONFLICT.PROVIDER_MISMATCH;
+    }
     if (
       payment.type !== PaymentType.PURCHASE ||
       payment.checkoutPurpose !== CheckoutPurpose.INITIAL_SUBSCRIPTION
-    )
+    ) {
       return PAYMENT_RECONCILIATION_CONFLICT.PURPOSE_MISMATCH;
+    }
     return this.findFinancialOrReferenceConflict(payment, event);
   }
 
@@ -110,16 +111,19 @@ export class ConfirmInvoicePaidUseCase {
     payment: Payment,
     event: InvoicePaidEvent,
   ): PaymentReconciliationConflict | null {
-    if (payment.amount !== event.payload.amount) return PAYMENT_RECONCILIATION_CONFLICT.AMOUNT_MISMATCH;
-    if (payment.currency.toLowerCase() !== event.payload.currency.toLowerCase())
+    if (payment.amount !== event.payload.amount) {
+      return PAYMENT_RECONCILIATION_CONFLICT.AMOUNT_MISMATCH;
+    }
+    if (payment.currency.toLowerCase() !== event.payload.currency.toLowerCase()) {
       return PAYMENT_RECONCILIATION_CONFLICT.CURRENCY_MISMATCH;
+    }
     if (
       payment.providerCustomerId !== null &&
       event.payload.customerId !== null &&
       payment.providerCustomerId !== event.payload.customerId
-    )
+    ) {
       return PAYMENT_RECONCILIATION_CONFLICT.CUSTOMER_MISMATCH;
-
+    }
     return hasProviderReferenceConflict(
       [payment.providerPaymentId, event.payload.providerPaymentId],
       [payment.providerSubscriptionId, event.payload.providerSubscriptionId],

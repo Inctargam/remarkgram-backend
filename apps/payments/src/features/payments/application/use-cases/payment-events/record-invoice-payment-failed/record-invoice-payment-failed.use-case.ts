@@ -4,7 +4,7 @@ import type { InvoicePaymentFailedEvent } from '../../../events/payment-event.js
 import type { PaymentsTransactionContext } from '../../../ports/payments-unit-of-work.js';
 import { PaymentsRepository } from '../../../ports/payments.repository.js';
 import {
-  PaymentEventResultCode,
+  PaymentEventCompletionCode,
   paymentEventResult,
   type PaymentEventResult,
 } from '../payment-event-result.js';
@@ -20,8 +20,8 @@ export class RecordInvoicePaymentFailedUseCase {
   ): Promise<PaymentEventResult> {
     const payment = await this.findPayment(event, ctx);
     return payment
-      ? paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, payment.id)
-      : paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, null);
+      ? paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_FAILURE_RECORDED, payment.id)
+      : paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_FAILURE_RECORDED, null);
   }
 
   private async findPayment(

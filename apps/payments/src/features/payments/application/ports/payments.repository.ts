@@ -40,8 +40,8 @@ export type ConfirmSuccessfulPaymentCommand = {
 
 export type ConfirmSuccessfulPaymentUpdateResult =
   | { outcome: 'SUCCEEDED'; payment: Payment }
-  // Conditional update did not match; application reconciles the reread state in the same transaction.
-  | { outcome: 'NOT_UPDATED'; payment: Payment | null }
+  // Conditional update did not match; the application retries the entire financial step.
+  | { outcome: 'NOT_UPDATED' }
   | { outcome: 'REFERENCE_CONFLICT' };
 
 export type LinkPaymentSubscriptionCommand = {
@@ -75,7 +75,7 @@ export type CancelPendingPaymentUpdateResult =
   | { outcome: 'CANCELED' }
   | { outcome: 'INVALID_TRANSITION' | 'REFERENCE_CONFLICT' };
 
-export type CreateSuccessfulRenewalCommand = {
+export type EnsurePendingRenewalRepositoryParams = {
   userId: number;
   planId: number;
   amount: number;
@@ -83,27 +83,18 @@ export type CreateSuccessfulRenewalCommand = {
   periodCount: number;
   periodUnit: Payment['periodUnit'];
   providerType: PaymentProvider;
-  providerPaymentId: string | null;
   providerSubscriptionId: string;
   providerInvoiceId: string;
   providerCustomerId: string | null;
   subscriptionId: string;
-  paidAt: Date;
 };
 
-export type CreateSuccessfulRenewalResult =
-  | {
-      outcome: 'PERSISTED';
-      payment: Payment;
-    }
-  | { outcome: 'REFERENCE_CONFLICT' };
-
-export type EnsurePendingRenewalRepositoryParams = Omit<
-  CreateSuccessfulRenewalCommand,
-  'paidAt' | 'providerPaymentId'
->;
-
 export abstract class PaymentsRepository {
+  /**
+   * Возвращает Payment по provider + Invoice, создавая PENDING при отсутствии.
+   * Новая строка имеет paidAt=null и providerPaymentId=null; существующая не изменяется.
+   * Подтверждение invoice.paid выполняется отдельной условной записью в том же tx.
+   */
   abstract ensurePendingRenewal(
     params: EnsurePendingRenewalRepositoryParams,
     ctx: PaymentsTransactionContext,
@@ -152,9 +143,5 @@ export abstract class PaymentsRepository {
     command: CancelPendingPaymentCommand,
     ctx: PaymentsTransactionContext,
   ): Promise<CancelPendingPaymentUpdateResult>;
-  abstract createSuccessfulRenewal(
-    command: CreateSuccessfulRenewalCommand,
-    ctx: PaymentsTransactionContext,
-  ): Promise<CreateSuccessfulRenewalResult>;
   abstract markStatus(paymentId: string, status: PaymentStatus): Promise<void>;
 }

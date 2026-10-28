@@ -14,6 +14,7 @@ const RETRYABLE_PAYMENT_ERROR_CODES = new Set<PaymentsErrorCode>([
   PaymentsErrorCode.PAYMENT_SUBSCRIPTION_CONTEXT_FAILED,
   PaymentsErrorCode.PAYMENT_PLAN_UNAVAILABLE,
   PaymentsErrorCode.PAYMENT_PERSISTENCE_FAILED,
+  PaymentsErrorCode.PAYMENT_CONFIRMATION_NOT_APPLIED,
 ]);
 
 /**
@@ -28,9 +29,8 @@ export const classifyPaymentWorkflowError = (error: unknown): PaymentWorkflowAtt
   if (recorded) return recorded;
   if (error instanceof RenewalPaymentContextUnavailableError) {
     // Отсутствующие привязки могут появиться после обработки другого события.
-    // Отсутствие metadata или исчезновение Payment требуют reconciliation.
-    const requiresReconciliation =
-      error.reason === 'SOURCE_METADATA_MISSING' || error.reason === 'PAYMENT_DISAPPEARED';
+    // Отсутствие metadata требует reconciliation.
+    const requiresReconciliation = error.reason === 'SOURCE_METADATA_MISSING';
     return {
       disposition: requiresReconciliation ? 'RECONCILIATION_REQUIRED' : 'RETRY',
       failure: { code: `RENEWAL_${error.reason}`, message: `Renewal payment context: ${error.reason}` },

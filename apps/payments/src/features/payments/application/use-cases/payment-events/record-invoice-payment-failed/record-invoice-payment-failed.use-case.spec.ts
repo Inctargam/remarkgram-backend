@@ -3,7 +3,7 @@ import { PaymentEventKind } from '../../../../domain/payment-event-kind.js';
 import { type Payment, PaymentProvider, PaymentStatus } from '../../../../domain/payment.entity.js';
 import type { InvoicePaymentFailedEvent } from '../../../events/payment-event.js';
 import type { PaymentsRepository } from '../../../ports/payments.repository.js';
-import { PaymentEventResultCode, paymentEventResult } from '../payment-event-result.js';
+import { PaymentEventCompletionCode, paymentEventResult } from '../payment-event-result.js';
 import { RecordInvoicePaymentFailedUseCase } from './record-invoice-payment-failed.use-case.js';
 
 describe('RecordInvoicePaymentFailedUseCase', () => {
@@ -56,8 +56,11 @@ describe('RecordInvoicePaymentFailedUseCase', () => {
 });
 
 const PAYMENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const CORRELATED = paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, PAYMENT_ID);
-const UNCORRELATED = paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, null);
+const CORRELATED = paymentEventResult.completed(
+  PaymentEventCompletionCode.PAYMENT_FAILURE_RECORDED,
+  PAYMENT_ID,
+);
+const UNCORRELATED = paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_FAILURE_RECORDED, null);
 
 function repository() {
   return {

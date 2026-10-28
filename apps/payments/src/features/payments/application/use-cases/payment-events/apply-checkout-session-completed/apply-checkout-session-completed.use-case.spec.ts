@@ -8,7 +8,11 @@ import {
 import { PaymentEventKind } from '../../../../domain/payment-event-kind.js';
 import type { CheckoutSessionCompletedEvent } from '../../../events/payment-event.js';
 import type { PaymentsRepository } from '../../../ports/payments.repository.js';
-import { PaymentEventResultCode, paymentEventResult } from '../payment-event-result.js';
+import {
+  PaymentEventCompletionCode,
+  PaymentEventRejectionReason,
+  paymentEventResult,
+} from '../payment-event-result.js';
 import { ApplyCheckoutSessionCompletedUseCase } from './apply-checkout-session-completed.use-case.js';
 
 describe('ApplyCheckoutSessionCompletedUseCase', () => {
@@ -174,8 +178,8 @@ describe('ApplyCheckoutSessionCompletedUseCase', () => {
 });
 
 const PAYMENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const APPLIED = paymentEventResult.success(PaymentEventResultCode.CHECKOUT_COMPLETED, PAYMENT_ID);
-const REFERENCE_CONFLICT = paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT);
+const APPLIED = paymentEventResult.completed(PaymentEventCompletionCode.CHECKOUT_COMPLETED, PAYMENT_ID);
+const REFERENCE_CONFLICT = paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT);
 
 function repository() {
   return {

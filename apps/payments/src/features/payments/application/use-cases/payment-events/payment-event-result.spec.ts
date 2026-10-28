@@ -8,35 +8,37 @@ import {
   PaymentType,
 } from '../../../domain/payment.entity.js';
 import {
-  PaymentEventResultCode,
-  PaymentEventResultStatus,
+  PaymentEventCompletionCode,
+  PaymentEventRejectionReason,
+  PaymentEventOutcome,
+  PaymentEventRejectionDisposition,
   paymentEventResult,
 } from './payment-event-result.js';
 
 describe('paymentEventResult', () => {
-  it('creates the three normalized processing states', () => {
-    expect(paymentEventResult.success(PaymentEventResultCode.PAYMENT_CANCELED, 'payment-id')).toEqual({
-      status: PaymentEventResultStatus.SUCCESS,
-      code: PaymentEventResultCode.PAYMENT_CANCELED,
+  it('separates completed processing from rejected events and their disposition', () => {
+    expect(paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_CANCELED, 'payment-id')).toEqual({
+      outcome: PaymentEventOutcome.COMPLETED,
+      code: PaymentEventCompletionCode.PAYMENT_CANCELED,
       paymentId: 'payment-id',
     });
-    expect(paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND)).toEqual({
-      status: PaymentEventResultStatus.IGNORED,
-      code: PaymentEventResultCode.PAYMENT_NOT_FOUND,
+    expect(paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_NOT_FOUND)).toEqual({
+      outcome: PaymentEventOutcome.REJECTED,
+      disposition: PaymentEventRejectionDisposition.IGNORED,
+      reason: PaymentEventRejectionReason.PAYMENT_NOT_FOUND,
     });
-    expect(paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT)).toEqual({
-      status: PaymentEventResultStatus.DEAD,
-      code: PaymentEventResultCode.REFERENCE_CONFLICT,
+    expect(paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT)).toEqual({
+      outcome: PaymentEventOutcome.REJECTED,
+      disposition: PaymentEventRejectionDisposition.DEAD,
+      reason: PaymentEventRejectionReason.REFERENCE_CONFLICT,
     });
   });
 
   it('creates the durable continuation payload for a successful Payment', () => {
     const payment = successfulPayment();
 
-    expect(paymentEventResult.successfulPayment(payment)).toEqual({
-      status: PaymentEventResultStatus.SUCCESS,
-      code: PaymentEventResultCode.PAYMENT_SUCCEEDED,
-      paymentId: 'payment-id',
+    expect(paymentEventResult.paymentConfirmed(payment)).toEqual({
+      outcome: PaymentEventOutcome.PAYMENT_CONFIRMED,
       payment: {
         paymentId: 'payment-id',
         userId: 10,

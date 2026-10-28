@@ -19,7 +19,11 @@ import {
 } from '../../../domain/payment.entity.js';
 import { Currency, PeriodUnit } from '../../../../plans/domain/plan.entity.js';
 import type { PaymentEvent } from '../../events/payment-event.js';
-import { PaymentEventResultCode, paymentEventResult } from '../payment-events/payment-event-result.js';
+import {
+  PaymentEventCompletionCode,
+  PaymentEventRejectionReason,
+  paymentEventResult,
+} from '../payment-events/payment-event-result.js';
 
 describe('ApplyPaymentEventUseCase', () => {
   const events = eventRepository();
@@ -63,12 +67,22 @@ describe('ApplyPaymentEventUseCase', () => {
       providerEventType: 'invoice.finalized',
       providerCreatedAt: new Date(),
       paymentId: null,
-      payload: { providerInvoiceId: 'in_cycle', providerSubscriptionId: 'sub_test', customerId: null,
-        billingReason: 'subscription_cycle', amount: 100, currency: 'usd' },
+      payload: {
+        providerInvoiceId: 'in_cycle',
+        providerSubscriptionId: 'sub_test',
+        customerId: null,
+        billingReason: 'subscription_cycle',
+        amount: 100,
+        currency: 'usd',
+      },
     };
-    renewalEnsured.execute.mockResolvedValue(paymentEventResult.success(PaymentEventResultCode.RENEWAL_ENSURED, PAYMENT_ID));
+    renewalEnsured.execute.mockResolvedValue(
+      paymentEventResult.completed(PaymentEventCompletionCode.RENEWAL_ENSURED, PAYMENT_ID),
+    );
     const result = await useCase.execute({ eventId: 'webhook-id', event }, ctx);
-    expect(result.code).toBe(PaymentEventResultCode.RENEWAL_ENSURED);
+    expect(result).toEqual(
+      paymentEventResult.completed(PaymentEventCompletionCode.RENEWAL_ENSURED, PAYMENT_ID),
+    );
     expect(renewalEnsured.execute).toHaveBeenCalledWith(event, ctx);
     expect(events.attachPayment).toHaveBeenCalledWith('webhook-id', PAYMENT_ID, ctx);
     expect(events.markProcessed).toHaveBeenCalledWith('webhook-id', ctx);
@@ -77,11 +91,11 @@ describe('ApplyPaymentEventUseCase', () => {
   it('applies checkout completion and finishes the webhook', async () => {
     const event = checkoutCompletedEvent();
     checkoutCompleted.execute.mockResolvedValue(
-      paymentEventResult.success(PaymentEventResultCode.CHECKOUT_COMPLETED, PAYMENT_ID),
+      paymentEventResult.completed(PaymentEventCompletionCode.CHECKOUT_COMPLETED, PAYMENT_ID),
     );
 
     await expect(useCase.execute({ eventId: 'webhook-id', event }, ctx)).resolves.toEqual(
-      paymentEventResult.success(PaymentEventResultCode.CHECKOUT_COMPLETED, PAYMENT_ID),
+      paymentEventResult.completed(PaymentEventCompletionCode.CHECKOUT_COMPLETED, PAYMENT_ID),
     );
 
     expect(checkoutCompleted.execute).toHaveBeenCalledWith(event, ctx);
@@ -90,10 +104,10 @@ describe('ApplyPaymentEventUseCase', () => {
 
   it('returns a successful Payment for the next durable step without completing the webhook', async () => {
     const event = paymentIntentSucceededEvent();
-    paymentSucceeded.execute.mockResolvedValue(paymentEventResult.successfulPayment(successfulPayment()));
+    paymentSucceeded.execute.mockResolvedValue(paymentEventResult.paymentConfirmed(successfulPayment()));
 
     await expect(useCase.execute({ eventId: 'webhook-id', event }, ctx)).resolves.toEqual(
-      paymentEventResult.successfulPayment(successfulPayment()),
+      paymentEventResult.paymentConfirmed(successfulPayment()),
     );
 
     expect(paymentSucceeded.execute).toHaveBeenCalledWith(event, ctx);
@@ -103,7 +117,7 @@ describe('ApplyPaymentEventUseCase', () => {
   it('attaches a correlated failed attempt without changing Payment lifecycle', async () => {
     const event = paymentIntentFailedEvent();
     paymentFailed.execute.mockResolvedValue(
-      paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, PAYMENT_ID),
+      paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_FAILURE_RECORDED, PAYMENT_ID),
     );
 
     await useCase.execute({ eventId: 'webhook-id', event }, ctx);
@@ -115,7 +129,7 @@ describe('ApplyPaymentEventUseCase', () => {
   it('completes a canceled PaymentIntent and attaches its Payment atomically', async () => {
     const event = paymentIntentCanceledEvent();
     paymentCanceled.execute.mockResolvedValue(
-      paymentEventResult.success(PaymentEventResultCode.PAYMENT_CANCELED, PAYMENT_ID),
+      paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_CANCELED, PAYMENT_ID),
     );
 
     await useCase.execute({ eventId: 'webhook-id', event }, ctx);
@@ -140,7 +154,7 @@ describe('ApplyPaymentEventUseCase', () => {
       },
     };
     invoiceVoided.execute.mockResolvedValue(
-      paymentEventResult.success(PaymentEventResultCode.PAYMENT_CANCELED, PAYMENT_ID),
+      paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_CANCELED, PAYMENT_ID),
     );
 
     await useCase.execute({ eventId: 'webhook-id', event }, ctx);
@@ -150,9 +164,30 @@ describe('ApplyPaymentEventUseCase', () => {
     expect(events.markProcessed).toHaveBeenCalledWith('webhook-id', ctx);
   });
 
+  it('records an ignored rejection reason without processing the webhook or requesting D2', async () => {
+    checkoutCompleted.execute.mockResolvedValue(
+      paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_NOT_FOUND),
+    );
+
+    await expect(
+      useCase.execute({ eventId: 'webhook-id', event: checkoutCompletedEvent() }, ctx),
+    ).resolves.toEqual(paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_NOT_FOUND));
+
+    expect(events.markIgnored).toHaveBeenCalledWith(
+      'webhook-id',
+      {
+        code: 'PAYMENT_NOT_FOUND',
+        message: 'Payment event processing result: PAYMENT_NOT_FOUND',
+      },
+      ctx,
+    );
+    expect(events.markProcessed).not.toHaveBeenCalled();
+    expect(events.markDead).not.toHaveBeenCalled();
+  });
+
   it('marks a reconciliation conflict as dead', async () => {
     checkoutCompleted.execute.mockResolvedValue(
-      paymentEventResult.dead(PaymentEventResultCode.AMOUNT_MISMATCH),
+      paymentEventResult.dead(PaymentEventRejectionReason.AMOUNT_MISMATCH),
     );
 
     await useCase.execute({ eventId: 'webhook-id', event: checkoutCompletedEvent() }, ctx);

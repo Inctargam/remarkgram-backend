@@ -1,9 +1,12 @@
+import { PaymentConfirmationNotAppliedError } from '../../application/errors/payment-confirmation-not-applied.error.js';
 import { RenewalPaymentContextUnavailableError } from '../../application/errors/renewal-payment-context-unavailable.error.js';
 import { PaymentWorkflowAttemptError } from './payment-workflow-attempt.error.js';
 import { classifyPaymentWorkflowError } from './payment-workflow-error.policy.js';
 import type * as DbosSdk from '@dbos-inc/dbos-sdk';
 import { Logger } from '@nestjs/common';
 
+// Тестовый двойник DBOS: задаёт контекст и запоминает вызовы без запуска DBOS и реальных задержек.
+// vi.hoisted создаёт его до загрузки импортов, чтобы он был доступен при подмене модуля.
 const dbosMock = vi.hoisted(() => ({
   workflowID: 'payment-webhook:STRIPE:evt_test',
   stepStatus: { currentAttempt: 1 },
@@ -16,6 +19,7 @@ const dbosMock = vi.hoisted(() => ({
   sleepSeconds: vi.fn(),
 }));
 
+// Частичная подмена модуля: сохраняем остальные экспорты SDK, заменяя DBOS и его базовый класс.
 vi.mock('@dbos-inc/dbos-sdk', async (importOriginal) => ({
   ...(await importOriginal<typeof DbosSdk>()),
   ConfiguredInstance: class ConfiguredInstance {},
@@ -31,8 +35,8 @@ import type { CreateDeferredProviderSubscriptionUseCase } from '../../applicatio
 import type { LinkPaymentToSubscriptionUseCase } from '../../application/use-cases/process-payment-webhook/link-payment-to-subscription.use-case.js';
 import type { ScheduleProviderSubscriptionCancellationUseCase } from '../../application/use-cases/process-payment-webhook/schedule-provider-subscription-cancellation.use-case.js';
 import {
-  PaymentEventResultCode,
-  PaymentEventResultStatus,
+  PaymentEventCompletionCode,
+  PaymentEventOutcome,
   paymentEventResult,
 } from '../../application/use-cases/payment-events/payment-event-result.js';
 import { Currency, PeriodUnit } from '../../../plans/domain/plan.entity.js';
@@ -66,8 +70,8 @@ describe('DbosPaymentWebhookWorkflow', () => {
   const workflow = new DbosPaymentWebhookWorkflow(
     dataSource as unknown as PaymentsDbosDataSource,
     events,
-    applyPaymentEvent as ApplyPaymentEventUseCase,
-    linkPaymentToSubscription as LinkPaymentToSubscriptionUseCase,
+    applyPaymentEvent as unknown as ApplyPaymentEventUseCase,
+    linkPaymentToSubscription as unknown as LinkPaymentToSubscriptionUseCase,
     scheduleProviderSubscriptionCancellation as unknown as ScheduleProviderSubscriptionCancellationUseCase,
     createDeferredProviderSubscription as unknown as CreateDeferredProviderSubscriptionUseCase,
   );
@@ -83,7 +87,7 @@ describe('DbosPaymentWebhookWorkflow', () => {
     events.markDead.mockResolvedValue();
     events.markReconciliationRequired.mockResolvedValue();
     applyPaymentEvent.execute.mockResolvedValue(
-      paymentEventResult.success(PaymentEventResultCode.CHECKOUT_COMPLETED, null),
+      paymentEventResult.completed(PaymentEventCompletionCode.CHECKOUT_COMPLETED, null),
     );
     linkPaymentToSubscription.execute.mockResolvedValue({ outcome: 'FINISHED' });
     scheduleProviderSubscriptionCancellation.recordScheduled.mockResolvedValue();
@@ -149,9 +153,7 @@ describe('DbosPaymentWebhookWorkflow', () => {
 
   it('carries a successful payment across the step boundary before completing the webhook', async () => {
     applyPaymentEvent.execute.mockResolvedValue({
-      status: PaymentEventResultStatus.SUCCESS,
-      code: PaymentEventResultCode.PAYMENT_SUCCEEDED,
-      paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      outcome: PaymentEventOutcome.PAYMENT_CONFIRMED,
       payment: {
         paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         userId: 10,
@@ -237,6 +239,39 @@ describe('DbosPaymentWebhookWorkflow', () => {
     expect(applyPaymentEvent.execute).toHaveBeenCalledTimes(2);
   });
 
+  it('retries an unapplied confirmation before requesting D2', async () => {
+    applyPaymentEvent.execute
+      .mockRejectedValueOnce(new PaymentConfirmationNotAppliedError('payment-id'))
+      .mockResolvedValueOnce({
+        outcome: PaymentEventOutcome.PAYMENT_CONFIRMED,
+        payment: successfulPayment(),
+      });
+    await expect(workflow.process(paymentEvent())).resolves.toBeUndefined();
+    expect(applyPaymentEvent.execute).toHaveBeenCalledTimes(2);
+    expect(events.markRetrying).toHaveBeenCalledWith(
+      'webhook-id',
+      expect.objectContaining({ code: 'PAYMENT_CONFIRMATION_NOT_APPLIED' }),
+      dataSource.client,
+    );
+    expect(dbosMock.sleepSeconds).toHaveBeenCalledExactlyOnceWith(10);
+    expect(linkPaymentToSubscription.execute).toHaveBeenCalledOnce();
+  });
+
+  it('requires reconciliation after the confirmation retry limit without applying D2', async () => {
+    applyPaymentEvent.execute.mockRejectedValue(new PaymentConfirmationNotAppliedError('payment-id'));
+    await expect(workflow.process(paymentEvent())).resolves.toBeUndefined();
+    expect(applyPaymentEvent.execute).toHaveBeenCalledTimes(10);
+    expect(events.markReconciliationRequired).toHaveBeenCalledWith(
+      'webhook-id',
+      {
+        code: 'PAYMENT_APPLICATION_RETRIES_EXHAUSTED',
+        message: 'applyPaymentWebhook: exhausted 10 attempts; last failure: PAYMENT_CONFIRMATION_NOT_APPLIED',
+      },
+      dataSource.client,
+    );
+    expect(linkPaymentToSubscription.execute).not.toHaveBeenCalled();
+  });
+
   it.each(['SOURCE_PAYMENT_NOT_FOUND', 'SOURCE_NOT_LINKED'] as const)(
     'retries temporary renewal context failure %s',
     async (reason) => {
@@ -255,7 +290,7 @@ describe('DbosPaymentWebhookWorkflow', () => {
     },
   );
 
-  it.each(['SOURCE_METADATA_MISSING', 'PAYMENT_DISAPPEARED'] as const)(
+  it.each(['SOURCE_METADATA_MISSING'] as const)(
     'requires reconciliation without retry for %s',
     async (reason) => {
       applyPaymentEvent.execute.mockRejectedValueOnce(
@@ -345,9 +380,7 @@ describe('DbosPaymentWebhookWorkflow', () => {
   it('retries Subscription application without repeating financial reconciliation', async () => {
     const payment = successfulPayment();
     applyPaymentEvent.execute.mockResolvedValue({
-      status: PaymentEventResultStatus.SUCCESS,
-      code: PaymentEventResultCode.PAYMENT_SUCCEEDED,
-      paymentId: payment.paymentId,
+      outcome: PaymentEventOutcome.PAYMENT_CONFIRMED,
       payment,
     });
     linkPaymentToSubscription.execute.mockRejectedValueOnce(new Error('database unavailable'));
@@ -375,9 +408,7 @@ describe('DbosPaymentWebhookWorkflow', () => {
   it('retries local binding for SCHEDULED without repeating successful provider steps', async () => {
     const payment = successfulPayment();
     applyPaymentEvent.execute.mockResolvedValue({
-      status: PaymentEventResultStatus.SUCCESS,
-      code: PaymentEventResultCode.PAYMENT_SUCCEEDED,
-      paymentId: payment.paymentId,
+      outcome: PaymentEventOutcome.PAYMENT_CONFIRMED,
       payment,
     });
     const scheduled = {

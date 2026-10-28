@@ -4,7 +4,8 @@ import type { PaymentIntentCanceledEvent } from '../../../events/payment-event.j
 import type { PaymentsTransactionContext } from '../../../ports/payments-unit-of-work.js';
 import { PaymentsRepository } from '../../../ports/payments.repository.js';
 import {
-  PaymentEventResultCode,
+  PaymentEventCompletionCode,
+  PaymentEventRejectionReason,
   paymentEventResult,
   type PaymentEventResult,
 } from '../payment-event-result.js';
@@ -21,23 +22,23 @@ export class CancelPaymentIntentUseCase {
     const payment = event.paymentId
       ? await this.payments.findById(event.paymentId, ctx)
       : await this.payments.findByProviderPaymentId(event.provider, event.payload.id, ctx);
-    if (!payment) return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND);
+    if (!payment) return paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_NOT_FOUND);
     if (payment.providerType !== event.provider)
-      return paymentEventResult.dead(PaymentEventResultCode.PROVIDER_MISMATCH);
+      return paymentEventResult.dead(PaymentEventRejectionReason.PROVIDER_MISMATCH);
     if (
       payment.type !== PaymentType.PURCHASE ||
       payment.checkoutPurpose !== CheckoutPurpose.SUBSCRIPTION_EXTENSION
     )
-      return paymentEventResult.ignored(PaymentEventResultCode.INELIGIBLE_PAYMENT);
+      return paymentEventResult.ignored(PaymentEventRejectionReason.INELIGIBLE_PAYMENT);
     if (
       hasProviderReferenceConflict([payment.providerPaymentId, event.payload.id]) ||
       hasProviderReferenceConflict([payment.providerCustomerId, event.payload.customerId])
     )
-      return paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT);
+      return paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT);
     if (payment.status === PaymentStatus.CANCELED)
-      return paymentEventResult.success(PaymentEventResultCode.PAYMENT_CANCELED, payment.id);
+      return paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_CANCELED, payment.id);
     if (![PaymentStatus.CREATED, PaymentStatus.PENDING].includes(payment.status))
-      return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
+      return paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_TERMINAL_STATE);
 
     const result = await this.payments.cancelPendingPayment(
       {
@@ -48,9 +49,9 @@ export class CancelPaymentIntentUseCase {
       ctx,
     );
     return result.outcome === 'CANCELED'
-      ? paymentEventResult.success(PaymentEventResultCode.PAYMENT_CANCELED, payment.id)
+      ? paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_CANCELED, payment.id)
       : result.outcome === 'REFERENCE_CONFLICT'
-        ? paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT)
-        : paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_TERMINAL_STATE);
+        ? paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT)
+        : paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_TERMINAL_STATE);
   }
 }

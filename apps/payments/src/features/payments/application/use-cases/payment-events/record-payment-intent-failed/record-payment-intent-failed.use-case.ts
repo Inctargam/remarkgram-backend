@@ -3,7 +3,8 @@ import type { PaymentIntentPaymentFailedEvent } from '../../../events/payment-ev
 import type { PaymentsTransactionContext } from '../../../ports/payments-unit-of-work.js';
 import { PaymentsRepository } from '../../../ports/payments.repository.js';
 import {
-  PaymentEventResultCode,
+  PaymentEventCompletionCode,
+  PaymentEventRejectionReason,
   paymentEventResult,
   type PaymentEventResult,
 } from '../payment-event-result.js';
@@ -22,13 +23,13 @@ export class RecordPaymentIntentFailedUseCase {
       : await this.payments.findByProviderPaymentId(event.provider, event.payload.id, ctx);
 
     if (!payment) {
-      return paymentEventResult.ignored(PaymentEventResultCode.PAYMENT_NOT_FOUND);
+      return paymentEventResult.ignored(PaymentEventRejectionReason.PAYMENT_NOT_FOUND);
     }
     if (payment.providerType !== event.provider)
-      return paymentEventResult.dead(PaymentEventResultCode.PROVIDER_MISMATCH);
+      return paymentEventResult.dead(PaymentEventRejectionReason.PROVIDER_MISMATCH);
     if (hasProviderReferenceConflict([payment.providerPaymentId, event.payload.id]))
-      return paymentEventResult.dead(PaymentEventResultCode.REFERENCE_CONFLICT);
+      return paymentEventResult.dead(PaymentEventRejectionReason.REFERENCE_CONFLICT);
 
-    return paymentEventResult.success(PaymentEventResultCode.PAYMENT_FAILURE_RECORDED, payment.id);
+    return paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_FAILURE_RECORDED, payment.id);
   }
 }
