@@ -1,4 +1,3 @@
-import type { FindActiveSubscriptionResult } from '../../application/types/subscriptions.types.js';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../../database/prisma.service.js';
 import { MultipleActiveSubscriptionsError } from '../../application/errors/multiple-active-subscriptions.error.js';
@@ -10,7 +9,7 @@ export class PrismaSubscriptionsQueryRepository extends SubscriptionsQueryReposi
     super();
   }
 
-  async findActiveByUserId(userId: number): Promise<FindActiveSubscriptionResult | null> {
+  async hasActiveByUserId(userId: number): Promise<boolean> {
     const now = new Date();
     const subscriptions = await this.prisma.subscription.findMany({
       where: {
@@ -29,7 +28,6 @@ export class PrismaSubscriptionsQueryRepository extends SubscriptionsQueryReposi
       throw new MultipleActiveSubscriptionsError(userId);
     }
 
-    const subscription = subscriptions[0];
-    return subscription ? { subscriptionId: subscription.id } : null;
+    return subscriptions.length === 1;
   }
 }

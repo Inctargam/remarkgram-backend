@@ -4,10 +4,8 @@ import type {
   CreateSubscriptionRepositoryParams,
   RenewSubscriptionRepositoryParams,
   SetSubscriptionAutoRenewalRepositoryParams,
-  CompleteProviderSubscriptionCancellationRepositoryParams,
   SubscriptionPaymentApplication,
   SubscriptionForPayment,
-  AutoRenewalOperation,
 } from '../types/subscriptions.types.js';
 
 export abstract class SubscriptionsRepository {
@@ -18,20 +16,10 @@ export abstract class SubscriptionsRepository {
    */
   abstract lockByUserId(userId: number, tx: PaymentsTransactionContext): Promise<void>;
 
-  /** Текущий D1-контракт не передаёт paymentId; максимум две записи для обнаружения неоднозначности. */
-  abstract findCancellationOperations(
-    subscriptionId: string,
-    providerSubscriptionId: string,
-    tx: PaymentsTransactionContext,
-  ): Promise<AutoRenewalOperation[]>;
+  /** Атомарно сохраняет RETIRED старой связи и BINDING_PENDING операции через переданный tx. */
+  abstract confirmAutoRenewalCancellation(operationId: string, tx: PaymentsTransactionContext): Promise<void>;
 
-  /** Атомарно фиксирует отключение старой связи и следующий этап операции через переданный tx. */
-  abstract completeProviderSubscriptionCancellation(
-    params: CompleteProviderSubscriptionCancellationRepositoryParams,
-    tx: PaymentsTransactionContext,
-  ): Promise<void>;
-
-  /** Сохраняет привязку, её снимок и завершение операции, не меняя даты доступа. */
+  /** Сохраняет привязку и её снимок, ENABLED подписки и COMPLETED операции, не меняя даты доступа. */
   abstract bindProviderSubscription(
     params: BindProviderSubscriptionRepositoryParams,
     tx: PaymentsTransactionContext,

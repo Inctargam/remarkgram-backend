@@ -3,17 +3,17 @@ import type { PrismaService } from '../../../../database/prisma.service.js';
 import { MultipleActiveSubscriptionsError } from '../../application/errors/multiple-active-subscriptions.error.js';
 import { PrismaSubscriptionsQueryRepository } from './prisma-subscriptions-query.repository.js';
 
-describe('PrismaSubscriptionsQueryRepository.findActiveByUserId', () => {
+describe('PrismaSubscriptionsQueryRepository.hasActiveByUserId', () => {
   afterEach(() => vi.useRealTimers());
 
   it.each([
-    [[], null],
-    [[{ id: 'subscription-id' }], { subscriptionId: 'subscription-id' }],
-  ] as const)('returns the D1 subscription context for %j', async (rows, expected) => {
+    [[], false],
+    [[{ id: 'subscription-id' }], true],
+  ] as const)('returns whether current access exists for %j', async (rows, expected) => {
     const { repository, findMany } = fixture();
     findMany.mockResolvedValue(rows);
 
-    await expect(repository.findActiveByUserId(42)).resolves.toEqual(expected);
+    await expect(repository.hasActiveByUserId(42)).resolves.toEqual(expected);
   });
 
   it('includes a started PENDING period and excludes future or expired access by dates', async () => {
@@ -22,7 +22,7 @@ describe('PrismaSubscriptionsQueryRepository.findActiveByUserId', () => {
     vi.setSystemTime(now);
     const { repository, findMany } = fixture();
 
-    await repository.findActiveByUserId(42);
+    await repository.hasActiveByUserId(42);
 
     expect(findMany).toHaveBeenCalledExactlyOnceWith({
       where: {
@@ -40,15 +40,15 @@ describe('PrismaSubscriptionsQueryRepository.findActiveByUserId', () => {
     const { repository, findMany } = fixture();
     findMany.mockResolvedValue([{ id: 'first' }, { id: 'second' }]);
 
-    await expect(repository.findActiveByUserId(42)).rejects.toBeInstanceOf(MultipleActiveSubscriptionsError);
+    await expect(repository.hasActiveByUserId(42)).rejects.toBeInstanceOf(MultipleActiveSubscriptionsError);
   });
 
-  it('propagates a read failure rather than returning null', async () => {
+  it('propagates a read failure rather than returning false', async () => {
     const { repository, findMany } = fixture();
     const error = new Error('database unavailable');
     findMany.mockRejectedValue(error);
 
-    await expect(repository.findActiveByUserId(42)).rejects.toBe(error);
+    await expect(repository.hasActiveByUserId(42)).rejects.toBe(error);
   });
 });
 

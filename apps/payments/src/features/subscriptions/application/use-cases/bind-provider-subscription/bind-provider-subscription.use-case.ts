@@ -2,14 +2,12 @@ import { Command, CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import type { PaymentsTransactionContext } from '../../../../payments/application/ports/payments-unit-of-work.js';
 import { AutoRenewalOperationStatus } from '../../../domain/enums/auto-renewal-operation-status.enum.js';
 import { AutoRenewalOperationType } from '../../../domain/enums/auto-renewal-operation-type.enum.js';
-import { AutoRenewalStatus } from '../../../domain/enums/auto-renewal-status.enum.js';
 import { SubscriptionBindingConflictError } from '../../errors/subscription-binding-conflict.error.js';
 import { SubscriptionsRepository } from '../../ports/subscriptions.repository.js';
 
 export class BindProviderSubscriptionCommand extends Command<void> {
   constructor(
     public readonly paymentId: string,
-    public readonly subscriptionId: string,
     public readonly providerSubscriptionId: string,
     public readonly tx: PaymentsTransactionContext,
   ) {
@@ -22,7 +20,7 @@ export class BindProviderSubscriptionUseCase implements ICommandHandler<BindProv
   constructor(private readonly subscriptionsRepository: SubscriptionsRepository) {}
 
   async execute(command: BindProviderSubscriptionCommand) {
-    const { paymentId, subscriptionId, providerSubscriptionId, tx } = command;
+    const { paymentId, providerSubscriptionId, tx } = command;
     const owner = await this.subscriptionsRepository.findPaymentApplication(paymentId, tx);
     if (!owner) {
       throw new SubscriptionBindingConflictError(paymentId, providerSubscriptionId, 'APPLICATION_NOT_FOUND');
@@ -34,7 +32,6 @@ export class BindProviderSubscriptionUseCase implements ICommandHandler<BindProv
     if (
       !application ||
       application.result.action !== 'SCHEDULED' ||
-      application.result.subscriptionId !== subscriptionId ||
       !operation ||
       operation.type !== AutoRenewalOperationType.TRANSFER
     ) {
@@ -61,10 +58,7 @@ export class BindProviderSubscriptionUseCase implements ICommandHandler<BindProv
     await this.subscriptionsRepository.bindProviderSubscription(
       {
         operationId: operation.id,
-        paymentId,
         providerSubscriptionId,
-        autoRenewalStatus: AutoRenewalStatus.ENABLED,
-        status: AutoRenewalOperationStatus.COMPLETED,
       },
       tx,
     );

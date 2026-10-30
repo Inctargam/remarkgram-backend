@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AutoRenewalStatus } from '../../../domain/enums/auto-renewal-status.enum.js';
 import { AutoRenewalOperationStatus } from '../../../domain/enums/auto-renewal-operation-status.enum.js';
 import type { SubscriptionsRepository } from '../../ports/subscriptions.repository.js';
 import { PaymentProvider } from '../../../../payments/domain/payment.entity.js';
@@ -22,15 +21,12 @@ describe('BindProviderSubscriptionUseCase', () => {
     expect(repository.bindProviderSubscription).toHaveBeenCalledExactlyOnceWith(
       {
         operationId: command.paymentId,
-        paymentId: command.paymentId,
         providerSubscriptionId: command.providerSubscriptionId,
-        autoRenewalStatus: AutoRenewalStatus.ENABLED,
-        status: AutoRenewalOperationStatus.COMPLETED,
       },
       command.tx,
     );
     expect(repository.setAutoRenewalState).not.toHaveBeenCalled();
-    expect(repository.completeProviderSubscriptionCancellation).not.toHaveBeenCalled();
+    expect(repository.confirmAutoRenewalCancellation).not.toHaveBeenCalled();
   });
 
   it('replays from the completed snapshot after later auto-renewal changes without reading subscriptions', async () => {
@@ -85,16 +81,6 @@ describe('BindProviderSubscriptionUseCase', () => {
   it.each(['CREATED', 'RENEWED'] as const)('rejects %s even with the same completed provider ID', async (action) => {
     const { useCase, command, repository, application, operation } = fixture();
     application.result.action = action;
-    operation.status = AutoRenewalOperationStatus.COMPLETED;
-    operation.providerSubscriptionId = command.providerSubscriptionId;
-
-    await expect(useCase.execute(command)).rejects.toMatchObject({ reason: 'BINDING_APPLICATION_MISMATCH' });
-    expect(repository.bindProviderSubscription).not.toHaveBeenCalled();
-  });
-
-  it('checks the local subscription ID required by the current D1 contract', async () => {
-    const { useCase, command, repository, application, operation } = fixture();
-    application.result.subscriptionId = 'other-subscription';
     operation.status = AutoRenewalOperationStatus.COMPLETED;
     operation.providerSubscriptionId = command.providerSubscriptionId;
 
@@ -185,13 +171,12 @@ function fixture() {
     },
   };
   const repository = {
-    findCancellationOperations: vi.fn<SubscriptionsRepository['findCancellationOperations']>(),
     lockByUserId: vi.fn<SubscriptionsRepository['lockByUserId']>().mockResolvedValue(),
     findPaymentApplication: vi
       .fn<SubscriptionsRepository['findPaymentApplication']>()
       .mockResolvedValue(application),
-    completeProviderSubscriptionCancellation: vi
-      .fn<SubscriptionsRepository['completeProviderSubscriptionCancellation']>()
+    confirmAutoRenewalCancellation: vi
+      .fn<SubscriptionsRepository['confirmAutoRenewalCancellation']>()
       .mockResolvedValue(),
     bindProviderSubscription: vi.fn<SubscriptionsRepository['bindProviderSubscription']>().mockResolvedValue(),
     findByUserId: vi.fn<SubscriptionsRepository['findByUserId']>(),
@@ -204,7 +189,7 @@ function fixture() {
     repository,
     application,
     operation,
-    command: new BindProviderSubscriptionCommand('payment-id', 'new-subscription', 'sub_new', {}),
+    command: new BindProviderSubscriptionCommand('payment-id', 'sub_new', {}),
     useCase: new BindProviderSubscriptionUseCase(repository),
   };
 }
