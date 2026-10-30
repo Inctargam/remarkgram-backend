@@ -33,8 +33,8 @@ persistence непосредственно из D1 workflow.
 
 `LocalSubscriptionContextAdapter` вызывает D2 query handler через `QueryBus`. Репозиторий
 читает подписку пользователя со статусом `ACTIVE` или `PENDING`, для которой
-`startsAt <= now < expiresAt`; текущий query возвращает ID или null, а при нескольких совпадениях — ошибку.
-D2 должен адаптировать результат к boolean-порту hasActiveSubscription.
+`startsAt <= now < expiresAt`; query возвращает boolean-признак наличия подписки,
+а при нескольких совпадениях — ошибку.
 Для работы нужна применённая миграция подписок.
 `LocalSubscriptionPaymentHandlerAdapter.applySuccessfulPayment` передаёт команду через `CommandBus`
 в `ApplySuccessfulPaymentUseCase`. После блокировки по пользователю use case читает сохранённый
@@ -49,10 +49,12 @@ RENEWAL находит подписку пользователя по provider +
 от текущего expiresAt без изменения настройки автопродления. Повтор каждого action возвращает
 сохранённый результат; все изменения используют переданную транзакцию и блокировку по userId.
 Подробные правила и ограничения приведены в карточке 2 `d2-method-cards.md`.
-`confirmAutoRenewalCancellation` должен через сохранённую операцию переводить
-старую подписку из DISABLING в RETIRED, повтор не меняет состояние.
-`bindProviderSubscription` должен по paymentId находить применение SCHEDULED и связанную TRANSFER-операцию, сохранять новый
-provider ID и завершает ENABLING → ENABLED. Поздний replay не меняет настройки автопродления.
+`confirmAutoRenewalCancellation` находит применение SCHEDULED и TRANSFER по paymentId,
+берёт lock пользователя и перечитывает операцию. После сверки старого provider ID переводит
+старую подписку в RETIRED, операцию — в BINDING_PENDING; повтор не меняет состояние.
+`bindProviderSubscription` находит ту же операцию по paymentId, сохраняет новый provider ID
+и завершает ENABLING → ENABLED вместе с переходом операции в COMPLETED.
+Поздний replay не меняет настройки автопродления.
 События Business-доступа ещё не публикуются.
 
 Рекомендуемая декомпозиция внутри D2:
@@ -222,8 +224,8 @@ workflow не использует это поле как billing anchor. D2 в�
 D1 вызывает `recordScheduled` после внешнего подтверждения `cancel_at_period_end=true`.
 Аргументы: `paymentId`, старый `providerSubscriptionId`, общий `tx`.
 
-- Найти SCHEDULED-применение и AutoRenewalOperation типа TRANSFER по paymentId,
-  сверить sourceProviderSubscriptionId, взять lock пользователя и повторить чтение.
+- Получить владельца применения по paymentId, взять lock пользователя и перечитать применение с операцией.
+  Под блокировкой требовать SCHEDULED и TRANSFER, сверить sourceProviderSubscriptionId.
   Отсутствие или несовпадение — конфликт.
 - Требовать сохранённую sourceSubscriptionId. Ошибка — SubscriptionCancellationConflictError.
 - При PENDING одной nested-записью сохранить старой подписке RETIRED, операции — BINDING_PENDING.
@@ -256,7 +258,7 @@ CREATED и RENEWED не создают операцию автопродлени
 а новый providerSubscriptionId записывается в неё один раз при привязке и далее неизменяем.
 Повтор applySuccessfulPayment возвращает только прежний публичный результат, без внутренних полей.
 
-Из Subscription удалён autoRenewalChangeId. Для будущих ручных ENABLE/DISABLE ID операции
+Из Subscription удалён autoRenewalChangeId. Для ручных ENABLE/DISABLE ID операции
 один раз устойчиво создаёт DBOS workflow; клиентский ключ в таблице не хранится.
 Ручной workflow будет передавать AutoRenewalOperation.id в существующий аргумент D1 autoRenewalChangeId.
 Ручные use case и workflow в текущий рефакторинг не входят.
@@ -521,12 +523,11 @@ D2 должен связать новую provider Subscription с той же �
 ## Текущее состояние реализации
 
 В composition root зарегистрированы реальные D2 адаптеры и Prisma-репозиторий.
-Применение платежа и настройка автопродления хранятся раздельно. Порты D1 уже упрощены,
-но подключённые адаптеры D2 ещё реализуют прежние сигнатуры чтения, подтверждения отключения
-и binding. Их обновление выполняет другой разработчик в контексте D2.
-Этот документ фиксирует актуальные требования D1, а не завершение сквозной интеграции.
+Применение платежа и настройка автопродления хранятся раздельно. Адаптеры и use cases D2
+обновлены под упрощённые порты D1. Сквозные проверки после адаптации не запускались.
 Неприменённая миграция подписок обновлена на месте, перенос данных не требуется.
-Миграция и тесты не запускались. Ручное автопродление, lifecycle worker и события доступа — отдельные задачи.
+Миграция и тесты не запускались. Ручные use cases и workflow реализованы без HTTP/gRPC API.
+Lifecycle worker и события доступа остаются отдельными задачами.
 
 ## Минимальные сценарии приёмки стыка
 
