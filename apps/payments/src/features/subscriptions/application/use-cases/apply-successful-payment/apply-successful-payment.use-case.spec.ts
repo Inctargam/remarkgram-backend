@@ -474,6 +474,9 @@ function existing(overrides: Partial<SubscriptionForPayment> = {}): Subscription
 
 function fixture(overrides: Partial<SuccessfulPayment> = {}) {
   const repository = {
+    findAutoRenewalOperation: vi.fn<SubscriptionsRepository['findAutoRenewalOperation']>(),
+    createAutoRenewalOperation: vi.fn<SubscriptionsRepository['createAutoRenewalOperation']>(),
+    completeAutoRenewalOperation: vi.fn<SubscriptionsRepository['completeAutoRenewalOperation']>(),
     lockByUserId: vi.fn<SubscriptionsRepository['lockByUserId']>().mockResolvedValue(),
     confirmAutoRenewalCancellation: vi
       .fn<SubscriptionsRepository['confirmAutoRenewalCancellation']>(),

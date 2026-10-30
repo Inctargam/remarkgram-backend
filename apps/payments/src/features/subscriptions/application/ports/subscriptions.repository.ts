@@ -1,5 +1,10 @@
 import type { PaymentsTransactionContext } from '../../../payments/application/ports/payments-unit-of-work.js';
 import type {
+  CreateAutoRenewalOperationRepositoryParams,
+  CompleteAutoRenewalOperationRepositoryParams,
+} from '../types/subscription-auto-renewal.types.js';
+import type {
+  AutoRenewalOperation,
   BindProviderSubscriptionRepositoryParams,
   CreateSubscriptionRepositoryParams,
   RenewSubscriptionRepositoryParams,
@@ -15,6 +20,23 @@ export abstract class SubscriptionsRepository {
    * Блокировка удерживается до commit/rollback; внешние API внутри неё не вызываются.
    */
   abstract lockByUserId(userId: number, tx: PaymentsTransactionContext): Promise<void>;
+
+  abstract findAutoRenewalOperation(
+    operationId: string,
+    tx: PaymentsTransactionContext,
+  ): Promise<AutoRenewalOperation | null>;
+
+  /** Records intent and the prepared subscription state in the caller's transaction. */
+  abstract createAutoRenewalOperation(
+    params: CreateAutoRenewalOperationRepositoryParams,
+    tx: PaymentsTransactionContext,
+  ): Promise<void>;
+
+  /** Завершает ручную операцию (COMPLETED), сохраняя выбранное состояние автопродления. */
+  abstract completeAutoRenewalOperation(
+    params: CompleteAutoRenewalOperationRepositoryParams,
+    tx: PaymentsTransactionContext,
+  ): Promise<void>;
 
   /** Атомарно сохраняет RETIRED старой связи и BINDING_PENDING операции через переданный tx. */
   abstract confirmAutoRenewalCancellation(operationId: string, tx: PaymentsTransactionContext): Promise<void>;

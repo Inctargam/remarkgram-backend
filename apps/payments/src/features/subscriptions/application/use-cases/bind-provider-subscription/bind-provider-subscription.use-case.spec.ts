@@ -171,6 +171,9 @@ function fixture() {
     },
   };
   const repository = {
+    findAutoRenewalOperation: vi.fn<SubscriptionsRepository['findAutoRenewalOperation']>(),
+    createAutoRenewalOperation: vi.fn<SubscriptionsRepository['createAutoRenewalOperation']>(),
+    completeAutoRenewalOperation: vi.fn<SubscriptionsRepository['completeAutoRenewalOperation']>(),
     lockByUserId: vi.fn<SubscriptionsRepository['lockByUserId']>().mockResolvedValue(),
     findPaymentApplication: vi
       .fn<SubscriptionsRepository['findPaymentApplication']>()

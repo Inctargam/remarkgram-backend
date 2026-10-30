@@ -68,6 +68,62 @@ describe('PrismaSubscriptionsRepository: payment application', () => {
     });
   });
 
+  it('reads a manual operation by its primary key without consulting mutable subscriptions', async () => {
+    const { repository, tx } = fixture();
+    const operation = { ...transferOperation(), type: AutoRenewalOperationType.DISABLE, paymentId: null };
+    tx.autoRenewalOperation.findUnique.mockResolvedValue(operation);
+    await expect(repository.findAutoRenewalOperation(operation.id, tx)).resolves.toEqual(operation);
+    expect(tx.autoRenewalOperation.findUnique).toHaveBeenCalledWith({
+      where: { id: operation.id }, select: expect.objectContaining({ providerSubscriptionId: true, status: true }),
+    });
+    tx.autoRenewalOperation.findUnique.mockResolvedValue(null);
+    await expect(repository.findAutoRenewalOperation('missing', tx)).resolves.toBeNull();
+  });
+
+  it('stores manual intent and only the prepared auto-renewal state through the supplied tx', async () => {
+    const { repository, tx } = fixture();
+    const operation = {
+      ...transferOperation(), type: AutoRenewalOperationType.ENABLE, paymentId: null,
+      sourceSubscriptionId: null, sourceProviderSubscriptionId: null, providerSubscriptionId: 'sub_current',
+    };
+    await repository.createAutoRenewalOperation({ operation, autoRenewalStatus: AutoRenewalStatus.ENABLING }, tx);
+    expect(tx.autoRenewalOperation.create).toHaveBeenCalledExactlyOnceWith({ data: operation });
+    expect(tx.subscription.update).toHaveBeenCalledExactlyOnceWith({
+      where: { id: operation.subscriptionId }, data: { autoRenewalStatus: AutoRenewalStatus.ENABLING },
+    });
+  });
+
+  it('does not update the subscription for an already satisfied manual request', async () => {
+    const { repository, tx } = fixture();
+    const operation = { ...transferOperation(), status: AutoRenewalOperationStatus.COMPLETED };
+    await repository.createAutoRenewalOperation({ operation, autoRenewalStatus: null }, tx);
+    expect(tx.autoRenewalOperation.create).toHaveBeenCalledWith({ data: operation });
+    expect(tx.subscription.update).not.toHaveBeenCalled();
+  });
+
+  it('atomically confirms the prepared manual result without changing bindings or dates', async () => {
+    const { repository, tx } = fixture();
+    await repository.completeAutoRenewalOperation({
+      operationId: 'operation',
+      autoRenewalStatus: AutoRenewalStatus.DISABLED,
+    }, tx);
+    expect(tx.autoRenewalOperation.update).toHaveBeenCalledExactlyOnceWith({
+      where: { id: 'operation' }, data: {
+        status: AutoRenewalOperationStatus.COMPLETED,
+        subscription: { update: { autoRenewalStatus: AutoRenewalStatus.DISABLED } },
+      },
+    });
+  });
+
+  it('propagates a write error so the caller can roll back manual intent', async () => {
+    const { repository, tx } = fixture();
+    const error = new Error('subscription update failed');
+    tx.subscription.update.mockRejectedValue(error);
+    await expect(repository.createAutoRenewalOperation({
+      operation: transferOperation(), autoRenewalStatus: AutoRenewalStatus.DISABLING,
+    }, tx)).rejects.toBe(error);
+  });
+
   it('returns null for an unknown payment', async () => {
     const { repository, tx } = fixture();
     tx.subscriptionPaymentApplication.findUnique.mockResolvedValue(null);
@@ -228,7 +284,7 @@ function fixture() {
     $executeRaw: vi.fn<(sql: TemplateStringsArray, key: string) => Promise<number>>().mockResolvedValue(1),
     subscription: { create: vi.fn(), update: vi.fn() },
     subscriptionPaymentApplication: { findUnique: vi.fn() },
-    autoRenewalOperation: { update: vi.fn() },
+    autoRenewalOperation: { update: vi.fn(), create: vi.fn(), findUnique: vi.fn() },
   };
   // Репозиторий получает Prisma client только через переданный tx.
   return { tx, repository: new PrismaSubscriptionsRepository() };

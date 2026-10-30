@@ -5,6 +5,10 @@ import { PaymentProviderFactory } from '../../../payments/domain/payment-provide
 import { SubscriptionsRepository } from '../../application/ports/subscriptions.repository.js';
 import { SubscriptionBindingConflictError } from '../../application/errors/subscription-binding-conflict.error.js';
 import type {
+  CreateAutoRenewalOperationRepositoryParams,
+  CompleteAutoRenewalOperationRepositoryParams,
+} from '../../application/types/subscription-auto-renewal.types.js';
+import type {
   BindProviderSubscriptionRepositoryParams,
   CreateSubscriptionRepositoryParams,
   RenewSubscriptionRepositoryParams,
@@ -104,6 +108,46 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
           application.autoRenewalOperation?.sourceProviderSubscriptionId ?? null,
       },
     };
+  }
+
+  async findAutoRenewalOperation(
+    operationId: string,
+    tx: PaymentsTransactionContext,
+  ): Promise<AutoRenewalOperation | null> {
+    const client = tx as Prisma.TransactionClient;
+    const operation = await client.autoRenewalOperation.findUnique({
+      where: { id: operationId },
+      select: AUTO_RENEWAL_OPERATION_SELECT,
+    });
+    return operation ? this.toAutoRenewalOperation(operation) : null;
+  }
+
+  async createAutoRenewalOperation(
+    params: CreateAutoRenewalOperationRepositoryParams,
+    tx: PaymentsTransactionContext,
+  ): Promise<void> {
+    const client = tx as Prisma.TransactionClient;
+    await client.autoRenewalOperation.create({ data: params.operation });
+    if (params.autoRenewalStatus !== null) {
+      await client.subscription.update({
+        where: { id: params.operation.subscriptionId },
+        data: { autoRenewalStatus: params.autoRenewalStatus },
+      });
+    }
+  }
+
+  async completeAutoRenewalOperation(
+    params: CompleteAutoRenewalOperationRepositoryParams,
+    tx: PaymentsTransactionContext,
+  ): Promise<void> {
+    const client = tx as Prisma.TransactionClient;
+    await client.autoRenewalOperation.update({
+      where: { id: params.operationId },
+      data: {
+        status: AutoRenewalOperationStatus.COMPLETED,
+        subscription: { update: { autoRenewalStatus: params.autoRenewalStatus } },
+      },
+    });
   }
 
   async confirmAutoRenewalCancellation(operationId: string, tx: PaymentsTransactionContext): Promise<void> {
