@@ -165,9 +165,9 @@ enum SubscriptionStatus {
 
 enum AutoRenewalStatus {
   DISABLED
-  ENABLING
-  ENABLED
   DISABLING
+  ENABLED
+  ENABLING
   // Автопродление этой provider-связи завершено окончательно; оплаченный доступ сохраняется.
   RETIRED
 }
@@ -196,10 +196,10 @@ model Subscription {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  plan                         Plan                             @relation(fields: [planId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  paymentApplications          SubscriptionPaymentApplication[] @relation("AppliedSubscription")
-  autoRenewalOperations        AutoRenewalOperation[]           @relation("AutoRenewalSubscription")
-  outgoingAutoRenewalOperations AutoRenewalOperation[]           @relation("AutoRenewalSourceSubscription")
+  plan                       Plan                             @relation(fields: [planId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  paymentApplications        SubscriptionPaymentApplication[] @relation("AppliedSubscription")
+  targetAutoRenewalOperations AutoRenewalOperation[]           @relation("AutoRenewalSubscription")
+  sourceAutoRenewalOperations AutoRenewalOperation[]           @relation("AutoRenewalSourceSubscription")
 
   @@unique([provider, providerSubscriptionId])
   @@unique([userId], where: { status: "ACTIVE" })
