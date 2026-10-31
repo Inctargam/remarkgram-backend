@@ -1,6 +1,7 @@
 import { ConfirmRenewalPaymentUseCase } from './features/payments/application/use-cases/payment-events/confirm-renewal-payment/confirm-renewal-payment.use-case.js';
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, type ConfigType } from '@nestjs/config';
+import Stripe from 'stripe';
 import { CqrsModule } from '@nestjs/cqrs';
 import { databaseConfig } from './config/database.config.js';
 import { dbosConfig } from './config/dbos.config.js';
@@ -100,6 +101,12 @@ import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastr
     { provide: PaymentsQueryRepository, useClass: PrismaPaymentsQueryRepository },
     { provide: PaymentEventRepository, useClass: PrismaPaymentEventRepository },
     { provide: PaymentCustomersRepository, useClass: PrismaPaymentCustomersRepository },
+    {
+      provide: Stripe,
+      useFactory: (config: ConfigType<typeof stripeConfig>) =>
+        new Stripe(config.secretKey, { apiVersion: '2026-08-26.dahlia' }),
+      inject: [stripeConfig.KEY],
+    },
     { provide: PaymentProviderPort, useClass: StripePaymentProvider },
     StripeCheckoutSessionCompletedAdapter,
     StripeCheckoutSessionExpiredAdapter,

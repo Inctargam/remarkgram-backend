@@ -21,11 +21,12 @@ import { StripePaymentErrorMapper } from './stripe-payment-error.mapper.js';
 
 @Injectable()
 export class StripePaymentProvider extends PaymentProviderPort {
-  private readonly stripe: Stripe;
   private readonly errorMapper = new StripePaymentErrorMapper();
-  constructor(@Inject(stripeConfig.KEY) private readonly config: ConfigType<typeof stripeConfig>) {
+  constructor(з
+    @Inject(Stripe) private readonly stripe: Stripe,
+    @Inject(stripeConfig.KEY) private readonly config: ConfigType<typeof stripeConfig>,
+  ) {
     super();
-    this.stripe = new Stripe(config.secretKey, { apiVersion: '2026-08-26.dahlia' });
   }
 
   async createCheckout(input: CreateProviderCheckoutInput): Promise<CreateProviderCheckoutResult> {

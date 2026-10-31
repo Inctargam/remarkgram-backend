@@ -58,14 +58,11 @@ describe('StripePaymentProvider.createCheckout', () => {
 
 describe('StripePaymentProvider.scheduleSubscriptionCancellation', () => {
   it('устанавливает cancel_at_period_end без немедленной отмены Subscription', async () => {
-    const { provider } = providerWithStripe();
     const update = vi.fn().mockResolvedValue({
       id: 'sub_previous',
       cancel_at_period_end: true,
     });
-    Object.assign(provider as unknown as Record<string, unknown>, {
-      stripe: { subscriptions: { update } },
-    });
+    const provider = providerWithClient({ subscriptions: { update } });
 
     await expect(provider.scheduleSubscriptionCancellation('sub_previous')).resolves.toEqual({
       providerSubscriptionId: 'sub_previous',
@@ -84,14 +81,11 @@ describe('StripePaymentProvider.setSubscriptionAutoRenewal', () => {
     [true, false],
     [false, true],
   ])('преобразует autoRenewalEnabled=%s в cancel_at_period_end=%s', async (enabled, cancelAtPeriodEnd) => {
-    const { provider } = providerWithStripe();
     const update = vi.fn().mockResolvedValue({
       id: 'sub_test',
       cancel_at_period_end: cancelAtPeriodEnd,
     });
-    Object.assign(provider as unknown as Record<string, unknown>, {
-      stripe: { subscriptions: { update } },
-    });
+    const provider = providerWithClient({ subscriptions: { update } });
 
     await expect(
       provider.setSubscriptionAutoRenewal({
@@ -115,14 +109,11 @@ describe('StripePaymentProvider.setSubscriptionAutoRenewal', () => {
 
 describe('StripePaymentProvider.createDeferredSubscription', () => {
   it('создаёт Subscription с будущим billing anchor без proration', async () => {
-    const { provider } = providerWithStripe();
     const createProduct = vi.fn().mockResolvedValue({ id: 'prod_test' });
     const createSubscription = vi.fn().mockResolvedValue({ id: 'sub_new' });
-    Object.assign(provider as unknown as Record<string, unknown>, {
-      stripe: {
-        products: { create: createProduct },
-        subscriptions: { create: createSubscription },
-      },
+    const provider = providerWithClient({
+      products: { create: createProduct },
+      subscriptions: { create: createSubscription },
     });
 
     await expect(
@@ -213,12 +204,6 @@ describe('StripePaymentProvider.verifyWebhook', () => {
 });
 
 function providerWithStripe() {
-  const provider = new StripePaymentProvider({
-    secretKey: 'sk_test_fake',
-    webhookSecret: 'whsec_fake',
-    successUrl: 'https://example.com/success',
-    cancelUrl: 'https://example.com/cancel',
-  });
   const createSession = vi.fn().mockResolvedValue({
     id: 'cs_test',
     url: 'https://checkout.stripe.com/test',
@@ -230,44 +215,36 @@ function providerWithStripe() {
     expires_at: 1_900_000_000,
   });
 
-  // В тесте подменяется только внешний SDK: бизнес-параметры запроса остаются реальными.
-  Object.assign(provider as unknown as Record<string, unknown>, {
-    stripe: {
-      checkout: { sessions: { create: createSession } },
-    },
+  const provider = providerWithClient({
+    checkout: { sessions: { create: createSession } },
   });
 
   return { provider, createSession };
 }
 
-function providerWithEvent(event: Record<string, unknown>) {
-  const provider = new StripePaymentProvider({
+function providerWithClient(stripe: Record<string, unknown>) {
+  return new StripePaymentProvider(stripe as unknown as Stripe, {
     secretKey: 'sk_test_fake',
     webhookSecret: 'whsec_fake',
     successUrl: 'https://example.com/success',
     cancelUrl: 'https://example.com/cancel',
   });
+}
 
-  Object.assign(provider as unknown as Record<string, unknown>, {
-    stripe: {
-      webhooks: { constructEvent: vi.fn().mockReturnValue(event) },
-    },
+function providerWithEvent(event: Record<string, unknown>) {
+  return providerWithClient({
+    webhooks: { constructEvent: vi.fn().mockReturnValue(event) },
   });
-  return provider;
 }
 
 function providerWithWebhookError(error: Error) {
-  const provider = providerWithEvent({});
-  Object.assign(provider as unknown as Record<string, unknown>, {
-    stripe: {
-      webhooks: {
-        constructEvent: vi.fn().mockImplementation(() => {
-          throw error;
-        }),
-      },
+  return providerWithClient({
+    webhooks: {
+      constructEvent: vi.fn().mockImplementation(() => {
+        throw error;
+      }),
     },
   });
-  return provider;
 }
 
 function checkoutEvent(type: string, override: Record<string, unknown> = {}) {
