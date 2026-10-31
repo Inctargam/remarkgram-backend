@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
-import {
-  SubscriptionContextPort,
-  type ActiveSubscriptionForPurchase,
-} from '../../../payments/application/ports/subscription-context.port.js';
-import { FindActiveSubscriptionForPurchaseQuery } from '../../application/use-cases/find-active-subscription-for-purchase/find-active-subscription-for-purchase.query-handler.js';
+import { SubscriptionContextPort } from '../../../payments/application/ports/subscription-context.port.js';
+import { HasActiveSubscriptionQuery } from '../../application/use-cases/has-active-subscription/has-active-subscription.query-handler.js';
 
 @Injectable()
 export class LocalSubscriptionContextAdapter extends SubscriptionContextPort {
@@ -12,7 +9,7 @@ export class LocalSubscriptionContextAdapter extends SubscriptionContextPort {
     super();
   }
 
-  findActiveSubscriptionForPurchase(userId: number): Promise<ActiveSubscriptionForPurchase | null> {
-    return this.queryBus.execute(new FindActiveSubscriptionForPurchaseQuery(userId));
+  hasActiveSubscription(userId: number): Promise<boolean> {
+    return this.queryBus.execute(new HasActiveSubscriptionQuery(userId));
   }
 }

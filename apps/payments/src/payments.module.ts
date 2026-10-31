@@ -63,15 +63,22 @@ import { GetPlansQueryHandler } from './features/plans/application/use-cases/get
 import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-plans.repository.js';
 import { PrismaPlansQueryRepository } from './features/plans/infrastructure/prisma-plans.query-repository.js';
 import { SubscriptionsQueryRepository } from './features/subscriptions/application/ports/subscriptions-query.repository.js';
-import { FindActiveSubscriptionForPurchaseQueryHandler } from './features/subscriptions/application/use-cases/find-active-subscription-for-purchase/find-active-subscription-for-purchase.query-handler.js';
+import { HasActiveSubscriptionQueryHandler } from './features/subscriptions/application/use-cases/has-active-subscription/has-active-subscription.query-handler.js';
 import { LocalSubscriptionContextAdapter } from './features/subscriptions/infrastructure/payments/local-subscription-context.adapter.js';
 import { PrismaSubscriptionsQueryRepository } from './features/subscriptions/infrastructure/persistence/prisma-subscriptions-query.repository.js';
 import { SubscriptionsRepository } from './features/subscriptions/application/ports/subscriptions.repository.js';
 import { ApplySuccessfulPaymentUseCase } from './features/subscriptions/application/use-cases/apply-successful-payment/apply-successful-payment.use-case.js';
-import { MarkProviderSubscriptionCancellationScheduledUseCase } from './features/subscriptions/application/use-cases/mark-provider-subscription-cancellation-scheduled/mark-provider-subscription-cancellation-scheduled.use-case.js';
+import { ConfirmAutoRenewalCancellationUseCase } from './features/subscriptions/application/use-cases/confirm-auto-renewal-cancellation/confirm-auto-renewal-cancellation.use-case.js';
 import { BindProviderSubscriptionUseCase } from './features/subscriptions/application/use-cases/bind-provider-subscription/bind-provider-subscription.use-case.js';
 import { LocalSubscriptionPaymentHandlerAdapter } from './features/subscriptions/infrastructure/payments/local-subscription-payment-handler.adapter.js';
 import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastructure/persistence/prisma-subscriptions.repository.js';
+import { ChangeSubscriptionAutoRenewalWorkflow } from './features/subscriptions/application/ports/change-subscription-auto-renewal.workflow.js';
+import { ProviderSubscriptionAutoRenewalGateway } from './features/subscriptions/application/ports/provider-subscription-auto-renewal.gateway.js';
+import { EnableSubscriptionAutoRenewalUseCase } from './features/subscriptions/application/use-cases/enable-subscription-auto-renewal/enable-subscription-auto-renewal.use-case.js';
+import { DisableSubscriptionAutoRenewalUseCase } from './features/subscriptions/application/use-cases/disable-subscription-auto-renewal/disable-subscription-auto-renewal.use-case.js';
+import { PrepareSubscriptionAutoRenewalChangeUseCase } from './features/subscriptions/application/use-cases/prepare-subscription-auto-renewal-change/prepare-subscription-auto-renewal-change.use-case.js';
+import { ConfirmSubscriptionAutoRenewalChangeUseCase } from './features/subscriptions/application/use-cases/confirm-subscription-auto-renewal-change/confirm-subscription-auto-renewal-change.use-case.js';
+import { DbosChangeSubscriptionAutoRenewalWorkflow } from './features/subscriptions/infrastructure/dbos/dbos-change-subscription-auto-renewal.workflow.js';
 
 @Module({
   imports: [
@@ -154,10 +161,10 @@ import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastr
     },
     { provide: SubscriptionContextPort, useClass: LocalSubscriptionContextAdapter },
     { provide: SubscriptionsQueryRepository, useClass: PrismaSubscriptionsQueryRepository },
-    FindActiveSubscriptionForPurchaseQueryHandler,
+    HasActiveSubscriptionQueryHandler,
     { provide: SubscriptionsRepository, useClass: PrismaSubscriptionsRepository },
     ApplySuccessfulPaymentUseCase,
-    MarkProviderSubscriptionCancellationScheduledUseCase,
+    ConfirmAutoRenewalCancellationUseCase,
     BindProviderSubscriptionUseCase,
     {
       provide: SubscriptionPaymentHandler,
@@ -185,6 +192,16 @@ import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastr
     ReceivePaymentEventUseCase,
     SetProviderSubscriptionAutoRenewalUseCase,
     PaymentsProviderSubscriptionAutoRenewalAdapter,
+    {
+      provide: ProviderSubscriptionAutoRenewalGateway,
+      useExisting: PaymentsProviderSubscriptionAutoRenewalAdapter,
+    },
+    EnableSubscriptionAutoRenewalUseCase,
+    DisableSubscriptionAutoRenewalUseCase,
+    PrepareSubscriptionAutoRenewalChangeUseCase,
+    ConfirmSubscriptionAutoRenewalChangeUseCase,
+    DbosChangeSubscriptionAutoRenewalWorkflow,
+    { provide: ChangeSubscriptionAutoRenewalWorkflow, useExisting: DbosChangeSubscriptionAutoRenewalWorkflow },
     ProcessStripeWebhookUseCase,
     PaymentsDbosDataSource,
     DbosPaymentWebhookWorkflow,

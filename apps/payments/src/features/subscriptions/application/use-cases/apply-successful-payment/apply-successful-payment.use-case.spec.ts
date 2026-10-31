@@ -42,8 +42,10 @@ describe('ApplySuccessfulPaymentUseCase', () => {
         provider: PaymentProvider.STRIPE,
         providerSubscriptionId: 'sub_initial',
         autoRenewalStatus: AutoRenewalStatus.ENABLED,
-        result,
-        autoRenewalOperation: null,
+        subscriptionId: result.subscriptionId,
+        action: 'CREATED',
+        nextSubscriptionStartsAt: result.nextSubscriptionStartsAt,
+        autoRenewalTransfer: null,
       },
       command.tx,
     );
@@ -97,15 +99,7 @@ describe('ApplySuccessfulPaymentUseCase', () => {
       });
       expect(repository.createWithPaymentApplication).toHaveBeenCalledWith(
         expect.objectContaining({
-          autoRenewalOperation: {
-            id: command.payment.paymentId,
-            paymentId: command.payment.paymentId,
-            userId: 42,
-            type: AutoRenewalOperationType.TRANSFER,
-            status: AutoRenewalOperationStatus.PENDING,
-            subscriptionId: expect.any(String),
-            provider: PaymentProvider.STRIPE,
-            providerSubscriptionId: null,
+          autoRenewalTransfer: {
             sourceSubscriptionId: 'old-subscription',
             sourceProviderSubscriptionId: 'sub_old',
           },
@@ -225,7 +219,7 @@ describe('ApplySuccessfulPaymentUseCase', () => {
     });
     expect(repository.createWithPaymentApplication).toHaveBeenCalledWith(
       expect.objectContaining({
-        autoRenewalOperation: expect.objectContaining({ sourceSubscriptionId: 'pending-subscription' }),
+        autoRenewalTransfer: expect.objectContaining({ sourceSubscriptionId: 'pending-subscription' }),
         startsAt: new Date('2026-12-01T00:00:00.000Z'),
       }),
       command.tx,
@@ -342,7 +336,8 @@ describe('ApplySuccessfulPaymentUseCase', () => {
           paymentId: command.payment.paymentId,
           expiresAt: new Date('2026-11-01T00:00:00.000Z'),
           status: SubscriptionStatus.ACTIVE,
-          result,
+          subscriptionId: result.subscriptionId,
+          nextSubscriptionStartsAt: result.nextSubscriptionStartsAt,
         },
         command.tx,
       );
@@ -479,10 +474,12 @@ function existing(overrides: Partial<SubscriptionForPayment> = {}): Subscription
 
 function fixture(overrides: Partial<SuccessfulPayment> = {}) {
   const repository = {
-    findCancellationOperations: vi.fn<SubscriptionsRepository['findCancellationOperations']>(),
+    findAutoRenewalOperation: vi.fn<SubscriptionsRepository['findAutoRenewalOperation']>(),
+    createAutoRenewalOperation: vi.fn<SubscriptionsRepository['createAutoRenewalOperation']>(),
+    completeAutoRenewalOperation: vi.fn<SubscriptionsRepository['completeAutoRenewalOperation']>(),
     lockByUserId: vi.fn<SubscriptionsRepository['lockByUserId']>().mockResolvedValue(),
-    completeProviderSubscriptionCancellation: vi
-      .fn<SubscriptionsRepository['completeProviderSubscriptionCancellation']>(),
+    confirmAutoRenewalCancellation: vi
+      .fn<SubscriptionsRepository['confirmAutoRenewalCancellation']>(),
     bindProviderSubscription: vi.fn<SubscriptionsRepository['bindProviderSubscription']>(),
     findPaymentApplication: vi.fn<SubscriptionsRepository['findPaymentApplication']>().mockResolvedValue(null),
     findByUserId: vi.fn<SubscriptionsRepository['findByUserId']>().mockResolvedValue([]),
@@ -501,7 +498,6 @@ function fixture(overrides: Partial<SuccessfulPayment> = {}) {
     planId: 7,
     type: PaymentType.PURCHASE,
     autoRenewalRequested: true,
-    targetSubscriptionId: null,
     amount: 1000,
     currency: Currency.USD,
     periodCount: 1,

@@ -1,13 +1,16 @@
 import type { PaymentsTransactionContext } from '../../../payments/application/ports/payments-unit-of-work.js';
 import type {
+  CreateAutoRenewalOperationRepositoryParams,
+  CompleteAutoRenewalOperationRepositoryParams,
+} from '../types/subscription-auto-renewal.types.js';
+import type {
+  AutoRenewalOperation,
   BindProviderSubscriptionRepositoryParams,
   CreateSubscriptionRepositoryParams,
   RenewSubscriptionRepositoryParams,
   SetSubscriptionAutoRenewalRepositoryParams,
-  CompleteProviderSubscriptionCancellationRepositoryParams,
   SubscriptionPaymentApplication,
   SubscriptionForPayment,
-  AutoRenewalOperation,
 } from '../types/subscriptions.types.js';
 
 export abstract class SubscriptionsRepository {
@@ -18,20 +21,27 @@ export abstract class SubscriptionsRepository {
    */
   abstract lockByUserId(userId: number, tx: PaymentsTransactionContext): Promise<void>;
 
-  /** Текущий D1-контракт не передаёт paymentId; максимум две записи для обнаружения неоднозначности. */
-  abstract findCancellationOperations(
-    subscriptionId: string,
-    providerSubscriptionId: string,
+  abstract findAutoRenewalOperation(
+    operationId: string,
     tx: PaymentsTransactionContext,
-  ): Promise<AutoRenewalOperation[]>;
+  ): Promise<AutoRenewalOperation | null>;
 
-  /** Атомарно фиксирует отключение старой связи и следующий этап операции через переданный tx. */
-  abstract completeProviderSubscriptionCancellation(
-    params: CompleteProviderSubscriptionCancellationRepositoryParams,
+  /** Records intent and the prepared subscription state in the caller's transaction. */
+  abstract createAutoRenewalOperation(
+    params: CreateAutoRenewalOperationRepositoryParams,
     tx: PaymentsTransactionContext,
   ): Promise<void>;
 
-  /** Сохраняет привязку, её снимок и завершение операции, не меняя даты доступа. */
+  /** Завершает ручную операцию (COMPLETED), сохраняя выбранное состояние автопродления. */
+  abstract completeAutoRenewalOperation(
+    params: CompleteAutoRenewalOperationRepositoryParams,
+    tx: PaymentsTransactionContext,
+  ): Promise<void>;
+
+  /** Атомарно сохраняет RETIRED старой связи и BINDING_PENDING операции через переданный tx. */
+  abstract confirmAutoRenewalCancellation(operationId: string, tx: PaymentsTransactionContext): Promise<void>;
+
+  /** Сохраняет привязку и её снимок, ENABLED подписки и COMPLETED операции, не меняя даты доступа. */
   abstract bindProviderSubscription(
     params: BindProviderSubscriptionRepositoryParams,
     tx: PaymentsTransactionContext,

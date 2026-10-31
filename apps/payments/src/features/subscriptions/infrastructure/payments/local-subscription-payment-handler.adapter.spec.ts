@@ -1,6 +1,6 @@
 import type { CommandBus } from '@nestjs/cqrs';
 import { describe, expect, it, vi } from 'vitest';
-import { MarkProviderSubscriptionCancellationScheduledCommand } from '../../application/use-cases/mark-provider-subscription-cancellation-scheduled/mark-provider-subscription-cancellation-scheduled.use-case.js';
+import { ConfirmAutoRenewalCancellationCommand } from '../../application/use-cases/confirm-auto-renewal-cancellation/confirm-auto-renewal-cancellation.use-case.js';
 import { BindProviderSubscriptionCommand } from '../../application/use-cases/bind-provider-subscription/bind-provider-subscription.use-case.js';
 import { LocalSubscriptionPaymentHandlerAdapter } from './local-subscription-payment-handler.adapter.js';
 
@@ -11,13 +11,13 @@ describe('LocalSubscriptionPaymentHandlerAdapter: provider cancellation', () => 
     const tx = {};
 
     await expect(
-      adapter.markProviderSubscriptionCancellationScheduled('new-subscription', 'sub_old', tx),
+      adapter.confirmAutoRenewalCancellation('payment-id', 'sub_old', tx),
     ).resolves.toBeUndefined();
 
     expect(commandBus.execute).toHaveBeenCalledExactlyOnceWith(
-      new MarkProviderSubscriptionCancellationScheduledCommand('new-subscription', 'sub_old', tx),
+      new ConfirmAutoRenewalCancellationCommand('payment-id', 'sub_old', tx),
     );
-    const [command] = commandBus.execute.mock.calls[0] as [MarkProviderSubscriptionCancellationScheduledCommand];
+    const [command] = commandBus.execute.mock.calls[0] as [ConfirmAutoRenewalCancellationCommand];
     expect(command.tx).toBe(tx);
   });
 
@@ -27,7 +27,7 @@ describe('LocalSubscriptionPaymentHandlerAdapter: provider cancellation', () => 
     const adapter = new LocalSubscriptionPaymentHandlerAdapter(commandBus as unknown as CommandBus);
 
     await expect(
-      adapter.markProviderSubscriptionCancellationScheduled('new-subscription', 'sub_old', {}),
+      adapter.confirmAutoRenewalCancellation('payment-id', 'sub_old', {}),
     ).rejects.toBe(error);
   });
 });
@@ -38,12 +38,10 @@ describe('LocalSubscriptionPaymentHandlerAdapter: provider binding', () => {
     const adapter = new LocalSubscriptionPaymentHandlerAdapter(commandBus as unknown as CommandBus);
     const tx = {};
 
-    await expect(
-      adapter.bindProviderSubscription('payment-id', 'new-subscription', 'sub_new', tx),
-    ).resolves.toBeUndefined();
+    await expect(adapter.bindProviderSubscription('payment-id', 'sub_new', tx)).resolves.toBeUndefined();
 
     expect(commandBus.execute).toHaveBeenCalledExactlyOnceWith(
-      new BindProviderSubscriptionCommand('payment-id', 'new-subscription', 'sub_new', tx),
+      new BindProviderSubscriptionCommand('payment-id', 'sub_new', tx),
     );
     const [command] = commandBus.execute.mock.calls[0] as [BindProviderSubscriptionCommand];
     expect(command.tx).toBe(tx);
@@ -54,8 +52,6 @@ describe('LocalSubscriptionPaymentHandlerAdapter: provider binding', () => {
     const commandBus = { execute: vi.fn().mockRejectedValue(error) };
     const adapter = new LocalSubscriptionPaymentHandlerAdapter(commandBus as unknown as CommandBus);
 
-    await expect(
-      adapter.bindProviderSubscription('payment-id', 'new-subscription', 'sub_new', {}),
-    ).rejects.toBe(error);
+    await expect(adapter.bindProviderSubscription('payment-id', 'sub_new', {})).rejects.toBe(error);
   });
 });

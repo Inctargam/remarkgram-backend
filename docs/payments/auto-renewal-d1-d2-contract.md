@@ -9,8 +9,8 @@ Subscription. Общие границы Payment Module (D1) и Subscription Modu
 Этот контракт не подтверждает оплату, не создаёт `Payment` и не изменяет оплаченный период доступа.
 Он только приводит настройку recurring billing у платёжного провайдера к требуемому состоянию.
 
-Реализация ручного workflow, lifecycle и persistence D2 принадлежит другому разработчику
-и не входит в текущую работу над D1. Описанные обязанности D2 — требования к будущей интеграции.
+Ручной workflow, lifecycle и persistence подписок относятся к D2 и не входят в задачи D1.
+Ручной workflow реализован; транспортный API и lifecycle worker остаются отдельными задачами D2.
 
 ## Ответственность модулей
 
@@ -35,25 +35,25 @@ D2:
 - принимает бизнес-решение о включении или отключении auto-renewal;
 - проверяет владельца и допустимость перехода Subscription;
 - хранит намерение и этап в AutoRenewalOperation, состояние подписки — в Subscription;
-- передаёт устойчивый ID операции из будущего DBOS workflow как `autoRenewalChangeId`;
+- передаёт устойчивый ID операции из DBOS workflow changeSubscriptionAutoRenewalV1 как `autoRenewalChangeId`;
 - вызывает D1 только после фиксации переходного состояния;
 - организует retry/recovery и подтверждает итоговое состояние после ответа D1.
 
 В Subscription поле autoRenewalChangeId удалено; история хранится в AutoRenewalOperation.
 Для ручных ENABLE/DISABLE paymentId и поля source-связи отсутствуют, существующий provider ID
-фиксируется при создании. Этапы: PENDING → COMPLETED. ID один раз устойчиво создаёт будущий
+фиксируется при создании. Этапы: PENDING → COMPLETED. ID один раз устойчиво создаёт
 DBOS workflow, повтор использует тот же ID. Клиентский ключ идемпотентности в таблице не хранится;
 его дедупликация и сверка аргументов относятся к запуску workflow.
 
-Реальный D2 application boundary ручного переключения пока не реализован. D1 предоставляет готовый
-`PaymentsProviderSubscriptionAutoRenewalAdapter`, зарегистрированный и экспортированный из
-`PaymentsModule` по class token. D2 use cases не должны импортировать
-`SetProviderSubscriptionAutoRenewalUseCase` напрямую.
+Ручное переключение реализовано через EnableSubscriptionAutoRenewalCommand и
+DisableSubscriptionAutoRenewalCommand; HTTP/gRPC API пока нет. D1 предоставляет
+PaymentsProviderSubscriptionAutoRenewalAdapter. В PaymentsModule D2-порт связан с ним через
+useExisting. Use cases D2 не импортируют SetProviderSubscriptionAutoRenewalUseCase напрямую.
 
 ## D2 outbound contract
 
 ```ts
-type ChangeProviderSubscriptionAutoRenewalCommand = {
+type ChangeProviderSubscriptionAutoRenewalParams = {
   provider: 'STRIPE';
   providerSubscriptionId: string;
   autoRenewalChangeId: string;
@@ -64,23 +64,45 @@ type ChangeProviderSubscriptionAutoRenewalResult = {
   autoRenewalEnabled: boolean;
 };
 
-interface ProviderSubscriptionAutoRenewalGateway {
+abstract class ProviderSubscriptionAutoRenewalGateway {
   abstract enable(
-    command: ChangeProviderSubscriptionAutoRenewalCommand,
+    params: ChangeProviderSubscriptionAutoRenewalParams,
   ): Promise<ChangeProviderSubscriptionAutoRenewalResult>;
 
   abstract disable(
-    command: ChangeProviderSubscriptionAutoRenewalCommand,
+    params: ChangeProviderSubscriptionAutoRenewalParams,
   ): Promise<ChangeProviderSubscriptionAutoRenewalResult>;
 }
 ```
 
-Этот интерфейс является описанием будущей границы, а не текущим файлом в `features/subscriptions`.
-Когда D2 будет реализован, он должен объявить такой port в собственном application-слое и выбрать
-собственный injection token. Composition root свяжет этот token с экспортированным
-`PaymentsProviderSubscriptionAutoRenewalAdapter`. Методы `enable` и `disable` выражают намерение D2
-без boolean-флага, а adapter делегирует соответственно в
-`SetProviderSubscriptionAutoRenewalUseCase.execute({ autoRenewalEnabled: true|false })`.
+Порт объявлен в application-слое D2. Методы enable и disable выражают намерение,
+а адаптер D1 делегирует в SetProviderSubscriptionAutoRenewalUseCase с соответствующим boolean.
+
+## Ручной запрос D2
+
+Обе команды получают `{ userId, subscriptionId, idempotencyKey }` и возвращают
+`{ operationId, subscriptionId, autoRenewalEnabled }` после завершения workflow.
+userId — положительное целое, subscriptionId и idempotencyKey — UUID v4 (регистр нормализуется).
+Вызов через CommandBus; при будущем подключении транспорта userId должен приходить из авторизации.
+
+Workflow запускается с ID `subscription-auto-renewal:${userId}:${idempotencyKey}`.
+Повтор сравнивает сохранённые userId, subscriptionId и действие. Другое действие или подписка
+с тем же ключом дают SubscriptionAutoRenewalIdempotencyConflictError. Новый UUID операции
+получается через DBOS.randomUUID внутри workflow; он не равен клиентскому ключу.
+
+Подготовка после общей блокировки сначала проверяет существующую операцию. Для новой операции:
+
+- подписка принадлежит пользователю и последняя по expiresAt;
+- provider-привязка существует, RETIRED запрещён;
+- у пользователя нет ENABLING/DISABLING, включая перенос автопродления после покупки;
+- включение разрешено только до expiresAt; отключение возможно и после окончания доступа;
+- будущая PENDING-подписка допускается после binding;
+- уже установленное состояние записывается как COMPLETED без изменения подписки и вызова D1.
+
+При обычном переходе сохраняются операция PENDING и ENABLING/DISABLING в одной транзакции.
+После ответа D1 подтверждение под lock сохраняет COMPLETED и ENABLED/DISABLED.
+Повтор завершённой операции не читает текущее состояние подписки и не меняет его.
+Возвращается исторический результат операции, который может отличаться от текущей настройки.
 
 ## D1 application contract
 
@@ -173,7 +195,7 @@ D2: business decision
 Обе локальные транзакции используют общую блокировку пользователя. Завершённый повтор
 возвращает результат операции, не восстанавливая прежнюю настройку поверх последующего изменения.
 Новая несовместимая операция не начинается при ENABLING/DISABLING; RETIRED запрещает включение.
-Это требования к будущей реализации ручных workflow, а не уже готовый D2 API.
+Локальные шаги и workflow реализованы; транспортный API остаётся отдельной задачей.
 
 Внешний provider-вызов нельзя выполнять внутри длинной DB-транзакции. Если процесс остановился после
 provider success, но до локального подтверждения D2, повтор с тем же `autoRenewalChangeId` и desired
@@ -189,9 +211,34 @@ state должен безопасно получить тот же эффект.
 - новое бизнес-изменение не переиспользует ID предыдущего изменения;
 - поздний результат старого изменения не должен подтверждать более новый локальный переход.
 
-Текущий D1 use case пробрасывает provider errors и выбрасывает ошибку при несовместимом результате.
-До интеграции с D2 необходимо согласовать типизированную классификацию retryable, terminal и unknown
-outcomes; нельзя выводить эту классификацию из текста исключения.
+D1 возвращает типизированные ошибки. Внешний DBOS.step повторяет только
+PAYMENT_PROVIDER_UNAVAILABLE и PAYMENT_PROVIDER_OUTCOME_UNKNOWN: максимум 10 попыток,
+с интервалами 10, 20, ... 2560 секунд. Валидация, несовместимое подтверждение и неизвестные
+ошибки не повторяются. Код распознаётся по code/name, без разбора текста провайдера.
+
+Локальные шаги напрямую вызывают runTransaction по образцу Posts. Ошибки БД передаются
+datasource без оборачивания, с исходными code/meta/cause. Prisma datasource 4.26.10 сам
+повторяет распознанные ошибки сериализации 40001, включая P2034, с задержкой от 1 мс до
+2 секунд без лимита числа попыток. Внешнего цикла повторов и durable sleep нет.
+runTransaction не оборачивается в DBOS.step. Необработанный сбой локальной транзакции
+завершает workflow со статусом ERROR; автоматическое восстановление ERROR пока отсутствует.
+
+JSON-обёртки ошибок нет. Бизнес-ошибки D2 с reason хранят машинный код причины в message,
+который сохраняется datasource. В execute небольшой mapper восстанавливает их классы по name
+и обрабатывает исчерпание попыток внешнего step. Неизвестная ошибка на application-границе
+становится безопасной SubscriptionAutoRenewalFailedError; сырой SQL/provider-текст не выдаётся
+вызывающему коду и не попадает в диагностический лог D2. Это не меняет хранение ошибок самим DBOS.
+При recovery прерванного выполнения успешный provider step читается из checkpoint без нового
+вызова. Это не означает автоматического повторного запуска workflow, завершившегося с ERROR.
+
+Если подготовка уже зафиксирована, а завершить процесс не удалось, операция остаётся PENDING,
+подписка — ENABLING/DISABLING. Workflow возвращает сохранённую ошибку и пишет безопасный лог
+с operationId/workflowId. Повтор клиентского ключа получает ту же ошибку, новый ключ не снимает
+блокировку. Восстановление зависших операций — отдельная задача; rollback настройки провайдера
+и автоматическая разблокировка не реализованы.
+
+Workflow ручного автопродления ещё не использовался: упрощена текущая V1 без legacy-версии.
+История БД не удаляется; схема и публичные контракты D1 не изменены.
 
 ## Связь с `Payment.autoRenewalRequested`
 
@@ -217,3 +264,12 @@ provider result               = подтверждённая настройка 
 - provider timeout не подтверждает stable state;
 - provider-вызов выполняется без открытой DB-транзакции;
 - поздний результат старого изменения не перезаписывает более новое решение.
+
+## Проверки реализации
+
+Добавлены unit-сценарии команд, локальных шагов, репозитория, workflow и сериализации ошибок.
+PostgreSQL-сценарии проверяют rollback, конкурирующие команды, блокирование применения платежа
+и поздний повтор после противоположного изменения. Они требуют отдельной тестовой базы с
+применённой схемой через PAYMENTS_INTEGRATION_DATABASE_URL; тест не применяет миграции.
+Проверки не запускались. HTTP/gRPC, восстановление зависших операций и новый lifecycle worker
+в эту задачу не входят.

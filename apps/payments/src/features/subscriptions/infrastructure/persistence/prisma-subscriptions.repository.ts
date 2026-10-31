@@ -1,16 +1,18 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../../database/prisma.service.js';
 import { Prisma } from '../../../../database/prisma/generated/client.js';
 import type { PaymentsTransactionContext } from '../../../payments/application/ports/payments-unit-of-work.js';
 import { PaymentProviderFactory } from '../../../payments/domain/payment-provider.factory.js';
 import { SubscriptionsRepository } from '../../application/ports/subscriptions.repository.js';
 import { SubscriptionBindingConflictError } from '../../application/errors/subscription-binding-conflict.error.js';
 import type {
+  CreateAutoRenewalOperationRepositoryParams,
+  CompleteAutoRenewalOperationRepositoryParams,
+} from '../../application/types/subscription-auto-renewal.types.js';
+import type {
   BindProviderSubscriptionRepositoryParams,
   CreateSubscriptionRepositoryParams,
   RenewSubscriptionRepositoryParams,
   SetSubscriptionAutoRenewalRepositoryParams,
-  CompleteProviderSubscriptionCancellationRepositoryParams,
   SubscriptionPaymentApplication,
   SubscriptionForPayment,
   AutoRenewalOperation,
@@ -35,10 +37,6 @@ const AUTO_RENEWAL_OPERATION_SELECT = {
 
 @Injectable()
 export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
-  constructor(private readonly prisma: PrismaService) {
-    super();
-  }
-
   async lockByUserId(userId: number, tx: PaymentsTransactionContext): Promise<void> {
     const client = tx as Prisma.TransactionClient;
     const lockKey = `subscriptions:user:${userId}`;
@@ -62,6 +60,7 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
         autoRenewalStatus: true,
       },
     });
+
     return subscriptions.map((subscription) => ({
       subscriptionId: subscription.id,
       planId: subscription.planId,
@@ -72,158 +71,6 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
       status: SubscriptionStatus[subscription.status],
       autoRenewalStatus: AutoRenewalStatus[subscription.autoRenewalStatus],
     }));
-  }
-
-  async findCancellationOperations(
-    subscriptionId: string,
-    providerSubscriptionId: string,
-    tx: PaymentsTransactionContext,
-  ): Promise<AutoRenewalOperation[]> {
-    const client = tx as Prisma.TransactionClient;
-    const operations = await client.autoRenewalOperation.findMany({
-      where: {
-        subscriptionId,
-        sourceProviderSubscriptionId: providerSubscriptionId,
-        type: AutoRenewalOperationType.TRANSFER,
-        paymentApplication: { is: { action: 'SCHEDULED' } },
-      },
-      take: 2,
-      select: AUTO_RENEWAL_OPERATION_SELECT,
-    });
-    return operations.map((operation) => this.toAutoRenewalOperation(operation));
-  }
-
-  async completeProviderSubscriptionCancellation(
-    params: CompleteProviderSubscriptionCancellationRepositoryParams,
-    tx: PaymentsTransactionContext,
-  ): Promise<void> {
-    const client = tx as Prisma.TransactionClient;
-    await client.autoRenewalOperation.update({
-      where: { id: params.operationId },
-      data: {
-        status: params.status,
-        sourceSubscription: {
-          update: {
-            autoRenewalStatus: params.autoRenewalStatus,
-          },
-        },
-      },
-    });
-  }
-
-  async bindProviderSubscription(
-    params: BindProviderSubscriptionRepositoryParams,
-    tx: PaymentsTransactionContext,
-  ): Promise<void> {
-    const client = tx as Prisma.TransactionClient;
-    try {
-      await client.autoRenewalOperation.update({
-        where: { id: params.operationId },
-        data: {
-          status: params.status,
-          providerSubscriptionId: params.providerSubscriptionId,
-          subscription: {
-            update: {
-              providerSubscriptionId: params.providerSubscriptionId,
-              autoRenewalStatus: params.autoRenewalStatus,
-            },
-          },
-        },
-      });
-    } catch (error) {
-      // Из уникальных ключей эта запись изменяет только (provider, providerSubscriptionId).
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new SubscriptionBindingConflictError(
-          params.paymentId,
-          params.providerSubscriptionId,
-          'PROVIDER_SUBSCRIPTION_ALREADY_BOUND',
-        );
-      }
-      throw error;
-    }
-  }
-
-  async markExpired(subscriptionIds: string[], tx: PaymentsTransactionContext): Promise<void> {
-    const client = tx as Prisma.TransactionClient;
-    await client.subscription.updateMany({
-      where: { id: { in: subscriptionIds } },
-      data: { status: SubscriptionStatus.EXPIRED },
-    });
-  }
-
-  async createWithPaymentApplication(
-    params: CreateSubscriptionRepositoryParams,
-    tx: PaymentsTransactionContext,
-  ): Promise<void> {
-    const client = tx as Prisma.TransactionClient;
-    const operation = params.autoRenewalOperation;
-    await client.subscription.create({
-      data: {
-        id: params.result.subscriptionId,
-        userId: params.userId,
-        planId: params.planId,
-        startsAt: params.startsAt,
-        expiresAt: params.expiresAt,
-        status: params.status,
-        provider: params.provider,
-        providerSubscriptionId: params.providerSubscriptionId,
-        autoRenewalStatus: params.autoRenewalStatus,
-        paymentApplications: {
-          create: {
-            paymentId: params.paymentId,
-            action: params.result.action,
-            nextSubscriptionStartsAt: new Date(params.result.nextSubscriptionStartsAt),
-            autoRenewalOperation: operation
-              ? {
-                  create: {
-                    id: operation.id,
-                    userId: operation.userId,
-                    type: operation.type,
-                    status: operation.status,
-                    subscriptionId: operation.subscriptionId,
-                    provider: operation.provider,
-                    providerSubscriptionId: operation.providerSubscriptionId,
-                    sourceSubscriptionId: operation.sourceSubscriptionId,
-                    sourceProviderSubscriptionId: operation.sourceProviderSubscriptionId,
-                  },
-                }
-              : undefined,
-          },
-        },
-      },
-    });
-  }
-
-  async setAutoRenewalState(
-    params: SetSubscriptionAutoRenewalRepositoryParams,
-    tx: PaymentsTransactionContext,
-  ): Promise<void> {
-    const client = tx as Prisma.TransactionClient;
-    await client.subscription.update({
-      where: { id: params.subscriptionId },
-      data: { autoRenewalStatus: params.status },
-    });
-  }
-
-  async renewWithPaymentApplication(
-    params: RenewSubscriptionRepositoryParams,
-    tx: PaymentsTransactionContext,
-  ): Promise<void> {
-    const client = tx as Prisma.TransactionClient;
-    await client.subscription.update({
-      where: { id: params.result.subscriptionId },
-      data: {
-        expiresAt: params.expiresAt,
-        status: params.status,
-        paymentApplications: {
-          create: {
-            paymentId: params.paymentId,
-            action: params.result.action,
-            nextSubscriptionStartsAt: new Date(params.result.nextSubscriptionStartsAt),
-          },
-        },
-      },
-    });
   }
 
   async findPaymentApplication(
@@ -257,9 +104,181 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
         subscriptionId: application.subscriptionId,
         action: application.action,
         nextSubscriptionStartsAt: application.nextSubscriptionStartsAt.toISOString(),
-        previousProviderSubscriptionId: application.autoRenewalOperation?.sourceProviderSubscriptionId ?? null,
+        previousProviderSubscriptionId:
+          application.autoRenewalOperation?.sourceProviderSubscriptionId ?? null,
       },
     };
+  }
+
+  async findAutoRenewalOperation(
+    operationId: string,
+    tx: PaymentsTransactionContext,
+  ): Promise<AutoRenewalOperation | null> {
+    const client = tx as Prisma.TransactionClient;
+    const operation = await client.autoRenewalOperation.findUnique({
+      where: { id: operationId },
+      select: AUTO_RENEWAL_OPERATION_SELECT,
+    });
+    return operation ? this.toAutoRenewalOperation(operation) : null;
+  }
+
+  async createAutoRenewalOperation(
+    params: CreateAutoRenewalOperationRepositoryParams,
+    tx: PaymentsTransactionContext,
+  ): Promise<void> {
+    const client = tx as Prisma.TransactionClient;
+    await client.autoRenewalOperation.create({ data: params.operation });
+    if (params.autoRenewalStatus !== null) {
+      await client.subscription.update({
+        where: { id: params.operation.subscriptionId },
+        data: { autoRenewalStatus: params.autoRenewalStatus },
+      });
+    }
+  }
+
+  async completeAutoRenewalOperation(
+    params: CompleteAutoRenewalOperationRepositoryParams,
+    tx: PaymentsTransactionContext,
+  ): Promise<void> {
+    const client = tx as Prisma.TransactionClient;
+    await client.autoRenewalOperation.update({
+      where: { id: params.operationId },
+      data: {
+        status: AutoRenewalOperationStatus.COMPLETED,
+        subscription: { update: { autoRenewalStatus: params.autoRenewalStatus } },
+      },
+    });
+  }
+
+  async confirmAutoRenewalCancellation(operationId: string, tx: PaymentsTransactionContext): Promise<void> {
+    const client = tx as Prisma.TransactionClient;
+    await client.autoRenewalOperation.update({
+      where: { id: operationId },
+      data: {
+        status: AutoRenewalOperationStatus.BINDING_PENDING,
+        sourceSubscription: {
+          update: {
+            autoRenewalStatus: AutoRenewalStatus.RETIRED,
+          },
+        },
+      },
+    });
+  }
+
+  async bindProviderSubscription(
+    params: BindProviderSubscriptionRepositoryParams,
+    tx: PaymentsTransactionContext,
+  ): Promise<void> {
+    const client = tx as Prisma.TransactionClient;
+    try {
+      await client.autoRenewalOperation.update({
+        where: { id: params.operationId },
+        data: {
+          status: AutoRenewalOperationStatus.COMPLETED,
+          providerSubscriptionId: params.providerSubscriptionId,
+          subscription: {
+            update: {
+              providerSubscriptionId: params.providerSubscriptionId,
+              autoRenewalStatus: AutoRenewalStatus.ENABLED,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      // Из уникальных ключей эта запись изменяет только (provider, providerSubscriptionId).
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        // Привязка завершает TRANSFER, у которого operationId равен paymentId.
+        throw new SubscriptionBindingConflictError(
+          params.operationId,
+          params.providerSubscriptionId,
+          'PROVIDER_SUBSCRIPTION_ALREADY_BOUND',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async markExpired(subscriptionIds: string[], tx: PaymentsTransactionContext): Promise<void> {
+    const client = tx as Prisma.TransactionClient;
+    await client.subscription.updateMany({
+      where: { id: { in: subscriptionIds } },
+      data: { status: SubscriptionStatus.EXPIRED },
+    });
+  }
+
+  async createWithPaymentApplication(
+    params: CreateSubscriptionRepositoryParams,
+    tx: PaymentsTransactionContext,
+  ): Promise<void> {
+    const client = tx as Prisma.TransactionClient;
+    const transfer = params.autoRenewalTransfer;
+    await client.subscription.create({
+      data: {
+        id: params.subscriptionId,
+        userId: params.userId,
+        planId: params.planId,
+        startsAt: params.startsAt,
+        expiresAt: params.expiresAt,
+        status: params.status,
+        provider: params.provider,
+        providerSubscriptionId: params.providerSubscriptionId,
+        autoRenewalStatus: params.autoRenewalStatus,
+        paymentApplications: {
+          create: {
+            paymentId: params.paymentId,
+            action: params.action,
+            nextSubscriptionStartsAt: new Date(params.nextSubscriptionStartsAt),
+            autoRenewalOperation: transfer
+              ? {
+                  create: {
+                    id: params.paymentId,
+                    userId: params.userId,
+                    type: AutoRenewalOperationType.TRANSFER,
+                    status: AutoRenewalOperationStatus.PENDING,
+                    subscriptionId: params.subscriptionId,
+                    provider: params.provider,
+                    providerSubscriptionId: null,
+                    sourceSubscriptionId: transfer.sourceSubscriptionId,
+                    sourceProviderSubscriptionId: transfer.sourceProviderSubscriptionId,
+                  },
+                }
+              : undefined,
+          },
+        },
+      },
+    });
+  }
+
+  async setAutoRenewalState(
+    params: SetSubscriptionAutoRenewalRepositoryParams,
+    tx: PaymentsTransactionContext,
+  ): Promise<void> {
+    const client = tx as Prisma.TransactionClient;
+    await client.subscription.update({
+      where: { id: params.subscriptionId },
+      data: { autoRenewalStatus: params.status },
+    });
+  }
+
+  async renewWithPaymentApplication(
+    params: RenewSubscriptionRepositoryParams,
+    tx: PaymentsTransactionContext,
+  ): Promise<void> {
+    const client = tx as Prisma.TransactionClient;
+    await client.subscription.update({
+      where: { id: params.subscriptionId },
+      data: {
+        expiresAt: params.expiresAt,
+        status: params.status,
+        paymentApplications: {
+          create: {
+            paymentId: params.paymentId,
+            action: 'RENEWED',
+            nextSubscriptionStartsAt: new Date(params.nextSubscriptionStartsAt),
+          },
+        },
+      },
+    });
   }
 
   private toAutoRenewalOperation(

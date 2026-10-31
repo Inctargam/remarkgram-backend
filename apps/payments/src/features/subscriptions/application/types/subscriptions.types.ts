@@ -5,10 +5,6 @@ import type { AutoRenewalOperationStatus } from '../../domain/enums/auto-renewal
 import type { AutoRenewalOperationType } from '../../domain/enums/auto-renewal-operation-type.enum.js';
 import type { SubscriptionStatus } from '../../domain/enums/subscription-status.enum.js';
 
-export type FindActiveSubscriptionResult = {
-  subscriptionId: string;
-};
-
 export type SubscriptionForPayment = {
   subscriptionId: string;
   planId: number;
@@ -22,6 +18,7 @@ export type SubscriptionForPayment = {
 
 export type CreateSubscriptionRepositoryParams = {
   paymentId: string;
+  subscriptionId: string;
   userId: number;
   planId: number;
   startsAt: Date;
@@ -30,15 +27,20 @@ export type CreateSubscriptionRepositoryParams = {
   provider: SuccessfulPayment['provider'];
   providerSubscriptionId: string | null;
   autoRenewalStatus: AutoRenewalStatus;
-  result: ApplySuccessfulPaymentResult;
-  autoRenewalOperation: AutoRenewalOperation | null;
+  action: 'CREATED' | 'SCHEDULED';
+  nextSubscriptionStartsAt: string;
+  autoRenewalTransfer: {
+    sourceSubscriptionId: string;
+    sourceProviderSubscriptionId: string;
+  } | null;
 };
 
 export type RenewSubscriptionRepositoryParams = {
   paymentId: string;
+  subscriptionId: string;
   expiresAt: Date;
   status: SubscriptionStatus;
-  result: ApplySuccessfulPaymentResult;
+  nextSubscriptionStartsAt: string;
 };
 
 export type SetSubscriptionAutoRenewalRepositoryParams = {
@@ -66,16 +68,7 @@ export type SubscriptionPaymentApplication = {
   autoRenewalOperation: AutoRenewalOperation | null;
 };
 
-export type CompleteProviderSubscriptionCancellationRepositoryParams = {
-  operationId: string;
-  autoRenewalStatus: AutoRenewalStatus;
-  status: AutoRenewalOperationStatus;
-};
-
 export type BindProviderSubscriptionRepositoryParams = {
   operationId: string;
-  paymentId: string;
   providerSubscriptionId: string;
-  autoRenewalStatus: AutoRenewalStatus;
-  status: AutoRenewalOperationStatus;
 };
