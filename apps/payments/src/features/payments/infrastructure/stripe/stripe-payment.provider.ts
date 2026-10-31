@@ -22,7 +22,7 @@ import { StripePaymentErrorMapper } from './stripe-payment-error.mapper.js';
 @Injectable()
 export class StripePaymentProvider extends PaymentProviderPort {
   private readonly errorMapper = new StripePaymentErrorMapper();
-  constructor(з
+  constructor(
     @Inject(Stripe) private readonly stripe: Stripe,
     @Inject(stripeConfig.KEY) private readonly config: ConfigType<typeof stripeConfig>,
   ) {
