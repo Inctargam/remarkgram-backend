@@ -38,7 +38,7 @@ export type CreatePaymentCustomerProps = {
 export type CreatePaymentCustomerResult = Promise<{ providerCustomerId: string }>;
 export type ScheduleProviderSubscriptionCancellationResult = {
   providerSubscriptionId: string;
-  cancelAtPeriodEnd: true;
+  autoRenewalDisabled: true;
 };
 export type CreateDeferredProviderSubscriptionInput = {
   paymentId: string;

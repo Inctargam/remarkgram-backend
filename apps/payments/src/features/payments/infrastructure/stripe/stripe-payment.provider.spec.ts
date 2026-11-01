@@ -58,21 +58,58 @@ describe('StripePaymentProvider.createCheckout', () => {
 
 describe('StripePaymentProvider.scheduleSubscriptionCancellation', () => {
   it('устанавливает cancel_at_period_end без немедленной отмены Subscription', async () => {
+    const retrieve = vi.fn().mockResolvedValue({
+      id: 'sub_previous',
+      status: 'active',
+      cancel_at_period_end: false,
+    });
     const update = vi.fn().mockResolvedValue({
       id: 'sub_previous',
+      status: 'active',
       cancel_at_period_end: true,
     });
-    const provider = providerWithClient({ subscriptions: { update } });
+    const provider = providerWithClient({ subscriptions: { retrieve, update } });
 
     await expect(provider.scheduleSubscriptionCancellation('sub_previous')).resolves.toEqual({
       providerSubscriptionId: 'sub_previous',
-      cancelAtPeriodEnd: true,
+      autoRenewalDisabled: true,
     });
+    expect(retrieve).toHaveBeenCalledExactlyOnceWith('sub_previous');
     expect(update).toHaveBeenCalledWith(
       'sub_previous',
       { cancel_at_period_end: true },
       { idempotencyKey: 'subscription:cancel-at-period-end:sub_previous' },
     );
+  });
+
+  it.each([
+    [{ status: 'active', cancel_at_period_end: true }],
+    [{ status: 'canceled', cancel_at_period_end: false }],
+  ])('не отправляет повторную команду, если автопродление уже отключено: %o', async (state) => {
+    const retrieve = vi.fn().mockResolvedValue({ id: 'sub_previous', ...state });
+    const update = vi.fn();
+    const provider = providerWithClient({ subscriptions: { retrieve, update } });
+
+    await expect(provider.scheduleSubscriptionCancellation('sub_previous')).resolves.toEqual({
+      providerSubscriptionId: 'sub_previous',
+      autoRenewalDisabled: true,
+    });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('подтверждает canceled повторным чтением при гонке между чтением и командой', async () => {
+    const retrieve = vi
+      .fn()
+      .mockResolvedValueOnce({ id: 'sub_previous', status: 'active', cancel_at_period_end: false })
+      .mockResolvedValueOnce({ id: 'sub_previous', status: 'canceled', cancel_at_period_end: false });
+    const update = vi.fn().mockRejectedValue({ code: 'invalid_canceled_subscription_fields' });
+    const provider = providerWithClient({ subscriptions: { retrieve, update } });
+
+    await expect(provider.scheduleSubscriptionCancellation('sub_previous')).resolves.toEqual({
+      providerSubscriptionId: 'sub_previous',
+      autoRenewalDisabled: true,
+    });
+    expect(retrieve).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -108,7 +145,7 @@ describe('StripePaymentProvider.setSubscriptionAutoRenewal', () => {
 });
 
 describe('StripePaymentProvider.createDeferredSubscription', () => {
-  it('создаёт Subscription с будущим billing anchor без proration', async () => {
+  it('создаёт Subscription с будущим trial end без proration', async () => {
     const createProduct = vi.fn().mockResolvedValue({ id: 'prod_test' });
     const createSubscription = vi.fn().mockResolvedValue({ id: 'sub_new' });
     const provider = providerWithClient({
@@ -141,7 +178,7 @@ describe('StripePaymentProvider.createDeferredSubscription', () => {
     expect(createSubscription).toHaveBeenCalledWith(
       expect.objectContaining({
         customer: input.customerId,
-        billing_cycle_anchor: Math.floor(new Date('2026-11-14T10:00:00.000Z').getTime() / 1000),
+        trial_end: Math.floor(new Date('2026-11-14T10:00:00.000Z').getTime() / 1000),
         proration_behavior: 'none',
         metadata: {
           paymentId: input.paymentId,

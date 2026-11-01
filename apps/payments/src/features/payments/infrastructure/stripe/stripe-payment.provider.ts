@@ -195,9 +195,11 @@ export class StripePaymentProvider extends PaymentProviderPort {
   async scheduleSubscriptionCancellation(
     providerSubscriptionId: string,
   ): Promise<ScheduleProviderSubscriptionCancellationResult> {
-    let subscription: Stripe.Subscription;
     try {
-      subscription = await this.stripe.subscriptions.update(
+      const current = await this.stripe.subscriptions.retrieve(providerSubscriptionId);
+      if (this.isAutoRenewalDisabled(current)) return this.autoRenewalDisabledResult(current.id);
+
+      const updated = await this.stripe.subscriptions.update(
         providerSubscriptionId,
         { cancel_at_period_end: true },
         {
@@ -206,22 +208,50 @@ export class StripePaymentProvider extends PaymentProviderPort {
           idempotencyKey: this.idempotencyKey('subscription:cancel-at-period-end', providerSubscriptionId),
         },
       );
+      if (!this.isAutoRenewalDisabled(updated))
+        throw new Error(`Stripe did not disable auto-renewal for Subscription ${providerSubscriptionId}`);
+
+      return this.autoRenewalDisabledResult(updated.id);
     } catch (error) {
+      if (this.isCanceledSubscriptionUpdateError(error)) {
+        try {
+          // Subscription could have been canceled between retrieve() and update().
+          const latest = await this.stripe.subscriptions.retrieve(providerSubscriptionId);
+          if (latest.status === 'canceled') return this.autoRenewalDisabledResult(latest.id);
+        } catch (readError) {
+          throw this.errorMapper.toApplicationError(readError, {
+            operation: 'SCHEDULE_SUBSCRIPTION_CANCELLATION',
+            aggregateId: providerSubscriptionId,
+          });
+        }
+      }
       throw this.errorMapper.toApplicationError(error, {
         operation: 'SCHEDULE_SUBSCRIPTION_CANCELLATION',
         aggregateId: providerSubscriptionId,
       });
     }
-    if (!subscription.cancel_at_period_end)
-      throw this.errorMapper.toApplicationError(
-        new Error(`Stripe did not schedule cancellation for Subscription ${providerSubscriptionId}`),
-        { operation: 'SCHEDULE_SUBSCRIPTION_CANCELLATION', aggregateId: providerSubscriptionId },
-      );
+  }
 
+  private isAutoRenewalDisabled(subscription: Stripe.Subscription): boolean {
+    return subscription.status === 'canceled' || subscription.cancel_at_period_end;
+  }
+
+  private autoRenewalDisabledResult(
+    providerSubscriptionId: string,
+  ): ScheduleProviderSubscriptionCancellationResult {
     return {
-      providerSubscriptionId: subscription.id,
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      providerSubscriptionId,
+      autoRenewalDisabled: true,
     };
+  }
+
+  private isCanceledSubscriptionUpdateError(error: unknown): boolean {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'invalid_canceled_subscription_fields'
+    );
   }
 
   // Создать отложенную подписку
@@ -270,7 +300,7 @@ export class StripePaymentProvider extends PaymentProviderPort {
             },
           },
         ],
-        billing_cycle_anchor: billingCycleAnchor, // дата первого инвойса
+        trial_end: billingCycleAnchor, // дата первого инвойса
         proration_behavior: 'none', // не создавать инвойс за период до якоря
         metadata: {
           paymentId: input.paymentId,

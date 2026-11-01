@@ -53,7 +53,7 @@ export class ScheduleProviderSubscriptionCancellationUseCase {
   ): void {
     if (
       result.providerSubscriptionId !== params.previousProviderSubscriptionId ||
-      result.cancelAtPeriodEnd !== true
+      result.autoRenewalDisabled !== true
     )
       throw new PaymentProviderResultMismatchError('schedule subscription cancellation');
   }

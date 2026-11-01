@@ -10,7 +10,7 @@ describe('ScheduleProviderSubscriptionCancellationUseCase workflow step', () => 
         .fn<PaymentProviderPort['scheduleSubscriptionCancellation']>()
         .mockResolvedValue({
           providerSubscriptionId: 'sub_previous',
-          cancelAtPeriodEnd: true,
+          autoRenewalDisabled: true,
         }),
     };
     const subscriptions = {
