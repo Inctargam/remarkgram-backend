@@ -384,6 +384,145 @@ extension purchase и не становится initial purchase.
 - `SUCCEEDED` нельзя понижать поздним failure/cancellation event;
 - refund успешного Payment не является `CANCELED` и требует отдельной модели.
 
+## Блокировка нового Checkout во время незавершённого renewal (2026-11-01, решение согласовано)
+
+### Причина
+
+Локальный период доступа может закончиться раньше, чем Stripe завершит взыскание следующего recurring
+Invoice. Например, после `invoice.payment_failed` Invoice остаётся открытым, Stripe Smart Retries может
+успешно списать деньги позднее, а `hasActiveSubscription(userId)` уже возвращает `false`, потому что
+`expiresAt` локальной Subscription прошёл. Если в этом окне создать новый Stripe Checkout в
+`mode=subscription`, у пользователя могут одновременно появиться две recurring provider Subscription
+и последующие двойные списания.
+
+Решение о допустимости новой финансовой операции принадлежит D1 Payment Module. D2 не должен знать о
+`invoice.payment_failed`, Smart Retries, открытом Invoice или recovery оплаты. D2 по-прежнему сообщает
+только наличие действующего локального доступа для выбора `CheckoutPurpose` и применяет подтверждённый
+Payment к своему lifecycle.
+
+### Механизм
+
+Источником блокировки служит существующий `Payment` типа `RENEWAL`; отдельная таблица
+`PaymentRecovery` в согласованный минимальный срез не входит. Перед чтением контекста D2 и созданием
+нового PURCHASE Payment `CreateCheckoutUseCase` должен проверить, существует ли для пользователя
+блокирующий renewal:
+
+```text
+type = RENEWAL
+AND (
+  status = PENDING
+  OR (status = SUCCEEDED AND subscriptionId IS NULL)
+)
+```
+
+- `PENDING` означает, что конкретный recurring Invoice ещё может завершиться поздним `invoice.paid`;
+- `SUCCEEDED + subscriptionId IS NULL` означает, что деньги уже подтверждены D1, но оплаченный период
+  ещё не применён и не связан с D2;
+- `SUCCEEDED + subscriptionId IS NOT NULL`, `CANCELED` и согласованный в будущем terminal `FAILED`
+  не блокируют новый Checkout.
+
+При наличии блокирующего renewal use case не обращается к D2, не создаёт PURCHASE Payment, не создаёт
+Stripe Customer/Checkout и возвращает управляемый конфликт `PAYMENT_RECOVERY_IN_PROGRESS`, который на
+HTTP-границе отображается в `409 Conflict`. Повтор с тем же idempotency key сначала подчиняется
+существующим правилам fingerprint/replay; recovery guard применяется только когда запрос действительно
+собирается создать новую финансовую операцию.
+
+`invoice.finalized` остаётся основной точкой идемпотентного создания `PENDING RENEWAL` по уникальной
+паре `(provider, providerInvoiceId)`. `invoice.payment_failed` не переводит Payment в `FAILED` или
+`CANCELED`: неуспех одной попытки не является terminal outcome. Если failure может быть доставлен без
+ранее применённого finalized, его recovery-поведение должно использовать тот же идемпотентный
+`ensurePendingRenewal`, а не создавать вторую финансовую сущность; этот fallback требует отдельной
+реализации и проверки нормализованного source context.
+
+Проверка блокирующего renewal и создание нового PURCHASE reservation должны выполняться атомарно под
+общей D1-сериализацией по `userId`. Обработчики, создающие/восстанавливающие `PENDING RENEWAL`, должны
+участвовать в той же сериализации. Короткий `SELECT`, выполненный отдельно от `create`, оставляет
+write-skew: Checkout и webhook могут одновременно решить, что препятствия нет. Provider-вызов не
+выполняется внутри DB-транзакции; после commit локальная PURCHASE reservation остаётся устойчивым
+результатом выигравшего решения.
+
+### Успешные flow
+
+Обычная первая покупка без незавершённого renewal:
+
+```text
+CreateCheckout
+  -> idempotency lookup: Payment отсутствует
+  -> D1 billing lock по userId
+  -> blocking RENEWAL отсутствует
+  -> D2 hasActiveSubscription=false
+  -> создать PURCHASE / INITIAL_SUBSCRIPTION reservation
+  -> commit
+  -> создать Stripe Checkout mode=subscription
+  -> attach Checkout; вернуть PENDING + checkoutUrl
+```
+
+Поздний успешный Smart Retry:
+
+```text
+invoice.finalized
+  -> создать/найти RENEWAL PENDING
+invoice.payment_failed
+  -> оставить RENEWAL PENDING; новый Checkout заблокирован
+invoice.paid
+  -> подтвердить RENEWAL SUCCEEDED; блокировка сохраняется, пока subscriptionId=null
+workflow Step 2
+  -> D2 применяет оплаченный период
+  -> Payment.subscriptionId записывается в той же транзакции
+  -> блокировка снимается
+```
+
+### Неуспешные и terminal flow
+
+Пока взыскание не завершено:
+
+```text
+CreateCheckout
+  -> найден RENEWAL PENDING либо SUCCEEDED без D2 link
+  -> PAYMENT_RECOVERY_IN_PROGRESS / HTTP 409
+  -> без D2 query, нового Payment и provider-вызова
+```
+
+Окончательно аннулированный Invoice:
+
+```text
+invoice.voided
+  -> однозначно найти unpaid RENEWAL по providerInvoiceId
+  -> PENDING -> CANCELED
+  -> новый Checkout больше не блокируется этим Payment
+```
+
+`invoice.marked_uncollectible` пока не поддерживается и не должен неявно снимать блокировку. До
+согласования terminal-семантики такой случай требует reconciliation/manual resolution. Ошибка
+применения уже оплаченного renewal к D2 также не снимает блокировку: `SUCCEEDED + subscriptionId=null`
+защищает промежуток между финансовым commit и восстановлением Step 2.
+
+### Покрываемые пограничные сценарии
+
+- локальный доступ истёк между первой неуспешной попыткой Stripe и поздним Smart Retry;
+- несколько `invoice.payment_failed` для одного Invoice не создают новые Payment и не снимают guard;
+- повторный/поздний `invoice.finalized` использует тот же renewal по provider Invoice identity;
+- `invoice.paid` пришёл после одного или нескольких failure и всё ещё может подтвердить `PENDING`;
+- новый Checkout не открывается между D1 commit `SUCCEEDED` и применением оплаты в D2;
+- конкурентные CreateCheckout одного пользователя по-прежнему дополнительно защищены initial
+  reservation и idempotency key;
+- при общей сериализации по `userId` CreateCheckout не может одновременно пройти проверку и создать
+  PURCHASE параллельно с созданием известного локально `PENDING RENEWAL`.
+
+### Ограничения
+
+- Guard защищает только от provider Invoice, уже представленного локальным `RENEWAL Payment`.
+  Между созданием/finalization Invoice в Stripe и доставкой первого пригодного webhook остаётся внешнее
+  окно неизвестного состояния.
+- Текущий `invoice.payment_failed` выполняет только audit/correlation и сам не восстанавливает
+  отсутствующий renewal; fallback через `ensurePendingRenewal` должен быть реализован отдельно.
+- `invoice.marked_uncollectible`, удаление provider Subscription, refund и административное закрытие
+  взыскания требуют собственных terminal-решений.
+- Решение предотвращает создание второй recurring Subscription, но не предоставляет пользователю
+  отдельный UX оплаты открытого Invoice или обновления payment method.
+- Это финансовый guard D1, а не модель lifecycle Stripe Subscription. Он не переносит billing state в
+  D2 и не заменяет provider reconciliation.
+
 ## Правила Stripe events
 
 | Stripe event                           | Семантика Payment Module                                                            | Состояние реализации                   |
@@ -395,8 +534,8 @@ extension purchase и не становится initial purchase.
 | `payment_intent.payment_failed`        | Audit/correlation; не меняет lifecycle status                                       | Реализовано                            |
 | `invoice.payment_failed`               | Audit/correlation; не меняет lifecycle status                                       | Реализовано                            |
 | `checkout.session.expired`             | `CREATED/PENDING -> CANCELED` после reconciliation                                  | Реализовано в worktree, ожидает review |
-| `payment_intent.canceled`              | Terminal cancellation только для `PURCHASE + SUBSCRIPTION_EXTENSION`                 | Реализовано, ожидает review            |
-| `invoice.voided`                       | Terminal cancellation для unpaid `subscription_cycle` renewal по Invoice ID          | Реализовано, ожидает review            |
+| `payment_intent.canceled`              | Terminal cancellation только для `PURCHASE + SUBSCRIPTION_EXTENSION`                | Реализовано, ожидает review            |
+| `invoice.voided`                       | Terminal cancellation для unpaid `subscription_cycle` renewal по Invoice ID         | Реализовано, ожидает review            |
 | `invoice.marked_uncollectible`         | Не считать автоматически `CANCELED`; требуется отдельное решение о terminal failure | Не реализовано                         |
 | `customer.subscription.deleted`        | Subscription lifecycle, не отмена исторического Payment                             | Не реализовано                         |
 | `charge.refunded` / `refund.*`         | Refund lifecycle, не `CANCELED`                                                     | Не реализовано                         |
@@ -428,16 +567,16 @@ Optional provider reference означает отсутствие знания, 
 
 ### Ownership references по событиям
 
-| Event                                             | References, участвующие в reconciliation/enrichment                                                                                      | Не проверять в этом event                                                                         |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `checkout.session.completed`, `mode=payment`      | `providerCheckoutId` — обязателен; `providerCustomerId` и `providerPaymentId` — optional knowledge                                       | `providerSubscriptionId`, `providerInvoiceId`                                                     |
+| Event                                             | References, участвующие в reconciliation/enrichment                                                                                      | Не проверять в этом event                                                                      |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `checkout.session.completed`, `mode=payment`      | `providerCheckoutId` — обязателен; `providerCustomerId` и `providerPaymentId` — optional knowledge                                       | `providerSubscriptionId`, `providerInvoiceId`                                                  |
 | `checkout.session.completed`, `mode=subscription` | `providerCheckoutId` — обязателен; `providerCustomerId` и `providerSubscriptionId` — optional knowledge                                  | `providerInvoiceId` и `providerPaymentId` (Session не предоставляет его для subscription mode) |
-| `checkout.session.expired`                        | `providerCheckoutId` — обязателен; `providerCustomerId` — optional knowledge                                                             | `providerPaymentId`, `providerSubscriptionId`, `providerInvoiceId`                                |
-| `payment_intent.succeeded`                        | `providerPaymentId` — ID самого PaymentIntent; `providerCustomerId` — optional knowledge                                                 | `providerSubscriptionId`, `providerInvoiceId`                                                     |
-| `payment_intent.payment_failed`                   | `providerPaymentId` для correlation; Customer только если contract его нормализует                                                       | `providerSubscriptionId`, `providerInvoiceId`                                                     |
-| `payment_intent.canceled`                         | `providerPaymentId` — ID самого PaymentIntent; `providerCustomerId` — optional knowledge                                                 | `providerSubscriptionId`, `providerInvoiceId`                                                     |
-| `invoice.paid`                                    | `providerInvoiceId` — ID Invoice; `providerSubscriptionId` для subscription invoice; `providerPaymentId` и Customer — optional knowledge | Checkout reference                                                                                |
-| `invoice.payment_failed`                          | То же пространство references, что у Invoice, но только для audit/correlation                                                            | Checkout reference                                                                                |
+| `checkout.session.expired`                        | `providerCheckoutId` — обязателен; `providerCustomerId` — optional knowledge                                                             | `providerPaymentId`, `providerSubscriptionId`, `providerInvoiceId`                             |
+| `payment_intent.succeeded`                        | `providerPaymentId` — ID самого PaymentIntent; `providerCustomerId` — optional knowledge                                                 | `providerSubscriptionId`, `providerInvoiceId`                                                  |
+| `payment_intent.payment_failed`                   | `providerPaymentId` для correlation; Customer только если contract его нормализует                                                       | `providerSubscriptionId`, `providerInvoiceId`                                                  |
+| `payment_intent.canceled`                         | `providerPaymentId` — ID самого PaymentIntent; `providerCustomerId` — optional knowledge                                                 | `providerSubscriptionId`, `providerInvoiceId`                                                  |
+| `invoice.paid`                                    | `providerInvoiceId` — ID Invoice; `providerSubscriptionId` для subscription invoice; `providerPaymentId` и Customer — optional knowledge | Checkout reference                                                                             |
+| `invoice.payment_failed`                          | То же пространство references, что у Invoice, но только для audit/correlation                                                            | Checkout reference                                                                             |
 
 `providerInvoiceId` не должен извлекаться или ожидаться от `checkout.session.completed`: Invoice является
 отдельным Stripe object и приходит в invoice events. Для one-time Checkout отсутствие
@@ -981,7 +1120,7 @@ idempotency key обязан получить ту же Stripe Subscription и �
   читаться через Invoice Payments API или expansion invoice.payments.
   InvoicePayment/несколько PaymentIntent остаются вне текущей итерации; дополнительные запросы
   ради заполнения providerPaymentId здесь не требуются.
-- В payment_intent.* событиях ID доступен как data.object.id. Нельзя распространять ограничение
+- В payment_intent.\* событиях ID доступен как data.object.id. Нельзя распространять ограничение
   Checkout mode на сами PaymentIntent objects или подменять ID значением Invoice/Subscription/Charge.
 
 Stripe client проекта настроен на `2026-08-26.dahlia`, то есть после изменения Basil.
@@ -1104,7 +1243,6 @@ Refactor разделяет два разных назначения данны�
 Не запускать tests, build, lint, formatter или другие verification-команды без явного запроса
 пользователя. После изменения перечислить рекомендуемые, но не выполненные проверки.
 
-
 ## Срез invoice.finalized: ожидает review
 
 Добавлен `invoice.finalized/subscription_cycle -> RENEWAL/PENDING` с идемпотентностью по Invoice.
@@ -1117,7 +1255,6 @@ pending renewal; прежний recovery создания успешного ren
 в этот срез. `invoice.voided` реализован отдельным slice и отменяет только найденный по Invoice ID
 renewal. Подробности и ограничения указаны в README payment-events.
 
-
 ### Уточнённые границы итерации renewal
 
 - `invoice.voided` реализован для `subscription_cycle`: source `paymentId` из metadata не отменяется,
@@ -1129,7 +1266,6 @@ renewal. Подробности и ограничения указаны в READ
 - Изменение цены существующего recurring billing отложено на следующую итерацию.
 - Renewal дедуплицируется по `(providerType, providerInvoiceId)`; вычисляемого idempotency key
   и передачи `idempotentKey` в контракте создания renewal нет.
-
 
 ## Уточнение renewal context: metadata исходной оплаты (2026-10-23, ожидает review)
 
@@ -1160,7 +1296,6 @@ RenewalPaymentContextUnavailableError. NOT_UPDATED вызывает PAYMENT_CONF
 Сумма существующей PENDING сверяется с paid Invoice; данный рефакторинг исправляет сравнение
 с историческим source, не вводит отдельную модель expected/collected amounts.
 Фактические проверки этого изменения не запускались согласно verification policy.
-
 
 ## Workflow V7: bounded application retry и reconciliation (2026-10-23, ожидает review)
 
@@ -1198,7 +1333,6 @@ DEAD/reconciliation по-прежнему требует доступности 
 WebhookProcessingStatus.RECONCILIATION_REQUIRED; применять её нужно до запуска workflow с поддержкой нового статуса.
 Prisma Client сгенерирован штатной командой. Tests/build/lint не запускались.
 
-
 ### Infrastructure retry helper (2026-10-23)
 
 Циклы V7 вынесены в `DbosPaymentWebhookRetryService` рядом с DBOS workflow.
@@ -1210,7 +1344,6 @@ Workflow передаёт явную policy: `maxAttempts: 10`, `initialDelaySec
 семантику. `runBeforeEventPersisted` повторяет начальное сохранение без audit,
 поскольку записи события ещё может не существовать. Provider step retries не изменены.
 Tests/build/lint/formatter не запускались согласно verification policy.
-
 
 ### Retry responsibility split (2026-10-24)
 
