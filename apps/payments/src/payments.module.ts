@@ -1,84 +1,84 @@
-import { ConfirmRenewalPaymentUseCase } from './features/payments/application/use-cases/payment-events/confirm-renewal-payment/confirm-renewal-payment.use-case.js';
 import { Module } from '@nestjs/common';
 import { ConfigModule, type ConfigType } from '@nestjs/config';
-import Stripe from 'stripe';
 import { CqrsModule } from '@nestjs/cqrs';
+import Stripe from 'stripe';
 import { databaseConfig } from './config/database.config.js';
 import { dbosConfig } from './config/dbos.config.js';
 import { paymentsConfig } from './config/payments.config.js';
 import { stripeConfig } from './config/stripe.config.js';
 import { PrismaModule } from './database/prisma.module.js';
-import { PaymentProviderPort } from './features/payments/application/ports/payment-provider.js';
-import { PaymentEventRepository } from './features/payments/application/ports/payment-event.repository.js';
-import { PROVIDER_EVENT_ADAPTERS } from './features/payments/application/ports/provider-event-adapter.js';
 import { PaymentCustomersRepository } from './features/payments/application/ports/payment-customers.repository.js';
-import { PaymentsRepository } from './features/payments/application/ports/payments.repository.js';
-import { PaymentsQueryRepository } from './features/payments/application/ports/payments.query-repository.js';
+import { PaymentEventRepository } from './features/payments/application/ports/payment-event.repository.js';
+import { PaymentProviderPort } from './features/payments/application/ports/payment-provider.js';
 import { PaymentWebhookWorkflow } from './features/payments/application/ports/payment-webhook.workflow.js';
+import { PaymentsQueryRepository } from './features/payments/application/ports/payments.query-repository.js';
+import { PaymentsRepository } from './features/payments/application/ports/payments.repository.js';
+import { PROVIDER_EVENT_ADAPTERS } from './features/payments/application/ports/provider-event-adapter.js';
 import { SubscriptionContextPort } from './features/payments/application/ports/subscription-context.port.js';
 import { SubscriptionPaymentHandler } from './features/payments/application/ports/subscription-payment.handler.js';
 import { PaymentCustomerService } from './features/payments/application/services/payment-customer.service.js';
 import { CreateCheckoutUseCase } from './features/payments/application/use-cases/create-checkout.use-case.js';
-import { ConfirmPaymentIntentSucceededUseCase } from './features/payments/application/use-cases/payment-events/confirm-payment-intent-succeeded/confirm-payment-intent-succeeded.use-case.js';
-import { EnsureRenewalPaymentUseCase } from './features/payments/application/use-cases/payment-events/ensure-renewal-payment/ensure-renewal-payment.use-case.js';
-import { StripeInvoiceFinalizedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-invoice-finalized.adapter.js';
-import { ConfirmInvoicePaidUseCase } from './features/payments/application/use-cases/payment-events/confirm-invoice-paid/confirm-invoice-paid.use-case.js';
+import { GetPaymentStatusQueryHandler } from './features/payments/application/use-cases/get-payment-status/get-payment-status.query-handler.js';
+import { GetPaymentsQueryHandler } from './features/payments/application/use-cases/get-payments/get-payments.query-handler.js';
 import { ApplyCheckoutSessionCompletedUseCase } from './features/payments/application/use-cases/payment-events/apply-checkout-session-completed/apply-checkout-session-completed.use-case.js';
 import { CancelExpiredCheckoutSessionUseCase } from './features/payments/application/use-cases/payment-events/cancel-expired-checkout-session/cancel-expired-checkout-session.use-case.js';
 import { CancelPaymentIntentUseCase } from './features/payments/application/use-cases/payment-events/cancel-payment-intent/cancel-payment-intent.use-case.js';
-import { RecordPaymentIntentFailedUseCase } from './features/payments/application/use-cases/payment-events/record-payment-intent-failed/record-payment-intent-failed.use-case.js';
-import { RecordInvoicePaymentFailedUseCase } from './features/payments/application/use-cases/payment-events/record-invoice-payment-failed/record-invoice-payment-failed.use-case.js';
 import { CancelVoidedInvoiceUseCase } from './features/payments/application/use-cases/payment-events/cancel-voided-invoice/cancel-voided-invoice.use-case.js';
+import { ConfirmInvoicePaidUseCase } from './features/payments/application/use-cases/payment-events/confirm-invoice-paid/confirm-invoice-paid.use-case.js';
+import { ConfirmPaymentIntentSucceededUseCase } from './features/payments/application/use-cases/payment-events/confirm-payment-intent-succeeded/confirm-payment-intent-succeeded.use-case.js';
+import { ConfirmRenewalPaymentUseCase } from './features/payments/application/use-cases/payment-events/confirm-renewal-payment/confirm-renewal-payment.use-case.js';
+import { EnsureRenewalPaymentUseCase } from './features/payments/application/use-cases/payment-events/ensure-renewal-payment/ensure-renewal-payment.use-case.js';
+import { RecordInvoicePaymentFailedUseCase } from './features/payments/application/use-cases/payment-events/record-invoice-payment-failed/record-invoice-payment-failed.use-case.js';
+import { RecordPaymentIntentFailedUseCase } from './features/payments/application/use-cases/payment-events/record-payment-intent-failed/record-payment-intent-failed.use-case.js';
 import { ApplyPaymentEventUseCase } from './features/payments/application/use-cases/process-payment-webhook/apply-payment-event.use-case.js';
 import { CreateDeferredProviderSubscriptionUseCase } from './features/payments/application/use-cases/process-payment-webhook/create-deferred-provider-subscription.use-case.js';
 import { LinkPaymentToSubscriptionUseCase } from './features/payments/application/use-cases/process-payment-webhook/link-payment-to-subscription.use-case.js';
 import { ScheduleProviderSubscriptionCancellationUseCase } from './features/payments/application/use-cases/process-payment-webhook/schedule-provider-subscription-cancellation.use-case.js';
-import { GetPaymentsQueryHandler } from './features/payments/application/use-cases/get-payments/get-payments.query-handler.js';
-import { GetPaymentStatusQueryHandler } from './features/payments/application/use-cases/get-payment-status/get-payment-status.query-handler.js';
 import { ProcessStripeWebhookUseCase } from './features/payments/application/use-cases/process-stripe-webhook.use-case.js';
 import { ReceivePaymentEventUseCase } from './features/payments/application/use-cases/receive-payment-event.use-case.js';
 import { SetProviderSubscriptionAutoRenewalUseCase } from './features/payments/application/use-cases/set-provider-subscription-auto-renewal/set-provider-subscription-auto-renewal.use-case.js';
-import { PrismaPaymentsRepository } from './features/payments/infrastructure/persistence/prisma/prisma-payments.repository.js';
-import { PrismaPaymentsQueryRepository } from './features/payments/infrastructure/persistence/prisma/prisma-payments.query-repository.js';
-import { PrismaPaymentEventRepository } from './features/payments/infrastructure/persistence/prisma/prisma-payment-event.repository.js';
-import { PrismaPaymentCustomersRepository } from './features/payments/infrastructure/persistence/prisma/prisma-payment-customers.repository.js';
-import { StripePaymentProvider } from './features/payments/infrastructure/stripe/stripe-payment.provider.js';
-import { StripeCheckoutSessionCompletedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-checkout-session-completed.adapter.js';
-import { StripeCheckoutSessionExpiredAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-checkout-session-expired.adapter.js';
-import { StripeInvoicePaidAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-invoice-paid.adapter.js';
-import { StripePaymentIntentSucceededAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-payment-intent-succeeded.adapter.js';
-import { StripePaymentIntentPaymentFailedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-payment-intent-payment-failed.adapter.js';
-import { StripePaymentIntentCanceledAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-payment-intent-canceled.adapter.js';
-import { StripeInvoicePaymentFailedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-invoice-payment-failed.adapter.js';
-import { StripeInvoiceVoidedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-invoice-voided.adapter.js';
 import { DbosLifecycleService } from './features/payments/infrastructure/dbos/dbos-lifecycle.service.js';
 import { DbosPaymentWebhookWorkflow } from './features/payments/infrastructure/dbos/dbos-payment-webhook.workflow.js';
 import { PaymentsDbosDataSource } from './features/payments/infrastructure/dbos/payments-dbos.datasource.js';
+import { PrismaPaymentCustomersRepository } from './features/payments/infrastructure/persistence/prisma/prisma-payment-customers.repository.js';
+import { PrismaPaymentEventRepository } from './features/payments/infrastructure/persistence/prisma/prisma-payment-event.repository.js';
+import { PrismaPaymentsQueryRepository } from './features/payments/infrastructure/persistence/prisma/prisma-payments.query-repository.js';
+import { PrismaPaymentsRepository } from './features/payments/infrastructure/persistence/prisma/prisma-payments.repository.js';
+import { StripeCheckoutSessionCompletedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-checkout-session-completed.adapter.js';
+import { StripeCheckoutSessionExpiredAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-checkout-session-expired.adapter.js';
+import { StripeInvoiceFinalizedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-invoice-finalized.adapter.js';
+import { StripeInvoicePaidAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-invoice-paid.adapter.js';
+import { StripeInvoicePaymentFailedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-invoice-payment-failed.adapter.js';
+import { StripeInvoiceVoidedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-invoice-voided.adapter.js';
+import { StripePaymentIntentCanceledAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-payment-intent-canceled.adapter.js';
+import { StripePaymentIntentPaymentFailedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-payment-intent-payment-failed.adapter.js';
+import { StripePaymentIntentSucceededAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-payment-intent-succeeded.adapter.js';
+import { StripePaymentProvider } from './features/payments/infrastructure/stripe/stripe-payment.provider.js';
 import { PaymentsProviderSubscriptionAutoRenewalAdapter } from './features/payments/infrastructure/subscriptions/payments-provider-subscription-auto-renewal.adapter.js';
 import { PaymentsGrpcController } from './features/payments/presentation/grpc/payments-grpc.controller.js';
 import { StripeWebhookController } from './features/payments/presentation/http/stripe-webhook.controller.js';
-import { PlansRepository } from './features/plans/application/ports/plans.repository.js';
 import { PlansQueryRepository } from './features/plans/application/ports/plans.query-repository.js';
+import { PlansRepository } from './features/plans/application/ports/plans.repository.js';
 import { GetPlansQueryHandler } from './features/plans/application/use-cases/get-plans/get-plans.query-handler.js';
-import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-plans.repository.js';
 import { PrismaPlansQueryRepository } from './features/plans/infrastructure/prisma-plans.query-repository.js';
-import { SubscriptionsQueryRepository } from './features/subscriptions/application/ports/subscriptions-query.repository.js';
-import { HasActiveSubscriptionQueryHandler } from './features/subscriptions/application/use-cases/has-active-subscription/has-active-subscription.query-handler.js';
-import { LocalSubscriptionContextAdapter } from './features/subscriptions/infrastructure/payments/local-subscription-context.adapter.js';
-import { PrismaSubscriptionsQueryRepository } from './features/subscriptions/infrastructure/persistence/prisma-subscriptions-query.repository.js';
-import { SubscriptionsRepository } from './features/subscriptions/application/ports/subscriptions.repository.js';
-import { ApplySuccessfulPaymentUseCase } from './features/subscriptions/application/use-cases/apply-successful-payment/apply-successful-payment.use-case.js';
-import { ConfirmAutoRenewalCancellationUseCase } from './features/subscriptions/application/use-cases/confirm-auto-renewal-cancellation/confirm-auto-renewal-cancellation.use-case.js';
-import { BindProviderSubscriptionUseCase } from './features/subscriptions/application/use-cases/bind-provider-subscription/bind-provider-subscription.use-case.js';
-import { LocalSubscriptionPaymentHandlerAdapter } from './features/subscriptions/infrastructure/payments/local-subscription-payment-handler.adapter.js';
-import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastructure/persistence/prisma-subscriptions.repository.js';
+import { PrismaPlansRepository } from './features/plans/infrastructure/prisma-plans.repository.js';
 import { ChangeSubscriptionAutoRenewalWorkflow } from './features/subscriptions/application/ports/change-subscription-auto-renewal.workflow.js';
 import { ProviderSubscriptionAutoRenewalGateway } from './features/subscriptions/application/ports/provider-subscription-auto-renewal.gateway.js';
-import { EnableSubscriptionAutoRenewalUseCase } from './features/subscriptions/application/use-cases/enable-subscription-auto-renewal/enable-subscription-auto-renewal.use-case.js';
-import { DisableSubscriptionAutoRenewalUseCase } from './features/subscriptions/application/use-cases/disable-subscription-auto-renewal/disable-subscription-auto-renewal.use-case.js';
-import { PrepareSubscriptionAutoRenewalChangeUseCase } from './features/subscriptions/application/use-cases/prepare-subscription-auto-renewal-change/prepare-subscription-auto-renewal-change.use-case.js';
+import { SubscriptionsQueryRepository } from './features/subscriptions/application/ports/subscriptions-query.repository.js';
+import { SubscriptionsRepository } from './features/subscriptions/application/ports/subscriptions.repository.js';
+import { ApplySuccessfulPaymentUseCase } from './features/subscriptions/application/use-cases/apply-successful-payment/apply-successful-payment.use-case.js';
+import { BindProviderSubscriptionUseCase } from './features/subscriptions/application/use-cases/bind-provider-subscription/bind-provider-subscription.use-case.js';
+import { ConfirmAutoRenewalCancellationUseCase } from './features/subscriptions/application/use-cases/confirm-auto-renewal-cancellation/confirm-auto-renewal-cancellation.use-case.js';
 import { ConfirmSubscriptionAutoRenewalChangeUseCase } from './features/subscriptions/application/use-cases/confirm-subscription-auto-renewal-change/confirm-subscription-auto-renewal-change.use-case.js';
+import { DisableSubscriptionAutoRenewalUseCase } from './features/subscriptions/application/use-cases/disable-subscription-auto-renewal/disable-subscription-auto-renewal.use-case.js';
+import { EnableSubscriptionAutoRenewalUseCase } from './features/subscriptions/application/use-cases/enable-subscription-auto-renewal/enable-subscription-auto-renewal.use-case.js';
+import { HasActiveSubscriptionQueryHandler } from './features/subscriptions/application/use-cases/has-active-subscription/has-active-subscription.query-handler.js';
+import { PrepareSubscriptionAutoRenewalChangeUseCase } from './features/subscriptions/application/use-cases/prepare-subscription-auto-renewal-change/prepare-subscription-auto-renewal-change.use-case.js';
 import { DbosChangeSubscriptionAutoRenewalWorkflow } from './features/subscriptions/infrastructure/dbos/dbos-change-subscription-auto-renewal.workflow.js';
+import { LocalSubscriptionContextAdapter } from './features/subscriptions/infrastructure/payments/local-subscription-context.adapter.js';
+import { LocalSubscriptionPaymentHandlerAdapter } from './features/subscriptions/infrastructure/payments/local-subscription-payment-handler.adapter.js';
+import { PrismaSubscriptionsQueryRepository } from './features/subscriptions/infrastructure/persistence/prisma-subscriptions-query.repository.js';
+import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastructure/persistence/prisma-subscriptions.repository.js';
 
 @Module({
   imports: [
@@ -201,13 +201,15 @@ import { DbosChangeSubscriptionAutoRenewalWorkflow } from './features/subscripti
     PrepareSubscriptionAutoRenewalChangeUseCase,
     ConfirmSubscriptionAutoRenewalChangeUseCase,
     DbosChangeSubscriptionAutoRenewalWorkflow,
-    { provide: ChangeSubscriptionAutoRenewalWorkflow, useExisting: DbosChangeSubscriptionAutoRenewalWorkflow },
+    {
+      provide: ChangeSubscriptionAutoRenewalWorkflow,
+      useExisting: DbosChangeSubscriptionAutoRenewalWorkflow,
+    },
     ProcessStripeWebhookUseCase,
     PaymentsDbosDataSource,
     DbosPaymentWebhookWorkflow,
     { provide: PaymentWebhookWorkflow, useExisting: DbosPaymentWebhookWorkflow },
     DbosLifecycleService,
   ],
-  exports: [PaymentsProviderSubscriptionAutoRenewalAdapter],
 })
 export class PaymentsModule {}

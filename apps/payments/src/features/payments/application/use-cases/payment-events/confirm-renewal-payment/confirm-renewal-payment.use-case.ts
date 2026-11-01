@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { PaymentConfirmationNotAppliedError } from '../../../errors/payment-confirmation-not-applied.error.js';
 import type { Currency } from '../../../../../../common/domain/currency.enum.js';
 import { PaymentStatus, type Payment } from '../../../../domain/payment.entity.js';
+import { PaymentConfirmationNotAppliedError } from '../../../errors/payment-confirmation-not-applied.error.js';
 import { RenewalPaymentContextUnavailableError } from '../../../errors/renewal-payment-context-unavailable.error.js';
 import type { InvoicePaidEvent } from '../../../events/payment-event.js';
 import type { PaymentsTransactionContext } from '../../../ports/payments-unit-of-work.js';

@@ -21,23 +21,23 @@ import {
   type ScheduleProviderSubscriptionCancellationResult,
 } from '../../application/use-cases/process-payment-webhook/schedule-provider-subscription-cancellation.use-case.js';
 import { PAYMENT_WEBHOOK_QUEUE } from './dbos-lifecycle.service.js';
-import { MissingDbosWorkflowContextError } from './dbos-payment-webhook.errors.js';
-import {
-  PaymentWorkflowAttemptError,
-  type PaymentWorkflowAttemptFailure,
-} from './payment-workflow-attempt.error.js';
 import {
   DbosPaymentWebhookRetryService,
   PaymentWebhookRetryError,
   type PaymentWebhookRetryAttempt,
   type PaymentWebhookRetryPolicy,
 } from './dbos-payment-webhook-retry.service.js';
+import { MissingDbosWorkflowContextError } from './dbos-payment-webhook.errors.js';
+import { mapPaymentEventHistoryResult } from './payment-event-history-result.mapper.js';
+import {
+  PaymentWorkflowAttemptError,
+  type PaymentWorkflowAttemptFailure,
+} from './payment-workflow-attempt.error.js';
 import {
   classifyPaymentWorkflowError,
   isRetryablePaymentWorkflowError,
 } from './payment-workflow-error.policy.js';
 import { PaymentsDbosDataSource } from './payments-dbos.datasource.js';
-import { mapPaymentEventHistoryResult } from './payment-event-history-result.mapper.js';
 
 // Повторы локальной операции: до 10 попыток с паузами 10, 20, 40, ... секунд.
 const paymentWebhookApplicationRetryPolicy = {
@@ -147,8 +147,9 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
         true, // Счётчик processingAttempts учитывает попытки именно этой операции.
       );
       const result = mapPaymentEventHistoryResult(recordedResult);
+      const paymentConfirmStatus = PaymentEventOutcome.PAYMENT_CONFIRMED;
       // Действия с подпиской нужны только после подтверждённой успешной оплаты.
-      if (result.outcome !== PaymentEventOutcome.PAYMENT_CONFIRMED) {
+      if (result.outcome !== paymentConfirmStatus) {
         return;
       }
       // 2. Применяем успешную оплату к подписке и связываем её с Payment.

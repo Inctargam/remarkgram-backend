@@ -2,8 +2,8 @@ import { Currency } from '../../../../../../common/domain/currency.enum.js';
 import { PaymentEventKind } from '../../../../domain/payment-event-kind.js';
 import { PaymentStatus, PaymentType, type Payment } from '../../../../domain/payment.entity.js';
 import type { InvoiceFinalizedEvent, InvoicePaidEvent } from '../../../events/payment-event.js';
-import { hasProviderReferenceConflict } from '../payment-reconciliation.policy.js';
 import { PaymentEventRejectionReason } from '../payment-event-result.js';
+import { hasProviderReferenceConflict } from '../payment-reconciliation.policy.js';
 
 type RenewalInvoiceEvent = InvoiceFinalizedEvent | InvoicePaidEvent;
 

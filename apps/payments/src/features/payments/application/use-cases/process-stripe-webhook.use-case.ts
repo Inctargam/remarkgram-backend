@@ -45,7 +45,6 @@ export class ProcessStripeWebhookUseCase {
 
       const adapted = adapter.adapt(webhook);
       paymentId = adapted.paymentId;
-      this.logger.debug('adapted ->', adapted);
       const result = await this.receivePaymentEvent.execute(adapted);
       this.logger.log({
         event: 'stripe_webhook_durably_enqueued',
