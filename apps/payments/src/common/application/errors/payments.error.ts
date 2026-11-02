@@ -23,6 +23,13 @@ export class PaymentInitialReservationConflictError extends PaymentsError {
   }
 }
 
+export class PaymentRecoveryInProgressError extends PaymentsError {
+  readonly code = PaymentsErrorCode.PAYMENT_RECOVERY_IN_PROGRESS;
+  constructor() {
+    super('An automatic subscription renewal is still being recovered');
+  }
+}
+
 export class PaymentCheckoutReconciliationRequiredError extends PaymentsError {
   readonly code = PaymentsErrorCode.PAYMENT_CHECKOUT_RECONCILIATION_REQUIRED;
   constructor() {

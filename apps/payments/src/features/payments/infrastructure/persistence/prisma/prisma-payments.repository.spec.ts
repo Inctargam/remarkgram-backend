@@ -4,6 +4,7 @@ import type { PrismaService } from '../../../../../database/prisma.service.js';
 import { Currency, PeriodUnit } from '../../../../plans/domain/plan.entity.js';
 import {
   CheckoutPurpose,
+  Payment,
   PaymentProvider,
   PaymentStatus,
   PaymentType,
@@ -44,6 +45,84 @@ describe('classifyProviderReferenceConflict', () => {
     },
   ])('returns UNKNOWN for unsupported metadata %#', (meta) => {
     expect(classifyProviderReferenceConflict(meta)).toBe('UNKNOWN');
+  });
+});
+
+describe('PrismaPaymentsRepository.create', () => {
+  it('serializes billing decisions and rejects a new purchase while renewal is pending', async () => {
+    const executeRaw = vi.fn().mockResolvedValue(1);
+    const findFirst = vi.fn().mockResolvedValue({ id: 'renewal-id' });
+    const create = vi.fn();
+    const transaction = vi.fn((action) =>
+      action({ $executeRaw: executeRaw, payment: { findFirst, create } }),
+    );
+    const repository = new PrismaPaymentsRepository({
+      $transaction: transaction,
+    } as unknown as PrismaService);
+
+    await expect(repository.create(checkoutPayment())).resolves.toEqual({
+      outcome: 'RENEWAL_IN_PROGRESS',
+    });
+
+    expect(executeRaw).toHaveBeenCalledOnce();
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        userId: 42,
+        type: PaymentType.RENEWAL,
+        OR: [
+          { status: PaymentStatus.PENDING },
+          { status: PaymentStatus.SUCCEEDED, subscriptionApplication: { is: null } },
+        ],
+      },
+      select: { id: true },
+    });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('creates the purchase reservation under the same billing lock when no renewal blocks it', async () => {
+    const row = checkoutPaymentRow();
+    const executeRaw = vi.fn().mockResolvedValue(1);
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const create = vi.fn().mockResolvedValue(row);
+    const transaction = vi.fn((action) =>
+      action({ $executeRaw: executeRaw, payment: { findFirst, create } }),
+    );
+    const repository = new PrismaPaymentsRepository({
+      $transaction: transaction,
+    } as unknown as PrismaService);
+
+    await expect(repository.create(checkoutPayment())).resolves.toMatchObject({
+      outcome: 'CREATED',
+      payment: { id: row.id, type: PaymentType.PURCHASE },
+    });
+
+    expect(executeRaw).toHaveBeenCalledOnce();
+    expect(create).toHaveBeenCalledOnce();
+  });
+});
+
+describe('PrismaPaymentsRepository.hasBlockingRenewal', () => {
+  it.each([
+    [{ id: 'renewal-id' }, true],
+    [null, false],
+  ] as const)('maps the D2 payment-application marker %j to blocking=%s', async (stored, expected) => {
+    const findFirst = vi.fn().mockResolvedValue(stored);
+    const repository = new PrismaPaymentsRepository({
+      payment: { findFirst },
+    } as unknown as PrismaService);
+
+    await expect(repository.hasBlockingRenewal(42)).resolves.toBe(expected);
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        userId: 42,
+        type: PaymentType.RENEWAL,
+        OR: [
+          { status: PaymentStatus.PENDING },
+          { status: PaymentStatus.SUCCEEDED, subscriptionApplication: { is: null } },
+        ],
+      },
+      select: { id: true },
+    });
   });
 });
 
@@ -414,12 +493,58 @@ function successfulPurchaseRow() {
   };
 }
 
+function checkoutPayment(): Payment {
+  return Payment.create({
+    userId: 42,
+    planId: 7,
+    amount: 10_000,
+    currency: Currency.USD,
+    periodCount: 1,
+    periodUnit: PeriodUnit.MONTH,
+    providerType: PaymentProvider.STRIPE,
+    idempotentKey: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    checkoutPurpose: CheckoutPurpose.INITIAL_SUBSCRIPTION,
+    autoRenewalRequested: true,
+  });
+}
+
+function checkoutPaymentRow() {
+  const payment = checkoutPayment();
+  return {
+    id: payment.id,
+    userId: payment.userId,
+    planId: payment.planId,
+    amount: payment.amount,
+    currency: payment.currency,
+    periodCount: payment.periodCount,
+    periodUnit: payment.periodUnit,
+    providerCheckoutId: null,
+    providerPaymentId: null,
+    providerSubscriptionId: null,
+    providerInvoiceId: null,
+    providerCustomerId: null,
+    providerType: payment.providerType,
+    providerSnapshot: null,
+    idempotentKey: payment.idempotentKey,
+    subscriptionId: null,
+    autoRenewalRequested: payment.autoRenewalRequested,
+    status: PaymentStatus.CREATED,
+    createdAt: new Date('2026-11-01T10:00:00.000Z'),
+    paidAt: null,
+    checkoutExpiresAt: null,
+    type: PaymentType.PURCHASE,
+    checkoutPurpose: payment.checkoutPurpose,
+  };
+}
+
 describe('PrismaPaymentsRepository.ensurePendingRenewal', () => {
   it('creates PENDING without changing the existing invoice on duplicate or late delivery', async () => {
     const upsert = vi.fn().mockResolvedValue(renewalRow());
+    const executeRaw = vi.fn().mockResolvedValue(1);
     const repository = new PrismaPaymentsRepository({} as PrismaService);
     const { paidAt: _paidAt, providerPaymentId: _providerPaymentId, ...context } = renewalCommand();
-    await repository.ensurePendingRenewal(context, { payment: { upsert } });
+    await repository.ensurePendingRenewal(context, { $executeRaw: executeRaw, payment: { upsert } });
+    expect(executeRaw).toHaveBeenCalledOnce();
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {

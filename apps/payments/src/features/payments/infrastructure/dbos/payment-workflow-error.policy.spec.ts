@@ -27,6 +27,7 @@ describe('payment workflow error policy', () => {
 
   it.each([
     ['SOURCE_METADATA_MISSING', 'RECONCILIATION_REQUIRED'],
+    ['INVOICE_CONTEXT_MISSING', 'RECONCILIATION_REQUIRED'],
     ['SOURCE_PAYMENT_NOT_FOUND', 'RETRY'],
     ['SOURCE_NOT_LINKED', 'RETRY'],
     ['INVOICE_PAYMENT_NOT_FOUND', 'RETRY'],

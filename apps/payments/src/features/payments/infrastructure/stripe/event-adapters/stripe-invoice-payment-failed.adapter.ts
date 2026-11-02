@@ -10,6 +10,8 @@ import {
   asRecord,
   expandableId,
   invoiceMetadataPaymentId,
+  invoiceRenewalSourceReferences,
+  numberOrNull,
   safeProviderMessage,
   stringOrNull,
 } from './stripe-event-value.helpers.js';
@@ -26,7 +28,10 @@ export class StripeInvoicePaymentFailedAdapter implements ProviderEventAdapter {
   adapt(webhook: VerifiedProviderWebhook): InvoicePaymentFailedEvent {
     const invoice = asRecord(webhook.payload);
     const id = stringOrNull(invoice?.id);
-    if (!id) throw new InvalidProviderEventError('Stripe invoice.payment_failed payload is incomplete');
+    const amount = numberOrNull(invoice?.amount_due);
+    const currency = stringOrNull(invoice?.currency);
+    if (!id || amount === null || !Number.isSafeInteger(amount) || amount < 0 || !currency)
+      throw new InvalidProviderEventError('Stripe invoice.payment_failed payload is incomplete');
 
     const parent = asRecord(invoice?.parent);
     const subscriptionDetails = asRecord(parent?.subscription_details);
@@ -47,6 +52,7 @@ export class StripeInvoicePaymentFailedAdapter implements ProviderEventAdapter {
       // attempt belongs to the renewal Payment correlated by providerInvoiceId.
       paymentId: billingReason === 'subscription_cycle' ? null : invoiceMetadataPaymentId(invoice),
       payload: {
+        ...invoiceRenewalSourceReferences(invoice),
         id,
         customerId: expandableId(invoice?.customer),
         billingReason,
@@ -54,6 +60,8 @@ export class StripeInvoicePaymentFailedAdapter implements ProviderEventAdapter {
         providerSubscriptionId:
           expandableId(subscriptionDetails?.subscription) ?? expandableId(invoice?.subscription),
         providerInvoiceId: id,
+        amount,
+        currency,
         providerCode: stringOrNull(paymentError?.code),
         declineCode: stringOrNull(paymentError?.decline_code),
         message: safeProviderMessage(paymentError?.message),

@@ -5,7 +5,8 @@ import type { PaymentsTransactionContext } from './payments-unit-of-work.js';
 export type CreatePaymentResult =
   | { outcome: 'CREATED'; payment: Payment }
   | { outcome: 'IDEMPOTENCY_CONFLICT'; payment: Payment }
-  | { outcome: 'INITIAL_RESERVATION_CONFLICT'; payment: Payment };
+  | { outcome: 'INITIAL_RESERVATION_CONFLICT'; payment: Payment }
+  | { outcome: 'RENEWAL_IN_PROGRESS' };
 
 export type AttachCheckoutResult =
   | { outcome: 'ATTACHED' | 'ALREADY_ATTACHED'; payment: Payment }
@@ -100,6 +101,7 @@ export abstract class PaymentsRepository {
     ctx: PaymentsTransactionContext,
   ): Promise<Payment>;
   abstract create(payment: Payment): Promise<CreatePaymentResult>;
+  abstract hasBlockingRenewal(userId: number): Promise<boolean>;
   abstract findByUserAndIdempotency(userId: number, idempotencyKey: string): Promise<Payment | null>;
   abstract findById(paymentId: string, ctx?: PaymentsTransactionContext): Promise<Payment | null>;
   abstract findByProviderPaymentId(

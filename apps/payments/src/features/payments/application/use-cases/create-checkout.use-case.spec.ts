@@ -3,6 +3,7 @@ import {
   PaymentCheckoutReconciliationRequiredError,
   PaymentIdempotencyConflictError,
   PaymentInitialReservationConflictError,
+  PaymentRecoveryInProgressError,
 } from '../../../../common/application/errors/payments.error.js';
 import type { PlansRepository } from '../../../plans/application/ports/plans.repository.js';
 import { Currency, PeriodUnit, Plan } from '../../../plans/domain/plan.entity.js';
@@ -40,6 +41,7 @@ describe('CreateCheckoutUseCase', () => {
     const stored: { payment?: Payment } = {};
     const payments = {
       findByUserAndIdempotency: vi.fn().mockResolvedValue(null),
+      hasBlockingRenewal: vi.fn().mockResolvedValue(false),
       create: vi.fn<PaymentsRepository['create']>((payment) => {
         stored.payment = payment;
         return Promise.resolve({ outcome: 'CREATED', payment: PaymentWithCreatedAt(payment) });
@@ -141,6 +143,75 @@ describe('CreateCheckoutUseCase', () => {
     );
   });
 
+  it('rejects a new checkout before reading D2 when automatic renewal is still unresolved', async () => {
+    const plans = { getByIdOrThrow: vi.fn() };
+    const subscription = subscriptionContext();
+    const provider = providerPort();
+    const useCase = new CreateCheckoutUseCase(
+      plans as unknown as PlansRepository,
+      {
+        findByUserAndIdempotency: vi.fn().mockResolvedValue(null),
+        hasBlockingRenewal: vi.fn().mockResolvedValue(true),
+      } as unknown as PaymentsRepository,
+      provider,
+      customerService(),
+      subscription,
+    );
+
+    await expect(useCase.execute(new CreateCheckoutCommand(input))).rejects.toBeInstanceOf(
+      PaymentRecoveryInProgressError,
+    );
+    expect(plans.getByIdOrThrow).not.toHaveBeenCalled();
+    expect(subscription.hasActiveSubscription).not.toHaveBeenCalled();
+    expect(provider.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it('maps a renewal that won the atomic reservation race to the same conflict', async () => {
+    const useCase = checkoutUseCase({
+      create: vi.fn().mockResolvedValue({ outcome: 'RENEWAL_IN_PROGRESS' }),
+    });
+
+    await expect(useCase.execute(new CreateCheckoutCommand(input))).rejects.toBeInstanceOf(
+      PaymentRecoveryInProgressError,
+    );
+  });
+
+  it('blocks replay of an existing CREATED payment when renewal appeared before the provider call', async () => {
+    const existing = initialPayment(input.idempotencyKey);
+    const provider = providerPort();
+    const useCase = new CreateCheckoutUseCase(
+      {} as PlansRepository,
+      {
+        findByUserAndIdempotency: vi.fn().mockResolvedValue(existing),
+        hasBlockingRenewal: vi.fn().mockResolvedValue(true),
+      } as unknown as PaymentsRepository,
+      provider,
+      customerService(),
+      subscriptionContext(),
+    );
+
+    await expect(useCase.execute(new CreateCheckoutCommand(input))).rejects.toBeInstanceOf(
+      PaymentRecoveryInProgressError,
+    );
+    expect(provider.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it('rechecks recovery after reservation and blocks the provider call when renewal appeared meanwhile', async () => {
+    const hasBlockingRenewal = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const provider = providerPort();
+    const create = vi.fn<PaymentsRepository['create']>((payment) =>
+      Promise.resolve({ outcome: 'CREATED', payment: PaymentWithCreatedAt(payment) }),
+    );
+    const useCase = checkoutUseCase({ hasBlockingRenewal, create }, provider);
+
+    await expect(useCase.execute(new CreateCheckoutCommand(input))).rejects.toBeInstanceOf(
+      PaymentRecoveryInProgressError,
+    );
+    expect(hasBlockingRenewal).toHaveBeenCalledTimes(2);
+    expect(create).toHaveBeenCalledOnce();
+    expect(provider.createCheckout).not.toHaveBeenCalled();
+  });
+
   it('creates an extension without persisting a target Subscription snapshot', async () => {
     const create = vi.fn<PaymentsRepository['create']>((payment) =>
       Promise.resolve({ outcome: 'INITIAL_RESERVATION_CONFLICT', payment: PaymentWithCreatedAt(payment) }),
@@ -216,6 +287,7 @@ function checkoutUseCase(
     { getByIdOrThrow: vi.fn().mockResolvedValue(plan) } as unknown as PlansRepository,
     {
       findByUserAndIdempotency: vi.fn().mockResolvedValue(null),
+      hasBlockingRenewal: vi.fn().mockResolvedValue(false),
       ...repository,
     } as unknown as PaymentsRepository,
     provider,

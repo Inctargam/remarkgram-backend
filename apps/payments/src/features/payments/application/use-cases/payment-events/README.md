@@ -21,17 +21,17 @@ Invoice.
 
 ### Короткая карта событий
 
-| Событие | Что сообщает Stripe | Что происходит в Stripe | Terminal-сигнал |
-| --- | --- | --- | --- |
-| `checkout.session.completed` | Пользователь завершил Checkout | Session становится `complete`; сама оплата ещё может обрабатываться | Для Session — да; для денег — нет |
-| `checkout.session.expired` | Время Checkout истекло | Session становится `expired`, продолжить её нельзя | Для Session — да |
-| `payment_intent.succeeded` | Деньги успешно получены | PaymentIntent становится `succeeded` | Да, финансовый успех |
-| `payment_intent.payment_failed` | Одна попытка списания не удалась | Обычно PaymentIntent снова ожидает способ оплаты; его можно повторить | Нет |
-| `payment_intent.canceled` | PaymentIntent окончательно отменён | Новых списаний по этому PaymentIntent больше не будет | Да, отмена PaymentIntent |
-| `invoice.paid` | Invoice оплачен | Invoice становится `paid` | Да, финансовый успех Invoice |
-| `invoice.payment_failed` | Одна попытка оплатить Invoice не удалась | Invoice остаётся `open`; Stripe может повторить списание | Нет |
-| `invoice.voided` | Invoice аннулирован | Invoice становится `void` и больше не подлежит оплате | Да, окончательная отмена Invoice |
-| `invoice.marked_uncollectible` | Долг признан маловероятным к взысканию | Invoice становится `uncollectible`; автоматическое взыскание прекращается | Закрывает взыскание, но Invoice ещё можно вручную перевести в `paid` или `void` |
+| Событие                         | Что сообщает Stripe                      | Что происходит в Stripe                                                   | Terminal-сигнал                                                                 |
+| ------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `checkout.session.completed`    | Пользователь завершил Checkout           | Session становится `complete`; сама оплата ещё может обрабатываться       | Для Session — да; для денег — нет                                               |
+| `checkout.session.expired`      | Время Checkout истекло                   | Session становится `expired`, продолжить её нельзя                        | Для Session — да                                                                |
+| `payment_intent.succeeded`      | Деньги успешно получены                  | PaymentIntent становится `succeeded`                                      | Да, финансовый успех                                                            |
+| `payment_intent.payment_failed` | Одна попытка списания не удалась         | Обычно PaymentIntent снова ожидает способ оплаты; его можно повторить     | Нет                                                                             |
+| `payment_intent.canceled`       | PaymentIntent окончательно отменён       | Новых списаний по этому PaymentIntent больше не будет                     | Да, отмена PaymentIntent                                                        |
+| `invoice.paid`                  | Invoice оплачен                          | Invoice становится `paid`                                                 | Да, финансовый успех Invoice                                                    |
+| `invoice.payment_failed`        | Одна попытка оплатить Invoice не удалась | Invoice остаётся `open`; Stripe может повторить списание                  | Нет                                                                             |
+| `invoice.voided`                | Invoice аннулирован                      | Invoice становится `void` и больше не подлежит оплате                     | Да, окончательная отмена Invoice                                                |
+| `invoice.marked_uncollectible`  | Долг признан маловероятным к взысканию   | Invoice становится `uncollectible`; автоматическое взыскание прекращается | Закрывает взыскание, но Invoice ещё можно вручную перевести в `paid` или `void` |
 
 ### Понятные примеры
 
@@ -375,7 +375,8 @@ Use case намеренно не отменяет initial purchase, renewal ил
 
 ### `RecordInvoicePaymentFailedUseCase`
 
-Обрабатывает событие `invoice.payment_failed` как audit/correlation-событие.
+Обрабатывает `invoice.payment_failed` как correlation-событие и recovery-сигнал для отсутствующего
+`PENDING RENEWAL`.
 
 **Намерение события:** сообщить о неудачной попытке оплатить Invoice. Событие фиксирует операционный факт
 неуспеха и помогает сопоставить его с локальным Payment, но не доказывает окончательную невозможность
@@ -386,6 +387,11 @@ Use case намеренно не отменяет initial purchase, renewal ил
 - На каждом этапе принимает Payment только при совместимых provider references.
 - Возвращает успешный результат `PAYMENT_FAILURE_RECORDED`, даже если однозначно связать событие с
   локальным Payment не удалось.
+- Для `subscription_cycle`, если Payment по Invoice отсутствует, вызывает общий
+  `EnsureRenewalPaymentUseCase`: проверяет source metadata и идемпотентно создаёт тот же renewal, что
+  `invoice.finalized`.
+- Ранее сохранённый event без amount/currency не создаёт частичную запись и требует reconciliation с
+  причиной `INVOICE_CONTEXT_MISSING`.
 
 Use case не меняет lifecycle-статус Payment: неуспешная попытка оплаты может быть повторена, а более
 позднее событие успеха всё ещё должно быть применимо.
@@ -433,7 +439,7 @@ audit/correlation-событием для всех типов Payment и не в
 2. Для каждого пути проверить, создаёт ли Stripe отдельное `payment_intent.payment_failed` помимо
    `invoice.payment_failed`, и определить авторитетный источник локального `paymentId`.
 3. Учитывать доступность PaymentIntent ID по объекту: Checkout Session.payment_intent относится
-   к mode=payment; в payment_intent.* ID находится в data.object.id. Отсутствие прямого
+   к mode=payment; в payment_intent.\* ID находится в data.object.id. Отсутствие прямого
    payment_intent в актуальных Invoice/Subscription не является дефектом. Прямое поле Invoice
    удалено в Basil, связь через InvoicePayment исключена из текущей итерации.
    [Подтверждение Stripe](https://docs.stripe.com/changelog/basil/2025-03-31/add-support-for-multiple-partial-payments-on-invoices);
@@ -483,7 +489,6 @@ PaymentEventOutcome определяет направление обработк
 Отсутствующая nullable provider reference означает отсутствие нового знания. Конфликт возникает только
 тогда, когда сохранённое и входящее непустые значения различаются.
 
-
 ### Renewal metadata: уточнение источника контекста
 
 Stripe metadata остаётся прежней: `paymentId` и, для deferred Subscription, `subscriptionId`.
@@ -499,7 +504,6 @@ reconciliation/replay из исходного provider snapshot, автомат�
 Сравнение суммы PENDING с `amount_paid` конкретного Invoice остаётся: моделирование скидок, кредитного
 баланса и нескольких платежей Invoice не входит в этот рефакторинг. Поздний finalized не сравнивает
 свою `amount_due` с уже сохранённой собранной суммой SUCCEEDED и ничего в ней не меняет.
-
 
 ### Отложенные application-попытки и reconciliation
 

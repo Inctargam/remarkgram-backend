@@ -74,29 +74,36 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
 
   async create(payment: Payment): Promise<CreatePaymentResult> {
     try {
-      const row = await this.prisma.payment.create({
-        data: {
-          id: payment.id,
-          userId: payment.userId,
-          planId: payment.planId,
-          amount: payment.amount,
-          currency: payment.currency,
-          periodCount: payment.periodCount,
-          periodUnit: payment.periodUnit,
-          providerType: payment.providerType,
-          idempotentKey: payment.idempotentKey,
-          type: payment.type,
-          checkoutPurpose: payment.checkoutPurpose,
-          autoRenewalRequested: payment.autoRenewalRequested,
-          providerCheckoutId: payment.providerCheckoutId,
-          providerPaymentId: payment.providerPaymentId,
-          providerSubscriptionId: payment.providerSubscriptionId,
-          providerInvoiceId: payment.providerInvoiceId,
-          providerCustomerId: payment.providerCustomerId,
-          checkoutExpiresAt: payment.checkoutExpiresAt,
-        },
+      return await this.prisma.$transaction(async (tx) => {
+        await this.lockBillingByUserId(tx, payment.userId);
+        if (await this.hasBlockingRenewalWithClient(tx, payment.userId)) {
+          return { outcome: 'RENEWAL_IN_PROGRESS' };
+        }
+
+        const row = await tx.payment.create({
+          data: {
+            id: payment.id,
+            userId: payment.userId,
+            planId: payment.planId,
+            amount: payment.amount,
+            currency: payment.currency,
+            periodCount: payment.periodCount,
+            periodUnit: payment.periodUnit,
+            providerType: payment.providerType,
+            idempotentKey: payment.idempotentKey,
+            type: payment.type,
+            checkoutPurpose: payment.checkoutPurpose,
+            autoRenewalRequested: payment.autoRenewalRequested,
+            providerCheckoutId: payment.providerCheckoutId,
+            providerPaymentId: payment.providerPaymentId,
+            providerSubscriptionId: payment.providerSubscriptionId,
+            providerInvoiceId: payment.providerInvoiceId,
+            providerCustomerId: payment.providerCustomerId,
+            checkoutExpiresAt: payment.checkoutExpiresAt,
+          },
+        });
+        return { outcome: 'CREATED', payment: PaymentPrismaMapper.toDomain(row) };
       });
-      return { outcome: 'CREATED', payment: PaymentPrismaMapper.toDomain(row) };
     } catch (error) {
       if (!this.isUniqueConflict(error)) throw error;
 
@@ -144,6 +151,10 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
       where: { userId_idempotentKey: { userId, idempotentKey: idempotencyKey } },
     });
     return row ? PaymentPrismaMapper.toDomain(row) : null;
+  }
+
+  async hasBlockingRenewal(userId: number): Promise<boolean> {
+    return this.hasBlockingRenewalWithClient(this.prisma, userId);
   }
 
   async findById(paymentId: string, ctx?: PaymentsTransactionContext): Promise<Payment | null> {
@@ -416,6 +427,7 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
     ctx: PaymentsTransactionContext,
   ): Promise<Payment> {
     const client = ctx as Prisma.TransactionClient;
+    await this.lockBillingByUserId(client, params.userId);
     // The invoice uniqueness constraint serializes concurrent finalized/paid deliveries.
     // Существующие значения и lifecycle state не меняются ни от finalized, ни от paid recovery.
     const row = await client.payment.upsert({
@@ -437,6 +449,28 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
       update: {},
     });
     return PaymentPrismaMapper.toDomain(row);
+  }
+
+  private async lockBillingByUserId(client: Prisma.TransactionClient, userId: number): Promise<void> {
+    await client.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`payments:billing:user:${userId}`}, 0))`;
+  }
+
+  private async hasBlockingRenewalWithClient(
+    client: Prisma.TransactionClient | PrismaService,
+    userId: number,
+  ): Promise<boolean> {
+    const payment = await client.payment.findFirst({
+      where: {
+        userId,
+        type: PaymentType.RENEWAL,
+        OR: [
+          { status: PaymentStatus.PENDING },
+          { status: PaymentStatus.SUCCEEDED, subscriptionApplication: { is: null } },
+        ],
+      },
+      select: { id: true },
+    });
+    return payment !== null;
   }
 
   private compatibleReference(

@@ -53,6 +53,7 @@ describe('mapGrpcErrorToHttpException', () => {
     'POST_IDEMPOTENCY_KEY_CONFLICT',
     'PAYMENT_IDEMPOTENCY_CONFLICT',
     'PAYMENT_INITIAL_RESERVATION_CONFLICT',
+    'PAYMENT_RECOVERY_IN_PROGRESS',
     'PAYMENT_CHECKOUT_RECONCILIATION_REQUIRED',
   ])('maps application conflict %s to HTTP 409', (errorCode) => {
     const metadata = new Metadata();

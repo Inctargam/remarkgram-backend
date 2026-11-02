@@ -27,17 +27,17 @@ flowchart TD
   CO -->|нет| STOP["return void"]
 ```
 
-| Событие | Handler | Назначение успешного пути |
-| --- | --- | --- |
-| checkout.session.completed | [ApplyCheckoutSessionCompletedUseCase](../handlers/checkout-session-completed.md) | Enrichment; CHECKOUT_COMPLETED, без доказательства оплаты |
-| checkout.session.expired | [CancelExpiredCheckoutSessionUseCase](../handlers/checkout-session-expired.md) | Допустимая отмена; CHECKOUT_EXPIRED |
-| payment_intent.succeeded | [ConfirmPaymentIntentSucceededUseCase](../handlers/payment-intent-succeeded.md) | Успех one-time extension; PAYMENT_CONFIRMED |
-| invoice.finalized | [EnsureRenewalPaymentUseCase](../handlers/invoice-finalized.md) | Pending renewal; RENEWAL_ENSURED |
-| invoice.paid | [ConfirmInvoicePaidUseCase](../handlers/invoice-paid.md) | Initial purchase или renewal; PAYMENT_CONFIRMED |
-| payment_intent.payment_failed | [RecordPaymentIntentFailedUseCase](../handlers/payment-intent-payment-failed.md) | Audit/correlation; PAYMENT_FAILURE_RECORDED |
-| payment_intent.canceled | [CancelPaymentIntentUseCase](../handlers/payment-intent-canceled.md) | Допустимая terminal cancellation; PAYMENT_CANCELED |
-| invoice.payment_failed | [RecordInvoicePaymentFailedUseCase](../handlers/invoice-payment-failed.md) | Audit/correlation; PAYMENT_FAILURE_RECORDED |
-| invoice.voided | [CancelVoidedInvoiceUseCase](../handlers/invoice-voided.md) | Отмена unpaid renewal; PAYMENT_CANCELED |
+| Событие                       | Handler                                                                           | Назначение успешного пути                                                       |
+| ----------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| checkout.session.completed    | [ApplyCheckoutSessionCompletedUseCase](../handlers/checkout-session-completed.md) | Enrichment; CHECKOUT_COMPLETED, без доказательства оплаты                       |
+| checkout.session.expired      | [CancelExpiredCheckoutSessionUseCase](../handlers/checkout-session-expired.md)    | Допустимая отмена; CHECKOUT_EXPIRED                                             |
+| payment_intent.succeeded      | [ConfirmPaymentIntentSucceededUseCase](../handlers/payment-intent-succeeded.md)   | Успех one-time extension; PAYMENT_CONFIRMED                                     |
+| invoice.finalized             | [EnsureRenewalPaymentUseCase](../handlers/invoice-finalized.md)                   | Pending renewal; RENEWAL_ENSURED                                                |
+| invoice.paid                  | [ConfirmInvoicePaidUseCase](../handlers/invoice-paid.md)                          | Initial purchase или renewal; PAYMENT_CONFIRMED                                 |
+| payment_intent.payment_failed | [RecordPaymentIntentFailedUseCase](../handlers/payment-intent-payment-failed.md)  | Audit/correlation; PAYMENT_FAILURE_RECORDED                                     |
+| payment_intent.canceled       | [CancelPaymentIntentUseCase](../handlers/payment-intent-canceled.md)              | Допустимая terminal cancellation; PAYMENT_CANCELED                              |
+| invoice.payment_failed        | [RecordInvoicePaymentFailedUseCase](../handlers/invoice-payment-failed.md)        | Correlation и recovery отсутствующего PENDING renewal; PAYMENT_FAILURE_RECORDED |
+| invoice.voided                | [CancelVoidedInvoiceUseCase](../handlers/invoice-voided.md)                       | Отмена unpaid renewal; PAYMENT_CANCELED                                         |
 
 Таблица показывает назначение handlers, а не обещает COMPLETED/PAYMENT_CONFIRMED для любого входящего payload:
 они могут вернуть REJECTED с disposition IGNORED/DEAD либо выбросить ошибку. Правила отдельных событий — в

@@ -7,6 +7,7 @@ import {
   PaymentInitialReservationConflictError,
   PaymentPersistenceError,
   PaymentPlanUnavailableError,
+  PaymentRecoveryInProgressError,
   PaymentsError,
   PaymentSubscriptionContextError,
 } from '../../../../common/application/errors/payments.error.js';
@@ -54,6 +55,11 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
     const providerType = PaymentProviderFactory.create(input.provider);
     const resolution = await this.resolvePayment(input, providerType);
     if (resolution.kind === 'RETURN') return resolution.result;
+    /** Добавлена ранняя проверка блокирующего renewal-платежа до обращения к сервису подписок и платёжному провайдеру.
+      Дополнительно проверка выполняется непосредственно перед созданием Checkout Session.
+       Это покрывает ситуацию, когда renewal появился после первоначальной проверки.
+      Защита применяется и при повторном использовании уже существующего платежа в статусе CREATED*/
+    await this.assertNoBlockingRenewal(input.userId);
     return this.createAndAttachCheckout(resolution.payment);
   }
 
@@ -64,12 +70,14 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
     let payment: Payment | null;
     try {
       payment = await this.payments.findByUserAndIdempotency(input.userId, input.idempotencyKey);
-    } catch (e) {
-      console.error(e);
+    } catch {
       throw new PaymentPersistenceError();
     }
 
-    if (!payment) return this.createNewPayment(input, providerType);
+    if (!payment) {
+      await this.assertNoBlockingRenewal(input.userId);
+      return this.createNewPayment(input, providerType);
+    }
 
     this.assertSameFingerprint(payment, input, providerType);
     const existingResult = this.mapExistingPayment(payment);
@@ -119,11 +127,25 @@ export class CreateCheckoutUseCase implements ICommandHandler<CreateCheckoutComm
     if (created.outcome === 'INITIAL_RESERVATION_CONFLICT') {
       throw new PaymentInitialReservationConflictError();
     }
+    if (created.outcome === 'RENEWAL_IN_PROGRESS') {
+      throw new PaymentRecoveryInProgressError();
+    }
 
     const payment = created.payment;
     this.assertSameFingerprint(payment, input, providerType);
     const concurrentResult = this.mapExistingPayment(payment);
     return concurrentResult ? { kind: 'RETURN', result: concurrentResult } : { kind: 'CONTINUE', payment };
+  }
+
+  private async assertNoBlockingRenewal(userId: number): Promise<void> {
+    try {
+      if (await this.payments.hasBlockingRenewal(userId)) {
+        throw new PaymentRecoveryInProgressError();
+      }
+    } catch (error) {
+      if (error instanceof PaymentsError) throw error;
+      throw new PaymentPersistenceError();
+    }
   }
 
   private async createAndAttachCheckout(payment: Payment): Promise<CreateCheckoutOutput> {

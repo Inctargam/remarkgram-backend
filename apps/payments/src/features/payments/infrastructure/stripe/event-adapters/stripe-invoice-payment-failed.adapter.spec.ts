@@ -25,11 +25,16 @@ describe('StripeInvoicePaymentFailedAdapter', () => {
     expect(JSON.stringify(event)).not.toContain('4242');
   });
 
-  it('keeps source Payment metadata out of renewal failure correlation', () => {
+  it('normalizes renewal source context without using it as the event Payment correlation', () => {
     const event = adapter.adapt(webhook('subscription_cycle'));
 
     expect(event.paymentId).toBeNull();
     expect(event.payload.providerSubscriptionId).toBe('sub_test');
+    expect(event.payload).toMatchObject({
+      sourcePaymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      amount: 1_000,
+      currency: 'usd',
+    });
   });
 });
 
@@ -41,6 +46,8 @@ function webhook(billingReason: string): VerifiedProviderWebhook {
     createdAt: new Date('2026-10-13T12:00:00.000Z'),
     payload: {
       id: 'in_failed',
+      amount_due: 1_000,
+      currency: 'usd',
       customer: 'cus_test',
       billing_reason: billingReason,
       payment_intent: {

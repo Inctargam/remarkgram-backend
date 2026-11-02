@@ -96,7 +96,7 @@ export const ApiCreateCheckout = () =>
     ApiResponse({
       status: HttpStatus.CONFLICT,
       description:
-        'The idempotency key belongs to another request, an initial checkout is already active, or checkout reconciliation is required.',
+        'The idempotency key belongs to another request, an initial checkout is already active, automatic renewal recovery is in progress, or checkout reconciliation is required.',
       content: {
         'application/json': {
           schema: { $ref: getSchemaPath(ApiErrorResponseDto) },
@@ -113,6 +113,13 @@ export const ApiCreateCheckout = () =>
                 HttpStatus.CONFLICT,
                 'PAYMENT_INITIAL_RESERVATION_CONFLICT',
                 'An initial subscription checkout is already in progress',
+              ),
+            },
+            renewalRecoveryInProgress: {
+              value: createApiErrorResponseExample(
+                HttpStatus.CONFLICT,
+                'PAYMENT_RECOVERY_IN_PROGRESS',
+                'An automatic subscription renewal is still being recovered',
               ),
             },
             reconciliationRequired: {

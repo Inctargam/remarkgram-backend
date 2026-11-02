@@ -1,11 +1,15 @@
 import { Currency } from '../../../../../../common/domain/currency.enum.js';
 import { PaymentEventKind } from '../../../../domain/payment-event-kind.js';
 import { PaymentStatus, PaymentType, type Payment } from '../../../../domain/payment.entity.js';
-import type { InvoiceFinalizedEvent, InvoicePaidEvent } from '../../../events/payment-event.js';
+import type {
+  InvoiceFinalizedEvent,
+  InvoicePaidEvent,
+  InvoicePaymentFailedEvent,
+} from '../../../events/payment-event.js';
 import { PaymentEventRejectionReason } from '../payment-event-result.js';
 import { hasProviderReferenceConflict } from '../payment-reconciliation.policy.js';
 
-type RenewalInvoiceEvent = InvoiceFinalizedEvent | InvoicePaidEvent;
+type RenewalInvoiceEvent = InvoiceFinalizedEvent | InvoicePaidEvent | InvoicePaymentFailedEvent;
 
 /** The source is a historical ownership/period snapshot; its lifecycle does not prove the new Invoice payment. */
 export class RenewalPaymentReconciliationPolicy {
@@ -30,9 +34,16 @@ export class RenewalPaymentReconciliationPolicy {
   }
 
   static invoiceConflict(event: RenewalInvoiceEvent): PaymentEventRejectionReason | null {
-    if (!Number.isSafeInteger(event.payload.amount) || event.payload.amount <= 0)
+    if (
+      typeof event.payload.amount !== 'number' ||
+      !Number.isSafeInteger(event.payload.amount) ||
+      event.payload.amount <= 0
+    )
       return PaymentEventRejectionReason.AMOUNT_MISMATCH;
-    if (!Object.values(Currency).includes(event.payload.currency.toUpperCase() as Currency))
+    if (
+      typeof event.payload.currency !== 'string' ||
+      !Object.values(Currency).includes(event.payload.currency.toUpperCase() as Currency)
+    )
       return PaymentEventRejectionReason.CURRENCY_MISMATCH;
     return null;
   }
@@ -75,7 +86,10 @@ export class RenewalPaymentReconciliationPolicy {
     }
     if (hasProviderReferenceConflict([payment.providerCustomerId, event.payload.customerId]))
       return PaymentEventRejectionReason.CUSTOMER_MISMATCH;
-    if (payment.currency.toLowerCase() !== event.payload.currency.toLowerCase())
+    if (
+      typeof event.payload.currency !== 'string' ||
+      payment.currency.toLowerCase() !== event.payload.currency.toLowerCase()
+    )
       return PaymentEventRejectionReason.CURRENCY_MISMATCH;
     // A late finalized event describes amount_due, not necessarily the collected amount.
     if (event.kind === PaymentEventKind.INVOICE_FINALIZED && payment.status === PaymentStatus.SUCCEEDED)

@@ -411,15 +411,16 @@ Payment к своему lifecycle.
 type = RENEWAL
 AND (
   status = PENDING
-  OR (status = SUCCEEDED AND subscriptionId IS NULL)
+  OR (status = SUCCEEDED AND SubscriptionPaymentApplication отсутствует)
 )
 ```
 
 - `PENDING` означает, что конкретный recurring Invoice ещё может завершиться поздним `invoice.paid`;
-- `SUCCEEDED + subscriptionId IS NULL` означает, что деньги уже подтверждены D1, но оплаченный период
-  ещё не применён и не связан с D2;
-- `SUCCEEDED + subscriptionId IS NOT NULL`, `CANCELED` и согласованный в будущем terminal `FAILED`
-  не блокируют новый Checkout.
+- `SUCCEEDED` без `SubscriptionPaymentApplication` означает, что деньги уже подтверждены D1, но
+  оплаченный период ещё не применён к D2;
+- `SUCCEEDED` с `SubscriptionPaymentApplication`, `CANCELED` и согласованный в будущем terminal
+  `FAILED` не блокируют новый Checkout. Поле `Payment.subscriptionId` для renewal заполняется ещё при
+  создании PENDING из source context и поэтому не является маркером успешного Step 2.
 
 При наличии блокирующего renewal use case не обращается к D2, не создаёт PURCHASE Payment, не создаёт
 Stripe Customer/Checkout и возвращает управляемый конфликт `PAYMENT_RECOVERY_IN_PROGRESS`, который на
@@ -430,16 +431,24 @@ HTTP-границе отображается в `409 Conflict`. Повтор с 
 `invoice.finalized` остаётся основной точкой идемпотентного создания `PENDING RENEWAL` по уникальной
 паре `(provider, providerInvoiceId)`. `invoice.payment_failed` не переводит Payment в `FAILED` или
 `CANCELED`: неуспех одной попытки не является terminal outcome. Если failure может быть доставлен без
-ранее применённого finalized, его recovery-поведение должно использовать тот же идемпотентный
-`ensurePendingRenewal`, а не создавать вторую финансовую сущность; этот fallback требует отдельной
-реализации и проверки нормализованного source context.
+ранее применённого finalized, его recovery-поведение использует тот же идемпотентный
+`ensurePendingRenewal`, а не создаёт вторую финансовую сущность. Fallback реализован через общий
+`EnsureRenewalPaymentUseCase`; нормализованный
+failure содержит allowlisted source references, amount и currency. Старый сохранённый event без
+invoice context переводится в `RECONCILIATION_REQUIRED / RENEWAL_INVOICE_CONTEXT_MISSING`.
 
 Проверка блокирующего renewal и создание нового PURCHASE reservation должны выполняться атомарно под
 общей D1-сериализацией по `userId`. Обработчики, создающие/восстанавливающие `PENDING RENEWAL`, должны
 участвовать в той же сериализации. Короткий `SELECT`, выполненный отдельно от `create`, оставляет
-write-skew: Checkout и webhook могут одновременно решить, что препятствия нет. Provider-вызов не
-выполняется внутри DB-транзакции; после commit локальная PURCHASE reservation остаётся устойчивым
-результатом выигравшего решения.
+write-skew: Checkout и webhook могут одновременно решить, что препятствия нет. Перед provider-вызовом
+выполняется ещё одна проверка, включая replay существующего `CREATED` Payment. Provider-вызов не
+выполняется внутри DB-транзакции.
+
+Сериализация упорядочивает только уже известные локальные состояния. Если PURCHASE reservation первой
+получила lock и закоммитилась до появления локального `PENDING RENEWAL`, она считается победителем
+локального решения. Последующая проверка перед provider-вызовом сужает окно, но не устраняет гонку с
+Invoice, который уже существует в Stripe, однако ещё не представлен локальным webhook. Это относится
+к явно принятому ограничению внешнего неизвестного состояния, а не к гарантии advisory lock.
 
 ### Успешные flow
 
@@ -465,10 +474,10 @@ invoice.finalized
 invoice.payment_failed
   -> оставить RENEWAL PENDING; новый Checkout заблокирован
 invoice.paid
-  -> подтвердить RENEWAL SUCCEEDED; блокировка сохраняется, пока subscriptionId=null
+  -> подтвердить RENEWAL SUCCEEDED; блокировка сохраняется, пока нет SubscriptionPaymentApplication
 workflow Step 2
   -> D2 применяет оплаченный период
-  -> Payment.subscriptionId записывается в той же транзакции
+  -> SubscriptionPaymentApplication создаётся идемпотентно в той же транзакции
   -> блокировка снимается
 ```
 
@@ -478,7 +487,7 @@ workflow Step 2
 
 ```text
 CreateCheckout
-  -> найден RENEWAL PENDING либо SUCCEEDED без D2 link
+  -> найден RENEWAL PENDING либо SUCCEEDED без SubscriptionPaymentApplication
   -> PAYMENT_RECOVERY_IN_PROGRESS / HTTP 409
   -> без D2 query, нового Payment и provider-вызова
 ```
@@ -494,8 +503,8 @@ invoice.voided
 
 `invoice.marked_uncollectible` пока не поддерживается и не должен неявно снимать блокировку. До
 согласования terminal-семантики такой случай требует reconciliation/manual resolution. Ошибка
-применения уже оплаченного renewal к D2 также не снимает блокировку: `SUCCEEDED + subscriptionId=null`
-защищает промежуток между финансовым commit и восстановлением Step 2.
+применения уже оплаченного renewal к D2 также не снимает блокировку: `SUCCEEDED` без
+`SubscriptionPaymentApplication` защищает промежуток между финансовым commit и восстановлением Step 2.
 
 ### Покрываемые пограничные сценарии
 
@@ -514,10 +523,17 @@ invoice.voided
 - Guard защищает только от provider Invoice, уже представленного локальным `RENEWAL Payment`.
   Между созданием/finalization Invoice в Stripe и доставкой первого пригодного webhook остаётся внешнее
   окно неизвестного состояния.
-- Текущий `invoice.payment_failed` выполняет только audit/correlation и сам не восстанавливает
-  отсутствующий renewal; fallback через `ensurePendingRenewal` должен быть реализован отдельно.
+- Если PURCHASE reservation выигрывает локальный lock раньше первого renewal webhook, она не
+  откатывается автоматически. Повторная проверка перед provider-вызовом закрывает только renewal,
+  успевший стать видимым локально; абсолютная provider-side взаимная исключительность не заявляется.
+- `invoice.payment_failed` восстанавливает отсутствующий renewal только при полном source/invoice
+  context; legacy event без amount/currency требует reconciliation.
 - `invoice.marked_uncollectible`, удаление provider Subscription, refund и административное закрытие
   взыскания требуют собственных terminal-решений.
+- Если `invoice.voided` обогнал создание renewal и исчерпал bounded retry/reconciliation до прихода
+  сильно запоздавшего `invoice.payment_failed`, поздний failure может создать блокирующий PENDING.
+  Это fail-closed без риска второго Checkout, но для снятия блокировки нужен replay voided либо manual
+  reconciliation; terminal tombstone для отсутствующего Payment в текущий срез не входит.
 - Решение предотвращает создание второй recurring Subscription, но не предоставляет пользователю
   отдельный UX оплаты открытого Invoice или обновления payment method.
 - Это финансовый guard D1, а не модель lifecycle Stripe Subscription. Он не переносит billing state в

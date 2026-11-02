@@ -2,6 +2,7 @@ import { PaymentsError, PaymentsErrorCode } from '../../../../common/domain/erro
 
 export type RenewalPaymentContextUnavailableReason =
   | 'SOURCE_METADATA_MISSING'
+  | 'INVOICE_CONTEXT_MISSING'
   | 'SOURCE_PAYMENT_NOT_FOUND'
   | 'SOURCE_NOT_LINKED'
   | 'INVOICE_PAYMENT_NOT_FOUND';

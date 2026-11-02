@@ -30,7 +30,8 @@ export const classifyPaymentWorkflowError = (error: unknown): PaymentWorkflowAtt
   if (error instanceof RenewalPaymentContextUnavailableError) {
     // Отсутствующие привязки могут появиться после обработки другого события.
     // Отсутствие metadata требует reconciliation.
-    const requiresReconciliation = error.reason === 'SOURCE_METADATA_MISSING';
+    const requiresReconciliation =
+      error.reason === 'SOURCE_METADATA_MISSING' || error.reason === 'INVOICE_CONTEXT_MISSING';
     return {
       disposition: requiresReconciliation ? 'RECONCILIATION_REQUIRED' : 'RETRY',
       failure: { code: `RENEWAL_${error.reason}`, message: `Renewal payment context: ${error.reason}` },

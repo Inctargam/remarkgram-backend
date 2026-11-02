@@ -113,14 +113,18 @@ export type InvoicePaidEvent = PaymentEventEnvelope & {
 
 export type InvoicePaymentFailedEvent = PaymentEventEnvelope & {
   kind: PaymentEventKind.INVOICE_PAYMENT_FAILED;
-  payload: PaymentFailureDetails & {
-    id: string;
-    customerId: string | null;
-    billingReason: string | null;
-    providerPaymentId: string | null;
-    providerSubscriptionId: string | null;
-    providerInvoiceId: string;
-  };
+  payload: PaymentFailureDetails &
+    RenewalPaymentSourceReferences & {
+      id: string;
+      customerId: string | null;
+      billingReason: string | null;
+      providerPaymentId: string | null;
+      providerSubscriptionId: string | null;
+      providerInvoiceId: string;
+      /** Optional for replay compatibility with events persisted before failure recovery was introduced. */
+      amount?: number;
+      currency?: string;
+    };
 };
 
 export type InvoiceVoidedEvent = PaymentEventEnvelope & {

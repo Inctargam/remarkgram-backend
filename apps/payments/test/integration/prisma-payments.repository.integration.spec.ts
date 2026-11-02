@@ -45,6 +45,10 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
 
   afterAll(async () => {
     if (!prisma) return;
+    await prisma.subscriptionPaymentApplication.deleteMany({
+      where: { payment: { userId: { in: users } } },
+    });
+    await prisma.subscription.deleteMany({ where: { userId: { in: users } } });
     await prisma.payment.deleteMany({ where: { userId: { in: users } } });
     if (planId) await prisma.plan.delete({ where: { id: planId } });
     await prisma.$disconnect();
@@ -102,9 +106,12 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
     });
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      type: PaymentType.RENEWAL, status: PaymentStatus.SUCCEEDED,
-      amount: source.payment.amount + 250, subscriptionId,
-      userId: source.payment.userId, planId: source.payment.planId,
+      type: PaymentType.RENEWAL,
+      status: PaymentStatus.SUCCEEDED,
+      amount: source.payment.amount + 250,
+      subscriptionId,
+      userId: source.payment.userId,
+      planId: source.payment.planId,
     });
     expect(rows[0]!.paidAt).not.toBeNull();
   });
@@ -114,31 +121,50 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
     const subscriptionId = randomUUID();
     const providerSubscriptionId = `sub_${randomUUID()}`;
     const providerInvoiceId = `in_${randomUUID()}`;
-    await prisma.payment.update({ where: { id: source.id }, data: { subscriptionId, providerSubscriptionId } });
+    await prisma.payment.update({
+      where: { id: source.id },
+      data: { subscriptionId, providerSubscriptionId },
+    });
     const event: InvoicePaidEvent = {
-      kind: PaymentEventKind.INVOICE_PAID, provider: PaymentProvider.STRIPE,
-      providerEventId: `evt_${randomUUID()}`, providerEventType: 'invoice.paid',
-      providerCreatedAt: new Date(), paymentId: null,
+      kind: PaymentEventKind.INVOICE_PAID,
+      provider: PaymentProvider.STRIPE,
+      providerEventId: `evt_${randomUUID()}`,
+      providerEventType: 'invoice.paid',
+      providerCreatedAt: new Date(),
+      paymentId: null,
       payload: {
-        id: providerInvoiceId, providerInvoiceId, providerSubscriptionId,
-        sourcePaymentId: source.id, sourceSubscriptionId: subscriptionId,
-        customerId: null, providerPaymentId: null, billingReason: 'subscription_cycle',
-        amount: source.amount, currency: source.currency, paidAt: new Date('2026-10-13T12:00:00Z'),
+        id: providerInvoiceId,
+        providerInvoiceId,
+        providerSubscriptionId,
+        sourcePaymentId: source.id,
+        sourceSubscriptionId: subscriptionId,
+        customerId: null,
+        providerPaymentId: null,
+        billingReason: 'subscription_cycle',
+        amount: source.amount,
+        currency: source.currency,
+        paidAt: new Date('2026-10-13T12:00:00Z'),
       },
     };
     const useCase = new ConfirmRenewalPaymentUseCase(repository);
-    const confirmation = vi.spyOn(repository, 'confirmSuccessfulPayment')
+    const confirmation = vi
+      .spyOn(repository, 'confirmSuccessfulPayment')
       .mockResolvedValueOnce({ outcome: 'NOT_UPDATED' });
     try {
-      await expect(prisma.$transaction((tx) => useCase.execute(event, tx)))
-        .rejects.toBeInstanceOf(PaymentConfirmationNotAppliedError);
+      await expect(prisma.$transaction((tx) => useCase.execute(event, tx))).rejects.toBeInstanceOf(
+        PaymentConfirmationNotAppliedError,
+      );
       await expect(repository.findByProviderInvoiceId(event.provider, providerInvoiceId)).resolves.toBeNull();
     } finally {
       confirmation.mockRestore();
     }
     await prisma.$transaction((tx) => useCase.execute(event, tx));
-    await expect(repository.findByProviderInvoiceId(event.provider, providerInvoiceId)).resolves.toMatchObject({
-      status: PaymentStatus.SUCCEEDED, paidAt: event.payload.paidAt, subscriptionId,
+    await expect(
+      repository.findByProviderInvoiceId(event.provider, providerInvoiceId),
+    ).resolves.toMatchObject({
+      status: PaymentStatus.SUCCEEDED,
+      paidAt: event.payload.paidAt,
+      subscriptionId,
     });
   });
 
@@ -147,25 +173,42 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
     const subscriptionId = randomUUID();
     const providerSubscriptionId = `sub_${randomUUID()}`;
     const providerInvoiceId = `in_${randomUUID()}`;
-    await prisma.payment.update({ where: { id: source.id }, data: {
-      status: PaymentStatus.SUCCEEDED, paidAt: new Date(), subscriptionId, providerSubscriptionId,
-    } });
+    await prisma.payment.update({
+      where: { id: source.id },
+      data: {
+        status: PaymentStatus.SUCCEEDED,
+        paidAt: new Date(),
+        subscriptionId,
+        providerSubscriptionId,
+      },
+    });
     const event: InvoicePaidEvent = {
-      kind: PaymentEventKind.INVOICE_PAID, provider: PaymentProvider.STRIPE,
-      providerEventId: `evt_${randomUUID()}`, providerEventType: 'invoice.paid',
-      providerCreatedAt: new Date(), paymentId: null,
+      kind: PaymentEventKind.INVOICE_PAID,
+      provider: PaymentProvider.STRIPE,
+      providerEventId: `evt_${randomUUID()}`,
+      providerEventType: 'invoice.paid',
+      providerCreatedAt: new Date(),
+      paymentId: null,
       payload: {
-        id: providerInvoiceId, providerInvoiceId, providerSubscriptionId,
-        sourcePaymentId: source.id, sourceSubscriptionId: subscriptionId,
-        customerId: null, providerPaymentId: `pi_${randomUUID()}`,
-        billingReason: 'subscription_cycle', amount: source.amount + 400,
-        currency: source.currency, paidAt: new Date('2026-10-13T12:00:00Z'),
+        id: providerInvoiceId,
+        providerInvoiceId,
+        providerSubscriptionId,
+        sourcePaymentId: source.id,
+        sourceSubscriptionId: subscriptionId,
+        customerId: null,
+        providerPaymentId: `pi_${randomUUID()}`,
+        billingReason: 'subscription_cycle',
+        amount: source.amount + 400,
+        currency: source.currency,
+        paidAt: new Date('2026-10-13T12:00:00Z'),
       },
     };
     const lookup = repository.findByProviderInvoiceId.bind(repository);
     let arrivals = 0;
     let release!: () => void;
-    const ready = new Promise<void>((resolve) => { release = resolve; });
+    const ready = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     const find = vi.spyOn(repository, 'findByProviderInvoiceId').mockImplementation(async (...args) => {
       const payment = await lookup(...args);
       arrivals += 1;
@@ -177,16 +220,24 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
     try {
       const results = await Promise.all([
         prisma.$transaction((tx) => useCase.execute(event, tx)),
-        prisma.$transaction((tx) => useCase.execute({ ...event, providerEventId: `evt_${randomUUID()}` }, tx)),
+        prisma.$transaction((tx) =>
+          useCase.execute({ ...event, providerEventId: `evt_${randomUUID()}` }, tx),
+        ),
       ]);
-      const rows = await prisma.payment.findMany({ where: { providerInvoiceId, providerType: event.provider } });
+      const rows = await prisma.payment.findMany({
+        where: { providerInvoiceId, providerType: event.provider },
+      });
       expect(rows).toHaveLength(1);
       const stored = await repository.findById(rows[0]!.id);
       const expected = paymentEventResult.paymentConfirmed(stored!);
       expect(results).toEqual([expected, expected]);
       expect(stored).toMatchObject({
-        amount: source.amount + 400, planId: source.planId, userId: source.userId,
-        periodCount: source.periodCount, periodUnit: source.periodUnit, subscriptionId,
+        amount: source.amount + 400,
+        planId: source.planId,
+        userId: source.userId,
+        periodCount: source.periodCount,
+        periodUnit: source.periodUnit,
+        subscriptionId,
         status: PaymentStatus.SUCCEEDED,
       });
       expect(find).toHaveBeenCalledTimes(2);
@@ -221,14 +272,18 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
     // Both use cases must read CREATED before either starts its conditional UPDATE.
     let arrivals = 0;
     let release!: () => void;
-    const ready = new Promise<void>((resolve) => { release = resolve; });
-    const confirm = repository.confirmSuccessfulPayment.bind(repository);
-    const confirmation = vi.spyOn(repository, 'confirmSuccessfulPayment').mockImplementation(async (command, ctx) => {
-      arrivals += 1;
-      if (arrivals === 2) release();
-      await ready;
-      return confirm(command, ctx);
+    const ready = new Promise<void>((resolve) => {
+      release = resolve;
     });
+    const confirm = repository.confirmSuccessfulPayment.bind(repository);
+    const confirmation = vi
+      .spyOn(repository, 'confirmSuccessfulPayment')
+      .mockImplementation(async (command, ctx) => {
+        arrivals += 1;
+        if (arrivals === 2) release();
+        await ready;
+        return confirm(command, ctx);
+      });
     const useCase = new ConfirmPaymentIntentSucceededUseCase(repository);
     try {
       const attempts = await Promise.allSettled([
@@ -243,13 +298,17 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
       expect(winner).toHaveLength(1);
       expect(loser).toHaveLength(1);
       expect(winner[0]).toMatchObject({ status: 'fulfilled', value: expected });
-      expect(loser[0]).toMatchObject({ status: 'rejected', reason: expect.any(PaymentConfirmationNotAppliedError) });
+      expect(loser[0]).toMatchObject({
+        status: 'rejected',
+        reason: expect.any(PaymentConfirmationNotAppliedError),
+      });
       const retryEvent = attempts[0].status === 'rejected' ? event : concurrentEvent;
       await expect(prisma.$transaction((tx) => useCase.execute(retryEvent, tx))).resolves.toEqual(expected);
       const updates = await Promise.all(confirmation.mock.results.map(({ value }) => value));
       expect(updates.map(({ outcome }) => outcome).sort()).toEqual(['NOT_UPDATED', 'SUCCEEDED']);
-      expect([event.payload.paidAt.getTime(), concurrentEvent.payload.paidAt.getTime()])
-        .toContain(stored!.paidAt!.getTime());
+      expect([event.payload.paidAt.getTime(), concurrentEvent.payload.paidAt.getTime()]).toContain(
+        stored!.paidAt!.getTime(),
+      );
       expect(stored!.providerPaymentId).toBe(event.payload.id);
     } finally {
       confirmation.mockRestore();
@@ -278,6 +337,102 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
     expect(left.status).toBe(PaymentStatus.PENDING);
     expect(right.paidAt).toBeNull();
     expect(right.providerPaymentId).toBeNull();
+  });
+
+  it('waits for the renewal transaction and rejects a concurrent purchase reservation', async () => {
+    const userId = nextUser();
+    const params = {
+      userId,
+      planId,
+      amount: 1000,
+      currency: Currency.USD,
+      periodCount: 1,
+      periodUnit: PeriodUnit.MONTH,
+      providerType: PaymentProvider.STRIPE,
+      providerInvoiceId: `in_${randomUUID()}`,
+      providerSubscriptionId: `sub_${randomUUID()}`,
+      providerCustomerId: null,
+      subscriptionId: randomUUID(),
+    };
+    let releaseRenewal!: () => void;
+    let renewalInserted!: () => void;
+    const holdRenewal = new Promise<void>((resolve) => {
+      releaseRenewal = resolve;
+    });
+    const inserted = new Promise<void>((resolve) => {
+      renewalInserted = resolve;
+    });
+    const renewal = prisma.$transaction(async (tx) => {
+      const payment = await repository.ensurePendingRenewal(params, tx);
+      renewalInserted();
+      await holdRenewal;
+      return payment;
+    });
+    await inserted;
+
+    const purchase = repository.create(initialPayment(userId, randomUUID()));
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    releaseRenewal();
+
+    await expect(renewal).resolves.toMatchObject({ status: PaymentStatus.PENDING });
+    await expect(purchase).resolves.toEqual({ outcome: 'RENEWAL_IN_PROGRESS' });
+    await expect(prisma.payment.count({ where: { userId } })).resolves.toBe(1);
+  });
+
+  it('keeps a succeeded renewal blocked until D2 persists its payment application', async () => {
+    const userId = nextUser();
+    const subscriptionId = randomUUID();
+    const providerSubscriptionId = `sub_${randomUUID()}`;
+    const renewal = await prisma.$transaction((tx) =>
+      repository.ensurePendingRenewal(
+        {
+          userId,
+          planId,
+          amount: 1000,
+          currency: Currency.USD,
+          periodCount: 1,
+          periodUnit: PeriodUnit.MONTH,
+          providerType: PaymentProvider.STRIPE,
+          providerInvoiceId: `in_${randomUUID()}`,
+          providerSubscriptionId,
+          providerCustomerId: null,
+          subscriptionId,
+        },
+        tx,
+      ),
+    );
+    await prisma.payment.update({
+      where: { id: renewal.id },
+      data: { status: PaymentStatus.SUCCEEDED, paidAt: new Date() },
+    });
+
+    await expect(repository.hasBlockingRenewal(userId)).resolves.toBe(true);
+
+    const startsAt = new Date('2026-11-01T00:00:00.000Z');
+    const expiresAt = new Date('2026-12-01T00:00:00.000Z');
+    await prisma.subscription.create({
+      data: {
+        id: subscriptionId,
+        userId,
+        planId,
+        startsAt,
+        expiresAt,
+        status: 'ACTIVE',
+        provider: PaymentProvider.STRIPE,
+        providerSubscriptionId,
+        autoRenewalStatus: 'ENABLED',
+      },
+    });
+    await prisma.subscriptionPaymentApplication.create({
+      data: {
+        paymentId: renewal.id,
+        subscriptionId,
+        action: 'RENEWED',
+        nextSubscriptionStartsAt: expiresAt,
+      },
+    });
+
+    await expect(repository.hasBlockingRenewal(userId)).resolves.toBe(false);
   });
 
   it('classifies two identical concurrent creates as created plus idempotency conflict', async () => {
@@ -366,8 +521,6 @@ integration('PrismaPaymentsRepository atomicity (PostgreSQL)', () => {
       providerCheckoutId: null,
     });
   });
-
-
 
   function nextUser(): number {
     const userId = 1_500_000_000 + users.length + Math.floor(Math.random() * 100_000_000);

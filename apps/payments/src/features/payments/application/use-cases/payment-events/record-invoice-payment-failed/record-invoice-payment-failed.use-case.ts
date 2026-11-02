@@ -3,7 +3,9 @@ import type { Payment } from '../../../../domain/payment.entity.js';
 import type { InvoicePaymentFailedEvent } from '../../../events/payment-event.js';
 import type { PaymentsTransactionContext } from '../../../ports/payments-unit-of-work.js';
 import { PaymentsRepository } from '../../../ports/payments.repository.js';
+import { EnsureRenewalPaymentUseCase } from '../ensure-renewal-payment/ensure-renewal-payment.use-case.js';
 import {
+  PaymentEventOutcome,
   PaymentEventCompletionCode,
   paymentEventResult,
   type PaymentEventResult,
@@ -12,16 +14,29 @@ import { hasProviderReferenceConflict } from '../payment-reconciliation.policy.j
 
 @Injectable()
 export class RecordInvoicePaymentFailedUseCase {
-  constructor(private readonly payments: PaymentsRepository) {}
+  constructor(
+    private readonly payments: PaymentsRepository,
+    private readonly ensureRenewalPayment: EnsureRenewalPaymentUseCase,
+  ) {}
 
   async execute(
     event: InvoicePaymentFailedEvent,
     ctx: PaymentsTransactionContext,
   ): Promise<PaymentEventResult> {
     const payment = await this.findPayment(event, ctx);
-    return payment
-      ? paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_FAILURE_RECORDED, payment.id)
-      : paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_FAILURE_RECORDED, null);
+    if (payment)
+      return paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_FAILURE_RECORDED, payment.id);
+
+    if (event.payload.billingReason === 'subscription_cycle') {
+      const ensured = await this.ensureRenewalPayment.execute(event, ctx);
+      if (ensured.outcome !== PaymentEventOutcome.COMPLETED) return ensured;
+      return paymentEventResult.completed(
+        PaymentEventCompletionCode.PAYMENT_FAILURE_RECORDED,
+        ensured.paymentId,
+      );
+    }
+
+    return paymentEventResult.completed(PaymentEventCompletionCode.PAYMENT_FAILURE_RECORDED, null);
   }
 
   private async findPayment(

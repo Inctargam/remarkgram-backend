@@ -115,6 +115,8 @@ model Payment {
   @@index([createdAt])
   @@index([subscriptionId])
   @@index([providerType, providerSubscriptionId])
+  // составной индекс для ускорения проверки без полного seq-scan таблицы
+  @@index([userId, type, status], map: "payments_blocking_renewal_lookup_idx")
   @@map("payments")
 }
 
@@ -196,8 +198,8 @@ model Subscription {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  plan                       Plan                             @relation(fields: [planId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  paymentApplications        SubscriptionPaymentApplication[] @relation("AppliedSubscription")
+  plan                        Plan                             @relation(fields: [planId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  paymentApplications         SubscriptionPaymentApplication[] @relation("AppliedSubscription")
   targetAutoRenewalOperations AutoRenewalOperation[]           @relation("AutoRenewalSubscription")
   sourceAutoRenewalOperations AutoRenewalOperation[]           @relation("AutoRenewalSourceSubscription")
 
@@ -223,15 +225,15 @@ enum AutoRenewalOperationStatus {
 
 // Неизменяемый результат начисления доступа за платёж.
 model SubscriptionPaymentApplication {
-  paymentId      String                    @id @map("payment_id") @db.Uuid
-  subscriptionId String                    @map("subscription_id") @db.Uuid
-  action         SubscriptionPaymentAction
+  paymentId                String                    @id @map("payment_id") @db.Uuid
+  subscriptionId           String                    @map("subscription_id") @db.Uuid
+  action                   SubscriptionPaymentAction
   // Для SCHEDULED — конец всей оплаченной цепочки, включая текущую покупку.
-  nextSubscriptionStartsAt DateTime @map("next_subscription_starts_at") @db.Timestamptz
-  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz
+  nextSubscriptionStartsAt DateTime                  @map("next_subscription_starts_at") @db.Timestamptz
+  createdAt                DateTime                  @default(now()) @map("created_at") @db.Timestamptz
 
-  payment             Payment               @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  subscription        Subscription          @relation("AppliedSubscription", fields: [subscriptionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payment              Payment               @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  subscription         Subscription          @relation("AppliedSubscription", fields: [subscriptionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   autoRenewalOperation AutoRenewalOperation?
 
   @@index([subscriptionId])
@@ -246,13 +248,13 @@ model AutoRenewalOperation {
   status    AutoRenewalOperationStatus
   paymentId String?                    @unique @map("payment_id") @db.Uuid
 
-  subscriptionId         String          @map("subscription_id") @db.Uuid
-  provider               PaymentProvider
+  subscriptionId               String          @map("subscription_id") @db.Uuid
+  provider                     PaymentProvider
   // Для ENABLE/DISABLE — исходный снимок; для TRANSFER заполняется один раз при привязке.
-  providerSubscriptionId String?         @map("provider_subscription_id")
+  providerSubscriptionId       String?         @map("provider_subscription_id")
   // Только TRANSFER: неизменяемые старая локальная связь и снимок provider ID.
-  sourceSubscriptionId         String? @map("source_subscription_id") @db.Uuid
-  sourceProviderSubscriptionId String? @map("source_provider_subscription_id")
+  sourceSubscriptionId         String?         @map("source_subscription_id") @db.Uuid
+  sourceProviderSubscriptionId String?         @map("source_provider_subscription_id")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
