@@ -86,7 +86,7 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
         autoRenewalOperation: { select: AUTO_RENEWAL_OPERATION_SELECT },
         subscriptionId: true,
         action: true,
-        nextSubscriptionStartsAt: true,
+        paidPeriodEndsAt: true,
       },
     });
 
@@ -103,23 +103,11 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
       result: {
         subscriptionId: application.subscriptionId,
         action: application.action,
-        nextSubscriptionStartsAt: application.nextSubscriptionStartsAt.toISOString(),
+        nextSubscriptionStartsAt: application.paidPeriodEndsAt.toISOString(),
         previousProviderSubscriptionId:
           application.autoRenewalOperation?.sourceProviderSubscriptionId ?? null,
       },
     };
-  }
-
-  async findAutoRenewalOperation(
-    operationId: string,
-    tx: PaymentsTransactionContext,
-  ): Promise<AutoRenewalOperation | null> {
-    const client = tx as Prisma.TransactionClient;
-    const operation = await client.autoRenewalOperation.findUnique({
-      where: { id: operationId },
-      select: AUTO_RENEWAL_OPERATION_SELECT,
-    });
-    return operation ? this.toAutoRenewalOperation(operation) : null;
   }
 
   async createAutoRenewalOperation(
@@ -128,12 +116,10 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
   ): Promise<void> {
     const client = tx as Prisma.TransactionClient;
     await client.autoRenewalOperation.create({ data: params.operation });
-    if (params.autoRenewalStatus !== null) {
-      await client.subscription.update({
-        where: { id: params.operation.subscriptionId },
-        data: { autoRenewalStatus: params.autoRenewalStatus },
-      });
-    }
+    await client.subscription.update({
+      where: { id: params.operation.subscriptionId },
+      data: { autoRenewalStatus: params.autoRenewalStatus },
+    });
   }
 
   async completeAutoRenewalOperation(
@@ -187,9 +173,8 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
     } catch (error) {
       // Из уникальных ключей эта запись изменяет только (provider, providerSubscriptionId).
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        // Привязка завершает TRANSFER, у которого operationId равен paymentId.
         throw new SubscriptionBindingConflictError(
-          params.operationId,
+          params.paymentId,
           params.providerSubscriptionId,
           'PROVIDER_SUBSCRIPTION_ALREADY_BOUND',
         );
@@ -227,14 +212,14 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
           create: {
             paymentId: params.paymentId,
             action: params.action,
-            nextSubscriptionStartsAt: new Date(params.nextSubscriptionStartsAt),
+            paidPeriodEndsAt: params.expiresAt,
             autoRenewalOperation: transfer
               ? {
                   create: {
-                    id: params.paymentId,
+                    id: transfer.operationId,
                     userId: params.userId,
                     type: AutoRenewalOperationType.TRANSFER,
-                    status: AutoRenewalOperationStatus.PENDING,
+                    status: AutoRenewalOperationStatus.DISABLE_PENDING,
                     subscriptionId: params.subscriptionId,
                     provider: params.provider,
                     providerSubscriptionId: null,
@@ -274,7 +259,7 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
           create: {
             paymentId: params.paymentId,
             action: 'RENEWED',
-            nextSubscriptionStartsAt: new Date(params.nextSubscriptionStartsAt),
+            paidPeriodEndsAt: params.expiresAt,
           },
         },
       },

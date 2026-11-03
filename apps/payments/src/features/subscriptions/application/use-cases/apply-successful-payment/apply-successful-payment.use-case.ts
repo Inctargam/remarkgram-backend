@@ -135,7 +135,6 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
         expiresAt,
         status: this.getStatus(subscription.startsAt, expiresAt, now),
         subscriptionId: result.subscriptionId,
-        nextSubscriptionStartsAt: result.nextSubscriptionStartsAt,
       },
       tx,
     );
@@ -178,7 +177,6 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
           : AutoRenewalStatus.DISABLED,
         subscriptionId: result.subscriptionId,
         action: 'CREATED',
-        nextSubscriptionStartsAt: result.nextSubscriptionStartsAt,
         autoRenewalTransfer: null,
       },
       tx,
@@ -238,8 +236,8 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
         autoRenewalStatus: AutoRenewalStatus.ENABLING,
         subscriptionId: result.subscriptionId,
         action: 'SCHEDULED',
-        nextSubscriptionStartsAt: result.nextSubscriptionStartsAt,
         autoRenewalTransfer: {
+          operationId: randomUUID(),
           sourceSubscriptionId: lastSubscription.subscriptionId,
           sourceProviderSubscriptionId: lastSubscription.providerSubscriptionId,
         },

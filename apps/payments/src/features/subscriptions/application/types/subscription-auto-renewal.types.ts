@@ -6,23 +6,25 @@ export type ChangeSubscriptionAutoRenewalParams = {
   userId: number;
   subscriptionId: string;
   idempotencyKey: string;
+  autoRenewalEnabled: boolean;
 };
 
-export type SubscriptionAutoRenewalIntent = {
+export type ChangeSubscriptionAutoRenewalInput = {
   userId: number;
   subscriptionId: string;
   autoRenewalEnabled: boolean;
 };
 
-export type ChangeSubscriptionAutoRenewalWorkflowParams = SubscriptionAutoRenewalIntent & {
+export type ChangeSubscriptionAutoRenewalWorkflowParams = ChangeSubscriptionAutoRenewalInput & {
   workflowId: string;
 };
 
-export type SubscriptionAutoRenewalOperationParams = SubscriptionAutoRenewalIntent & {
+export type SubscriptionAutoRenewalOperationParams = ChangeSubscriptionAutoRenewalInput & {
   operationId: string;
 };
 
 export type ChangeSubscriptionAutoRenewalResult = {
+  // Устойчивый ID запроса. Если настройка уже установлена, строка AutoRenewalOperation не создаётся.
   operationId: string;
   subscriptionId: string;
   autoRenewalEnabled: boolean;
@@ -36,8 +38,7 @@ export type PreparedSubscriptionAutoRenewalChange = SubscriptionAutoRenewalOpera
 
 export type CreateAutoRenewalOperationRepositoryParams = {
   operation: AutoRenewalOperation;
-  // null: desired state is already set; record the result without changing the subscription.
-  autoRenewalStatus: AutoRenewalStatus | null;
+  autoRenewalStatus: AutoRenewalStatus;
 };
 
 export type CompleteAutoRenewalOperationRepositoryParams = {

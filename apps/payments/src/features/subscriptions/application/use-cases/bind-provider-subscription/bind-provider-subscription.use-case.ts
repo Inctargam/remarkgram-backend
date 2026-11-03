@@ -28,12 +28,13 @@ export class BindProviderSubscriptionUseCase implements ICommandHandler<BindProv
 
     await this.subscriptionsRepository.lockByUserId(owner.userId, tx);
     const application = await this.subscriptionsRepository.findPaymentApplication(paymentId, tx);
-    const operation = application?.autoRenewalOperation;
+
+    const autoRenewalOperation = application?.autoRenewalOperation;
     if (
       !application ||
       application.result.action !== 'SCHEDULED' ||
-      !operation ||
-      operation.type !== AutoRenewalOperationType.TRANSFER
+      !autoRenewalOperation ||
+      autoRenewalOperation.type !== AutoRenewalOperationType.TRANSFER
     ) {
       throw new SubscriptionBindingConflictError(
         paymentId,
@@ -42,25 +43,33 @@ export class BindProviderSubscriptionUseCase implements ICommandHandler<BindProv
       );
     }
 
-    // Снимок операции распознаёт поздний повтор, не включая автопродление заново.
-    if (operation.status === AutoRenewalOperationStatus.COMPLETED) {
-      if (operation.providerSubscriptionId === providerSubscriptionId) return;
-      throw new SubscriptionBindingConflictError(
-        paymentId,
-        providerSubscriptionId,
-        'PROVIDER_SUBSCRIPTION_MISMATCH',
-      );
+    switch (autoRenewalOperation.status) {
+      // Старое автопродление отключено: сохраняем новую provider-связь и завершаем операцию.
+      case AutoRenewalOperationStatus.BINDING_PENDING:
+        return this.subscriptionsRepository.bindProviderSubscription(
+          {
+            paymentId,
+            operationId: autoRenewalOperation.id,
+            providerSubscriptionId,
+          },
+          tx,
+        );
+      case AutoRenewalOperationStatus.COMPLETED:
+        // Снимок распознаёт поздний повтор, не включая автопродление заново.
+        if (autoRenewalOperation.providerSubscriptionId === providerSubscriptionId) return;
+        // Операция уже завершена с другим provider ID — это не повтор.
+        throw new SubscriptionBindingConflictError(
+          paymentId,
+          providerSubscriptionId,
+          'PROVIDER_SUBSCRIPTION_MISMATCH',
+        );
+      default:
+        // DISABLE_PENDING: отключение ещё не подтверждено. ENABLE_PENDING недопустим для TRANSFER.
+        throw new SubscriptionBindingConflictError(
+          paymentId,
+          providerSubscriptionId,
+          'CANCELLATION_NOT_CONFIRMED',
+        );
     }
-    if (operation.status !== AutoRenewalOperationStatus.BINDING_PENDING) {
-      throw new SubscriptionBindingConflictError(paymentId, providerSubscriptionId, 'CANCELLATION_NOT_CONFIRMED');
-    }
-
-    await this.subscriptionsRepository.bindProviderSubscription(
-      {
-        operationId: operation.id,
-        providerSubscriptionId,
-      },
-      tx,
-    );
   }
 }

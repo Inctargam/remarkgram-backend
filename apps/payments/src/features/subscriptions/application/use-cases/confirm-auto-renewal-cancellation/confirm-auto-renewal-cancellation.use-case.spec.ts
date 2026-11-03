@@ -19,9 +19,17 @@ describe('ConfirmAutoRenewalCancellationUseCase', () => {
     expect(repository.findPaymentApplication).toHaveBeenCalledTimes(2);
     expect(repository.findPaymentApplication).toHaveBeenNthCalledWith(2, command.paymentId, command.tx);
     expect(repository.confirmAutoRenewalCancellation).toHaveBeenCalledExactlyOnceWith(
-      'payment-id',
+      'operation-id',
       command.tx,
     );
+  });
+
+  it('rejects an enabling stage for a transfer', async () => {
+    const { useCase, command, repository, operation } = fixture();
+    operation.status = AutoRenewalOperationStatus.ENABLE_PENDING;
+
+    await expect(useCase.execute(command)).rejects.toMatchObject({ reason: 'CANCELLATION_APPLICATION_MISMATCH' });
+    expect(repository.confirmAutoRenewalCancellation).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -76,7 +84,7 @@ describe('ConfirmAutoRenewalCancellationUseCase', () => {
   });
 
   it.each([
-    AutoRenewalOperationStatus.PENDING,
+    AutoRenewalOperationStatus.DISABLE_PENDING,
     AutoRenewalOperationStatus.BINDING_PENDING,
     AutoRenewalOperationStatus.COMPLETED,
   ])('rejects a different old provider ID even for a %s replay', async (status) => {
@@ -134,11 +142,11 @@ describe('ConfirmAutoRenewalCancellationUseCase', () => {
 
 function fixture() {
   const operation: AutoRenewalOperation = {
-    id: 'payment-id',
+    id: 'operation-id',
     paymentId: 'payment-id',
     userId: 42,
     type: AutoRenewalOperationType.TRANSFER,
-    status: AutoRenewalOperationStatus.PENDING,
+    status: AutoRenewalOperationStatus.DISABLE_PENDING,
     subscriptionId: 'new-subscription',
     provider: PaymentProvider.STRIPE,
     providerSubscriptionId: null,
@@ -157,7 +165,6 @@ function fixture() {
     },
   };
   const repository = {
-    findAutoRenewalOperation: vi.fn<SubscriptionsRepository['findAutoRenewalOperation']>(),
     createAutoRenewalOperation: vi.fn<SubscriptionsRepository['createAutoRenewalOperation']>(),
     completeAutoRenewalOperation: vi.fn<SubscriptionsRepository['completeAutoRenewalOperation']>(),
     findPaymentApplication: vi

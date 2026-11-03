@@ -20,7 +20,8 @@ describe('BindProviderSubscriptionUseCase', () => {
     expect(repository.findPaymentApplication).toHaveBeenNthCalledWith(2, command.paymentId, command.tx);
     expect(repository.bindProviderSubscription).toHaveBeenCalledExactlyOnceWith(
       {
-        operationId: command.paymentId,
+        operationId: 'operation-id',
+        paymentId: command.paymentId,
         providerSubscriptionId: command.providerSubscriptionId,
       },
       command.tx,
@@ -51,7 +52,7 @@ describe('BindProviderSubscriptionUseCase', () => {
 
   it('rejects binding before cancellation is confirmed', async () => {
     const { useCase, command, repository, operation } = fixture();
-    operation.status = AutoRenewalOperationStatus.PENDING;
+    operation.status = AutoRenewalOperationStatus.DISABLE_PENDING;
 
     await expect(useCase.execute(command)).rejects.toMatchObject({ reason: 'CANCELLATION_NOT_CONFIRMED' });
     expect(repository.bindProviderSubscription).not.toHaveBeenCalled();
@@ -148,7 +149,7 @@ describe('BindProviderSubscriptionUseCase', () => {
 
 function fixture() {
   const operation: AutoRenewalOperation = {
-    id: 'payment-id',
+    id: 'operation-id',
     paymentId: 'payment-id',
     userId: 42,
     type: AutoRenewalOperationType.TRANSFER,
@@ -171,7 +172,6 @@ function fixture() {
     },
   };
   const repository = {
-    findAutoRenewalOperation: vi.fn<SubscriptionsRepository['findAutoRenewalOperation']>(),
     createAutoRenewalOperation: vi.fn<SubscriptionsRepository['createAutoRenewalOperation']>(),
     completeAutoRenewalOperation: vi.fn<SubscriptionsRepository['completeAutoRenewalOperation']>(),
     lockByUserId: vi.fn<SubscriptionsRepository['lockByUserId']>().mockResolvedValue(),

@@ -44,7 +44,6 @@ describe('ApplySuccessfulPaymentUseCase', () => {
         autoRenewalStatus: AutoRenewalStatus.ENABLED,
         subscriptionId: result.subscriptionId,
         action: 'CREATED',
-        nextSubscriptionStartsAt: result.nextSubscriptionStartsAt,
         autoRenewalTransfer: null,
       },
       command.tx,
@@ -100,6 +99,7 @@ describe('ApplySuccessfulPaymentUseCase', () => {
       expect(repository.createWithPaymentApplication).toHaveBeenCalledWith(
         expect.objectContaining({
           autoRenewalTransfer: {
+            operationId: expect.any(String),
             sourceSubscriptionId: 'old-subscription',
             sourceProviderSubscriptionId: 'sub_old',
           },
@@ -110,6 +110,9 @@ describe('ApplySuccessfulPaymentUseCase', () => {
         }),
         command.tx,
       );
+      const [created] = repository.createWithPaymentApplication.mock.calls[0];
+      expect(created.autoRenewalTransfer?.operationId).toMatch(/^[0-9a-f-]{36}$/);
+      expect(created.autoRenewalTransfer?.operationId).not.toBe(command.payment.paymentId);
       expect(repository.setAutoRenewalState).toHaveBeenCalledWith(
         {
           subscriptionId: 'old-subscription',
@@ -262,7 +265,7 @@ describe('ApplySuccessfulPaymentUseCase', () => {
   );
 
   it.each([
-    AutoRenewalOperationStatus.PENDING,
+    AutoRenewalOperationStatus.DISABLE_PENDING,
     AutoRenewalOperationStatus.BINDING_PENDING,
   ])('replays a scheduled result during %s without restarting the transition', async (status) => {
     const { useCase, repository, command } = fixture();
@@ -337,7 +340,6 @@ describe('ApplySuccessfulPaymentUseCase', () => {
           expiresAt: new Date('2026-11-01T00:00:00.000Z'),
           status: SubscriptionStatus.ACTIVE,
           subscriptionId: result.subscriptionId,
-          nextSubscriptionStartsAt: result.nextSubscriptionStartsAt,
         },
         command.tx,
       );
@@ -445,11 +447,11 @@ describe('ApplySuccessfulPaymentUseCase', () => {
 
 function transferOperation(paymentId: string, subscriptionId: string): AutoRenewalOperation {
   return {
-    id: paymentId,
+    id: 'operation-id',
     paymentId,
     userId: 42,
     type: AutoRenewalOperationType.TRANSFER,
-    status: AutoRenewalOperationStatus.PENDING,
+    status: AutoRenewalOperationStatus.DISABLE_PENDING,
     subscriptionId,
     provider: PaymentProvider.STRIPE,
     providerSubscriptionId: null,
@@ -474,7 +476,6 @@ function existing(overrides: Partial<SubscriptionForPayment> = {}): Subscription
 
 function fixture(overrides: Partial<SuccessfulPayment> = {}) {
   const repository = {
-    findAutoRenewalOperation: vi.fn<SubscriptionsRepository['findAutoRenewalOperation']>(),
     createAutoRenewalOperation: vi.fn<SubscriptionsRepository['createAutoRenewalOperation']>(),
     completeAutoRenewalOperation: vi.fn<SubscriptionsRepository['completeAutoRenewalOperation']>(),
     lockByUserId: vi.fn<SubscriptionsRepository['lockByUserId']>().mockResolvedValue(),

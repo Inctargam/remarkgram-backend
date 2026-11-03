@@ -74,10 +74,7 @@ import { LocalSubscriptionPaymentHandlerAdapter } from './features/subscriptions
 import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastructure/persistence/prisma-subscriptions.repository.js';
 import { ChangeSubscriptionAutoRenewalWorkflow } from './features/subscriptions/application/ports/change-subscription-auto-renewal.workflow.js';
 import { ProviderSubscriptionAutoRenewalGateway } from './features/subscriptions/application/ports/provider-subscription-auto-renewal.gateway.js';
-import { EnableSubscriptionAutoRenewalUseCase } from './features/subscriptions/application/use-cases/enable-subscription-auto-renewal/enable-subscription-auto-renewal.use-case.js';
-import { DisableSubscriptionAutoRenewalUseCase } from './features/subscriptions/application/use-cases/disable-subscription-auto-renewal/disable-subscription-auto-renewal.use-case.js';
-import { PrepareSubscriptionAutoRenewalChangeUseCase } from './features/subscriptions/application/use-cases/prepare-subscription-auto-renewal-change/prepare-subscription-auto-renewal-change.use-case.js';
-import { ConfirmSubscriptionAutoRenewalChangeUseCase } from './features/subscriptions/application/use-cases/confirm-subscription-auto-renewal-change/confirm-subscription-auto-renewal-change.use-case.js';
+import { ChangeSubscriptionAutoRenewalUseCase } from './features/subscriptions/application/use-cases/change-subscription-auto-renewal/change-subscription-auto-renewal.use-case.js';
 import { DbosChangeSubscriptionAutoRenewalWorkflow } from './features/subscriptions/infrastructure/dbos/dbos-change-subscription-auto-renewal.workflow.js';
 
 @Module({
@@ -196,10 +193,7 @@ import { DbosChangeSubscriptionAutoRenewalWorkflow } from './features/subscripti
       provide: ProviderSubscriptionAutoRenewalGateway,
       useExisting: PaymentsProviderSubscriptionAutoRenewalAdapter,
     },
-    EnableSubscriptionAutoRenewalUseCase,
-    DisableSubscriptionAutoRenewalUseCase,
-    PrepareSubscriptionAutoRenewalChangeUseCase,
-    ConfirmSubscriptionAutoRenewalChangeUseCase,
+    ChangeSubscriptionAutoRenewalUseCase,
     DbosChangeSubscriptionAutoRenewalWorkflow,
     { provide: ChangeSubscriptionAutoRenewalWorkflow, useExisting: DbosChangeSubscriptionAutoRenewalWorkflow },
     ProcessStripeWebhookUseCase,
