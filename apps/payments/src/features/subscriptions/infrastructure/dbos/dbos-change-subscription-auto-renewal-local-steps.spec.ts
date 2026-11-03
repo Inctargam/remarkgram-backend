@@ -176,6 +176,7 @@ function fixture() {
     confirmAutoRenewalCancellation: vi.fn<SubscriptionsRepository['confirmAutoRenewalCancellation']>(),
     bindProviderSubscription: vi.fn<SubscriptionsRepository['bindProviderSubscription']>(),
     markExpired: vi.fn<SubscriptionsRepository['markExpired']>(),
+    markActive: vi.fn<SubscriptionsRepository['markActive']>(),
     setAutoRenewalState: vi.fn<SubscriptionsRepository['setAutoRenewalState']>(),
     renewWithPaymentApplication: vi.fn<SubscriptionsRepository['renewWithPaymentApplication']>(),
     createWithPaymentApplication: vi.fn<SubscriptionsRepository['createWithPaymentApplication']>(),

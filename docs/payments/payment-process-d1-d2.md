@@ -3,8 +3,9 @@
 **D1 — модуль платежей. D2 — модуль подписок.**
 
 Описание отражает актуальные контракты D1 и адаптированную реализацию D2.
-Ручное автопродление реализовано без транспортного API; lifecycle подписок и события доступа
-остаются задачами D2. Сквозные проверки после адаптации не запускались.
+Ручное автопродление реализовано без транспортного API. Lifecycle подписок обновляется cron-воркером,
+события доступа сохраняются атомарно и публикуются через Nest Outbox. Обработчик User Accounts
+пока отсутствует. Миграция outbox не применялась; сквозные проверки не запускались.
 
 1. **Создание платежа.**
 
@@ -282,3 +283,22 @@ DBOS workflow ручного изменения один раз устойчив
 [SuccessfulPayment](../../apps/payments/src/features/payments/application/types/successful-payment.types.ts),
 [PaymentsTransactionContext](../../apps/payments/src/features/payments/application/ports/payments-unit-of-work.ts),
 [адаптер автопродления D1](../../apps/payments/src/features/payments/infrastructure/subscriptions/payments-provider-subscription-auto-renewal.adapter.ts).
+
+
+## Актуализация доступа и доставка событий
+
+После первого применения платежа D2 сохраняет `subscriptions.business-access-changed.v1`
+в той же транзакции, что подписку и результат платежа. Повтор платежа не создаёт событие.
+
+Раз в минуту scheduler находит пользователей с наступившими переходами статусов.
+Для каждого открывает транзакцию и берёт общий `lockByUserId`: сначала истёкшие ACTIVE/PENDING
+становятся EXPIRED, затем текущие PENDING становятся ACTIVE. После всех изменений сохраняется
+один итоговый снимок доступа. При переходе между оплаченной A и B промежуточного отключения нет.
+Автопродление и даты подписок воркер не меняет.
+
+Nest Outbox доставляет события в durable-очередь `user_accounts_business_access_queue`.
+Событие включает `userId`, `hasBusinessAccess` и строковую числовую `version`.
+Потребитель должен игнорировать одинаковые и более старые версии. Его реализация в User Accounts
+не входит в текущую работу D2.
+
+Настройка и миграция описаны в [lifecycle и событиях доступа](./subscription-lifecycle-and-access.md).

@@ -4,6 +4,7 @@ import { PeriodUnit } from '../../../../../common/domain/period-unit.enum.js';
 import { PaymentProvider, PaymentType } from '../../../../payments/domain/payment.entity.js';
 import type { SuccessfulPayment } from '../../../../payments/application/types/successful-payment.types.js';
 import type { SubscriptionsRepository } from '../../ports/subscriptions.repository.js';
+import type { RecordBusinessAccessService } from '../../services/record-business-access.service.js';
 import type { AutoRenewalOperation, SubscriptionForPayment } from '../../types/subscriptions.types.js';
 import { AutoRenewalStatus } from '../../../domain/enums/auto-renewal-status.enum.js';
 import { AutoRenewalOperationStatus } from '../../../domain/enums/auto-renewal-operation-status.enum.js';
@@ -50,8 +51,34 @@ describe('ApplySuccessfulPaymentUseCase', () => {
     );
   });
 
+  it.each([PaymentType.PURCHASE, PaymentType.RENEWAL])(
+    'records the access snapshot after persisting a first %s application',
+    async (type) => {
+      const { useCase, repository, command, access } = fixture({ type, providerSubscriptionId: 'sub_old' });
+      if (type === PaymentType.RENEWAL) repository.findByUserId.mockResolvedValue([existing()]);
+
+      await useCase.execute(command);
+
+      expect(access.execute).toHaveBeenCalledTimes(1);
+      expect(access.execute.mock.calls[0].slice(0, 2)).toEqual([command.payment.userId, command.tx]);
+      const persistence = type === PaymentType.RENEWAL
+        ? repository.renewWithPaymentApplication
+        : repository.createWithPaymentApplication;
+      expect(persistence.mock.invocationCallOrder[0]).toBeLessThan(access.execute.mock.invocationCallOrder[0]);
+    },
+  );
+
+  it('propagates a snapshot write failure so payment application rolls back in the caller transaction', async () => {
+    const { useCase, repository, command, access } = fixture();
+    const failure = new Error('outbox unavailable');
+    access.execute.mockRejectedValue(failure);
+
+    await expect(useCase.execute(command)).rejects.toBe(failure);
+    expect(repository.createWithPaymentApplication).toHaveBeenCalledTimes(1);
+  });
+
   it('waits for the user lock before reading and returns a previous result without creating another period', async () => {
-    const { useCase, repository, command } = fixture();
+    const { useCase, repository, command, access } = fixture();
     let releaseLock!: () => void;
     repository.lockByUserId.mockReturnValue(
       new Promise<void>((resolve) => {
@@ -77,12 +104,13 @@ describe('ApplySuccessfulPaymentUseCase', () => {
     await expect(pending).resolves.toEqual(saved);
     expect(repository.findByUserId).not.toHaveBeenCalled();
     expect(repository.createWithPaymentApplication).not.toHaveBeenCalled();
+    expect(access.execute).not.toHaveBeenCalled();
   });
 
   it.each([SubscriptionStatus.ACTIVE, SubscriptionStatus.PENDING])(
     'schedules a purchase after an existing %s period',
     async (status) => {
-      const { useCase, repository, command } = fixture();
+      const { useCase, repository, command, access } = fixture();
       repository.findByUserId.mockResolvedValue([
         existing({
           status,
@@ -121,6 +149,7 @@ describe('ApplySuccessfulPaymentUseCase', () => {
         command.tx,
       );
       expect(repository.markExpired).not.toHaveBeenCalled();
+      expect(access.execute).toHaveBeenCalledExactlyOnceWith(command.payment.userId, command.tx);
     },
   );
 
@@ -299,7 +328,7 @@ describe('ApplySuccessfulPaymentUseCase', () => {
   it.each(['CREATED', 'SCHEDULED', 'RENEWED'] as const)(
     'replays %s even when subscription dates and auto-renewal have subsequently changed',
     async (action) => {
-      const { useCase, repository, command } = fixture();
+      const { useCase, repository, command, access } = fixture();
       const saved = {
         subscriptionId: 'applied-subscription',
         action,
@@ -328,6 +357,7 @@ describe('ApplySuccessfulPaymentUseCase', () => {
       expect(repository.setAutoRenewalState).not.toHaveBeenCalled();
       expect(repository.createWithPaymentApplication).not.toHaveBeenCalled();
       expect(repository.renewWithPaymentApplication).not.toHaveBeenCalled();
+      expect(access.execute).not.toHaveBeenCalled();
     },
   );
 
@@ -586,6 +616,7 @@ function fixture(overrides: Partial<SuccessfulPayment> = {}) {
     findPaymentApplication: vi.fn<SubscriptionsRepository['findPaymentApplication']>().mockResolvedValue(null),
     findByUserId: vi.fn<SubscriptionsRepository['findByUserId']>().mockResolvedValue([]),
     markExpired: vi.fn<SubscriptionsRepository['markExpired']>().mockResolvedValue(),
+    markActive: vi.fn<SubscriptionsRepository['markActive']>().mockResolvedValue(),
     setAutoRenewalState: vi.fn<SubscriptionsRepository['setAutoRenewalState']>().mockResolvedValue(),
     renewWithPaymentApplication: vi
       .fn<SubscriptionsRepository['renewWithPaymentApplication']>()
@@ -594,6 +625,7 @@ function fixture(overrides: Partial<SuccessfulPayment> = {}) {
       .fn<SubscriptionsRepository['createWithPaymentApplication']>()
       .mockResolvedValue(),
   };
+  const access = { execute: vi.fn<RecordBusinessAccessService['execute']>().mockResolvedValue() };
   const payment: SuccessfulPayment = {
     paymentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     userId: 42,
@@ -612,7 +644,8 @@ function fixture(overrides: Partial<SuccessfulPayment> = {}) {
   };
   return {
     repository,
+    access,
     command: new ApplySuccessfulPaymentCommand(payment, {}),
-    useCase: new ApplySuccessfulPaymentUseCase(repository),
+    useCase: new ApplySuccessfulPaymentUseCase(repository, access as unknown as RecordBusinessAccessService),
   };
 }

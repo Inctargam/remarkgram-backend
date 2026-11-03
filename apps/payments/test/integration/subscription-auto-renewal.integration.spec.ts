@@ -8,6 +8,7 @@ import { DbosChangeSubscriptionAutoRenewalWorkflow } from '../../src/features/su
 import type { PaymentsDbosDataSource } from '../../src/features/payments/infrastructure/dbos/payments-dbos.datasource.js';
 import type { PaymentsTransactionContext } from '../../src/features/payments/application/ports/payments-unit-of-work.js';
 import { ApplySuccessfulPaymentCommand, ApplySuccessfulPaymentUseCase } from '../../src/features/subscriptions/application/use-cases/apply-successful-payment/apply-successful-payment.use-case.js';
+import type { RecordBusinessAccessService } from '../../src/features/subscriptions/application/services/record-business-access.service.js';
 import type { SuccessfulPayment } from '../../src/features/payments/application/types/successful-payment.types.js';
 import { PaymentProvider, PaymentType } from '../../src/features/payments/domain/payment.entity.js';
 import { Currency, PeriodUnit } from '../../src/features/plans/domain/plan.entity.js';
@@ -96,7 +97,7 @@ describe.runIf(Boolean(databaseUrl))('Manual auto-renewal atomicity (PostgreSQL)
       periodUnit: PeriodUnit.MONTH, provider: PaymentProvider.STRIPE, providerSubscriptionId: 'sub_new',
       providerCustomerId: 'cus_test', paidAt: new Date().toISOString(),
     };
-    const apply = new ApplySuccessfulPaymentUseCase(repository);
+    const apply = new ApplySuccessfulPaymentUseCase(repository, { execute: vi.fn() } as unknown as RecordBusinessAccessService);
     await expect(prisma.$transaction((tx) => apply.execute(new ApplySuccessfulPaymentCommand(payment, tx))))
       .rejects.toMatchObject({ reason: 'AUTO_RENEWAL_CHANGE_IN_PROGRESS' });
     expect(await prisma.autoRenewalOperation.count({ where: { userId: params.userId } })).toBe(1);

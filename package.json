@@ -87,6 +87,7 @@
     "@nestjs/cqrs": "^11.0.3",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/microservices": "^11.1.26",
+    "@nestjs/outbox": "0.1.4",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.1.24",
     "@nestjs/schedule": "^6.1.3",

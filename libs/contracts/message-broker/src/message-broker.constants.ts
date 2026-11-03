@@ -7,3 +7,6 @@ export const AVATAR_DELETION_REQUESTED_V1_EVENT_NAME = 'files.avatar-deletion-re
 
 export const USER_ACCOUNTS_EXCHANGE = 'user_accounts_exchange';
 export const FILES_AVATAR_DELETION_EXCHANGE = 'files_avatar_deletion_exchange';
+
+export const USER_ACCOUNTS_BUSINESS_ACCESS_QUEUE = 'user_accounts_business_access_queue';
+export const BUSINESS_ACCESS_CHANGED_V1_EVENT_NAME = 'subscriptions.business-access-changed.v1';

@@ -184,6 +184,7 @@ function fixture() {
     bindProviderSubscription: vi.fn<SubscriptionsRepository['bindProviderSubscription']>().mockResolvedValue(),
     findByUserId: vi.fn<SubscriptionsRepository['findByUserId']>(),
     markExpired: vi.fn<SubscriptionsRepository['markExpired']>(),
+    markActive: vi.fn<SubscriptionsRepository['markActive']>(),
     setAutoRenewalState: vi.fn<SubscriptionsRepository['setAutoRenewalState']>(),
     renewWithPaymentApplication: vi.fn<SubscriptionsRepository['renewWithPaymentApplication']>(),
     createWithPaymentApplication: vi.fn<SubscriptionsRepository['createWithPaymentApplication']>(),

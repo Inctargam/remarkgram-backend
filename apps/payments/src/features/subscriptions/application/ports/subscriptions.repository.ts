@@ -51,6 +51,8 @@ export abstract class SubscriptionsRepository {
 
   abstract markExpired(subscriptionIds: string[], tx: PaymentsTransactionContext): Promise<void>;
 
+  abstract markActive(subscriptionIds: string[], tx: PaymentsTransactionContext): Promise<void>;
+
   abstract setAutoRenewalState(
     params: SetSubscriptionAutoRenewalRepositoryParams,
     tx: PaymentsTransactionContext,

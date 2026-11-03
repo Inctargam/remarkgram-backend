@@ -5,6 +5,7 @@ import type { PaymentsTransactionContext } from '../../../../payments/applicatio
 import type { ApplySuccessfulPaymentResult } from '../../../../payments/application/ports/subscription-payment.handler.js';
 import type { SuccessfulPayment } from '../../../../payments/application/types/successful-payment.types.js';
 import { SubscriptionsRepository } from '../../ports/subscriptions.repository.js';
+import { RecordBusinessAccessService } from '../../services/record-business-access.service.js';
 import { PaymentType } from '../../../../payments/domain/payment.entity.js';
 import { AutoRenewalStatus } from '../../../domain/enums/auto-renewal-status.enum.js';
 import { SubscriptionStatus } from '../../../domain/enums/subscription-status.enum.js';
@@ -22,7 +23,10 @@ export class ApplySuccessfulPaymentCommand extends Command<ApplySuccessfulPaymen
 
 @CommandHandler(ApplySuccessfulPaymentCommand)
 export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySuccessfulPaymentCommand> {
-  constructor(private readonly subscriptionsRepository: SubscriptionsRepository) {}
+  constructor(
+    private readonly subscriptionsRepository: SubscriptionsRepository,
+    private readonly recordBusinessAccess: RecordBusinessAccessService,
+  ) {}
 
   async execute(command: ApplySuccessfulPaymentCommand) {
     const { payment, tx } = command;
@@ -33,6 +37,13 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
       return appliedPayment.result;
     }
 
+    const result = await this.applyPayment(payment, tx);
+    // Событие фиксируется вместе с платежом; replay выше не создаёт нового сообщения.
+    await this.recordBusinessAccess.execute(payment.userId, tx);
+    return result;
+  }
+
+  private async applyPayment(payment: SuccessfulPayment, tx: PaymentsTransactionContext) {
     const subscriptions = await this.subscriptionsRepository.findByUserId(payment.userId, tx);
     if (
       subscriptions.some(

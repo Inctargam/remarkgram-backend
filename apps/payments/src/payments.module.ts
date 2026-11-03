@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, type ConfigType } from '@nestjs/config';
 import Stripe from 'stripe';
 import { CqrsModule } from '@nestjs/cqrs';
+import { ScheduleModule } from '@nestjs/schedule';
 import { databaseConfig } from './config/database.config.js';
 import { dbosConfig } from './config/dbos.config.js';
 import { paymentsConfig } from './config/payments.config.js';
@@ -76,10 +77,15 @@ import { ChangeSubscriptionAutoRenewalWorkflow } from './features/subscriptions/
 import { ProviderSubscriptionAutoRenewalGateway } from './features/subscriptions/application/ports/provider-subscription-auto-renewal.gateway.js';
 import { ChangeSubscriptionAutoRenewalUseCase } from './features/subscriptions/application/use-cases/change-subscription-auto-renewal/change-subscription-auto-renewal.use-case.js';
 import { DbosChangeSubscriptionAutoRenewalWorkflow } from './features/subscriptions/infrastructure/dbos/dbos-change-subscription-auto-renewal.workflow.js';
+import { RecordBusinessAccessService } from './features/subscriptions/application/services/record-business-access.service.js';
+import { RefreshSubscriptionStatusesUseCase } from './features/subscriptions/application/use-cases/refresh-subscription-statuses/refresh-subscription-statuses.use-case.js';
+import { SubscriptionStatusesScheduler } from './features/subscriptions/infrastructure/scheduling/subscription-statuses.scheduler.js';
+import { SubscriptionEventsModule } from './features/subscriptions/infrastructure/outbox/subscription-events.module.js';
 
 @Module({
   imports: [
     CqrsModule,
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
@@ -96,6 +102,7 @@ import { DbosChangeSubscriptionAutoRenewalWorkflow } from './features/subscripti
       load: [paymentsConfig, databaseConfig, stripeConfig, dbosConfig],
     }),
     PrismaModule,
+    SubscriptionEventsModule,
   ],
   controllers: [PaymentsGrpcController, StripeWebhookController],
   providers: [
@@ -161,6 +168,9 @@ import { DbosChangeSubscriptionAutoRenewalWorkflow } from './features/subscripti
     HasActiveSubscriptionQueryHandler,
     { provide: SubscriptionsRepository, useClass: PrismaSubscriptionsRepository },
     ApplySuccessfulPaymentUseCase,
+    RecordBusinessAccessService,
+    RefreshSubscriptionStatusesUseCase,
+    SubscriptionStatusesScheduler,
     ConfirmAutoRenewalCancellationUseCase,
     BindProviderSubscriptionUseCase,
     {

@@ -68,6 +68,17 @@ describe('PrismaSubscriptionsRepository: payment application', () => {
     });
   });
 
+  it('changes only lifecycle status when activating a paid period', async () => {
+    const { repository, tx } = fixture();
+
+    await repository.markActive(['next-subscription'], tx);
+
+    expect(tx.subscription.updateMany).toHaveBeenCalledExactlyOnceWith({
+      where: { id: { in: ['next-subscription'] } },
+      data: { status: SubscriptionStatus.ACTIVE },
+    });
+  });
+
   it('stores manual intent and only the prepared auto-renewal state through the supplied tx', async () => {
     const { repository, tx } = fixture();
     const operation = {
@@ -263,7 +274,7 @@ describe('PrismaSubscriptionsRepository: payment application', () => {
 function fixture() {
   const tx = {
     $executeRaw: vi.fn<(sql: TemplateStringsArray, key: string) => Promise<number>>().mockResolvedValue(1),
-    subscription: { create: vi.fn(), update: vi.fn() },
+    subscription: { create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     subscriptionPaymentApplication: { findUnique: vi.fn() },
     autoRenewalOperation: { update: vi.fn(), create: vi.fn() },
   };

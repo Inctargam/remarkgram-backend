@@ -191,6 +191,14 @@ export class PrismaSubscriptionsRepository extends SubscriptionsRepository {
     });
   }
 
+  async markActive(subscriptionIds: string[], tx: PaymentsTransactionContext): Promise<void> {
+    const client = tx as Prisma.TransactionClient;
+    await client.subscription.updateMany({
+      where: { id: { in: subscriptionIds } },
+      data: { status: SubscriptionStatus.ACTIVE },
+    });
+  }
+
   async createWithPaymentApplication(
     params: CreateSubscriptionRepositoryParams,
     tx: PaymentsTransactionContext,
