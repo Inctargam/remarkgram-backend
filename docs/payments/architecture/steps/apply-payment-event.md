@@ -38,6 +38,7 @@ flowchart TD
 | payment_intent.canceled       | [CancelPaymentIntentUseCase](../handlers/payment-intent-canceled.md)              | Допустимая terminal cancellation; PAYMENT_CANCELED                              |
 | invoice.payment_failed        | [RecordInvoicePaymentFailedUseCase](../handlers/invoice-payment-failed.md)        | Correlation и recovery отсутствующего PENDING renewal; PAYMENT_FAILURE_RECORDED |
 | invoice.voided                | [CancelVoidedInvoiceUseCase](../handlers/invoice-voided.md)                       | Отмена unpaid renewal; PAYMENT_CANCELED                                         |
+| customer.subscription.deleted | [PrepareCanceledSubscriptionRenewalUseCase](../handlers/subscription-deleted.md)  | Подготовить durable Invoice void; INVOICE_VOID_REQUIRED                         |
 
 Таблица показывает назначение handlers, а не обещает COMPLETED/PAYMENT_CONFIRMED для любого входящего payload:
 они могут вернуть REJECTED с disposition IGNORED/DEAD либо выбросить ошибку. Правила отдельных событий — в
@@ -46,6 +47,7 @@ flowchart TD
 Контракт результата:
 
 - `outcome=PAYMENT_CONFIRMED`: сериализуемый `SuccessfulPayment` для Step 2; paymentId хранится внутри snapshot.
+- `outcome=INVOICE_VOID_REQUIRED`: Payment и Invoice identity для provider step; webhook ещё не завершён.
 - `COMPLETED`: `paymentId: string | null`, без payment snapshot.
 - `REJECTED`: `reason: PaymentEventRejectionReason` и `disposition: IGNORED | DEAD`, без payment snapshot.
 - `COMPLETED.code` имеет тип PaymentEventCompletionCode; причины отклонения в него не входят.

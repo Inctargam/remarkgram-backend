@@ -553,7 +553,7 @@ invoice.voided
 | `payment_intent.canceled`              | Terminal cancellation только для `PURCHASE + SUBSCRIPTION_EXTENSION`                | Реализовано, ожидает review            |
 | `invoice.voided`                       | Terminal cancellation для unpaid `subscription_cycle` renewal по Invoice ID         | Реализовано, ожидает review            |
 | `invoice.marked_uncollectible`         | Не считать автоматически `CANCELED`; требуется отдельное решение о terminal failure | Не реализовано                         |
-| `customer.subscription.deleted`        | Subscription lifecycle, не отмена исторического Payment                             | Не реализовано                         |
+| `customer.subscription.deleted`        | Для единственного PENDING RENEWAL инициирует Invoice void; затем `PENDING -> CANCELED` | Реализовано                            |
 | `charge.refunded` / `refund.*`         | Refund lifecycle, не `CANCELED`                                                     | Не реализовано                         |
 
 ## Reconciliation provider references
@@ -1267,16 +1267,19 @@ provider Subscription, без переоценки по текущему Plan. �
 `AMOUNT_MISMATCH`. PaymentIntent при finalized не сохраняется. InvoicePayment и несколько PaymentIntent на Invoice
 исключены из текущей итерации и не являются блокером.
 Поздний finalized не понижает успешный Payment и не запускает D2. Invoice paid подтверждает существующий
-pending renewal; прежний recovery создания успешного renewal сохранён. Failure recovery не входит
-в этот срез. `invoice.voided` реализован отдельным slice и отменяет только найденный по Invoice ID
-renewal. Подробности и ограничения указаны в README payment-events.
+pending renewal; recovery создаёт отсутствующий renewal через общий `ensurePendingRenewal`.
+`invoice.payment_failed` использует тот же recovery при полном source/invoice context.
+`invoice.voided` отменяет renewal по Invoice ID, а `customer.subscription.deleted` инициирует durable
+void оставшегося open Invoice и только затем переводит локальный renewal в `CANCELED`.
 
 ### Уточнённые границы итерации renewal
 
 - `invoice.voided` реализован для `subscription_cycle`: source `paymentId` из metadata не отменяется,
   renewal ищется только по `(providerType, providerInvoiceId)`, а его отсутствие вызывает retry.
-- Создание renewal из `invoice.payment_failed` и failure recovery подлежат обсуждению при детализации
-  следующего среза; реализация ещё не согласована.
+- Создание renewal из `invoice.payment_failed` реализовано через `ensurePendingRenewal`; legacy event
+  без amount/currency требует reconciliation.
+- `customer.subscription.deleted` работает только с `RENEWAL`: точный `latest_invoice` имеет приоритет,
+  а fallback допускает только единственный `PENDING` renewal provider Subscription.
 - `invoice.marked_uncollectible`, InvoicePayment/несколько PaymentIntent, скидки, кредитный баланс
   и бесплатные периоды исключены из текущей итерации.
 - Изменение цены существующего recurring billing отложено на следующую итерацию.
