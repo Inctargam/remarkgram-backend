@@ -14,6 +14,8 @@ import {
   type ScheduleProviderSubscriptionCancellationResult,
   type SetProviderSubscriptionAutoRenewalInput,
   type SetProviderSubscriptionAutoRenewalResult,
+  type VoidProviderInvoiceInput,
+  type VoidProviderInvoiceResult,
   type VerifiedProviderWebhook,
 } from '../../application/ports/payment-provider.js';
 import { CheckoutPurpose, PaymentProvider } from '../../domain/payment.entity.js';
@@ -340,6 +342,46 @@ export class StripePaymentProvider extends PaymentProviderPort {
       providerSubscriptionId: subscription.id,
       autoRenewalEnabled,
     };
+  }
+
+  async voidInvoice(input: VoidProviderInvoiceInput): Promise<VoidProviderInvoiceResult> {
+    try {
+      const current = await this.stripe.invoices.retrieve(input.providerInvoiceId);
+      const terminal = this.invoiceTerminalResult(current);
+      if (terminal) return terminal;
+
+      const voided = await this.stripe.invoices.voidInvoice(
+        input.providerInvoiceId,
+        {},
+        { idempotencyKey: this.idempotencyKey('invoice:void', input.operationId) },
+      );
+      const result = this.invoiceTerminalResult(voided);
+      if (!result || result.status !== 'VOIDED')
+        throw new Error(`Stripe did not void Invoice ${input.providerInvoiceId}`);
+      return result;
+    } catch (error) {
+      // The Invoice can become paid or void between retrieve() and voidInvoice().
+      // Resolve that race by observing the provider's terminal state before classifying the failed command.
+      try {
+        const latest = await this.stripe.invoices.retrieve(input.providerInvoiceId);
+        const terminal = this.invoiceTerminalResult(latest);
+        if (terminal) return terminal;
+      } catch {
+        // Preserve classification of the mutating request; an unknown outcome is retried with the same key.
+      }
+      throw this.errorMapper.toApplicationError(error, {
+        operation: 'VOID_INVOICE',
+        aggregateId: input.providerInvoiceId,
+      });
+    }
+  }
+
+  private invoiceTerminalResult(
+    invoice: Pick<Stripe.Invoice, 'id' | 'status'>,
+  ): VoidProviderInvoiceResult | null {
+    if (invoice.status === 'void') return { providerInvoiceId: invoice.id, status: 'VOIDED' };
+    if (invoice.status === 'paid') return { providerInvoiceId: invoice.id, status: 'PAID' };
+    return null;
   }
 
   private classifyOperationError(

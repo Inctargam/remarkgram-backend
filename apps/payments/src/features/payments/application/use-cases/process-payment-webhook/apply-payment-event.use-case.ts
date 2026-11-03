@@ -19,6 +19,7 @@ import {
 } from '../payment-events/payment-event-result.js';
 import { RecordInvoicePaymentFailedUseCase } from '../payment-events/record-invoice-payment-failed/record-invoice-payment-failed.use-case.js';
 import { RecordPaymentIntentFailedUseCase } from '../payment-events/record-payment-intent-failed/record-payment-intent-failed.use-case.js';
+import { PrepareCanceledSubscriptionRenewalUseCase } from '../payment-events/prepare-canceled-subscription-renewal/prepare-canceled-subscription-renewal.use-case.js';
 
 export type ApplyPaymentEventParams = {
   eventId: string;
@@ -55,6 +56,7 @@ export class ApplyPaymentEventUseCase {
     recordInvoicePaymentFailed: RecordInvoicePaymentFailedUseCase,
     ensureRenewalPayment: EnsureRenewalPaymentUseCase,
     cancelVoidedInvoice: CancelVoidedInvoiceUseCase,
+    prepareCanceledSubscriptionRenewal: PrepareCanceledSubscriptionRenewalUseCase,
   ) {
     this.handlers = {
       [PaymentEventKind.CHECKOUT_SESSION_COMPLETED]: applyCheckoutSessionCompleted,
@@ -66,6 +68,7 @@ export class ApplyPaymentEventUseCase {
       [PaymentEventKind.PAYMENT_INTENT_CANCELED]: cancelPaymentIntent,
       [PaymentEventKind.INVOICE_PAYMENT_FAILED]: recordInvoicePaymentFailed,
       [PaymentEventKind.INVOICE_VOIDED]: cancelVoidedInvoice,
+      [PaymentEventKind.SUBSCRIPTION_DELETED]: prepareCanceledSubscriptionRenewal,
     };
   }
 
@@ -101,6 +104,7 @@ export class ApplyPaymentEventUseCase {
     if (result.outcome === PaymentEventOutcome.PAYMENT_CONFIRMED) {
       return result;
     }
+    if (result.outcome === PaymentEventOutcome.INVOICE_VOID_REQUIRED) return result;
     if (result.outcome === PaymentEventOutcome.COMPLETED) {
       if (result.paymentId) await this.events.attachPayment(eventId, result.paymentId, ctx);
       await this.events.markProcessed(eventId, ctx);

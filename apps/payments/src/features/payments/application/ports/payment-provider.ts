@@ -63,6 +63,14 @@ export type SetProviderSubscriptionAutoRenewalResult = {
   providerSubscriptionId: string;
   autoRenewalEnabled: boolean;
 };
+export type VoidProviderInvoiceInput = {
+  providerInvoiceId: string;
+  operationId: string;
+};
+export type VoidProviderInvoiceResult = {
+  providerInvoiceId: string;
+  status: 'VOIDED' | 'PAID';
+};
 export abstract class PaymentProviderPort {
   abstract createCheckout(input: CreateProviderCheckoutInput): Promise<CreateProviderCheckoutResult>;
   abstract verifyWebhook(rawBody: Buffer, signature: string): VerifiedProviderWebhook;
@@ -76,4 +84,5 @@ export abstract class PaymentProviderPort {
   abstract setSubscriptionAutoRenewal(
     input: SetProviderSubscriptionAutoRenewalInput,
   ): Promise<SetProviderSubscriptionAutoRenewalResult>;
+  abstract voidInvoice(input: VoidProviderInvoiceInput): Promise<VoidProviderInvoiceResult>;
 }

@@ -30,9 +30,11 @@ import { ConfirmRenewalPaymentUseCase } from './features/payments/application/us
 import { EnsureRenewalPaymentUseCase } from './features/payments/application/use-cases/payment-events/ensure-renewal-payment/ensure-renewal-payment.use-case.js';
 import { RecordInvoicePaymentFailedUseCase } from './features/payments/application/use-cases/payment-events/record-invoice-payment-failed/record-invoice-payment-failed.use-case.js';
 import { RecordPaymentIntentFailedUseCase } from './features/payments/application/use-cases/payment-events/record-payment-intent-failed/record-payment-intent-failed.use-case.js';
+import { PrepareCanceledSubscriptionRenewalUseCase } from './features/payments/application/use-cases/payment-events/prepare-canceled-subscription-renewal/prepare-canceled-subscription-renewal.use-case.js';
 import { ApplyPaymentEventUseCase } from './features/payments/application/use-cases/process-payment-webhook/apply-payment-event.use-case.js';
 import { CreateDeferredProviderSubscriptionUseCase } from './features/payments/application/use-cases/process-payment-webhook/create-deferred-provider-subscription.use-case.js';
 import { LinkPaymentToSubscriptionUseCase } from './features/payments/application/use-cases/process-payment-webhook/link-payment-to-subscription.use-case.js';
+import { CloseCanceledSubscriptionInvoiceUseCase } from './features/payments/application/use-cases/process-payment-webhook/close-canceled-subscription-invoice.use-case.js';
 import { ScheduleProviderSubscriptionCancellationUseCase } from './features/payments/application/use-cases/process-payment-webhook/schedule-provider-subscription-cancellation.use-case.js';
 import { ProcessStripeWebhookUseCase } from './features/payments/application/use-cases/process-stripe-webhook.use-case.js';
 import { ReceivePaymentEventUseCase } from './features/payments/application/use-cases/receive-payment-event.use-case.js';
@@ -53,6 +55,7 @@ import { StripeInvoiceVoidedAdapter } from './features/payments/infrastructure/s
 import { StripePaymentIntentCanceledAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-payment-intent-canceled.adapter.js';
 import { StripePaymentIntentPaymentFailedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-payment-intent-payment-failed.adapter.js';
 import { StripePaymentIntentSucceededAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-payment-intent-succeeded.adapter.js';
+import { StripeSubscriptionDeletedAdapter } from './features/payments/infrastructure/stripe/event-adapters/stripe-subscription-deleted.adapter.js';
 import { StripePaymentProvider } from './features/payments/infrastructure/stripe/stripe-payment.provider.js';
 import { PaymentsProviderSubscriptionAutoRenewalAdapter } from './features/payments/infrastructure/subscriptions/payments-provider-subscription-auto-renewal.adapter.js';
 import { PaymentsGrpcController } from './features/payments/presentation/grpc/payments-grpc.controller.js';
@@ -124,6 +127,7 @@ import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastr
     StripePaymentIntentCanceledAdapter,
     StripeInvoicePaymentFailedAdapter,
     StripeInvoiceVoidedAdapter,
+    StripeSubscriptionDeletedAdapter,
     {
       provide: PROVIDER_EVENT_ADAPTERS,
       useFactory: (
@@ -136,6 +140,7 @@ import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastr
         paymentIntentCanceled: StripePaymentIntentCanceledAdapter,
         invoicePaymentFailed: StripeInvoicePaymentFailedAdapter,
         invoiceVoided: StripeInvoiceVoidedAdapter,
+        subscriptionDeleted: StripeSubscriptionDeletedAdapter,
       ) => [
         checkoutCompleted,
         checkoutExpired,
@@ -146,6 +151,7 @@ import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastr
         paymentIntentCanceled,
         invoicePaymentFailed,
         invoiceVoided,
+        subscriptionDeleted,
       ],
       inject: [
         StripeCheckoutSessionCompletedAdapter,
@@ -157,6 +163,7 @@ import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastr
         StripePaymentIntentCanceledAdapter,
         StripeInvoicePaymentFailedAdapter,
         StripeInvoiceVoidedAdapter,
+        StripeSubscriptionDeletedAdapter,
       ],
     },
     { provide: SubscriptionContextPort, useClass: LocalSubscriptionContextAdapter },
@@ -182,9 +189,11 @@ import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastr
     RecordPaymentIntentFailedUseCase,
     RecordInvoicePaymentFailedUseCase,
     CancelVoidedInvoiceUseCase,
+    PrepareCanceledSubscriptionRenewalUseCase,
     ApplyPaymentEventUseCase,
     CreateDeferredProviderSubscriptionUseCase,
     LinkPaymentToSubscriptionUseCase,
+    CloseCanceledSubscriptionInvoiceUseCase,
     ScheduleProviderSubscriptionCancellationUseCase,
     GetPlansQueryHandler,
     GetPaymentStatusQueryHandler,

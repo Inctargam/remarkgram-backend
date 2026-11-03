@@ -13,7 +13,8 @@ export type StripePaymentOperation =
   | 'CREATE_CUSTOMER'
   | 'SCHEDULE_SUBSCRIPTION_CANCELLATION'
   | 'CREATE_DEFERRED_SUBSCRIPTION'
-  | 'SET_SUBSCRIPTION_AUTO_RENEWAL';
+  | 'SET_SUBSCRIPTION_AUTO_RENEWAL'
+  | 'VOID_INVOICE';
 
 export type StripePaymentErrorContext = {
   operation: StripePaymentOperation;

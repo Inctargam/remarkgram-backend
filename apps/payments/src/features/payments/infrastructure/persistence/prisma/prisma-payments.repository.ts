@@ -217,6 +217,25 @@ export class PrismaPaymentsRepository implements PaymentsRepository {
     return row ? PaymentPrismaMapper.toDomain(row) : null;
   }
 
+  async findPendingRenewalsByProviderSubscriptionId(
+    provider: Payment['providerType'],
+    providerSubscriptionId: string,
+    ctx: PaymentsTransactionContext,
+  ): Promise<Payment[]> {
+    const client = ctx as Prisma.TransactionClient;
+    const rows = await client.payment.findMany({
+      where: {
+        providerType: provider,
+        providerSubscriptionId,
+        type: PaymentType.RENEWAL,
+        status: PaymentStatus.PENDING,
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 2,
+    });
+    return rows.map((row) => PaymentPrismaMapper.toDomain(row));
+  }
+
   async attachCheckout(paymentId: string, checkout: ProviderCheckout): Promise<AttachCheckoutResult> {
     try {
       // атомарное обновление платежа защита для конкурентного attach без read/update TOCTOU

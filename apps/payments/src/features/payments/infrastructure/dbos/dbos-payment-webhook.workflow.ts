@@ -11,6 +11,11 @@ import type { PaymentsTransactionContext } from '../../application/ports/payment
 import { PaymentEventOutcome } from '../../application/use-cases/payment-events/payment-event-result.js';
 import { ApplyPaymentEventUseCase } from '../../application/use-cases/process-payment-webhook/apply-payment-event.use-case.js';
 import {
+  CloseCanceledSubscriptionInvoiceUseCase,
+  type CloseCanceledSubscriptionInvoiceParams,
+  type CloseCanceledSubscriptionInvoiceResult,
+} from '../../application/use-cases/process-payment-webhook/close-canceled-subscription-invoice.use-case.js';
+import {
   CreateDeferredProviderSubscriptionUseCase,
   type CreateDeferredProviderSubscriptionParams,
 } from '../../application/use-cases/process-payment-webhook/create-deferred-provider-subscription.use-case.js';
@@ -65,6 +70,11 @@ const createDeferredProviderSubscriptionStepOptions = {
   name: 'createDeferredProviderSubscriptionStep',
 } satisfies StepConfig;
 
+const closeCanceledSubscriptionInvoiceStepOptions = {
+  ...paymentWebhookStepRetryOptions,
+  name: 'closeCanceledSubscriptionInvoiceStep',
+} satisfies StepConfig;
+
 /**
  * Координирует обработку webhook: задаёт порядок операций, границы транзакций и итог события.
  * Бизнес-действия выполняют use cases; retry-сервис отвечает только за попытки и ожидание.
@@ -81,6 +91,7 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
     private readonly linkPaymentToSubscription: LinkPaymentToSubscriptionUseCase,
     private readonly scheduleProviderSubscriptionCancellation: ScheduleProviderSubscriptionCancellationUseCase,
     private readonly createDeferredProviderSubscription: CreateDeferredProviderSubscriptionUseCase,
+    private readonly closeCanceledSubscriptionInvoice: CloseCanceledSubscriptionInvoiceUseCase,
   ) {
     // По этому имени DBOS связывает восстанавливаемое выполнение с экземпляром NestJS
     // и его внедрёнными зависимостями.
@@ -147,6 +158,21 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
         true, // Счётчик processingAttempts учитывает попытки именно этой операции.
       );
       const result = mapPaymentEventHistoryResult(recordedResult);
+
+      if (result.outcome === PaymentEventOutcome.INVOICE_VOID_REQUIRED) {
+        const closed = await this.closeCanceledSubscriptionInvoiceAtProviderStep({
+          eventId,
+          paymentId: result.paymentId,
+          providerInvoiceId: result.providerInvoiceId,
+        });
+        await this.runApplicationTransactionWithRetry(
+          eventId,
+          'recordCanceledSubscriptionInvoiceClosed',
+          () => this.closeCanceledSubscriptionInvoice.recordClosed(closed, this.transactionContext()),
+        );
+        return;
+      }
+
       const paymentConfirmStatus = PaymentEventOutcome.PAYMENT_CONFIRMED;
       // Действия с подпиской нужны только после подтверждённой успешной оплаты.
       if (result.outcome !== paymentConfirmStatus) {
@@ -399,6 +425,13 @@ export class DbosPaymentWebhookWorkflow extends ConfiguredInstance implements Pa
     params: CreateDeferredProviderSubscriptionParams,
   ) {
     return this.createDeferredProviderSubscription.createAtProvider(params);
+  }
+
+  @DBOS.step(closeCanceledSubscriptionInvoiceStepOptions)
+  private async closeCanceledSubscriptionInvoiceAtProviderStep(
+    params: CloseCanceledSubscriptionInvoiceParams,
+  ): Promise<CloseCanceledSubscriptionInvoiceResult> {
+    return this.closeCanceledSubscriptionInvoice.closeAtProvider(params);
   }
 
   // Доступен только внутри runTransaction(); между durable-операциями не передаётся.

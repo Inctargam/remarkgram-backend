@@ -137,6 +137,18 @@ export type InvoiceVoidedEvent = PaymentEventEnvelope & {
   };
 };
 
+export type SubscriptionDeletedEvent = PaymentEventEnvelope & {
+  kind: PaymentEventKind.SUBSCRIPTION_DELETED;
+  payload: {
+    providerSubscriptionId: string;
+    providerInvoiceId: string | null;
+    customerId: string | null;
+    status: string | null;
+    canceledAt: Date | null;
+    cancellationReason: string | null;
+  };
+};
+
 export type SuccessfulPaymentEvent = PaymentIntentSucceededEvent | InvoicePaidEvent;
 export type PaymentEvent =
   | CheckoutSessionCompletedEvent
@@ -146,4 +158,5 @@ export type PaymentEvent =
   | PaymentIntentCanceledEvent
   | InvoicePaymentFailedEvent
   | InvoiceVoidedEvent
-  | InvoiceFinalizedEvent;
+  | InvoiceFinalizedEvent
+  | SubscriptionDeletedEvent;

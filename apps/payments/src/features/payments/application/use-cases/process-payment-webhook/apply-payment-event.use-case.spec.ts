@@ -8,6 +8,7 @@ import type { RecordInvoicePaymentFailedUseCase } from '../payment-events/record
 import type { RecordPaymentIntentFailedUseCase } from '../payment-events/record-payment-intent-failed/record-payment-intent-failed.use-case.js';
 import type { EnsureRenewalPaymentUseCase } from '../payment-events/ensure-renewal-payment/ensure-renewal-payment.use-case.js';
 import type { CancelVoidedInvoiceUseCase } from '../payment-events/cancel-voided-invoice/cancel-voided-invoice.use-case.js';
+import type { PrepareCanceledSubscriptionRenewalUseCase } from '../payment-events/prepare-canceled-subscription-renewal/prepare-canceled-subscription-renewal.use-case.js';
 import { ApplyPaymentEventUseCase } from './apply-payment-event.use-case.js';
 import { PaymentEventKind } from '../../../domain/payment-event-kind.js';
 import {
@@ -36,6 +37,9 @@ describe('ApplyPaymentEventUseCase', () => {
   const invoiceFailed = { execute: vi.fn<RecordInvoicePaymentFailedUseCase['execute']>() };
   const renewalEnsured = { execute: vi.fn<EnsureRenewalPaymentUseCase['execute']>() };
   const invoiceVoided = { execute: vi.fn<CancelVoidedInvoiceUseCase['execute']>() };
+  const subscriptionDeleted = {
+    execute: vi.fn<PrepareCanceledSubscriptionRenewalUseCase['execute']>(),
+  };
   const useCase = new ApplyPaymentEventUseCase(
     events,
     checkoutCompleted as ApplyCheckoutSessionCompletedUseCase,
@@ -47,6 +51,7 @@ describe('ApplyPaymentEventUseCase', () => {
     invoiceFailed as RecordInvoicePaymentFailedUseCase,
     renewalEnsured as EnsureRenewalPaymentUseCase,
     invoiceVoided as CancelVoidedInvoiceUseCase,
+    subscriptionDeleted as PrepareCanceledSubscriptionRenewalUseCase,
   );
   const ctx = {};
 
@@ -162,6 +167,36 @@ describe('ApplyPaymentEventUseCase', () => {
     expect(invoiceVoided.execute).toHaveBeenCalledWith(event, ctx);
     expect(events.attachPayment).toHaveBeenCalledWith('webhook-id', PAYMENT_ID, ctx);
     expect(events.markProcessed).toHaveBeenCalledWith('webhook-id', ctx);
+  });
+
+  it('returns an Invoice void continuation without prematurely completing the webhook', async () => {
+    const event: PaymentEvent = {
+      kind: PaymentEventKind.SUBSCRIPTION_DELETED,
+      provider: PaymentProvider.STRIPE,
+      providerEventId: 'evt_subscription_deleted',
+      providerEventType: 'customer.subscription.deleted',
+      providerCreatedAt: new Date('2027-01-01T00:00:00.000Z'),
+      paymentId: null,
+      payload: {
+        providerSubscriptionId: 'sub_test',
+        providerInvoiceId: 'in_open',
+        customerId: 'cus_test',
+        status: 'canceled',
+        canceledAt: new Date('2027-01-01T00:00:00.000Z'),
+        cancellationReason: 'payment_failed',
+      },
+    };
+    subscriptionDeleted.execute.mockResolvedValue(
+      paymentEventResult.invoiceVoidRequired(PAYMENT_ID, 'in_open'),
+    );
+
+    await expect(useCase.execute({ eventId: 'webhook-id', event }, ctx)).resolves.toEqual(
+      paymentEventResult.invoiceVoidRequired(PAYMENT_ID, 'in_open'),
+    );
+
+    expect(subscriptionDeleted.execute).toHaveBeenCalledWith(event, ctx);
+    expect(events.markProcessed).not.toHaveBeenCalled();
+    expect(events.attachPayment).not.toHaveBeenCalled();
   });
 
   it('records an ignored rejection reason without processing the webhook or requesting D2', async () => {

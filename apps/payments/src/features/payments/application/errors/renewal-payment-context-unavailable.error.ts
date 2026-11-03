@@ -5,7 +5,9 @@ export type RenewalPaymentContextUnavailableReason =
   | 'INVOICE_CONTEXT_MISSING'
   | 'SOURCE_PAYMENT_NOT_FOUND'
   | 'SOURCE_NOT_LINKED'
-  | 'INVOICE_PAYMENT_NOT_FOUND';
+  | 'INVOICE_PAYMENT_NOT_FOUND'
+  | 'INVOICE_PAYMENT_NOT_CONFIRMED'
+  | 'AMBIGUOUS_PENDING_RENEWAL';
 
 /** Application context failure; infrastructure decides between bounded retry and reconciliation. */
 export class RenewalPaymentContextUnavailableError extends PaymentsError {

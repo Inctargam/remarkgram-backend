@@ -124,6 +124,11 @@ export abstract class PaymentsRepository {
     providerSubscriptionId: string,
     ctx: PaymentsTransactionContext,
   ): Promise<Payment | null>;
+  abstract findPendingRenewalsByProviderSubscriptionId(
+    provider: PaymentProvider,
+    providerSubscriptionId: string,
+    ctx: PaymentsTransactionContext,
+  ): Promise<Payment[]>;
   abstract attachCheckout(paymentId: string, checkout: ProviderCheckout): Promise<AttachCheckoutResult>;
   abstract applyCheckoutCompleted(
     command: ApplyCheckoutCompletedCommand,

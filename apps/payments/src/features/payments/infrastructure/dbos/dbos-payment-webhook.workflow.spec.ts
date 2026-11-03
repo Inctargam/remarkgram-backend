@@ -34,6 +34,7 @@ import type { ApplyPaymentEventUseCase } from '../../application/use-cases/proce
 import type { CreateDeferredProviderSubscriptionUseCase } from '../../application/use-cases/process-payment-webhook/create-deferred-provider-subscription.use-case.js';
 import type { LinkPaymentToSubscriptionUseCase } from '../../application/use-cases/process-payment-webhook/link-payment-to-subscription.use-case.js';
 import type { ScheduleProviderSubscriptionCancellationUseCase } from '../../application/use-cases/process-payment-webhook/schedule-provider-subscription-cancellation.use-case.js';
+import type { CloseCanceledSubscriptionInvoiceUseCase } from '../../application/use-cases/process-payment-webhook/close-canceled-subscription-invoice.use-case.js';
 import {
   PaymentEventCompletionCode,
   PaymentEventOutcome,
@@ -67,6 +68,10 @@ describe('DbosPaymentWebhookWorkflow', () => {
     createAtProvider: vi.fn<CreateDeferredProviderSubscriptionUseCase['createAtProvider']>(),
     recordCreated: vi.fn<CreateDeferredProviderSubscriptionUseCase['recordCreated']>(),
   };
+  const closeCanceledSubscriptionInvoice = {
+    closeAtProvider: vi.fn<CloseCanceledSubscriptionInvoiceUseCase['closeAtProvider']>(),
+    recordClosed: vi.fn<CloseCanceledSubscriptionInvoiceUseCase['recordClosed']>(),
+  };
   const workflow = new DbosPaymentWebhookWorkflow(
     dataSource as unknown as PaymentsDbosDataSource,
     events,
@@ -74,6 +79,7 @@ describe('DbosPaymentWebhookWorkflow', () => {
     linkPaymentToSubscription as unknown as LinkPaymentToSubscriptionUseCase,
     scheduleProviderSubscriptionCancellation as unknown as ScheduleProviderSubscriptionCancellationUseCase,
     createDeferredProviderSubscription as unknown as CreateDeferredProviderSubscriptionUseCase,
+    closeCanceledSubscriptionInvoice as unknown as CloseCanceledSubscriptionInvoiceUseCase,
   );
 
   beforeEach(() => {
@@ -95,6 +101,32 @@ describe('DbosPaymentWebhookWorkflow', () => {
       providerSubscriptionId: 'sub_new',
     });
     createDeferredProviderSubscription.recordCreated.mockResolvedValue();
+    closeCanceledSubscriptionInvoice.recordClosed.mockResolvedValue();
+  });
+
+  it('voids the Invoice outside the local transaction before recording Payment cancellation', async () => {
+    applyPaymentEvent.execute.mockResolvedValue(
+      paymentEventResult.invoiceVoidRequired('payment-id', 'in_open'),
+    );
+    closeCanceledSubscriptionInvoice.closeAtProvider.mockResolvedValue({
+      eventId: 'webhook-id',
+      paymentId: 'payment-id',
+      providerInvoiceId: 'in_open',
+      status: 'VOIDED',
+    });
+
+    await expect(workflow.process(paymentEvent())).resolves.toBeUndefined();
+
+    expect(closeCanceledSubscriptionInvoice.closeAtProvider).toHaveBeenCalledWith({
+      eventId: 'webhook-id',
+      paymentId: 'payment-id',
+      providerInvoiceId: 'in_open',
+    });
+    expect(closeCanceledSubscriptionInvoice.recordClosed).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'VOIDED' }),
+      dataSource.client,
+    );
+    expect(linkPaymentToSubscription.execute).not.toHaveBeenCalled();
   });
 
   it('durably enqueues one workflow per provider event', async () => {

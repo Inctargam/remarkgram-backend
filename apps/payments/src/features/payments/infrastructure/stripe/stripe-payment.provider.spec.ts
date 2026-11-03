@@ -113,6 +113,46 @@ describe('StripePaymentProvider.scheduleSubscriptionCancellation', () => {
   });
 });
 
+describe('StripePaymentProvider.voidInvoice', () => {
+  it('voids an open Invoice with a stable idempotency key', async () => {
+    const retrieve = vi.fn().mockResolvedValue({ id: 'in_open', status: 'open' });
+    const voidInvoice = vi.fn().mockResolvedValue({ id: 'in_open', status: 'void' });
+    const provider = providerWithClient({ invoices: { retrieve, voidInvoice } });
+
+    await expect(
+      provider.voidInvoice({ providerInvoiceId: 'in_open', operationId: 'event-id' }),
+    ).resolves.toEqual({ providerInvoiceId: 'in_open', status: 'VOIDED' });
+    expect(voidInvoice).toHaveBeenCalledWith('in_open', {}, { idempotencyKey: 'invoice:void:event-id' });
+  });
+
+  it.each([
+    ['void', 'VOIDED'],
+    ['paid', 'PAID'],
+  ] as const)('returns the existing terminal Invoice status %s idempotently', async (status, expected) => {
+    const retrieve = vi.fn().mockResolvedValue({ id: 'in_terminal', status });
+    const voidInvoice = vi.fn();
+    const provider = providerWithClient({ invoices: { retrieve, voidInvoice } });
+
+    await expect(
+      provider.voidInvoice({ providerInvoiceId: 'in_terminal', operationId: 'event-id' }),
+    ).resolves.toEqual({ providerInvoiceId: 'in_terminal', status: expected });
+    expect(voidInvoice).not.toHaveBeenCalled();
+  });
+
+  it('reconciles a paid race after Stripe rejects the void command', async () => {
+    const retrieve = vi
+      .fn()
+      .mockResolvedValueOnce({ id: 'in_race', status: 'open' })
+      .mockResolvedValueOnce({ id: 'in_race', status: 'paid' });
+    const voidInvoice = vi.fn().mockRejectedValue(new Error('Invoice is no longer open'));
+    const provider = providerWithClient({ invoices: { retrieve, voidInvoice } });
+
+    await expect(
+      provider.voidInvoice({ providerInvoiceId: 'in_race', operationId: 'event-id' }),
+    ).resolves.toEqual({ providerInvoiceId: 'in_race', status: 'PAID' });
+  });
+});
+
 describe('StripePaymentProvider.setSubscriptionAutoRenewal', () => {
   it.each([
     [true, false],

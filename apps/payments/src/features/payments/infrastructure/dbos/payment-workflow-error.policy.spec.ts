@@ -31,6 +31,8 @@ describe('payment workflow error policy', () => {
     ['SOURCE_PAYMENT_NOT_FOUND', 'RETRY'],
     ['SOURCE_NOT_LINKED', 'RETRY'],
     ['INVOICE_PAYMENT_NOT_FOUND', 'RETRY'],
+    ['INVOICE_PAYMENT_NOT_CONFIRMED', 'RETRY'],
+    ['AMBIGUOUS_PENDING_RENEWAL', 'RECONCILIATION_REQUIRED'],
   ] as const)('classifies renewal context reason %s as %s', (reason, disposition) => {
     const decision = classifyPaymentWorkflowError(
       new RenewalPaymentContextUnavailableError('in_test', reason),

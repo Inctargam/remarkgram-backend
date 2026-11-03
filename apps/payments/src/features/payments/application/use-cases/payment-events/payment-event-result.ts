@@ -8,6 +8,8 @@ export enum PaymentEventOutcome {
   COMPLETED = 'COMPLETED',
   /** Финансовый успех подтверждён; требуется применение оплаты в D2. */
   PAYMENT_CONFIRMED = 'PAYMENT_CONFIRMED',
+  /** Provider Invoice must be voided before the local renewal can become CANCELED. */
+  INVOICE_VOID_REQUIRED = 'INVOICE_VOID_REQUIRED',
   /** Событие не применено; причина и способ завершения заданы отдельно. */
   REJECTED = 'REJECTED',
 }
@@ -34,6 +36,8 @@ export enum PaymentEventCompletionCode {
   PAYMENT_FAILURE_RECORDED = 'PAYMENT_FAILURE_RECORDED',
   /** Provider подтвердил terminal cancellation, и соответствующий Payment безопасно отменён. */
   PAYMENT_CANCELED = 'PAYMENT_CANCELED',
+  /** A terminal provider Subscription has no pending renewal requiring provider cleanup. */
+  SUBSCRIPTION_TERMINATED = 'SUBSCRIPTION_TERMINATED',
 }
 
 /** Бизнес-причина неприменения события. */
@@ -45,6 +49,8 @@ export enum PaymentEventRejectionReason {
   PAYMENT_NOT_FOUND = 'PAYMENT_NOT_FOUND',
   /** В provider-событии отсутствует обязательная ссылка на Subscription. */
   SUBSCRIPTION_REFERENCE_MISSING = 'SUBSCRIPTION_REFERENCE_MISSING',
+  /** A renewal action cannot be correlated without its provider Invoice reference. */
+  INVOICE_REFERENCE_MISSING = 'INVOICE_REFERENCE_MISSING',
   /** В локальном Payment отсутствует subscriptionId, необходимый для renewal-операции. */
   SUBSCRIPTION_ID_MISSING = 'SUBSCRIPTION_ID_MISSING',
   /** Billing reason входящего invoice не поддерживается текущей бизнес-логикой. */
@@ -89,6 +95,11 @@ export type PaymentEventResult =
       payment: SuccessfulPayment;
     }
   | {
+      outcome: PaymentEventOutcome.INVOICE_VOID_REQUIRED;
+      paymentId: string;
+      providerInvoiceId: string;
+    }
+  | {
       outcome: PaymentEventOutcome.REJECTED;
       disposition: PaymentEventRejectionDisposition;
       reason: PaymentEventRejectionReason;
@@ -106,6 +117,10 @@ export const paymentEventResult = {
       outcome: PaymentEventOutcome.PAYMENT_CONFIRMED,
       payment: createSuccessfulPayment(payment),
     };
+  },
+
+  invoiceVoidRequired(paymentId: string, providerInvoiceId: string): PaymentEventResult {
+    return { outcome: PaymentEventOutcome.INVOICE_VOID_REQUIRED, paymentId, providerInvoiceId };
   },
 
   /** Событие осознанно не применено без признания его противоречивым. */

@@ -101,6 +101,40 @@ describe('PrismaPaymentsRepository.create', () => {
   });
 });
 
+describe('PrismaPaymentsRepository.findPendingRenewalsByProviderSubscriptionId', () => {
+  it('returns at most two pending renewals in deterministic newest-first order', async () => {
+    const rows = [
+      { ...renewalRow(), status: PaymentStatus.PENDING, paidAt: null },
+      {
+        ...renewalRow(),
+        id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        providerInvoiceId: 'in_older',
+        status: PaymentStatus.PENDING,
+        paidAt: null,
+      },
+    ];
+    const findMany = vi.fn().mockResolvedValue(rows);
+    const repository = new PrismaPaymentsRepository({} as PrismaService);
+
+    await expect(
+      repository.findPendingRenewalsByProviderSubscriptionId(PaymentProvider.STRIPE, 'sub_test', {
+        payment: { findMany },
+      }),
+    ).resolves.toHaveLength(2);
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        providerType: PaymentProvider.STRIPE,
+        providerSubscriptionId: 'sub_test',
+        type: PaymentType.RENEWAL,
+        status: PaymentStatus.PENDING,
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 2,
+    });
+  });
+});
+
 describe('PrismaPaymentsRepository.hasBlockingRenewal', () => {
   it.each([
     [{ id: 'renewal-id' }, true],
