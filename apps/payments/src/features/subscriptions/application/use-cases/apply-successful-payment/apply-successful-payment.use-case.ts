@@ -58,7 +58,11 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
     }
 
     if (payment.type === PaymentType.RENEWAL) {
-      return this.applyRenewal(payment, subscriptions, now, tx);
+      return this.applyRenewal(payment, subscriptions, tx);
+    }
+
+    if (!payment.autoRenewalRequested) {
+      throw new SubscriptionPaymentConflictError(payment.paymentId, 'PURCHASE_AUTO_RENEWAL_REQUIRED');
     }
 
     const lastSubscription = subscriptions.reduce<SubscriptionForPayment | null>(
@@ -81,28 +85,30 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
       );
     }
 
-    // Если остался оплаченный период или включено старое автопродление, добавляем подписку в очередь.
-    // Иначе создаём самостоятельную подписку от даты оплаты.
-    if (lastSubscription && this.requiresSubscriptionContinuation(lastSubscription, now)) {
+    const paidAt = new Date(payment.paidAt);
+    // Очередь определяется оплаченными датами на момент платежа, а не статусом при обработке.
+    if (lastSubscription && lastSubscription.expiresAt > paidAt) {
       return this.enqueueSubscription(payment, lastSubscription, now, tx);
     }
-    return this.createInitialSubscription(payment, subscriptions, now, tx);
+    // Допущение до согласования с D1: у истёкшей последней подписки автопродление отключено.
+    // Сценарий EXPIRED + ENABLED здесь не поддерживается; это не проверка состояния провайдера.
+    return this.createInitialSubscription(payment, tx);
   }
 
   private async applyRenewal(
     payment: SuccessfulPayment,
     subscriptions: SubscriptionForPayment[],
-    now: Date,
     tx: PaymentsTransactionContext,
   ) {
     // Для автосписания подписку определяет provider-связь.
-    const subscription = payment.providerSubscriptionId
-      ? subscriptions.find(
-          (item) =>
-            item.provider === payment.provider &&
-            item.providerSubscriptionId === payment.providerSubscriptionId,
-        )
-      : undefined;
+    if (!payment.providerSubscriptionId) {
+      throw new SubscriptionPaymentConflictError(payment.paymentId, 'RENEWAL_SUBSCRIPTION_NOT_FOUND');
+    }
+
+    const subscription = subscriptions.find(
+      (item) =>
+        item.provider === payment.provider && item.providerSubscriptionId === payment.providerSubscriptionId,
+    );
 
     if (!subscription) {
       throw new SubscriptionPaymentConflictError(payment.paymentId, 'RENEWAL_SUBSCRIPTION_NOT_FOUND');
@@ -112,15 +118,14 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
       throw new SubscriptionPaymentConflictError(payment.paymentId, 'RENEWAL_PLAN_MISMATCH');
     }
 
-    // Продлеваем оплаченный период, даже если webhook пришёл поздно. Настройку автопродления не меняем.
-    const { expiresAt } = this.calculateSubscriptionPeriod(payment, subscription.expiresAt);
+    // Продлевать можно только последнюю подписку в оплаченной очереди.
+    // Позднее списание за прежний тариф требует возврата в D1, а не изменения очереди в D2.
+    if (subscriptions.some((item) => item.expiresAt > subscription.expiresAt)) {
+      throw new SubscriptionPaymentConflictError(payment.paymentId, 'RENEWAL_SUBSCRIPTION_NOT_LAST');
+    }
 
-    this.assertNoOverlap(
-      payment.paymentId,
-      subscriptions.filter((item) => item.subscriptionId !== subscription.subscriptionId),
-      subscription.startsAt,
-      expiresAt,
-    );
+    // Успешное продление восстанавливает ACTIVE. Настройку автопродления не меняем.
+    const { expiresAt } = this.calculateSubscriptionPeriod(payment, subscription.expiresAt);
 
     const result: ApplySuccessfulPaymentResult = {
       subscriptionId: subscription.subscriptionId,
@@ -133,7 +138,7 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
       {
         paymentId: payment.paymentId,
         expiresAt,
-        status: this.getStatus(subscription.startsAt, expiresAt, now),
+        status: SubscriptionStatus.ACTIVE,
         subscriptionId: result.subscriptionId,
       },
       tx,
@@ -142,19 +147,16 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
     return result;
   }
 
-  private async createInitialSubscription(
-    payment: SuccessfulPayment,
-    subscriptions: SubscriptionForPayment[],
-    now: Date,
-    tx: PaymentsTransactionContext,
-  ) {
-    const providerSubscriptionId = payment.providerSubscriptionId ?? null;
-    if (payment.autoRenewalRequested && !providerSubscriptionId) {
+  private async createInitialSubscription(payment: SuccessfulPayment, tx: PaymentsTransactionContext) {
+    const providerSubscriptionId = payment.providerSubscriptionId;
+
+    if (!providerSubscriptionId) {
       throw new SubscriptionPaymentConflictError(payment.paymentId, 'PROVIDER_SUBSCRIPTION_MISSING');
     }
 
+    // В этой ветке прошлые периоды уже закончились к моменту оплаты.
     const { startsAt, expiresAt } = this.calculateSubscriptionPeriod(payment, new Date(payment.paidAt));
-    this.assertNoOverlap(payment.paymentId, subscriptions, startsAt, expiresAt);
+
     const result: ApplySuccessfulPaymentResult = {
       subscriptionId: randomUUID(),
       action: 'CREATED',
@@ -169,12 +171,10 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
         planId: payment.planId,
         startsAt,
         expiresAt,
-        status: this.getStatus(startsAt, expiresAt, now),
+        status: SubscriptionStatus.ACTIVE,
         provider: payment.provider,
         providerSubscriptionId,
-        autoRenewalStatus: payment.autoRenewalRequested
-          ? AutoRenewalStatus.ENABLED
-          : AutoRenewalStatus.DISABLED,
+        autoRenewalStatus: AutoRenewalStatus.ENABLED,
         subscriptionId: result.subscriptionId,
         action: 'CREATED',
         autoRenewalTransfer: null,
@@ -190,29 +190,30 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
     now: Date,
     tx: PaymentsTransactionContext,
   ) {
+    // Для переноса автопродления D1 нужен ID старой provider-подписки.
+    // RETIRED означает, что её автопродление уже окончательно отключено при прошлом переносе.
     if (
       !lastSubscription.providerSubscriptionId ||
       lastSubscription.autoRenewalStatus === AutoRenewalStatus.RETIRED
     ) {
       throw new SubscriptionPaymentConflictError(payment.paymentId, 'PREVIOUS_PROVIDER_SUBSCRIPTION_MISSING');
     }
+
+    const sourceProviderSubscriptionId = lastSubscription.providerSubscriptionId;
+
     if (lastSubscription.provider !== payment.provider) {
       throw new SubscriptionPaymentConflictError(payment.paymentId, 'PROVIDER_MISMATCH');
     }
-    // Текущая ветка SCHEDULED в D1 всегда создаёт новую recurring provider-подписку.
-    if (!payment.autoRenewalRequested) {
-      throw new SubscriptionPaymentConflictError(payment.paymentId, 'SCHEDULED_AUTO_RENEWAL_REQUIRED');
-    }
 
-    const paidAt = new Date(payment.paidAt);
-    const start = lastSubscription.expiresAt > paidAt ? lastSubscription.expiresAt : paidAt;
-    // Начало после максимального expiresAt исключает пересечение с оплаченными периодами.
-    const { startsAt, expiresAt } = this.calculateSubscriptionPeriod(payment, start);
+    // Новая подписка начинается после последнего оплаченного периода, включая PENDING в очереди.
+    const { startsAt, expiresAt } = this.calculateSubscriptionPeriod(payment, lastSubscription.expiresAt);
+
+    // SCHEDULED — сигнал D1 выполнить перенос автопродления, а не lifecycle-статус подписки.
     const result: ApplySuccessfulPaymentResult = {
       subscriptionId: randomUUID(),
       action: 'SCHEDULED',
       nextSubscriptionStartsAt: expiresAt.toISOString(),
-      previousProviderSubscriptionId: lastSubscription.providerSubscriptionId,
+      previousProviderSubscriptionId: sourceProviderSubscriptionId,
     };
 
     await this.subscriptionsRepository.setAutoRenewalState(
@@ -230,7 +231,8 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
         planId: payment.planId,
         startsAt,
         expiresAt,
-        status: this.getStatus(startsAt, expiresAt, now),
+        // Пока обрабатывался платёж, запланированное начало могло наступить.
+        status: startsAt > now ? SubscriptionStatus.PENDING : SubscriptionStatus.ACTIVE,
         provider: payment.provider,
         providerSubscriptionId: null,
         autoRenewalStatus: AutoRenewalStatus.ENABLING,
@@ -239,7 +241,7 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
         autoRenewalTransfer: {
           operationId: randomUUID(),
           sourceSubscriptionId: lastSubscription.subscriptionId,
-          sourceProviderSubscriptionId: lastSubscription.providerSubscriptionId,
+          sourceProviderSubscriptionId,
         },
       },
       tx,
@@ -247,34 +249,8 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
     return result;
   }
 
-  private requiresSubscriptionContinuation(subscription: SubscriptionForPayment, now: Date) {
-    // Неистёкший период нужно учесть при постановке новой подписки в очередь.
-    // ENABLED требует отключения старого автопродления даже при истёкшем доступе:
-    // очередная оплата могла не пройти или её подтверждение ещё не обработано.
-    return subscription.expiresAt > now || subscription.autoRenewalStatus === AutoRenewalStatus.ENABLED;
-  }
-
-  private assertNoOverlap(
-    paymentId: string,
-    subscriptions: SubscriptionForPayment[],
-    startsAt: Date,
-    expiresAt: Date,
-  ) {
-    if (
-      subscriptions.some(
-        (subscription) => subscription.startsAt < expiresAt && subscription.expiresAt > startsAt,
-      )
-    ) {
-      throw new SubscriptionPaymentConflictError(paymentId, 'SUBSCRIPTION_PERIOD_OVERLAP');
-    }
-  }
-
   /** D1 валидирует длительность; D2 вычисляет даты, ограничивая месяц его последним днём. */
   private calculateSubscriptionPeriod(payment: SuccessfulPayment, startsAt: Date) {
-    if (!Number.isFinite(startsAt.getTime())) {
-      throw new SubscriptionPaymentConflictError(payment.paymentId, 'INVALID_PERIOD');
-    }
-
     const expiresAt = new Date(startsAt);
     switch (payment.periodUnit) {
       case PeriodUnit.DAY:
@@ -298,10 +274,5 @@ export class ApplySuccessfulPaymentUseCase implements ICommandHandler<ApplySucce
       throw new SubscriptionPaymentConflictError(payment.paymentId, 'INVALID_PERIOD');
     }
     return { startsAt, expiresAt };
-  }
-
-  private getStatus(startsAt: Date, expiresAt: Date, now: Date) {
-    if (expiresAt <= now) return SubscriptionStatus.EXPIRED;
-    return startsAt > now ? SubscriptionStatus.PENDING : SubscriptionStatus.ACTIVE;
   }
 }

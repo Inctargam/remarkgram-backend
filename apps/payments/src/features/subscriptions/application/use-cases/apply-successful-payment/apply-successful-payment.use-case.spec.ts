@@ -136,12 +136,72 @@ describe('ApplySuccessfulPaymentUseCase', () => {
     );
   });
 
-  it('rejects a late payment that would overlap a historical paid period', async () => {
-    const { useCase, repository, command } = fixture({ paidAt: '2026-09-15T10:00:00.000Z' });
-    repository.findByUserId.mockResolvedValue([existing()]);
+  it.each([
+    ['2026-10-23T12:00:00.000Z', '2026-10-23T12:00:00.000Z', '2026-11-23T12:00:00.000Z'],
+    ['2026-10-23T12:00:02.000Z', '2026-10-23T12:00:02.000Z', '2026-11-23T12:00:02.000Z'],
+  ])(
+    'starts an independent purchase at payment %s when earlier periods have ended',
+    async (paidAt, expectedStart, expectedEnd) => {
+      vi.setSystemTime(new Date('2026-10-23T12:00:03.000Z'));
+      const { useCase, repository, command } = fixture({ paidAt });
+      repository.findByUserId.mockResolvedValue([
+        existing({
+          subscriptionId: 'latest-subscription',
+          startsAt: new Date('2026-10-01T00:00:00.000Z'),
+          expiresAt: new Date('2026-10-23T12:00:00.000Z'),
+        }),
+        existing(),
+      ]);
 
-    await expect(useCase.execute(command)).rejects.toMatchObject({ reason: 'SUBSCRIPTION_PERIOD_OVERLAP' });
-    expect(repository.createWithPaymentApplication).not.toHaveBeenCalled();
+      await expect(useCase.execute(command)).resolves.toMatchObject({
+        action: 'CREATED',
+        nextSubscriptionStartsAt: expectedEnd,
+      });
+      expect(repository.createWithPaymentApplication).toHaveBeenCalledWith(
+        expect.objectContaining({
+          startsAt: new Date(expectedStart),
+          expiresAt: new Date(expectedEnd),
+          autoRenewalTransfer: null,
+        }),
+        command.tx,
+      );
+      expect(repository.setAutoRenewalState).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['2026-10-23T11:59:59.000Z', SubscriptionStatus.PENDING],
+    ['2026-10-23T12:00:03.000Z', SubscriptionStatus.ACTIVE],
+  ] as const)('keeps the purchase scheduled when processed at %s', async (processedAt, status) => {
+    vi.setSystemTime(new Date(processedAt));
+    const { useCase, repository, command } = fixture({ paidAt: '2026-10-23T11:59:58.000Z' });
+    repository.findByUserId.mockResolvedValue([
+      existing({
+        startsAt: new Date('2026-10-01T00:00:00.000Z'),
+        expiresAt: new Date('2026-10-23T12:00:00.000Z'),
+        status: SubscriptionStatus.ACTIVE,
+      }),
+    ]);
+
+    await expect(useCase.execute(command)).resolves.toMatchObject({
+      action: 'SCHEDULED',
+      nextSubscriptionStartsAt: '2026-11-23T12:00:00.000Z',
+      previousProviderSubscriptionId: 'sub_old',
+    });
+    expect(repository.createWithPaymentApplication).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startsAt: new Date('2026-10-23T12:00:00.000Z'),
+        expiresAt: new Date('2026-11-23T12:00:00.000Z'),
+        status,
+        autoRenewalStatus: AutoRenewalStatus.ENABLING,
+        autoRenewalTransfer: expect.objectContaining({ sourceSubscriptionId: 'old-subscription' }),
+      }),
+      command.tx,
+    );
+    expect(repository.setAutoRenewalState).toHaveBeenCalledWith(
+      { subscriptionId: 'old-subscription', status: AutoRenewalStatus.DISABLING },
+      command.tx,
+    );
   });
 
   it.each([AutoRenewalStatus.ENABLING, AutoRenewalStatus.DISABLING])(
@@ -154,38 +214,45 @@ describe('ApplySuccessfulPaymentUseCase', () => {
     },
   );
 
-  it('does not report auto-renewal enabled without a provider subscription', async () => {
-    const { useCase, repository, command } = fixture({ providerSubscriptionId: null });
-    await expect(useCase.execute(command)).rejects.toMatchObject({ reason: 'PROVIDER_SUBSCRIPTION_MISSING' });
-    expect(repository.createWithPaymentApplication).not.toHaveBeenCalled();
-  });
+  it.each([null, undefined])(
+    'rejects an initial purchase without a provider binding: %s',
+    async (providerSubscriptionId) => {
+      const { useCase, repository, command } = fixture({ providerSubscriptionId });
+      await expect(useCase.execute(command)).rejects.toMatchObject({ reason: 'PROVIDER_SUBSCRIPTION_MISSING' });
+      expect(repository.createWithPaymentApplication).not.toHaveBeenCalled();
+    },
+  );
 
-  it('schedules retirement of an expired subscription whose auto-renewal is still enabled', async () => {
+  it('starts a new subscription at paidAt after expiry with old auto-renewal disabled', async () => {
     const { useCase, repository, command } = fixture();
-    repository.findByUserId.mockResolvedValue([existing({ autoRenewalStatus: AutoRenewalStatus.ENABLED })]);
+    repository.findByUserId.mockResolvedValue([existing()]);
 
     await expect(useCase.execute(command)).resolves.toMatchObject({
-      action: 'SCHEDULED',
-      previousProviderSubscriptionId: 'sub_old',
+      action: 'CREATED',
+      nextSubscriptionStartsAt: '2026-11-23T10:00:00.000Z',
+      previousProviderSubscriptionId: null,
     });
     expect(repository.createWithPaymentApplication).toHaveBeenCalledWith(
-      expect.objectContaining({ startsAt: new Date(command.payment.paidAt) }),
+      expect.objectContaining({
+        startsAt: new Date(command.payment.paidAt),
+        expiresAt: new Date('2026-11-23T10:00:00.000Z'),
+        status: SubscriptionStatus.ACTIVE,
+        autoRenewalStatus: AutoRenewalStatus.ENABLED,
+        autoRenewalTransfer: null,
+      }),
       command.tx,
     );
+    expect(repository.setAutoRenewalState).not.toHaveBeenCalled();
   });
 
-  it.each([null, 'sub_initial'])(
-    'creates a period without enabling auto-renewal with provider subscription %s',
-    async (providerSubscriptionId) => {
+  it.each([false, null])(
+    'rejects an initial purchase without requested auto-renewal: %s',
+    async (autoRenewalRequested) => {
       const { useCase, repository, command } = fixture({
-        autoRenewalRequested: false,
-        providerSubscriptionId,
+        autoRenewalRequested,
       });
-      await useCase.execute(command);
-      expect(repository.createWithPaymentApplication).toHaveBeenCalledWith(
-        expect.objectContaining({ providerSubscriptionId, autoRenewalStatus: AutoRenewalStatus.DISABLED }),
-        command.tx,
-      );
+      await expect(useCase.execute(command)).rejects.toMatchObject({ reason: 'PURCHASE_AUTO_RENEWAL_REQUIRED' });
+      expect(repository.createWithPaymentApplication).not.toHaveBeenCalled();
     },
   );
 
@@ -298,31 +365,37 @@ describe('ApplySuccessfulPaymentUseCase', () => {
     ]);
 
     await expect(useCase.execute(command)).rejects.toMatchObject({
-      reason: 'SCHEDULED_AUTO_RENEWAL_REQUIRED',
+      reason: 'PURCHASE_AUTO_RENEWAL_REQUIRED',
     });
     expect(repository.setAutoRenewalState).not.toHaveBeenCalled();
     expect(repository.createWithPaymentApplication).not.toHaveBeenCalled();
   });
 
-  it('does not schedule provider cancellation without the previous provider binding', async () => {
+  it.each([
+    { providerSubscriptionId: null },
+    { autoRenewalStatus: AutoRenewalStatus.RETIRED },
+  ])('rejects an unusable source binding before scheduling: %j', async (overrides) => {
     const { useCase, repository, command } = fixture();
     repository.findByUserId.mockResolvedValue([
-      existing({ providerSubscriptionId: null, expiresAt: new Date('2026-11-01T00:00:00.000Z') }),
+      existing({ expiresAt: new Date('2026-11-01T00:00:00.000Z'), ...overrides }),
     ]);
 
     await expect(useCase.execute(command)).rejects.toMatchObject({
       reason: 'PREVIOUS_PROVIDER_SUBSCRIPTION_MISSING',
     });
+    expect(repository.setAutoRenewalState).not.toHaveBeenCalled();
     expect(repository.createWithPaymentApplication).not.toHaveBeenCalled();
   });
 
   it.each([AutoRenewalStatus.ENABLED, AutoRenewalStatus.DISABLED, AutoRenewalStatus.RETIRED])(
-    'applies a late renewal to its provider binding without changing %s auto-renewal',
+    'restores ACTIVE after period expiry without changing %s auto-renewal',
     async (autoRenewalStatus) => {
+      vi.setSystemTime(new Date('2026-10-01T00:00:03.000Z'));
       const { useCase, repository, command } = fixture({
         type: PaymentType.RENEWAL,
         autoRenewalRequested: null,
         providerSubscriptionId: 'sub_old',
+        paidAt: '2026-10-01T00:00:00.000Z',
       });
       repository.findByUserId.mockResolvedValue([existing({ autoRenewalStatus })]);
 
@@ -360,24 +433,60 @@ describe('ApplySuccessfulPaymentUseCase', () => {
     expect(repository.renewWithPaymentApplication).not.toHaveBeenCalled();
   });
 
-  it('rejects a late renewal that would overlap an already purchased future period', async () => {
+  it.each([
+    ['2026-10-01T00:00:00.000Z', '2026-11-01T00:00:00.000Z', SubscriptionStatus.ACTIVE, 7],
+    ['2027-01-01T00:00:00.000Z', '2027-02-01T00:00:00.000Z', SubscriptionStatus.PENDING, 99],
+    ['2026-10-01T00:00:00.000Z', '2026-10-10T00:00:00.000Z', SubscriptionStatus.EXPIRED, 99],
+  ] as const)(
+    'rejects renewal when a later paid period exists: %s — %s (%s, plan %s)',
+    async (startsAt, expiresAt, status, planId) => {
+      const { useCase, repository, command } = fixture({
+        type: PaymentType.RENEWAL,
+        providerSubscriptionId: 'sub_old',
+      });
+      repository.findByUserId.mockResolvedValue([
+        existing({ autoRenewalStatus: AutoRenewalStatus.RETIRED }),
+        existing({
+          subscriptionId: 'later-subscription',
+          providerSubscriptionId: 'sub_later',
+          startsAt: new Date(startsAt),
+          expiresAt: new Date(expiresAt),
+          status,
+          planId,
+        }),
+      ]);
+
+      await expect(useCase.execute(command)).rejects.toMatchObject({
+        paymentId: command.payment.paymentId,
+        reason: 'RENEWAL_SUBSCRIPTION_NOT_LAST',
+      });
+      expect(repository.renewWithPaymentApplication).not.toHaveBeenCalled();
+      expect(repository.createWithPaymentApplication).not.toHaveBeenCalled();
+      expect(repository.setAutoRenewalState).not.toHaveBeenCalled();
+    },
+  );
+
+  it('renews the last subscription when earlier paid periods exist', async () => {
     const { useCase, repository, command } = fixture({
       type: PaymentType.RENEWAL,
       providerSubscriptionId: 'sub_old',
     });
     repository.findByUserId.mockResolvedValue([
-      existing({ expiresAt: new Date('2026-11-01T00:00:00.000Z') }),
       existing({
-        subscriptionId: 'pending-subscription',
-        providerSubscriptionId: 'sub_pending',
-        startsAt: new Date('2026-11-01T00:00:00.000Z'),
-        expiresAt: new Date('2026-12-01T00:00:00.000Z'),
-        status: SubscriptionStatus.PENDING,
+        subscriptionId: 'earlier-subscription',
+        providerSubscriptionId: 'sub_earlier',
+        startsAt: new Date('2026-08-01T00:00:00.000Z'),
+        expiresAt: new Date('2026-09-01T00:00:00.000Z'),
       }),
+      existing(),
     ]);
 
-    await expect(useCase.execute(command)).rejects.toMatchObject({ reason: 'SUBSCRIPTION_PERIOD_OVERLAP' });
-    expect(repository.renewWithPaymentApplication).not.toHaveBeenCalled();
+    await expect(useCase.execute(command)).resolves.toMatchObject({
+      action: 'RENEWED',
+      subscriptionId: 'old-subscription',
+      nextSubscriptionStartsAt: '2026-11-01T00:00:00.000Z',
+    });
+    expect(repository.renewWithPaymentApplication).toHaveBeenCalledTimes(1);
   });
 
   it.each([
@@ -387,17 +496,9 @@ describe('ApplySuccessfulPaymentUseCase', () => {
     ['2026-10-23T10:00:00.000Z', PeriodUnit.DAY, 2, '2026-10-25T10:00:00.000Z'],
     ['2026-10-23T10:00:00.000Z', PeriodUnit.WEEK, 2, '2026-11-06T10:00:00.000Z'],
   ] as const)('calculates %s + %s × %s', async (paidAt, periodUnit, periodCount, expectedEnd) => {
+    vi.setSystemTime(new Date(paidAt));
     const { useCase, command } = fixture({ paidAt, periodUnit, periodCount });
     await expect(useCase.execute(command)).resolves.toMatchObject({ nextSubscriptionStartsAt: expectedEnd });
-  });
-
-  it('records an already elapsed period as EXPIRED instead of granting access from processing time', async () => {
-    const { useCase, repository, command } = fixture({ paidAt: '2026-01-01T10:00:00.000Z' });
-    await useCase.execute(command);
-    expect(repository.createWithPaymentApplication).toHaveBeenCalledWith(
-      expect.objectContaining({ status: SubscriptionStatus.EXPIRED, startsAt: new Date(command.payment.paidAt) }),
-      command.tx,
-    );
   });
 
   it.each(['invalid-date', '+275760-09-13T00:00:00.000Z'])(
