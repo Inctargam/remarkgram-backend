@@ -177,19 +177,22 @@ recovery зафиксированы в разделе «План примене�
 но не сокращает оплаченный доступ.
 
 `SubscriptionPaymentApplication` хранит неизменяемые `paymentId`, `subscriptionId`, `action`,
-`nextSubscriptionStartsAt`, `createdAt`. Наличие записи означает, что доступ за платёж уже начислен.
+`paidPeriodEndsAt`, `createdAt`. Наличие записи означает, что доступ за платёж уже начислен.
+Репозиторий получает конец периода один раз как expiresAt и сохраняет его также в paidPeriodEndsAt.
+Внутренние параметры не дублируют эту дату строкой; публичный nextSubscriptionStartsAt для D1 сохранён.
 Этапов настройки автопродления в этой таблице нет.
 
 `AutoRenewalOperation` хранит `id`, `userId`, `type`, `status`, необязательный уникальный `paymentId`,
 `subscriptionId`, `provider`, `providerSubscriptionId`, `sourceSubscriptionId`,
 `sourceProviderSubscriptionId`, `createdAt`, `updatedAt`. `paymentId` ссылается на применение платежа.
-Для TRANSFER `id = paymentId`, обязательны старая локальная связь и снимок её provider ID;
+Для TRANSFER создаётся отдельный UUID `id`; `paymentId` — уникальная связь с применением платежа. Обязательны старая локальная связь и снимок её provider ID;
 новый provider ID появляется при binding и затем неизменяем.
-Этапы TRANSFER: PENDING → BINDING_PENDING → COMPLETED.
-CREATED/RENEWED не создают AutoRenewalOperation; SCHEDULED создаёт TRANSFER/PENDING.
+Этапы TRANSFER: DISABLE_PENDING → BINDING_PENDING → COMPLETED.
+CREATED/RENEWED не создают AutoRenewalOperation; SCHEDULED создаёт TRANSFER/DISABLE_PENDING.
 
 Для ручных ENABLE/DISABLE модель использует null в paymentId и полях старой связи.
-ID операции один раз устойчиво создаёт новый DBOS workflow; клиентский ключ в таблице не хранится.
+Этапы ручных операций: ENABLE_PENDING → COMPLETED или DISABLE_PENDING → COMPLETED.
+ID операции один раз устойчиво создаёт DBOS workflow; клиентский ключ в таблице не хранится.
 Дедупликация клиентского запуска и сверка его аргументов остаются на уровне workflow.
 Ручные use cases и workflow реализованы (2026-10-28). В D1 `autoRenewalChangeId` передаётся
 из `AutoRenewalOperation.id`; внешний контракт этого аргумента сохраняется.
@@ -211,25 +214,44 @@ ENABLING/DISABLING. Решения принимаются по чтению по
 для CREATED/RENEWED возвращается null. Replay возвращает только прежний публичный результат,
 до проверки конкурирующих изменений: ни нового периода, ни второй операции не создаётся.
 
-Первая PURCHASE создаёт период от paidAt, если нет текущих/будущих периодов, незавершённых
-изменений и старого включённого автопродления. DAY/WEEK считаются в UTC, MONTH — календарно
-с ограничением последним днём месяца. Исторические периоды не должны пересекаться с новым.
-Запоздавшее событие не сдвигает доступ: истёкший период сохраняется EXPIRED, будущий PENDING,
-действующий ACTIVE. Перед созданием актуализируются статусы истёкших периодов.
-Для первой покупки с автопродлением обязателен providerSubscriptionId, иначе конфликт.
+В execute PURCHASE выбирается по датам: при последнем expiresAt > paidAt вызывается enqueueSubscription
+с началом после конца очереди и результатом SCHEDULED. Иначе createInitialSubscription создаёт
+подписку от paidAt с результатом CREATED. Автопродление не определяет выбор ветки.
+Допущение до обсуждения с D1: у последней подписки, истёкшей к paidAt, автопродление выключено.
+EXPIRED + ENABLED не поддерживается; код не проверяет это допущение и не отключает такую provider-связь.
+SCHEDULED запускает шаги D1, но не является lifecycle-статусом: к обработке начало уже могло наступить.
+requiresSubscriptionContinuation удалён. Незавершённые изменения блокируют применение платежа.
+DAY/WEEK считаются в UTC, MONTH — календарно с ограничением последним днём месяца.
+Начало не раньше конца всей очереди исключает пересечения; отдельный assertNoOverlap удалён.
+Самостоятельная покупка создаёт ACTIVE от paidAt без сравнения периода с временем обработки.
+Текущий процесс предполагает корректное время подтверждённой оплаты и обработку до конца оплаченного периода.
+При постановке в очередь статус определяется началом периода: PENDING или ACTIVE.
+В ветке переноса задержка обработки на весь новый оплаченный период не рассматривается.
+Перед созданием актуализируются статусы существующих истёкших периодов.
+Для любой PURCHASE требуется autoRenewalRequested=true, иначе PURCHASE_AUTO_RENEWAL_REQUIRED.
+Для самостоятельной покупки обязателен providerSubscriptionId; новая подписка получает ENABLED.
 D1 передаёт его из текущего Payment, включая обработку старого snapshot SuccessfulPayment.
-Без автопродления допускается отсутствие provider ID и сохраняется DISABLED.
+Публичный контракт D1 не изменён; одноразовая покупка без provider-подписки в D2 не поддерживается.
 
 Дополнительная PURCHASE выбирает конец очереди, включая PENDING, и создаёт новую подписку
 от max(paidAt, expiresAt последней подписки). Старая получает DISABLING, новая ENABLING.
-В той же транзакции сохраняются применение платежа и TRANSFER/PENDING со снимками связей.
-Истёкшая подписка с ENABLED также требует переноса, чтобы не оставить старое списание.
-SCHEDULED требует старую provider-связь, не RETIRED, того же провайдера и autoRenewalRequested=true:
+В той же транзакции сохраняются применение платежа и TRANSFER/DISABLE_PENDING со снимками связей.
+Наличие provider ID последней подписки обеспечивают создание/привязка и блокировка переходных
+состояний в execute. RETIRED получает только старая подписка после создания следующей;
+enqueueSubscription проверяет наличие provider ID и отсутствие RETIRED перед переносом.
+SCHEDULED требует того же провайдера и autoRenewalRequested=true:
 текущий D1 всегда выполняет оба внешних шага. Другие сценарии требуют отдельного согласования.
 
 RENEWAL находит подписку пользователя по provider + providerSubscriptionId, проверяет план
-и продлевает существующую строку от expiresAt, сохраняя настройку автопродления.
-Пересечение с другим оплаченным периодом отклоняется; очередь автоматически не сдвигается.
+и продлевает существующую строку от expiresAt, устанавливая ACTIVE и сохраняя настройку автопродления.
+Успешный RENEWAL не вычисляет PENDING/EXPIRED по датам: он подтверждает продление доступа.
+Продлевать можно только последнюю подписку в оплаченной очереди: если у другой подписки
+expiresAt больше, D2 возвращает SubscriptionPaymentConflictError с reason = RENEWAL_SUBSCRIPTION_NOT_LAST.
+Правило действует даже без пересечения дат и при другом тарифе следующей подписки.
+D2 не начисляет период и не сдвигает очередь; исключение откатывает общий tx D1.
+Бизнес-решение для такого списания — возврат в D1, а не повтор применения платежа.
+Обработка этого кода и сам возврат в D1 пока не реализованы; контракты и код D1 не изменены.
+Уже применённый paymentId по-прежнему возвращает сохранённый результат до проверки очереди.
 Контракт не содержит границ Invoice, поэтому последовательное начисление не заменяет сверку
 с provider-периодами. События Business-доступа пока не реализованы.
 
@@ -243,7 +265,7 @@ provider ID. Через findPaymentApplication получает владельц
 provider ID со снимком sourceProviderSubscriptionId. Отсутствие или несовпадение —
 SubscriptionCancellationConflictError с paymentId. Поиск по паре подписка/provider и проверка
 неоднозначности удалены: применение находится по первичному ключу paymentId.
-При PENDING одна nested-запись переводит sourceSubscription в RETIRED, операцию — в BINDING_PENDING.
+При DISABLE_PENDING одна nested-запись переводит sourceSubscription в RETIRED, операцию — в BINDING_PENDING.
 BINDING_PENDING/COMPLETED означают успешный повтор без записи после проверки снимка старой связи.
 Даты доступа не меняются.
 
@@ -253,7 +275,7 @@ BINDING_PENDING/COMPLETED означают успешный повтор без 
 При BINDING_PENDING одна nested-запись сохраняет provider ID и ENABLED новой подписки,
 а операции — COMPLETED и неизменяемый снимок нового providerSubscriptionId.
 При COMPLETED совпадающий снимок означает повтор без записи; другой ID — конфликт.
-PENDING отклоняется: отключение ещё не подтверждено. Состояния обеих подписок для replay
+DISABLE_PENDING отклоняется: отключение ещё не подтверждено. Состояния обеих подписок для replay
 не перечитываются, поздний повтор не отменяет последующее ручное отключение.
 P2002 при привязке преобразуется в SubscriptionBindingConflictError; остальные ошибки передаются
 D1 для отката всего локального шага. Внешний API эти методы не вызывают.
@@ -266,8 +288,8 @@ D1 для отката всего локального шага. Внешний 
 Методы завершения репозитория фиксируют статусы, определённые их назначением:
 confirmAutoRenewalCancellation принимает operationId напрямую, без объекта аргументов, и сохраняет
 RETIRED старой подписки / BINDING_PENDING операции; bindProviderSubscription принимает
-operationId и providerSubscriptionId, сохраняя ENABLED / COMPLETED. Для ошибки привязки paymentId
-совпадает с operationId по правилу TRANSFER; отдельным аргументом он не передаётся.
+operationId, paymentId и providerSubscriptionId, сохраняя ENABLED / COMPLETED.
+Для ошибки привязки используется paymentId; он передаётся отдельно от ID операции.
 completeAutoRenewalOperation принимает operationId и выбранный autoRenewalStatus,
 а COMPLETED устанавливает сам. Все методы используют переданный tx. Допустимость перехода
 и распознавание повторов остаются в use cases; публичные контракты D1 не меняются.
@@ -275,8 +297,9 @@ completeAutoRenewalOperation принимает operationId и выбранны�
 Параметры createWithPaymentApplication и renewWithPaymentApplication содержат subscriptionId
 и nextSubscriptionStartsAt напрямую, без публичного result и неиспользуемого
 previousProviderSubscriptionId. При создании action задаёт use case; при продлении репозиторий
-фиксирует RENEWED. Для переноса передаётся autoRenewalTransfer только с sourceSubscriptionId
-и sourceProviderSubscriptionId. Репозиторий создаёт TRANSFER/PENDING с id = paymentId,
+фиксирует RENEWED. Для переноса передаётся autoRenewalTransfer с operationId, sourceSubscriptionId
+и sourceProviderSubscriptionId. Use case генерирует отдельный UUID операции после проверки повтора
+под блокировкой. Репозиторий создаёт TRANSFER/DISABLE_PENDING с этим UUID,
 общими userId/provider/subscriptionId и пустым новым provider ID. Решение о необходимости переноса
 остаётся в use case. Вложенные записи Prisma сохранены. Неиспользуемый PrismaService удалён
 из конструктора репозитория: все обращения выполняются через переданный tx.
@@ -293,26 +316,45 @@ true, отсутствие — false, несколько — MultipleActiveSubsc
 на пользователя. Общая координация lifecycle и события доступа ещё требуют реализации. FK из Payment.subscriptionId не добавлен: старый временный handler мог сохранять
 ID без настоящей Subscription. В composition root подключены реальные D2 адаптеры.
 
-### Ручное автопродление (2026-10-28)
+### Ручное автопродление (2026-10-28; структура упрощена 2026-11-03)
 
-EnableSubscriptionAutoRenewalCommand / DisableSubscriptionAutoRenewalCommand принимают
-userId, subscriptionId и UUID v4 idempotencyKey. Через application-порт запускается
+Внутренние prepare() и confirm() реализованы приватными методами DbosChangeSubscriptionAutoRenewalWorkflow
+по образцу Posts. Каждый открывает runTransaction и использует SubscriptionsRepository.
+Отдельные CQRS-команды и use cases подготовки/подтверждения удалены; включение и выключение
+объединены в ChangeSubscriptionAutoRenewalUseCase. Валидация входа и параметры запуска находятся
+в этом use case. readManualAutoRenewalOperation удалён: приватные шаги не имеют отдельного API
+повторного вызова. Имена транзакционных шагов, порядок checkpoints, UUID и retries прежние.
+Контракты и код D1 не менялись.
+
+ChangeSubscriptionAutoRenewalCommand принимает userId, subscriptionId, UUID v4 idempotencyKey
+и autoRenewalEnabled (true — включить, false — выключить). Через application-порт запускается
 DbosChangeSubscriptionAutoRenewalWorkflow; HTTP/gRPC ещё не подключены.
 Ключ запуска subscription-auto-renewal:<userId>:<key> общий для обоих действий, параметры
 первого запуска сравниваются с повтором. Несовпадение — конфликт. Внутри workflow
 DBOS.randomUUID создаёт устойчивый AutoRenewalOperation.id.
 
-PrepareSubscriptionAutoRenewalChangeUseCase под общим lock сначала распознаёт повтор,
-затем проверяет владельца, последнюю подписку по expiresAt, provider-связь, отсутствие
+Приватный метод prepare() workflow D2 под общим lock проверяет владельца,
+последнюю подписку по expiresAt, provider-связь, отсутствие
 ENABLING/DISABLING и запрет RETIRED. Включение допускается до expiresAt, отключение — также
 после окончания доступа; будущая связанная подписка доступна для управления.
-Создаются ENABLE/DISABLE и PENDING с переходным состоянием подписки. Уже установленное
-состояние даёт COMPLETED без provider-вызова. Payment и source-поля ручной операции пусты.
+При изменении создаются ENABLE/DISABLE и ENABLE_PENDING/DISABLE_PENDING с переходным состоянием подписки.
+Если настройка уже установлена, prepare() возвращает completed=true без записи AutoRenewalOperation
+и без изменения подписки; вызовы провайдера и confirm() пропускаются. Результат сохраняет DBOS.
+В таком ответе operationId — устойчивый ID запроса без строки операции в БД.
+Payment и source-поля создаваемой ручной операции пусты.
 
 После commit workflow вызывает готовый адаптер D1 через D2-порт
-ProviderSubscriptionAutoRenewalGateway (useExisting). Затем ConfirmSubscriptionAutoRenewalChangeUseCase
-под lock атомарно сохраняет stable state и COMPLETED. Поздний повтор возвращает результат
-операции, не восстанавливая прежнюю настройку подписки. Даты и provider-привязка не меняются.
+ProviderSubscriptionAutoRenewalGateway (useExisting). Затем метод confirm() того же workflow
+под lock атомарно сохраняет ENABLED/DISABLED и COMPLETED по устойчивому ID и параметрам workflow,
+без повторного чтения и сверки операции. Даты и provider-привязка не меняются.
+
+Prisma datasource фиксирует изменения и результат каждого локального шага одной транзакцией.
+После commit recovery возвращает checkpoint, а после rollback изменения шага откатываются.
+Поэтому prepare() не ищет сохранённую операцию, confirm() не распознаёт её повтор самостоятельно.
+Поздний клиентский повтор получает исторический результат DBOS и не перезаписывает подписку.
+Это упрощение относится только к приватным шагам workflow: публичные обработчики, вызываемые D1,
+сохраняют проверки этапов и повторов. Таблица AutoRenewalOperation остаётся без изменений.
+Неиспользуемый метод репозитория findAutoRenewalOperation удалён.
 
 Workflow changeSubscriptionAutoRenewalV1 использует существующий PaymentsDbosDataSource.
 Упрощён по образцу Posts: UUID → runTransaction подготовки → внешний step → runTransaction

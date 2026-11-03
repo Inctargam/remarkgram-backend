@@ -19,7 +19,7 @@
 
 **SubscriptionPaymentApplication — память о применённой оплате**
 
-| paymentId | subscriptionId | action | previousSubscriptionId | nextSubscriptionStartsAt |
+| paymentId | subscriptionId | action | previousSubscriptionId | paidPeriodEndsAt |
 | --- | --- | --- | --- | --- |
 | P | B | SCHEDULED | A | 01.01 |
 
@@ -69,7 +69,7 @@ A.autoRenewalChangeId = P           B.autoRenewalChangeId = P
 
 **SubscriptionOperation — пример возможной схемы**
 
-| id | type | paymentId | subscriptionId | action | processingStatus | nextSubscriptionStartsAt |
+| id | type | paymentId | subscriptionId | action | processingStatus | paidPeriodEndsAt |
 | --- | --- | --- | --- | --- | --- | --- |
 | P | PAYMENT | P | B | SCHEDULED | COMPLETED | 01.01 |
 | M | DISABLE | null | B | null | COMPLETED | null |
@@ -95,7 +95,7 @@ A.autoRenewalChangeId = P           B.autoRenewalChangeId = P
 
 **SubscriptionPaymentApplication — неизменяемый результат начисления доступа**
 
-| paymentId | subscriptionId | action | nextSubscriptionStartsAt |
+| paymentId | subscriptionId | action | paidPeriodEndsAt |
 | --- | --- | --- | --- |
 | P | B | SCHEDULED | 01.01 |
 
@@ -103,11 +103,14 @@ A.autoRenewalChangeId = P           B.autoRenewalChangeId = P
 
 | id | type | status | paymentId | sourceSubscriptionId | subscriptionId | providerSubscriptionId |
 | --- | --- | --- | --- | --- | --- | --- |
-| P | TRANSFER | COMPLETED | P | A | B | sub_new |
+| T | TRANSFER | COMPLETED | P | A | B | sub_new |
 | M | DISABLE | COMPLETED | null | null | B | sub_new |
 
 Дополнительно операция хранит `userId`, `provider`, снимок `sourceProviderSubscriptionId`.
 `paymentId` — уникальная необязательная ссылка на SubscriptionPaymentApplication.
+У операции собственный UUID: T отличается от ID платежа P.
+Перенос проходит DISABLE_PENDING → BINDING_PENDING → COMPLETED; ручное изменение —
+ENABLE_PENDING или DISABLE_PENDING → COMPLETED.
 
 **Плюсы:** каждая таблица отвечает на один вопрос: «какой доступ начислен?» или
 «завершено ли изменение автопродления?». Платёж и ручное действие используют один механизм

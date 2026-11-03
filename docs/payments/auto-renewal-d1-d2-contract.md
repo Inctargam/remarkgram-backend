@@ -41,12 +41,12 @@ D2:
 
 В Subscription поле autoRenewalChangeId удалено; история хранится в AutoRenewalOperation.
 Для ручных ENABLE/DISABLE paymentId и поля source-связи отсутствуют, существующий provider ID
-фиксируется при создании. Этапы: PENDING → COMPLETED. ID один раз устойчиво создаёт
+фиксируется при создании. Этапы: ENABLE_PENDING → COMPLETED для включения, DISABLE_PENDING → COMPLETED для отключения. ID один раз устойчиво создаёт
 DBOS workflow, повтор использует тот же ID. Клиентский ключ идемпотентности в таблице не хранится;
 его дедупликация и сверка аргументов относятся к запуску workflow.
 
-Ручное переключение реализовано через EnableSubscriptionAutoRenewalCommand и
-DisableSubscriptionAutoRenewalCommand; HTTP/gRPC API пока нет. D1 предоставляет
+Ручное переключение реализовано через ChangeSubscriptionAutoRenewalCommand с аргументами
+`{ userId, subscriptionId, idempotencyKey, autoRenewalEnabled }`; HTTP/gRPC API пока нет. D1 предоставляет
 PaymentsProviderSubscriptionAutoRenewalAdapter. В PaymentsModule D2-порт связан с ним через
 useExisting. Use cases D2 не импортируют SetProviderSubscriptionAutoRenewalUseCase напрямую.
 
@@ -80,8 +80,10 @@ abstract class ProviderSubscriptionAutoRenewalGateway {
 
 ## Ручной запрос D2
 
-Обе команды получают `{ userId, subscriptionId, idempotencyKey }` и возвращают
+ChangeSubscriptionAutoRenewalCommand получает `{ userId, subscriptionId, idempotencyKey, autoRenewalEnabled }` и возвращает
 `{ operationId, subscriptionId, autoRenewalEnabled }` после завершения workflow.
+Если настройка уже установлена, AutoRenewalOperation не создаётся: operationId остаётся устойчивым
+ID запроса без строки в БД. Результат и повторы такого запроса сохраняет DBOS.
 userId — положительное целое, subscriptionId и idempotencyKey — UUID v4 (регистр нормализуется).
 Вызов через CommandBus; при будущем подключении транспорта userId должен приходить из авторизации.
 
@@ -90,16 +92,16 @@ Workflow запускается с ID `subscription-auto-renewal:${userId}:${ide
 с тем же ключом дают SubscriptionAutoRenewalIdempotencyConflictError. Новый UUID операции
 получается через DBOS.randomUUID внутри workflow; он не равен клиентскому ключу.
 
-Подготовка после общей блокировки сначала проверяет существующую операцию. Для новой операции:
+Подготовка после общей блокировки проверяет подписку:
 
 - подписка принадлежит пользователю и последняя по expiresAt;
 - provider-привязка существует, RETIRED запрещён;
 - у пользователя нет ENABLING/DISABLING, включая перенос автопродления после покупки;
 - включение разрешено только до expiresAt; отключение возможно и после окончания доступа;
 - будущая PENDING-подписка допускается после binding;
-- уже установленное состояние записывается как COMPLETED без изменения подписки и вызова D1.
+- уже установленное состояние возвращает completed=true без создания операции, изменения подписки и вызова D1.
 
-При обычном переходе сохраняются операция PENDING и ENABLING/DISABLING в одной транзакции.
+При обычном переходе сохраняются операция ENABLE_PENDING/DISABLE_PENDING и ENABLING/DISABLING в одной транзакции.
 После ответа D1 подтверждение под lock сохраняет COMPLETED и ENABLED/DISABLED.
 Повтор завершённой операции не читает текущее состояние подписки и не меняет его.
 Возвращается исторический результат операции, который может отличаться от текущей настройки.
@@ -181,7 +183,7 @@ response, в том числе полный Stripe Subscription object, чере
 ```text
 D2: business decision
   -> D2 workflow: устойчивый AutoRenewalOperation.id
-  -> D2 transaction: AutoRenewalOperation(PENDING) + ENABLING/DISABLING
+  -> D2 transaction: AutoRenewalOperation(ENABLE_PENDING/DISABLE_PENDING) + ENABLING/DISABLING
   -> commit
   -> D2 ProviderSubscriptionAutoRenewalGateway.enable|disable
   -> D1 PaymentsProviderSubscriptionAutoRenewalAdapter
@@ -189,11 +191,16 @@ D2: business decision
   -> D1 PaymentProviderPort
   -> Stripe API                              (без открытой DB-транзакции)
   -> D1 normalized result
-  -> D2 transaction: чтение операции под lock + ENABLED/DISABLED + COMPLETED
+  -> D2 transaction: общий lock + ENABLED/DISABLED + COMPLETED по ID операции из workflow
 ```
 
-Обе локальные транзакции используют общую блокировку пользователя. Завершённый повтор
-возвращает результат операции, не восстанавливая прежнюю настройку поверх последующего изменения.
+Обе локальные транзакции используют общую блокировку пользователя. prepare() проверяет подписку
+и создаёт операцию; confirm() записывает результат по её ID без повторного чтения и сверки.
+Prisma datasource фиксирует изменения и checkpoint атомарно. Recovery возвращает результат
+завершённого шага, поэтому приватные методы не реализуют независимое распознавание повторов.
+Завершённый клиентский повтор возвращает сохранённый результат workflow, не восстанавливая
+прежнюю настройку поверх последующего изменения. Для уже установленного состояния prepare()
+сохраняет только результат в checkpoint DBOS, без строки операции; внешний вызов и confirm() пропускаются.
 Новая несовместимая операция не начинается при ENABLING/DISABLING; RETIRED запрещает включение.
 Локальные шаги и workflow реализованы; транспортный API остаётся отдельной задачей.
 
@@ -231,7 +238,7 @@ JSON-обёртки ошибок нет. Бизнес-ошибки D2 с reason 
 При recovery прерванного выполнения успешный provider step читается из checkpoint без нового
 вызова. Это не означает автоматического повторного запуска workflow, завершившегося с ERROR.
 
-Если подготовка уже зафиксирована, а завершить процесс не удалось, операция остаётся PENDING,
+Если подготовка уже зафиксирована, а завершить процесс не удалось, операция остаётся ENABLE_PENDING или DISABLE_PENDING,
 подписка — ENABLING/DISABLING. Workflow возвращает сохранённую ошибку и пишет безопасный лог
 с operationId/workflowId. Повтор клиентского ключа получает ту же ошибку, новый ключ не снимает
 блокировку. Восстановление зависших операций — отдельная задача; rollback настройки провайдера
@@ -268,8 +275,15 @@ provider result               = подтверждённая настройка 
 ## Проверки реализации
 
 Добавлены unit-сценарии команд, локальных шагов, репозитория, workflow и сериализации ошибок.
-PostgreSQL-сценарии проверяют rollback, конкурирующие команды, блокирование применения платежа
-и поздний повтор после противоположного изменения. Они требуют отдельной тестовой базы с
+PostgreSQL-сценарии проверяют rollback, конкурирующие команды и блокирование применения платежа.
+Повторы и recovery проверяются через workflow и его checkpoints, а не независимым повторным
+вызовом приватных методов. PostgreSQL-сценарии требуют отдельной тестовой базы с
 применённой схемой через PAYMENTS_INTEGRATION_DATABASE_URL; тест не применяет миграции.
 Проверки не запускались. HTTP/gRPC, восстановление зависших операций и новый lifecycle worker
 в эту задачу не входят.
+
+Внутренние шаги prepare() и confirm() — приватные методы DbosChangeSubscriptionAutoRenewalWorkflow.
+Они открывают транзакции через datasource и используют репозиторий D2. Отдельных CQRS-команд
+для этих шагов нет; ChangeSubscriptionAutoRenewalCommand остаётся публичной application-границей D2.
+readManualAutoRenewalOperation удалён. Таблица AutoRenewalOperation не меняется;
+публичные обработчики платежей сохраняют свои проверки повторов и этапов операции.
