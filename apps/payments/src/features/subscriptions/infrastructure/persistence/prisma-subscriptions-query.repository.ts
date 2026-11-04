@@ -9,6 +9,23 @@ export class PrismaSubscriptionsQueryRepository extends SubscriptionsQueryReposi
     super();
   }
 
+  async findUsersForStatusRefresh(before: Date, afterUserId?: number): Promise<number[]> {
+    const users = await this.prisma.subscription.groupBy({
+      by: ['userId'],
+      where: {
+        ...(afterUserId !== undefined && { userId: { gt: afterUserId } }),
+        OR: [
+          { status: { in: ['ACTIVE', 'PENDING'] }, expiresAt: { lte: before } },
+          { status: 'PENDING', startsAt: { lte: before } },
+        ],
+      },
+      orderBy: { userId: 'asc' },
+      take: 100,
+    });
+
+    return users.map(({ userId }) => userId);
+  }
+
   async hasActiveByUserId(userId: number): Promise<boolean> {
     const now = new Date();
     const subscriptions = await this.prisma.subscription.findMany({

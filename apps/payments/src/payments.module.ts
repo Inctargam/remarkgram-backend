@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
+import { ScheduleModule } from '@nestjs/schedule';
 import Stripe from 'stripe';
 import { databaseConfig } from './config/database.config.js';
 import { dbosConfig } from './config/dbos.config.js';
@@ -28,13 +29,13 @@ import { ConfirmInvoicePaidUseCase } from './features/payments/application/use-c
 import { ConfirmPaymentIntentSucceededUseCase } from './features/payments/application/use-cases/payment-events/confirm-payment-intent-succeeded/confirm-payment-intent-succeeded.use-case.js';
 import { ConfirmRenewalPaymentUseCase } from './features/payments/application/use-cases/payment-events/confirm-renewal-payment/confirm-renewal-payment.use-case.js';
 import { EnsureRenewalPaymentUseCase } from './features/payments/application/use-cases/payment-events/ensure-renewal-payment/ensure-renewal-payment.use-case.js';
+import { PrepareCanceledSubscriptionRenewalUseCase } from './features/payments/application/use-cases/payment-events/prepare-canceled-subscription-renewal/prepare-canceled-subscription-renewal.use-case.js';
 import { RecordInvoicePaymentFailedUseCase } from './features/payments/application/use-cases/payment-events/record-invoice-payment-failed/record-invoice-payment-failed.use-case.js';
 import { RecordPaymentIntentFailedUseCase } from './features/payments/application/use-cases/payment-events/record-payment-intent-failed/record-payment-intent-failed.use-case.js';
-import { PrepareCanceledSubscriptionRenewalUseCase } from './features/payments/application/use-cases/payment-events/prepare-canceled-subscription-renewal/prepare-canceled-subscription-renewal.use-case.js';
 import { ApplyPaymentEventUseCase } from './features/payments/application/use-cases/process-payment-webhook/apply-payment-event.use-case.js';
+import { CloseCanceledSubscriptionInvoiceUseCase } from './features/payments/application/use-cases/process-payment-webhook/close-canceled-subscription-invoice.use-case.js';
 import { CreateDeferredProviderSubscriptionUseCase } from './features/payments/application/use-cases/process-payment-webhook/create-deferred-provider-subscription.use-case.js';
 import { LinkPaymentToSubscriptionUseCase } from './features/payments/application/use-cases/process-payment-webhook/link-payment-to-subscription.use-case.js';
-import { CloseCanceledSubscriptionInvoiceUseCase } from './features/payments/application/use-cases/process-payment-webhook/close-canceled-subscription-invoice.use-case.js';
 import { ScheduleProviderSubscriptionCancellationUseCase } from './features/payments/application/use-cases/process-payment-webhook/schedule-provider-subscription-cancellation.use-case.js';
 import { ProcessStripeWebhookUseCase } from './features/payments/application/use-cases/process-stripe-webhook.use-case.js';
 import { ReceivePaymentEventUseCase } from './features/payments/application/use-cases/receive-payment-event.use-case.js';
@@ -69,23 +70,25 @@ import { ChangeSubscriptionAutoRenewalWorkflow } from './features/subscriptions/
 import { ProviderSubscriptionAutoRenewalGateway } from './features/subscriptions/application/ports/provider-subscription-auto-renewal.gateway.js';
 import { SubscriptionsQueryRepository } from './features/subscriptions/application/ports/subscriptions-query.repository.js';
 import { SubscriptionsRepository } from './features/subscriptions/application/ports/subscriptions.repository.js';
+import { RecordBusinessAccessService } from './features/subscriptions/application/services/record-business-access.service.js';
 import { ApplySuccessfulPaymentUseCase } from './features/subscriptions/application/use-cases/apply-successful-payment/apply-successful-payment.use-case.js';
 import { BindProviderSubscriptionUseCase } from './features/subscriptions/application/use-cases/bind-provider-subscription/bind-provider-subscription.use-case.js';
+import { ChangeSubscriptionAutoRenewalUseCase } from './features/subscriptions/application/use-cases/change-subscription-auto-renewal/change-subscription-auto-renewal.use-case.js';
 import { ConfirmAutoRenewalCancellationUseCase } from './features/subscriptions/application/use-cases/confirm-auto-renewal-cancellation/confirm-auto-renewal-cancellation.use-case.js';
-import { ConfirmSubscriptionAutoRenewalChangeUseCase } from './features/subscriptions/application/use-cases/confirm-subscription-auto-renewal-change/confirm-subscription-auto-renewal-change.use-case.js';
-import { DisableSubscriptionAutoRenewalUseCase } from './features/subscriptions/application/use-cases/disable-subscription-auto-renewal/disable-subscription-auto-renewal.use-case.js';
-import { EnableSubscriptionAutoRenewalUseCase } from './features/subscriptions/application/use-cases/enable-subscription-auto-renewal/enable-subscription-auto-renewal.use-case.js';
 import { HasActiveSubscriptionQueryHandler } from './features/subscriptions/application/use-cases/has-active-subscription/has-active-subscription.query-handler.js';
-import { PrepareSubscriptionAutoRenewalChangeUseCase } from './features/subscriptions/application/use-cases/prepare-subscription-auto-renewal-change/prepare-subscription-auto-renewal-change.use-case.js';
+import { RefreshSubscriptionStatusesUseCase } from './features/subscriptions/application/use-cases/refresh-subscription-statuses/refresh-subscription-statuses.use-case.js';
 import { DbosChangeSubscriptionAutoRenewalWorkflow } from './features/subscriptions/infrastructure/dbos/dbos-change-subscription-auto-renewal.workflow.js';
+import { SubscriptionEventsModule } from './features/subscriptions/infrastructure/outbox/subscription-events.module.js';
 import { LocalSubscriptionContextAdapter } from './features/subscriptions/infrastructure/payments/local-subscription-context.adapter.js';
 import { LocalSubscriptionPaymentHandlerAdapter } from './features/subscriptions/infrastructure/payments/local-subscription-payment-handler.adapter.js';
 import { PrismaSubscriptionsQueryRepository } from './features/subscriptions/infrastructure/persistence/prisma-subscriptions-query.repository.js';
 import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastructure/persistence/prisma-subscriptions.repository.js';
+import { SubscriptionStatusesScheduler } from './features/subscriptions/infrastructure/scheduling/subscription-statuses.scheduler.js';
 
 @Module({
   imports: [
     CqrsModule,
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
@@ -102,6 +105,7 @@ import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastr
       load: [paymentsConfig, databaseConfig, stripeConfig, dbosConfig],
     }),
     PrismaModule,
+    SubscriptionEventsModule,
   ],
   controllers: [PaymentsGrpcController, StripeWebhookController],
   providers: [
@@ -171,6 +175,9 @@ import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastr
     HasActiveSubscriptionQueryHandler,
     { provide: SubscriptionsRepository, useClass: PrismaSubscriptionsRepository },
     ApplySuccessfulPaymentUseCase,
+    RecordBusinessAccessService,
+    RefreshSubscriptionStatusesUseCase,
+    SubscriptionStatusesScheduler,
     ConfirmAutoRenewalCancellationUseCase,
     BindProviderSubscriptionUseCase,
     {
@@ -205,10 +212,7 @@ import { PrismaSubscriptionsRepository } from './features/subscriptions/infrastr
       provide: ProviderSubscriptionAutoRenewalGateway,
       useExisting: PaymentsProviderSubscriptionAutoRenewalAdapter,
     },
-    EnableSubscriptionAutoRenewalUseCase,
-    DisableSubscriptionAutoRenewalUseCase,
-    PrepareSubscriptionAutoRenewalChangeUseCase,
-    ConfirmSubscriptionAutoRenewalChangeUseCase,
+    ChangeSubscriptionAutoRenewalUseCase,
     DbosChangeSubscriptionAutoRenewalWorkflow,
     {
       provide: ChangeSubscriptionAutoRenewalWorkflow,

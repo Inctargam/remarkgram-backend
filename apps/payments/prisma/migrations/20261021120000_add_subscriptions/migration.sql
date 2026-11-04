@@ -11,7 +11,7 @@ CREATE TYPE "SubscriptionPaymentAction" AS ENUM ('CREATED', 'SCHEDULED', 'RENEWE
 CREATE TYPE "AutoRenewalOperationType" AS ENUM ('ENABLE', 'DISABLE', 'TRANSFER');
 
 -- CreateEnum
-CREATE TYPE "AutoRenewalOperationStatus" AS ENUM ('PENDING', 'BINDING_PENDING', 'COMPLETED');
+CREATE TYPE "AutoRenewalOperationStatus" AS ENUM ('ENABLE_PENDING', 'DISABLE_PENDING', 'BINDING_PENDING', 'COMPLETED');
 
 -- CreateTable
 CREATE TABLE "subscriptions" (
@@ -35,7 +35,7 @@ CREATE TABLE "subscription_payment_applications" (
     "payment_id" UUID NOT NULL,
     "subscription_id" UUID NOT NULL,
     "action" "SubscriptionPaymentAction" NOT NULL,
-    "next_subscription_starts_at" TIMESTAMPTZ NOT NULL,
+    "paid_period_ends_at" TIMESTAMPTZ NOT NULL,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "subscription_payment_applications_pkey" PRIMARY KEY ("payment_id")

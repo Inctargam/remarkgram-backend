@@ -23,19 +23,24 @@ export class ConfirmAutoRenewalCancellationUseCase implements ICommandHandler<Co
     const { paymentId, providerSubscriptionId, tx } = command;
     const owner = await this.subscriptionsRepository.findPaymentApplication(paymentId, tx);
     if (!owner) {
-      throw new SubscriptionCancellationConflictError(paymentId, providerSubscriptionId, 'APPLICATION_NOT_FOUND');
+      throw new SubscriptionCancellationConflictError(
+        paymentId,
+        providerSubscriptionId,
+        'APPLICATION_NOT_FOUND',
+      );
     }
 
     await this.subscriptionsRepository.lockByUserId(owner.userId, tx);
+
     const application = await this.subscriptionsRepository.findPaymentApplication(paymentId, tx);
-    const operation = application?.autoRenewalOperation;
+    const autoRenewalOperation = application?.autoRenewalOperation;
     if (
       !application ||
       application.result.action !== 'SCHEDULED' ||
-      !operation ||
-      operation.type !== AutoRenewalOperationType.TRANSFER ||
-      !operation.sourceSubscriptionId ||
-      operation.sourceProviderSubscriptionId !== providerSubscriptionId
+      !autoRenewalOperation ||
+      autoRenewalOperation.type !== AutoRenewalOperationType.TRANSFER ||
+      !autoRenewalOperation.sourceSubscriptionId ||
+      autoRenewalOperation.sourceProviderSubscriptionId !== providerSubscriptionId
     ) {
       throw new SubscriptionCancellationConflictError(
         paymentId,
@@ -44,17 +49,23 @@ export class ConfirmAutoRenewalCancellationUseCase implements ICommandHandler<Co
       );
     }
 
-    // Этап операции сохраняется независимо от последующих изменений новой подписки.
-    if (
-      operation.status === AutoRenewalOperationStatus.BINDING_PENDING ||
-      operation.status === AutoRenewalOperationStatus.COMPLETED
-    ) {
-      return;
+    switch (autoRenewalOperation.status) {
+      // Провайдер подтвердил отключение: старая подписка станет RETIRED, операция — BINDING_PENDING.
+      case AutoRenewalOperationStatus.DISABLE_PENDING:
+        return this.subscriptionsRepository.confirmAutoRenewalCancellation(autoRenewalOperation.id, tx);
+      // Отключение уже подтверждено: новая связь ожидает привязки или уже привязана.
+      // Повтор завершается без записи, даже если настройки подписки после этого изменились.
+      case AutoRenewalOperationStatus.BINDING_PENDING:
+      case AutoRenewalOperationStatus.COMPLETED:
+        return;
+      default:
+        // Из текущего enum сюда попадает только ENABLE_PENDING — ожидание ручного включения.
+        // Для TRANSFER этот статус недопустим и означает несогласованное состояние операции.
+        throw new SubscriptionCancellationConflictError(
+          paymentId,
+          providerSubscriptionId,
+          'CANCELLATION_APPLICATION_MISMATCH',
+        );
     }
-
-    await this.subscriptionsRepository.confirmAutoRenewalCancellation(
-      operation.id,
-      tx,
-    );
   }
 }

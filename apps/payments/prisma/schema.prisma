@@ -174,13 +174,6 @@ enum AutoRenewalStatus {
   RETIRED
 }
 
-// Результат применения платежа, а не состояние Subscription.
-enum SubscriptionPaymentAction {
-  CREATED
-  SCHEDULED
-  RENEWED
-}
-
 model Subscription {
   id     String @id @default(uuid()) @db.Uuid
   userId Int    @map("user_id")
@@ -211,6 +204,49 @@ model Subscription {
   @@map("subscriptions")
 }
 
+// Результат применения платежа, а не состояние Subscription.
+enum SubscriptionPaymentAction {
+  CREATED
+  SCHEDULED
+  RENEWED
+}
+
+// Неизменяемый результат начисления доступа за платёж, сохранённый вместе с изменением Subscription.
+// Повтор платежа возвращает этот результат, даже если подписка позднее была продлена снова.
+// Неизменяемость полей обеспечивается приложением, а не ограничениями UPDATE в БД.
+model SubscriptionPaymentApplication {
+  // Один результат на платёж: первичный ключ не позволяет применить тот же платёж повторно.
+  paymentId String @id @map("payment_id") @db.Uuid
+
+  // Подписка, созданная или продлённая этим платежом. Несколько платежей могут продлевать одну подписку.
+  subscriptionId String @map("subscription_id") @db.Uuid
+
+  // CREATED — создан первый период;
+  // RENEWED — продлена существующая подписка;
+  // SCHEDULED — создан следующий период и требуется перенос автопродления на новую подписку.
+  action SubscriptionPaymentAction
+
+  // Конец оплаченного периода после применения этого платежа: снимок рассчитанного Subscription.expiresAt.
+  // CREATED — конец первого периода; RENEWED — конец продлённого; SCHEDULED — конец добавленного в очередь.
+  // Для SCHEDULED D1 использует эту дату как billingCycleAnchor для последующих списаний провайдера.
+  // Пример: добавлен период 1 декабря — 1 января → paidPeriodEndsAt = 1 января.
+  // Не меняется при последующих покупках или продлениях: повтор возвращает исходный результат платежа.
+  paidPeriodEndsAt DateTime @map("paid_period_ends_at") @db.Timestamptz
+
+  // Время локального применения платежа; фактическое время оплаты хранится в Payment.paidAt.
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  payment      Payment      @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  subscription Subscription @relation("AppliedSubscription", fields: [subscriptionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  // Только для SCHEDULED: отдельный изменяемый процесс переноса автопродления.
+  // CREATED/RENEWED сохраняют результат без этой операции.
+  autoRenewalOperation AutoRenewalOperation?
+
+  @@index([subscriptionId])
+  @@map("subscription_payment_applications")
+}
+
 enum AutoRenewalOperationType {
   ENABLE
   DISABLE
@@ -218,45 +254,59 @@ enum AutoRenewalOperationType {
 }
 
 enum AutoRenewalOperationStatus {
-  PENDING
+  ENABLE_PENDING
+  DISABLE_PENDING
   BINDING_PENDING
   COMPLETED
 }
 
-// Неизменяемый результат начисления доступа за платёж.
-model SubscriptionPaymentApplication {
-  paymentId                String                    @id @map("payment_id") @db.Uuid
-  subscriptionId           String                    @map("subscription_id") @db.Uuid
-  action                   SubscriptionPaymentAction
-  // Для SCHEDULED — конец всей оплаченной цепочки, включая текущую покупку.
-  nextSubscriptionStartsAt DateTime                  @map("next_subscription_starts_at") @db.Timestamptz
-  createdAt                DateTime                  @default(now()) @map("created_at") @db.Timestamptz
-
-  payment              Payment               @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  subscription         Subscription          @relation("AppliedSubscription", fields: [subscriptionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  autoRenewalOperation AutoRenewalOperation?
-
-  @@index([subscriptionId])
-  @@map("subscription_payment_applications")
-}
-
-// ID TRANSFER равен paymentId; ID ручного изменения устойчиво создаёт будущий DBOS workflow.
+// Намерение, этап выполнения и результат конкретного изменения автопродления.
+// Параметры и связи после создания неизменяемы; меняются status, updatedAt и однократно
+// providerSubscriptionId у TRANSFER. Эти правила обеспечивает приложение.
+// Завершённая операция хранит историю: поздний повтор не восстанавливает старую настройку Subscription.
 model AutoRenewalOperation {
-  id        String                     @id @db.Uuid
-  userId    Int                        @map("user_id")
-  type      AutoRenewalOperationType
-  status    AutoRenewalOperationStatus
-  paymentId String?                    @unique @map("payment_id") @db.Uuid
+  // Собственный UUID операции, независимый от paymentId. Для TRANSFER создаётся при применении платежа;
+  // для ручного изменения устойчиво создаётся внутри DBOS workflow и используется при его повторах.
+  id String @id @db.Uuid
 
-  subscriptionId               String          @map("subscription_id") @db.Uuid
-  provider                     PaymentProvider
-  // Для ENABLE/DISABLE — исходный снимок; для TRANSFER заполняется один раз при привязке.
-  providerSubscriptionId       String?         @map("provider_subscription_id")
-  // Только TRANSFER: неизменяемые старая локальная связь и снимок provider ID.
-  sourceSubscriptionId         String?         @map("source_subscription_id") @db.Uuid
-  sourceProviderSubscriptionId String?         @map("source_provider_subscription_id")
+  // Владелец операции и ключ общей блокировки: изменения подписок одного пользователя сериализуются.
+  userId Int @map("user_id")
+
+  // Неизменяемое намерение: ручное включение/выключение либо перенос автопродления со старой подписки на новую.
+  type AutoRenewalOperationType
+
+  // Этап процесса, а не текущее состояние автопродления подписки:
+  // ENABLE: ENABLE_PENDING → COMPLETED; DISABLE: DISABLE_PENDING → COMPLETED;
+  // TRANSFER: DISABLE_PENDING (старая связь) → BINDING_PENDING (новая связь) → COMPLETED.
+  // Если нужная настройка уже установлена, ручная операция не создаётся.
+  status AutoRenewalOperationStatus
+
+  // Только TRANSFER: уникальная ссылка на результат применения платежа, по которой распознаётся повтор.
+  // Для ручных ENABLE/DISABLE — null. Клиентский ключ идемпотентности здесь не хранится.
+  paymentId String? @unique @map("payment_id") @db.Uuid
+
+  // Целевая локальная подписка: изменяемая при ENABLE/DISABLE, новая при TRANSFER. Связь неизменяема.
+  subscriptionId String @map("subscription_id") @db.Uuid
+
+  // Провайдер на момент создания операции; при TRANSFER обе provider-подписки относятся к нему.
+  provider PaymentProvider
+
+  // ENABLE/DISABLE: неизменяемый снимок существующего provider ID для внешнего вызова.
+  // TRANSFER: сначала null, затем один раз сохраняется ID новой provider-подписки при привязке.
+  // Сохранённый результат позволяет распознать поздний повтор без чтения текущей привязки Subscription.
+  providerSubscriptionId String? @map("provider_subscription_id")
+
+  // Только TRANSFER: старая локальная подписка, у которой отключается автопродление.
+  // Её оплаченный период сохраняется. Связь неизменяема; для ручных операций — null.
+  sourceSubscriptionId String? @map("source_subscription_id") @db.Uuid
+
+  // Только TRANSFER: неизменяемый снимок старого provider ID для отключения и сверки подтверждения D1.
+  // Не перечитывается из Subscription при повторе; для ручных операций — null.
+  sourceProviderSubscriptionId String? @map("source_provider_subscription_id")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Время последнего изменения операции; не является отдельным временем подтверждения провайдером.
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   paymentApplication SubscriptionPaymentApplication? @relation(fields: [paymentId], references: [paymentId], onDelete: Restrict, onUpdate: Cascade)

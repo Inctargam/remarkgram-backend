@@ -52,8 +52,38 @@ describe('PrismaSubscriptionsQueryRepository.hasActiveByUserId', () => {
   });
 });
 
+describe('PrismaSubscriptionsQueryRepository.findUsersForStatusRefresh', () => {
+  it('groups users before limiting the batch and advances the user cursor', async () => {
+    const { repository, groupBy } = fixture();
+    const before = new Date('2026-11-03T10:00:00.000Z');
+    groupBy.mockResolvedValue([{ userId: 43 }, { userId: 99 }]);
+
+    await expect(repository.findUsersForStatusRefresh(before, 42)).resolves.toEqual([43, 99]);
+    expect(groupBy).toHaveBeenCalledWith(expect.objectContaining({
+      by: ['userId'],
+      where: expect.objectContaining({ userId: { gt: 42 } }),
+      orderBy: { userId: 'asc' },
+      take: 100,
+    }));
+    const [{ where }] = groupBy.mock.calls[0];
+    expect(where.OR).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: { in: ['ACTIVE', 'PENDING'] }, expiresAt: { lte: before } }),
+      expect.objectContaining({ status: 'PENDING', startsAt: { lte: before } }),
+    ]));
+  });
+
+  it('propagates selection errors so the scheduler can retry next time', async () => {
+    const { repository, groupBy } = fixture();
+    const failure = new Error('database unavailable');
+    groupBy.mockRejectedValue(failure);
+
+    await expect(repository.findUsersForStatusRefresh(new Date())).rejects.toBe(failure);
+  });
+});
+
 function fixture() {
   const findMany = vi.fn().mockResolvedValue([]);
-  const prisma = { subscription: { findMany } } as unknown as PrismaService;
-  return { findMany, repository: new PrismaSubscriptionsQueryRepository(prisma) };
+  const groupBy = vi.fn().mockResolvedValue([]);
+  const prisma = { subscription: { findMany, groupBy } } as unknown as PrismaService;
+  return { findMany, groupBy, repository: new PrismaSubscriptionsQueryRepository(prisma) };
 }

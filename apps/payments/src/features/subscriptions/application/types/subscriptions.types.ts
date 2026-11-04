@@ -28,8 +28,8 @@ export type CreateSubscriptionRepositoryParams = {
   providerSubscriptionId: string | null;
   autoRenewalStatus: AutoRenewalStatus;
   action: 'CREATED' | 'SCHEDULED';
-  nextSubscriptionStartsAt: string;
   autoRenewalTransfer: {
+    operationId: string;
     sourceSubscriptionId: string;
     sourceProviderSubscriptionId: string;
   } | null;
@@ -40,7 +40,6 @@ export type RenewSubscriptionRepositoryParams = {
   subscriptionId: string;
   expiresAt: Date;
   status: SubscriptionStatus;
-  nextSubscriptionStartsAt: string;
 };
 
 export type SetSubscriptionAutoRenewalRepositoryParams = {
@@ -69,6 +68,7 @@ export type SubscriptionPaymentApplication = {
 };
 
 export type BindProviderSubscriptionRepositoryParams = {
+  paymentId: string;
   operationId: string;
   providerSubscriptionId: string;
 };

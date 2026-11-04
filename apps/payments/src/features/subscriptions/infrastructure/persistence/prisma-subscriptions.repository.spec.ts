@@ -24,7 +24,7 @@ describe('PrismaSubscriptionsRepository: payment application', () => {
       payment: { userId: 42 },
       subscriptionId: 'new-subscription',
       action: 'SCHEDULED',
-      nextSubscriptionStartsAt: new Date('2026-12-01T00:00:00.000Z'),
+      paidPeriodEndsAt: new Date('2026-12-01T00:00:00.000Z'),
       autoRenewalOperation: operation,
     });
 
@@ -58,7 +58,7 @@ describe('PrismaSubscriptionsRepository: payment application', () => {
       payment: { userId: 42 },
       subscriptionId: 'new-subscription',
       action,
-      nextSubscriptionStartsAt: new Date('2026-12-01T00:00:00.000Z'),
+      paidPeriodEndsAt: new Date('2026-12-01T00:00:00.000Z'),
       autoRenewalOperation: null,
     });
 
@@ -68,22 +68,22 @@ describe('PrismaSubscriptionsRepository: payment application', () => {
     });
   });
 
-  it('reads a manual operation by its primary key without consulting mutable subscriptions', async () => {
+  it('changes only lifecycle status when activating a paid period', async () => {
     const { repository, tx } = fixture();
-    const operation = { ...transferOperation(), type: AutoRenewalOperationType.DISABLE, paymentId: null };
-    tx.autoRenewalOperation.findUnique.mockResolvedValue(operation);
-    await expect(repository.findAutoRenewalOperation(operation.id, tx)).resolves.toEqual(operation);
-    expect(tx.autoRenewalOperation.findUnique).toHaveBeenCalledWith({
-      where: { id: operation.id }, select: expect.objectContaining({ providerSubscriptionId: true, status: true }),
+
+    await repository.markActive(['next-subscription'], tx);
+
+    expect(tx.subscription.updateMany).toHaveBeenCalledExactlyOnceWith({
+      where: { id: { in: ['next-subscription'] } },
+      data: { status: SubscriptionStatus.ACTIVE },
     });
-    tx.autoRenewalOperation.findUnique.mockResolvedValue(null);
-    await expect(repository.findAutoRenewalOperation('missing', tx)).resolves.toBeNull();
   });
 
   it('stores manual intent and only the prepared auto-renewal state through the supplied tx', async () => {
     const { repository, tx } = fixture();
     const operation = {
       ...transferOperation(), type: AutoRenewalOperationType.ENABLE, paymentId: null,
+      status: AutoRenewalOperationStatus.ENABLE_PENDING,
       sourceSubscriptionId: null, sourceProviderSubscriptionId: null, providerSubscriptionId: 'sub_current',
     };
     await repository.createAutoRenewalOperation({ operation, autoRenewalStatus: AutoRenewalStatus.ENABLING }, tx);
@@ -91,14 +91,6 @@ describe('PrismaSubscriptionsRepository: payment application', () => {
     expect(tx.subscription.update).toHaveBeenCalledExactlyOnceWith({
       where: { id: operation.subscriptionId }, data: { autoRenewalStatus: AutoRenewalStatus.ENABLING },
     });
-  });
-
-  it('does not update the subscription for an already satisfied manual request', async () => {
-    const { repository, tx } = fixture();
-    const operation = { ...transferOperation(), status: AutoRenewalOperationStatus.COMPLETED };
-    await repository.createAutoRenewalOperation({ operation, autoRenewalStatus: null }, tx);
-    expect(tx.autoRenewalOperation.create).toHaveBeenCalledWith({ data: operation });
-    expect(tx.subscription.update).not.toHaveBeenCalled();
   });
 
   it('atomically confirms the prepared manual result without changing bindings or dates', async () => {
@@ -148,7 +140,7 @@ describe('PrismaSubscriptionsRepository: payment application', () => {
       const params = creationParams();
       params.action = action;
       if (action === 'SCHEDULED') {
-        params.autoRenewalTransfer = { sourceSubscriptionId: 'old-subscription', sourceProviderSubscriptionId: 'sub_old' };
+        params.autoRenewalTransfer = { operationId: 'operation-id', sourceSubscriptionId: 'old-subscription', sourceProviderSubscriptionId: 'sub_old' };
         params.providerSubscriptionId = null;
         params.autoRenewalStatus = AutoRenewalStatus.ENABLING;
       }
@@ -158,18 +150,19 @@ describe('PrismaSubscriptionsRepository: payment application', () => {
       expect(tx.subscription.create).toHaveBeenCalledTimes(1);
       const [query] = tx.subscription.create.mock.calls[0];
       const application = query.data.paymentApplications.create;
+      expect(query.data.expiresAt).toEqual(params.expiresAt);
       expect(application).toEqual({
         paymentId: params.paymentId,
         action,
-        nextSubscriptionStartsAt: new Date(params.nextSubscriptionStartsAt),
+        paidPeriodEndsAt: params.expiresAt,
         autoRenewalOperation:
           action === 'SCHEDULED'
             ? {
                 create: {
-                  id: params.paymentId,
+                  id: 'operation-id',
                   userId: 42,
                   type: AutoRenewalOperationType.TRANSFER,
-                  status: AutoRenewalOperationStatus.PENDING,
+                  status: AutoRenewalOperationStatus.DISABLE_PENDING,
                   subscriptionId: 'new-subscription',
                   provider: PaymentProvider.STRIPE,
                   providerSubscriptionId: null,
@@ -192,7 +185,6 @@ describe('PrismaSubscriptionsRepository: payment application', () => {
       subscriptionId: 'existing-subscription',
       expiresAt: new Date('2026-12-01T00:00:00.000Z'),
       status: SubscriptionStatus.ACTIVE,
-      nextSubscriptionStartsAt: '2026-12-01T00:00:00.000Z',
     };
 
     await repository.renewWithPaymentApplication(params, tx);
@@ -206,7 +198,7 @@ describe('PrismaSubscriptionsRepository: payment application', () => {
           create: {
             paymentId: params.paymentId,
             action: 'RENEWED',
-            nextSubscriptionStartsAt: new Date(params.nextSubscriptionStartsAt),
+            paidPeriodEndsAt: params.expiresAt,
           },
         },
       },
@@ -216,10 +208,10 @@ describe('PrismaSubscriptionsRepository: payment application', () => {
   it('retires the old subscription and advances the operation in one nested write', async () => {
     const { repository, tx } = fixture();
 
-    await repository.confirmAutoRenewalCancellation('payment-id', tx);
+    await repository.confirmAutoRenewalCancellation('operation-id', tx);
 
     expect(tx.autoRenewalOperation.update).toHaveBeenCalledExactlyOnceWith({
-      where: { id: 'payment-id' },
+      where: { id: 'operation-id' },
       data: {
         status: AutoRenewalOperationStatus.BINDING_PENDING,
         sourceSubscription: { update: { autoRenewalStatus: AutoRenewalStatus.RETIRED } },
@@ -234,7 +226,7 @@ describe('PrismaSubscriptionsRepository: payment application', () => {
     await repository.bindProviderSubscription(bindingParams(), tx);
 
     expect(tx.autoRenewalOperation.update).toHaveBeenCalledExactlyOnceWith({
-      where: { id: 'payment-id' },
+      where: { id: 'operation-id' },
       data: {
         status: AutoRenewalOperationStatus.COMPLETED,
         providerSubscriptionId: 'sub_new',
@@ -271,9 +263,9 @@ describe('PrismaSubscriptionsRepository: payment application', () => {
     tx.subscription.create.mockRejectedValue(error);
 
     await expect(repository.bindProviderSubscription(bindingParams(), tx)).rejects.toBe(error);
-    await expect(repository.confirmAutoRenewalCancellation('payment-id', tx)).rejects.toBe(error);
+    await expect(repository.confirmAutoRenewalCancellation('operation-id', tx)).rejects.toBe(error);
     const params = creationParams();
-    params.autoRenewalTransfer = { sourceSubscriptionId: 'old-subscription', sourceProviderSubscriptionId: 'sub_old' };
+    params.autoRenewalTransfer = { operationId: 'operation-id', sourceSubscriptionId: 'old-subscription', sourceProviderSubscriptionId: 'sub_old' };
     params.action = 'SCHEDULED';
     await expect(repository.createWithPaymentApplication(params, tx)).rejects.toBe(error);
   });
@@ -282,9 +274,9 @@ describe('PrismaSubscriptionsRepository: payment application', () => {
 function fixture() {
   const tx = {
     $executeRaw: vi.fn<(sql: TemplateStringsArray, key: string) => Promise<number>>().mockResolvedValue(1),
-    subscription: { create: vi.fn(), update: vi.fn() },
+    subscription: { create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     subscriptionPaymentApplication: { findUnique: vi.fn() },
-    autoRenewalOperation: { update: vi.fn(), create: vi.fn(), findUnique: vi.fn() },
+    autoRenewalOperation: { update: vi.fn(), create: vi.fn() },
   };
   // Репозиторий получает Prisma client только через переданный tx.
   return { tx, repository: new PrismaSubscriptionsRepository() };
@@ -292,17 +284,18 @@ function fixture() {
 
 function bindingParams(): BindProviderSubscriptionRepositoryParams {
   return {
-    operationId: 'payment-id',
+    operationId: 'operation-id',
+    paymentId: 'payment-id',
     providerSubscriptionId: 'sub_new',
   };
 }
 
 function transferOperation(): AutoRenewalOperation {
   return {
-    id: 'payment-id',
+    id: 'operation-id',
     userId: 42,
     type: AutoRenewalOperationType.TRANSFER,
-    status: AutoRenewalOperationStatus.PENDING,
+    status: AutoRenewalOperationStatus.DISABLE_PENDING,
     paymentId: 'payment-id',
     subscriptionId: 'new-subscription',
     provider: PaymentProvider.STRIPE,
@@ -326,6 +319,5 @@ function creationParams(): CreateSubscriptionRepositoryParams {
     autoRenewalTransfer: null,
     subscriptionId: 'new-subscription',
     action: 'CREATED',
-    nextSubscriptionStartsAt: '2026-12-01T00:00:00.000Z',
   };
 }
